@@ -20,32 +20,37 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,9 +58,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 
@@ -65,7 +72,7 @@ public class CapturingTransport implements Transport {
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private TransportConnectionListener listener;
+    private TransportMessageListener listener;
 
     public static class CapturedRequest {
         public final DiscoveryNode node;
@@ -83,6 +90,45 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
+
+    public TransportService createCapturingTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
+                                                            Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                                            @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
+            settings, this, threadPool);
+        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> true);
+        connectionManager.setDefaultConnectBehavior((cm, discoveryNode) -> new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return discoveryNode;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws TransportException {
+                requests.put(requestId, Tuple.tuple(discoveryNode, action));
+                capturedRequests.add(new CapturedRequest(discoveryNode, requestId, action, request));
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        });
+        return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
+            connectionManager);
+
+    }
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
@@ -195,7 +241,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
         return new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -206,6 +252,16 @@ public class CapturingTransport implements Transport {
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
                 onSendRequest(requestId, action, request, node);
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
             }
 
             @Override
@@ -240,23 +296,6 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return true;
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-
-    }
-
-    @Override
     public Lifecycle.State lifecycleState() {
         return null;
     }
@@ -285,14 +324,6 @@ public class CapturingTransport implements Transport {
         return Collections.emptyList();
     }
 
-    public Connection getConnection(DiscoveryNode node) {
-        try {
-            return openConnection(node, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         synchronized (requestHandlerMutex) {
@@ -313,7 +344,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
+    public void addMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
@@ -321,11 +352,12 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
+    public boolean removeMessageListener(TransportMessageListener listener) {
         if (listener == this.listener) {
             this.listener = null;
             return true;
         }
         return false;
     }
+
 }

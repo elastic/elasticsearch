@@ -47,7 +47,7 @@ dependencies {
 
     // ml deps
     compile project(':libs:grok')
-    compile 'net.sf.supercsv:super-csv:2.4.0'
+    compile "net.sf.supercsv:super-csv:${versions.supercsv}"
     nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
     testCompile 'org.ini4j:ini4j:0.5.2'
 }

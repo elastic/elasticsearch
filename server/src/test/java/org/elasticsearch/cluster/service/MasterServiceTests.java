@@ -312,19 +312,19 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test1",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test1]: took [1s] no change in cluster state"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.TRACE,
                 "*failed to execute cluster state update in [2s]*"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test3]: took [3s] done publishing updated cluster state (version: *, uuid: *)"));
 
@@ -653,25 +653,25 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test1 shouldn't see because setting is too low",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test1] took [*] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test2] took [32s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test3] took [33s] above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
-                masterService.getClass().getName(),
+                masterService.getClass().getCanonicalName(),
                 Level.WARN,
                 "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +33,7 @@ public class RollupJobStatusTests extends AbstractSerializingTestCase<RollupJobS
 
     @Override
     protected RollupJobStatus createTestInstance() {
-        return new RollupJobStatus(randomFrom(IndexerState.values()), randomPosition());
+        return new RollupJobStatus(randomFrom(IndexerState.values()), randomPosition(), randomBoolean());
     }
 
     @Override

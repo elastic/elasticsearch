@@ -265,7 +265,7 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
   when there is no value for the by or partition fields. The default value is `false`.
 
 `custom_rules`::
-  (array) An array of rule objects, which enable customizing how the detector works.
+  (array) An array of custom rule objects, which enable customizing how the detector works.
   For example, a rule may dictate to the detector conditions under which results should be skipped.
   For more information see <<ml-detector-custom-rule,detector custom rule objects>>. +
 +
@@ -420,7 +420,7 @@ For more information, see
 {stack-ov}/ml-rules.html[Custom rules] enable you to customize the way detectors 
 operate. 
 
-A rule has the following properties:
+A custom rule has the following properties:
 
 `actions`::
   (array) The set of actions to be triggered when the rule applies.
@@ -455,7 +455,7 @@ A rule has the following properties:
 +
 --
 NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
-functions, you cannot specify `conditions` for your rule.
+functions, you can only specify `conditions` that apply to `time`.
 
   
 A condition has the following properties: 

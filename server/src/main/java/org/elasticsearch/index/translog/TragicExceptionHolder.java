@@ -24,15 +24,16 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TragicExceptionHolder {
     private final AtomicReference<Exception> tragedy = new AtomicReference<>();
 
-    public boolean setTragicException(Exception ex){
+    /**
+     * Sets the tragic exception or if the tragic exception is already set adds passed exception as suppressed exception
+     * @param ex tragic exception to set
+     */
+    public void setTragicException(Exception ex){
         assert ex != null;
-        if (tragedy.compareAndSet(null, ex)) {
-            return true;
-        } else {
+        if (tragedy.compareAndSet(null, ex) == false) {
             if (tragedy.get() != ex) { // to ensure there is no self-suppression
                 tragedy.get().addSuppressed(ex);
             }
-            return false;
         }
     }
 

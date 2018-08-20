@@ -134,14 +134,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     private synchronized void closeWithTragicEvent(final Exception ex) {
-        if (tragedy.setTragicException(ex)) {
-            try {
-                close();
-            } catch (final IOException | RuntimeException e) {
-                ex.addSuppressed(e);
-            }
+        tragedy.setTragicException(ex);
+        try {
+            close();
+        } catch (final IOException | RuntimeException e) {
+            ex.addSuppressed(e);
         }
     }
+
 
     /**
      * add the given bytes to the translog and return the location they were written at

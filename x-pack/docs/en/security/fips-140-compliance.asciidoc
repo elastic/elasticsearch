@@ -89,7 +89,8 @@ the following table:
 on disk. However, only the `PBKDF2` family of algorithms is compliant with FIPS
 140-2 for password hashing. You must set the the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
-available `PBKDF2` values. See <<hashing-settings>>.
+available `PBKDF2` values. 
+//See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed
 credentials of existing users of the file and native realms will not be updated

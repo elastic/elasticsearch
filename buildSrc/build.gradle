@@ -166,7 +166,13 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
+    // We need a custom solution so it doesn't interfere with the test task
+    if ( System.hasProperty("integTest.single") ) {
+      exclude "**/*"
+      include "**/${System.getProperty("build.test.single")}*.class"
+    } else {
+      include "**/*IT.class"
+    }
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

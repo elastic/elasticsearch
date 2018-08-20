@@ -29,6 +29,10 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
 
     @Override
     protected AllocateAction createTestInstance() {
+        return randomInstance();
+    }
+
+    static AllocateAction randomInstance() {
         boolean hasAtLeastOneMap = false;
         Map<String, String> includes;
         if (randomBoolean()) {

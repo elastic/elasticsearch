@@ -15,7 +15,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +45,14 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
     private static final Phase EMPTY_WARM_PHASE = new Phase("warm", TimeValue.ZERO,
         Collections.singletonMap("readonly", ReadOnlyAction.INSTANCE));
+    private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
+
+    static {
+        ALLOWED_ACTIONS.put("hot", VALID_HOT_ACTIONS);
+        ALLOWED_ACTIONS.put("warm", VALID_WARM_ACTIONS);
+        ALLOWED_ACTIONS.put("cold", VALID_COLD_ACTIONS);
+        ALLOWED_ACTIONS.put("delete", VALID_DELETE_ACTIONS);
+    }
 
     private TimeseriesLifecycleType() {
     }
@@ -182,18 +189,12 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     @Override
     public void validate(Collection<Phase> phases) {
-        Set<String> allowedPhases = new HashSet<>(VALID_PHASES);
-        Map<String, Set<String>> allowedActions = new HashMap<>(allowedPhases.size());
-        allowedActions.put("hot", VALID_HOT_ACTIONS);
-        allowedActions.put("warm", VALID_WARM_ACTIONS);
-        allowedActions.put("cold", VALID_COLD_ACTIONS);
-        allowedActions.put("delete", VALID_DELETE_ACTIONS);
         phases.forEach(phase -> {
-            if (allowedPhases.contains(phase.getName()) == false) {
+            if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
                 throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
             }
             phase.getActions().forEach((actionName, action) -> {
-                if (allowedActions.get(phase.getName()).contains(actionName) == false) {
+                if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
                         "defined in phase [" + phase.getName() +"]");
                 }

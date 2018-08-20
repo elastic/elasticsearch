@@ -34,10 +34,9 @@ import java.util.stream.Collectors;
 /**
  * Represents the lifecycle of an index from creation to deletion. A
  * {@link LifecyclePolicy} is made up of a set of {@link Phase}s which it will
- * move through. Soon we will constrain the phases using some kinda of lifecycle
- * type which will allow only particular {@link Phase}s to be defined, will
- * dictate the order in which the {@link Phase}s are executed and will define
- * which {@link LifecycleAction}s are allowed in each phase.
+ * move through. Policies are constrained by a {@link LifecycleType} which governs which
+ * {@link Phase}s and {@link LifecycleAction}s are allowed to be defined and in which order
+ * they are executed.
  */
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         implements ToXContentObject, Diffable<LifecyclePolicy> {
@@ -58,9 +57,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }, PHASES_FIELD);
     }
 
-    protected final String name;
-    protected final LifecycleType type;
-    protected final Map<String, Phase> phases;
+    private final String name;
+    private final LifecycleType type;
+    private final Map<String, Phase> phases;
 
     /**
      * @param name
@@ -97,6 +96,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         this.type = type;
         this.type.validate(phases.values());
     }
+
     public static LifecyclePolicy parse(XContentParser parser, String name) {
         return PARSER.apply(parser, name);
     }

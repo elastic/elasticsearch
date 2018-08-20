@@ -34,6 +34,10 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
 
     @Override
     protected ShrinkAction createTestInstance() {
+        return randomInstance();
+    }
+
+    static ShrinkAction randomInstance() {
         return new ShrinkAction(randomIntBetween(1, 100));
     }
 

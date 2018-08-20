@@ -103,24 +103,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public static Custom parseCustom(String name, Map<String, Object> map, DeprecationHandler deprecationHandler,
                                      NamedXContentRegistry customsRegistry) throws IOException {
-        XContentBuilder customXContent = XContentFactory.jsonBuilder()
-            .startObject()
-            .field(name, map)
-            .endObject();
-
-        try (XContentParser parser = customXContent.generator().contentType().xContent()
-            .createParser(customsRegistry, deprecationHandler, BytesReference.bytes(customXContent).streamInput());) {
-            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IOException("Unexpected token " + parser.currentToken());
+        try (XContentBuilder customXContent = XContentFactory.jsonBuilder().startObject().field(name, map).endObject()) {
+            try (XContentParser parser = customXContent.generator().contentType().xContent()
+                .createParser(customsRegistry, deprecationHandler, BytesReference.bytes(customXContent).streamInput());) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new IOException("Unexpected token " + parser.currentToken());
+                }
+                if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                    throw new IOException("Unexpected token " + parser.currentToken());
+                }
+                Custom custom = parser.namedObject(Custom.class, name, null);
+                if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    throw new IOException("Unexpected token " + parser.currentToken());
+                }
+                return custom;
             }
-            if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
-                throw new IOException("Unexpected token " + parser.currentToken());
-            }
-            Custom custom = parser.namedObject(Custom.class, name, null);
-            if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                throw new IOException("Unexpected token " + parser.currentToken());
-            }
-            return custom;
         }
     }
 

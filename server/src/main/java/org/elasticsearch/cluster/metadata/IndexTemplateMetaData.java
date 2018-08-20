@@ -471,7 +471,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             IndexMetaData.Custom custom = parser.namedObject(IndexMetaData.Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (UnknownNamedObjectException ex) {
-                            logger.warn("Skipping unknown custom index metadata object with type {}", currentFieldName);
+                            logger.warn("skipping unknown custom index metadata object with type {}", currentFieldName);
                             // Skip children in case the plugin the provided the metadata got uninstalled
                             parser.skipChildren();
                         }

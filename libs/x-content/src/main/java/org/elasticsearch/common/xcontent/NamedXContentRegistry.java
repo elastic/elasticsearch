@@ -146,7 +146,7 @@ public class NamedXContentRegistry {
      */
     public <T> boolean supportsNamedObject(Class<T> categoryClass, String name) {
         Map<String, Entry> parsers = registry.get(categoryClass);
-        if (parsers == null || registry.isEmpty()) {
+        if (parsers == null) {
             return false;
         }
         return parsers.containsKey(name);

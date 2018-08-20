@@ -17,21 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search;
+package org.elasticsearch.common.util;
 
-import org.apache.lucene.search.TopDocs;
+import java.util.function.Supplier;
 
 /**
- * Wrapper around a {@link TopDocs} instance and the maximum score.
+ * A {@link Supplier} that caches its return value. This may be useful to make
+ * a {@link Supplier} idempotent or for performance reasons if always returning
+ * the same instance is acceptable.
  */
-public final class TopDocsAndMaxScore {
+public final class CachedSupplier<T> implements Supplier<T> {
 
-    public final TopDocs topDocs;
-    public float maxScore;
+    private Supplier<T> supplier;
+    private T result;
+    private boolean resultSet;
 
-    public TopDocsAndMaxScore(TopDocs topDocs, float maxScore) {
-        this.topDocs = topDocs;
-        this.maxScore = maxScore;
+    public CachedSupplier(Supplier<T> supplier) {
+        this.supplier = supplier;
+    }
+
+    @Override
+    public synchronized T get() {
+        if (resultSet == false) {
+            result = supplier.get();
+            resultSet = true;
+        }
+        return result;
     }
 
 }

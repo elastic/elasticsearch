@@ -37,9 +37,13 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -82,7 +86,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
         private final Collector collector;
-        private final IntSupplier hitCountSupplier;
+        private final Supplier<TotalHits> hitCountSupplier;
 
         /**
          * Ctr
@@ -100,15 +104,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 int hitCount =  hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                 if (hitCount == -1) {
                     this.collector = hitCountCollector;
-                    this.hitCountSupplier = hitCountCollector::getTotalHits;
+                    this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                 } else {
                     this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
-                    this.hitCountSupplier = () -> hitCount;
+                    this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
                 }
             } else {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
-                this.hitCountSupplier = () -> 0;
+                this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             }
         }
 
@@ -119,8 +123,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) {
-            final int totalHitCount = hitCountSupplier.getAsInt();
-            result.topDocs(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, 0), null);
+            final TotalHits totalHitCount = hitCountSupplier.get();
+            result.topDocs(new TopDocsAndMaxScore(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS), Float.NaN), null);
         }
     }
 
@@ -162,8 +166,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     abstract static class SimpleTopDocsCollectorContext extends TopDocsCollectorContext {
         private final @Nullable SortAndFormats sortAndFormats;
         private final Collector collector;
-        private final IntSupplier totalHitsSupplier;
+        private final Supplier<TotalHits> totalHitsSupplier;
         private final Supplier<TopDocs> topDocsSupplier;
+        private final Supplier<Float> maxScoreSupplier;
 
         /**
          * Ctr
@@ -189,35 +194,50 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             if (sortAndFormats == null) {
                 final TopDocsCollector<?> topDocsCollector = TopScoreDocCollector.create(numHits, searchAfter, Integer.MAX_VALUE);
                 this.collector = topDocsCollector;
-                this.topDocsSupplier = topDocsCollector::topDocs;
-                this.totalHitsSupplier = topDocsCollector::getTotalHits;
+                this.topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
+                this.totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
+                this.maxScoreSupplier = () -> {
+                    TopDocs topDocs = topDocsSupplier.get();
+                    if (topDocs.scoreDocs.length == 0) {
+                        return Float.NaN;
+                    } else {
+                        return topDocs.scoreDocs[0].score;
+                    }
+                };
             } else {
                 /**
                  * We explicitly don't track total hits in the topdocs collector, it can early terminate
                  * if the sort matches the index sort.
                  */
                 final TopDocsCollector<?> topDocsCollector = TopFieldCollector.create(sortAndFormats.sort, numHits,
-                    (FieldDoc) searchAfter, true, trackMaxScore, trackMaxScore, false);
-                this.topDocsSupplier = topDocsCollector::topDocs;
+                    (FieldDoc) searchAfter, 1);
+                this.topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
+                TotalHitCountCollector hitCountCollector = null;
                 if (trackTotalHits) {
                     // implicit total hit counts are valid only when there is no filter collector in the chain
                     int count = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                     if (count != -1) {
                         // we can extract the total count from the shard statistics directly
-                        this.totalHitsSupplier = () -> count;
-                        this.collector = topDocsCollector;
+                        this.totalHitsSupplier = () -> new TotalHits(count, TotalHits.Relation.EQUAL_TO);
                     } else {
                         // wrap a collector that counts the total number of hits even
                         // if the top docs collector terminates early
                         final TotalHitCountCollector countingCollector = new TotalHitCountCollector();
-                        this.collector = MultiCollector.wrap(topDocsCollector, countingCollector);
-                        this.totalHitsSupplier = countingCollector::getTotalHits;
+                        hitCountCollector = countingCollector;
+                        this.totalHitsSupplier = () -> new TotalHits(countingCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                     }
                 } else {
                     // total hit count is not needed
-                    this.collector = topDocsCollector;
-                    this.totalHitsSupplier = topDocsCollector::getTotalHits;
+                    this.totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
                 }
+                MaxScoreCollector maxScoreCollector = null;
+                if (trackMaxScore) {
+                    maxScoreCollector = new MaxScoreCollector();
+                    maxScoreSupplier = maxScoreCollector::getMaxScore;
+                } else {
+                    maxScoreSupplier = () -> Float.NaN;
+                }
+                collector = MultiCollector.wrap(topDocsCollector, hitCountCollector, maxScoreCollector);
             }
         }
 
@@ -230,8 +250,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             final TopDocs topDocs = topDocsSupplier.get();
-            topDocs.totalHits = totalHitsSupplier.getAsInt();
-            result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
+            topDocs.totalHits = totalHitsSupplier.get();
+            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortAndFormats == null ? null : sortAndFormats.formats);
         }
     }
 
@@ -257,22 +277,22 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             super.postProcess(result);
-            final TopDocs topDocs = result.topDocs();
-            if (scrollContext.totalHits == -1) {
+            final TopDocsAndMaxScore topDocs = result.topDocs();
+            if (scrollContext.totalHits == null) {
                 // first round
-                scrollContext.totalHits = topDocs.totalHits;
-                scrollContext.maxScore = topDocs.getMaxScore();
+                scrollContext.totalHits = topDocs.topDocs.totalHits;
+                scrollContext.maxScore = topDocs.maxScore;
             } else {
                 // subsequent round: the total number of hits and
                 // the maximum score were computed on the first round
-                topDocs.totalHits = scrollContext.totalHits;
-                topDocs.setMaxScore(scrollContext.maxScore);
+                topDocs.topDocs.totalHits = scrollContext.totalHits;
+                topDocs.maxScore = scrollContext.maxScore;
             }
             if (numberOfShards == 1) {
                 // if we fetch the document in the same roundtrip, we already know the last emitted doc
-                if (topDocs.scoreDocs.length > 0) {
+                if (topDocs.topDocs.scoreDocs.length > 0) {
                     // set the last emitted doc
-                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
+                    scrollContext.lastEmittedDoc = topDocs.topDocs.scoreDocs[topDocs.topDocs.scoreDocs.length - 1];
                 }
             }
             result.topDocs(topDocs, result.sortValueFormats());

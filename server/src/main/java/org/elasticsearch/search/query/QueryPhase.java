@@ -34,9 +34,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -93,8 +95,8 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
-            searchContext.queryResult().topDocs(
-                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
             return;
         }

@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.single;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -104,7 +105,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())

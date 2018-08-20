@@ -37,6 +37,13 @@ integTestCluster {
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
+  systemProperty 'es.scripting.use_java_time', 'false'
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+  // TODO: remove this deprecation compatibility setting for 7.0
+  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
 
 // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
@@ -396,25 +403,25 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
 

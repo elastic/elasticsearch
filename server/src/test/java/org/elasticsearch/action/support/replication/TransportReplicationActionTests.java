@@ -164,7 +164,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -591,8 +591,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testPrimaryReference() throws Exception {
         final IndexShard shard = mock(IndexShard.class);
-        final long primaryTerm = 1 + randomInt(200);
-        when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {
@@ -687,9 +685,9 @@ public class TransportReplicationActionTests extends ESTestCase {
 
 
         final IndexShard shard = mock(IndexShard.class);
-        when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
+        when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
-        when(shard.isPrimaryMode()).thenReturn(true);
+        when(shard.isRelocatedPrimary()).thenReturn(false);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean() ? Collections.singleton(routingEntry.allocationId().getId()) :
             clusterService.state().metaData().index(index).inSyncAllocationIds(0);
@@ -1205,7 +1203,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         doAnswer(invocation -> {
             long term = (Long)invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[2];
-            final long primaryTerm = indexShard.getPrimaryTerm();
+            final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])",
                     shardId, term, primaryTerm));
@@ -1223,9 +1221,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
             return routing;
         });
-        when(indexShard.isPrimaryMode()).thenAnswer(invocationOnMock -> isRelocated.get() == false);
+        when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
-        when(indexShard.getPrimaryTerm()).thenAnswer(i ->
+        when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
             clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
         return indexShard;
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -231,8 +232,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         Collection<BiConsumer<DiscoveryNode,ClusterState>> onJoinValidators) {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
-            MembershipAction.ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            MembershipAction.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
+            JoinTaskExecutor.ensureNodesCompatibility(node.getVersion(), state.getNodes());
+            JoinTaskExecutor.ensureIndexCompatibility(node.getVersion(), state.getMetaData());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);
@@ -252,7 +253,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // set initial state
             assert committedState.get() == null;
             assert localNode != null;
-            ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+            ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
             ClusterState initialState = builder
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
@@ -858,7 +859,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // to ensure we fail as fast as possible.
             onJoinValidators.stream().forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                MembershipAction.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+                JoinTaskExecutor.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);

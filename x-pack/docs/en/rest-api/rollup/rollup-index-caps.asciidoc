@@ -26,15 +26,13 @@ This API will allow you to determine:
 `index`::
   (string) Index or index-pattern of concrete rollup indices to check for capabilities.
 
-
-
 ==== Request Body
 
 There is no request body for the Get Jobs API.
 
 ==== Authorization
 
-You must have `monitor`, `monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
+You must have the `read` index privilege on the index that stores the rollup results.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 

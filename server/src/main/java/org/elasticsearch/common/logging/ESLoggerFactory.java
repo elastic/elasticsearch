@@ -38,9 +38,13 @@ public final class ESLoggerFactory {
 
     public static Logger getLogger(String prefix, Class<?> clazz) {
         /*
-         * Do not use LogManager#getLogger(Class) as this now uses Class#getCanonicalName under the hood; as this returns null for local and
-         * anonymous classes, any place we create, for example, an abstract component defined as an anonymous class (e.g., in tests) will
-         * result in a logger with a null name which will blow up in a lookup inside of Log4j.
+         * At one point we didn't use LogManager.getLogger(clazz) because
+         * of a bug in log4j that has since been fixed:
+         * https://github.com/apache/logging-log4j2/commit/ae33698a1846a5e10684ec3e52a99223f06047af
+         *
+         * For now we continue to use LogManager.getLogger(clazz.getName())
+         * because we expect to eventually migrate away from needing this
+         * method entirely.
          */
         return getLogger(prefix, LogManager.getLogger(clazz.getName()));
     }
@@ -58,14 +62,29 @@ public final class ESLoggerFactory {
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager#getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(Class<?> clazz) {
         return getLogger(null, clazz);
     }
 
+    /**
+     * Get or build a logger.
+     * @deprecated Prefer {@link LogManager#getLogger}
+     */
+    @Deprecated
     public static Logger getLogger(String name) {
         return getLogger(null, name);
     }
 
+    /**
+     * Get the root logger.
+     * @deprecated Prefer {@link LogManager#getRootLogger}
+     */
+    @Deprecated
     public static Logger getRootLogger() {
         return LogManager.getRootLogger();
     }

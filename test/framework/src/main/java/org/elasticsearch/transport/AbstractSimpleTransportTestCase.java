@@ -29,10 +29,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -51,6 +53,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -64,6 +67,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1894,7 +1898,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
             // into a connection timeout quickly. Yet other implementations can for instance can terminate the connection within the 3 way
             // handshake which I haven't tested yet.
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode first = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -1995,11 +1999,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
+        ConnectionProfile connectionProfile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 null
-             )) {
+                 connectionProfile)) {
             Version version = originalTransport.executeHandshake(connection.getNode(),
                 connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
@@ -2008,7 +2012,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshakeTimeout() throws IOException {
         try (ServerSocket socket = new MockServerSocket()) {
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -2029,7 +2033,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
         try (ServerSocket socket = new MockServerSocket()) {
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
                 socket.getLocalPort()), emptyMap(),
@@ -2640,14 +2644,21 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testChannelCloseWhileConnecting() {
         try (MockTransportService service = build(Settings.builder().put("name", "close").build(), version0, null, true)) {
-            service.transport.addConnectionListener(new TransportConnectionListener() {
+            AtomicBoolean connectionClosedListenerCalled = new AtomicBoolean(false);
+            service.addConnectionListener(new TransportConnectionListener() {
                 @Override
                 public void onConnectionOpened(final Transport.Connection connection) {
+                    closeConnectionChannel(connection);
                     try {
-                        closeConnectionChannel(service.getOriginalTransport(), connection);
-                    } catch (final IOException e) {
+                        assertBusy(connection::isClosed);
+                    } catch (Exception e) {
                         throw new AssertionError(e);
                     }
+                }
+
+                @Override
+                public void onConnectionClosed(Transport.Connection connection) {
+                    connectionClosedListenerCalled.set(true);
                 }
             });
             final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -2660,9 +2671,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             final ConnectTransportException e =
                     expectThrows(ConnectTransportException.class, () -> service.openConnection(nodeA, builder.build()));
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
+            assertTrue(connectionClosedListenerCalled.get());
         }
     }
 
-    protected abstract void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException;
+    private void closeConnectionChannel(Transport.Connection connection) {
+        StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
+        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
+        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+    }
 
+    @SuppressForbidden(reason = "need local ephemeral port")
+    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+        return new InetSocketAddress(InetAddress.getLocalHost(), 0);
+    }
 }

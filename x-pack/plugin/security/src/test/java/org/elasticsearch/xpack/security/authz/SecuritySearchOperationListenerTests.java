@@ -22,7 +22,7 @@ import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;

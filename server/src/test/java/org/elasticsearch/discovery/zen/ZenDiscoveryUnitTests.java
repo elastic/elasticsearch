@@ -338,11 +338,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
 
             @Override
-            public ClusterState.Builder newClusterStateBuilder() {
-                return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-            }
-
-            @Override
             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
                 listener.onSuccess(source);
             }

@@ -182,15 +182,7 @@ public class PeerFinderTests extends ESTestCase {
 
     @Before
     public void setup() {
-        capturingTransport = new CapturingTransport() {
-            @Override
-            public boolean nodeConnected(DiscoveryNode node) {
-                final boolean isConnected = connectedNodes.contains(node);
-                final boolean isDisconnected = disconnectedNodes.contains(node);
-                assert isConnected != isDisconnected : node + ": isConnected=" + isConnected + ", isDisconnected=" + isDisconnected;
-                return isConnected;
-            }
-        };
+        capturingTransport = new CapturingTransport();
         transportAddressConnector = new MockTransportAddressConnector();
         providedAddresses = new ArrayList<>();
         addressResolveDelay = 0L;
@@ -201,7 +193,17 @@ public class PeerFinderTests extends ESTestCase {
         localNode = newDiscoveryNode("local-node");
         transportService = new TransportService(settings, capturingTransport,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundTransportAddress -> localNode, null, emptySet());
+            boundTransportAddress -> localNode, null, emptySet()) {
+
+            @Override
+            public boolean nodeConnected(DiscoveryNode node) {
+                final boolean isConnected = connectedNodes.contains(node);
+                final boolean isDisconnected = disconnectedNodes.contains(node);
+                assert isConnected != isDisconnected : node + ": isConnected=" + isConnected + ", isDisconnected=" + isDisconnected;
+                return isConnected;
+            }
+        };
+
         transportService.start();
         transportService.acceptIncomingRequests();
 

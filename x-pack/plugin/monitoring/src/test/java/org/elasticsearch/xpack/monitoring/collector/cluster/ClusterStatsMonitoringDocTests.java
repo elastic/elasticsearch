@@ -302,6 +302,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
+                                                                            "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList());
@@ -353,6 +354,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
                   + "},"
                   + "\"cluster_stats\":{"
+                    + "\"cluster_uuid\":\"_cluster\","
                     + "\"timestamp\":1451606400000,"
                     + "\"status\":\"red\","
                     + "\"indices\":{"

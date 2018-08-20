@@ -6,8 +6,9 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteLicenseAction extends Action<DeleteLicenseResponse> {
+public class DeleteLicenseAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/delete";
@@ -17,7 +18,7 @@ public class DeleteLicenseAction extends Action<DeleteLicenseResponse> {
     }
 
     @Override
-    public DeleteLicenseResponse newResponse() {
-        return new DeleteLicenseResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

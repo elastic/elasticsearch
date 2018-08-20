@@ -15,46 +15,43 @@ import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupJobIdentifierUtilTests extends ESTestCase {
 
     public void testOneMatch() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
-                .dateHistogramInterval(job.getGroupConfig().getDateHisto().getInterval());
+                .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval());
 
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
     }
 
     public void testBiggerButCompatibleInterval() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -65,11 +62,9 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testIncompatibleInterval() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1d")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -81,12 +76,9 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testBadTimeZone() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1d"))
-                .setTimeZone(DateTimeZone.forID("EST")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "EST"));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -99,15 +91,10 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testMetricOnlyAgg() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("max"))
-            .build()));
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final List<MetricConfig> metrics = singletonList(new MetricConfig("bar", singletonList("max")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field("bar");
@@ -117,11 +104,9 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testOneOfTwoMatchingCaps() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -134,24 +119,16 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testTwoJobsSameRollupIndex() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        group.setTerms(null);
-        group.setHisto(null);
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2");
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        group2.setTerms(null);
-        group2.setHisto(null);
-        job2.setGroupConfig(group.build());
-        job2.setRollupIndex(job.getRollupIndex());
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job2 =
+            new RollupJobConfig("foo2", "index", job.getRollupIndex(), "*/5 * * * * ?", 10,  group2, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
         caps.add(cap2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -164,27 +141,16 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testTwoJobsButBothPartialMatches() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("max"))
-                .build()));
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final List<MetricConfig> metrics = singletonList(new MetricConfig("bar", singletonList("max")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
+        RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2");
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
-        job2.setGroupConfig(group.build());
-        job.setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                .setField("bar")
-                .setMetrics(Collections.singletonList("min"))
-                .build()));
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        // TODO Is it what we really want to test?
+        final RollupJobConfig job2 = new RollupJobConfig("foo2", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
         caps.add(cap2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
@@ -198,21 +164,14 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testComparableDifferentDateIntervals() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1d")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job2.setGroupConfig(group2.build());
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")));
+        final RollupJobConfig job2 =
+            new RollupJobConfig("foo2", "index", job.getRollupIndex(), "*/5 * * * * ?", 10,  group2, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(new DateHistogramInterval("1d"));
@@ -227,21 +186,14 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testComparableDifferentDateIntervalsOnlyOneWorks() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1d")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job2.setGroupConfig(group2.build());
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")));
+        final RollupJobConfig job2 =
+            new RollupJobConfig("foo2", "index", job.getRollupIndex(), "*/5 * * * * ?", 10,  group2, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(new DateHistogramInterval("1h"));
@@ -256,21 +208,15 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testComparableNoHistoVsHisto() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(ConfigTestHelpers.getHisto().setInterval(100).setFields(Collections.singletonList("bar")).build())
-                .setTerms(null);
-        job2.setGroupConfig(group2.build());
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        final HistogramGroupConfig histoConfig = new HistogramGroupConfig(100L, "bar");
+        final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")), histoConfig, null);
+        final RollupJobConfig job2 =
+            new RollupJobConfig("foo2", "index", job.getRollupIndex(), "*/5 * * * * ?", 10,  group2, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(new DateHistogramInterval("1h"))
@@ -286,21 +232,15 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testComparableNoTermsVsTerms() {
-        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(null)
-                .setTerms(null);
-        job.setGroupConfig(group.build());
-        RollupJobCaps cap = new RollupJobCaps(job.build());
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
 
-        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
-        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
-        group2.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
-                .setHisto(null)
-            .setTerms(new TermsGroupConfig("bar"));
-        job2.setGroupConfig(group2.build());
-        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+        final TermsGroupConfig termsConfig = new TermsGroupConfig("bar");
+        final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")), null, termsConfig);
+        final RollupJobConfig job2 =
+            new RollupJobConfig("foo2", "index", job.getRollupIndex(), "*/5 * * * * ?", 10,  group2, emptyList(), null);
+        RollupJobCaps cap2 = new RollupJobCaps(job2);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(new DateHistogramInterval("1h"))
@@ -322,25 +262,16 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo") // <-- NOTE same name but wrong type
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("baz")) // <-- NOTE right type but wrong name
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    // NOTE same name but wrong type
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+                    new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
+                    null
+                );
+        final List<MetricConfig> metrics =
+            Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
+
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
@@ -355,21 +286,13 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+                );
+        final List<MetricConfig> metrics =
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
+
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> RollupJobIdentifierUtils.findBestJobs(histo,caps));
@@ -384,15 +307,11 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("100d")) // <- interval in job is much higher than agg interval above
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    // interval in job is much higher than agg interval above
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("100d"), null, DateTimeZone.UTC.getID())
+                );
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         Exception e = expectThrows(RuntimeException.class, () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
@@ -407,21 +326,14 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("bar") // <-- NOTE different field from the one in the query
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    // NOTE different field from the one in the query
+                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+                );
+        final List<MetricConfig> metrics =
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
+
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
@@ -436,25 +348,15 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("bar")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("baz")) // <-- NOTE note different field from one used in query
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+                    new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
+                    null
+                );
+        final List<MetricConfig> metrics =
+                    Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
+
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, metrics, null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
@@ -469,19 +371,12 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("bar"))
-                                .setInterval(100L) // <--- interval in job is much higher than agg interval above
-                                .build())
-                        .build())
-                .build();
+        final GroupConfig group = new GroupConfig(
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+                    new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
+                    null
+                );
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         Exception e = expectThrows(RuntimeException.class,
@@ -493,11 +388,10 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testMissingMetric() {
         int i = ESTestCase.randomIntBetween(0, 3);
 
-        Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(ConfigTestHelpers
-                .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                        .setField("foo")
-                        .setMetrics(Arrays.asList("avg", "max", "min", "sum")).build()))
-                .build()));
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final List<MetricConfig> metrics = singletonList(new MetricConfig("foo", Arrays.asList("avg", "max", "min", "sum")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
         String aggType;
         Exception e;

@@ -105,7 +105,8 @@ public class SchedulerEngine {
 
     SchedulerEngine(final Settings settings, final Clock clock, final Logger logger) {
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.scheduler = Executors.newScheduledThreadPool(1,  EsExecutors.daemonThreadFactory(settings, "trigger_engine_scheduler"));
+        this.scheduler = Executors.newScheduledThreadPool(
+                1,  EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler"));
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 

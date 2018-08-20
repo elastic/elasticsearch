@@ -554,6 +554,15 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             }
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                project.publishing {
+                    publications {
+                        nebula(MavenPublication) {
+                            artifacts = [ project.tasks.shadowJar ]
+                        }
+                    }
+                }
+            }
         }
     }
 

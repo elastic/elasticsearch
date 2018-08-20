@@ -18,7 +18,8 @@ one of the following:
 * `_all`, to add all nodes to the subset.
 * `_local`, to add the local node to the subset.
 * `_master`, to add the currently-elected master node to the subset.
-* a node id, to add this node to the set.
+* a node id or name, to add this node to the subset.
+* an IP address or hostname, to add all matching nodes to the subset.
 * a pattern, using `*` wildcards, which adds all nodes to the subset
   whose name, address or hostname matches the pattern.
 * `master:true`, `data:true`, `ingest:true` or `coordinating_only:true`, which

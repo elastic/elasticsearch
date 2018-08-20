@@ -12,11 +12,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
@@ -193,9 +195,9 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * Test an open job picks up changes to scheduled events/calendars
      */
-    public void testOnlineUpdate() throws Exception {
+    public void testAddEventsToOpenJob() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
-        Job.Builder job = createJob("scheduled-events-online-update", bucketSpan);
+        Job.Builder job = createJob("scheduled-events-add-events-to-open-job", bucketSpan);
 
         long startTime = 1514764800000L;
         final int bucketCount = 5;
@@ -209,7 +211,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Now create a calendar and events for the job while it is open
         String calendarId = "test-calendar-online-update";
-        putCalendar(calendarId, Collections.singletonList(job.getId()), "testOnlineUpdate calendar");
+        putCalendar(calendarId, Collections.singletonList(job.getId()), "testAddEventsToOpenJob calendar");
 
         List<ScheduledEvent> events = new ArrayList<>();
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
@@ -250,6 +252,81 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
             assertEquals(0, buckets.get(i).getScheduledEvents().size());
         }
         // 7th and 8th buckets have the event
+        assertEquals(1, buckets.get(6).getScheduledEvents().size());
+        assertEquals("Some Event", buckets.get(6).getScheduledEvents().get(0));
+        assertEquals(1, buckets.get(7).getScheduledEvents().size());
+        assertEquals("Some Event", buckets.get(7).getScheduledEvents().get(0));
+        assertEquals(0, buckets.get(8).getScheduledEvents().size());
+    }
+
+    /**
+     * An open job that later gets added to a calendar, should take the scheduled events into account
+     */
+    public void testAddOpenedJobToGroupWithCalendar() throws Exception {
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
+        String groupName = "opened-calendar-job-group";
+        Job.Builder job = createJob("scheduled-events-add-opened-job-to-group-with-calendar", bucketSpan);
+
+        long startTime = 1514764800000L;
+        final int bucketCount = 5;
+
+        // Open the job
+        openJob(job.getId());
+
+        // write some buckets of data
+        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200))
+                .stream().collect(Collectors.joining()));
+
+        String calendarId = "test-calendar-open-job-update";
+
+        // Create a new calendar referencing groupName
+        putCalendar(calendarId, Collections.singletonList(groupName), "testAddOpenedJobToGroupWithCalendar calendar");
+
+        // Put events in the calendar
+        List<ScheduledEvent> events = new ArrayList<>();
+        long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
+        long eventEndTime = eventStartTime + (long)(1.5 * bucketSpan.millis());
+        events.add(new ScheduledEvent.Builder().description("Some Event")
+                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventStartTime), ZoneOffset.UTC))
+                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventEndTime), ZoneOffset.UTC))
+                .calendarId(calendarId).build());
+
+        postScheduledEvents(calendarId, events);
+
+        // Update the job to be a member of the group
+        UpdateJobAction.Request jobUpdateRequest = new UpdateJobAction.Request(job.getId(),
+            new JobUpdate.Builder(job.getId()).setGroups(Collections.singletonList(groupName)).build());
+        client().execute(UpdateJobAction.INSTANCE, jobUpdateRequest).actionGet();
+
+        // Wait until the notification that the job was updated is indexed
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+                    .setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ).get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(1));
+            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Job updated: [groups]"));
+        });
+
+        // write some more buckets of data that cover the scheduled event period
+        postData(job.getId(), generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5,
+                bucketIndex -> randomIntBetween(100, 200))
+                .stream().collect(Collectors.joining()));
+        // and close
+        closeJob(job.getId());
+
+        GetBucketsAction.Request getBucketsRequest = new GetBucketsAction.Request(job.getId());
+        List<Bucket> buckets = getBuckets(getBucketsRequest);
+
+        // the first 6 buckets have no events
+        for (int i=0; i<=bucketCount; i++) {
+            assertEquals(0, buckets.get(i).getScheduledEvents().size());
+        }
+        // 7th and 8th buckets have the event but the last one does not
         assertEquals(1, buckets.get(6).getScheduledEvents().size());
         assertEquals("Some Event", buckets.get(6).getScheduledEvents().get(0));
         assertEquals(1, buckets.get(7).getScheduledEvents().size());

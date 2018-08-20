@@ -25,7 +25,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -121,13 +121,13 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     /**
      * Deletes the pipeline specified by id in the request.
      */
-    public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
+    public void delete(ClusterService clusterService, DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
-            protected WritePipelineResponse newResponse(boolean acknowledged) {
-                return new WritePipelineResponse(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
 
             @Override
@@ -169,15 +169,15 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
      * Stores the specified pipeline definition in the request.
      */
     public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
-                    ActionListener<WritePipelineResponse> listener) throws Exception {
+                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         // validates the pipeline and processor configuration before submitting a cluster update task:
         validatePipeline(ingestInfos, request);
         clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<WritePipelineResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
-            protected WritePipelineResponse newResponse(boolean acknowledged) {
-                return new WritePipelineResponse(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
 
             @Override

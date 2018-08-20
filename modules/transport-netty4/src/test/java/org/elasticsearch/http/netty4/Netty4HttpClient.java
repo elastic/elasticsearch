@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.junit.Assert.fail;
 
 /**
  * Tiny helper to send http requests over netty.
@@ -145,7 +146,9 @@ class Netty4HttpClient implements Closeable {
             for (HttpRequest request : requests) {
                 channelFuture.channel().writeAndFlush(request);
             }
-            latch.await(30, TimeUnit.SECONDS);
+            if (latch.await(30L, TimeUnit.SECONDS) == false) {
+                fail("Failed to get all expected responses.");
+            }
 
         } finally {
             if (channelFuture != null) {

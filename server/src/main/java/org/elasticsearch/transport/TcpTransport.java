@@ -29,8 +29,6 @@ import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -48,7 +46,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -63,10 +60,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -90,7 +84,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -141,18 +134,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
-        intSetting("transport.connections_per_node.recovery", 2, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK =
-        intSetting("transport.connections_per_node.bulk", 3, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_REG =
-        intSetting("transport.connections_per_node.reg", 6, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE =
-        intSetting("transport.connections_per_node.state", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_PING =
-        intSetting("transport.connections_per_node.ping", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final Setting<Boolean> TCP_NO_DELAY =
         boolSetting("transport.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
@@ -160,11 +141,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE,
-            Setting.Property.NodeScope);
+        Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
-        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE,
-            Setting.Property.NodeScope);
+        Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
 
 
     public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE = affixKeySetting("transport.profiles.", "tcp_no_delay",
@@ -190,6 +169,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // This is the number of bytes necessary to read the message size
     public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     public static final int PING_DATA_SIZE = -1;
+    protected final CounterMetric successfulPings = new CounterMetric();
+    protected final CounterMetric failedPings = new CounterMetric();
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
@@ -198,32 +179,25 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final String[] features;
 
     private final CircuitBreakerService circuitBreakerService;
-    // package visibility for tests
-    protected final ScheduledPing scheduledPing;
-    private final TimeValue pingSchedule;
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    private final DelegatingTransportConnectionListener transportListener = new DelegatingTransportConnectionListener();
+    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
-    // node id to actual channel
-    private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
-    // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
+    // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     protected final boolean compress;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
-    protected final ConnectionProfile defaultConnectionProfile;
 
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
@@ -233,6 +207,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private final BytesReference pingMessage;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -242,13 +217,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
-        this.scheduledPing = new ScheduledPing();
-        this.pingSchedule = PING_SCHEDULE.get(settings);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-        defaultConnectionProfile = buildDefaultConnectionProfile(settings);
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
             this.features = new String[0];
@@ -261,42 +233,27 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // use a sorted set to present the features in a consistent order
             this.features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
         }
-    }
 
-    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
-        int connectionsPerNodeRecovery = CONNECTIONS_PER_NODE_RECOVERY.get(settings);
-        int connectionsPerNodeBulk = CONNECTIONS_PER_NODE_BULK.get(settings);
-        int connectionsPerNodeReg = CONNECTIONS_PER_NODE_REG.get(settings);
-        int connectionsPerNodeState = CONNECTIONS_PER_NODE_STATE.get(settings);
-        int connectionsPerNodePing = CONNECTIONS_PER_NODE_PING.get(settings);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.setConnectTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.setHandshakeTimeout(TCP_CONNECT_TIMEOUT.get(settings));
-        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
-        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
-        // if we are not master eligible we don't need a dedicated channel to publish the state
-        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
-        // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
-        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        return builder.build();
-    }
-
-    @Override
-    protected void doStart() {
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(TcpTransport.PING_DATA_SIZE);
+            pingMessage = out.bytes();
+        } catch (IOException e) {
+            throw new AssertionError(e.getMessage(), e); // won't happen
         }
     }
 
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
-        transportListener.listeners.add(listener);
+    protected void doStart() {
     }
 
-    @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
-        return transportListener.listeners.remove(listener);
+    public void addMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.add(listener);
+    }
+
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return messageListener.listeners.remove(listener);
     }
 
     @Override
@@ -348,92 +305,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public class ScheduledPing extends AbstractLifecycleRunnable {
-
-        /**
-         * The magic number (must be lower than 0) for a ping message.
-         */
-        private final BytesReference pingHeader;
-        final CounterMetric successfulPings = new CounterMetric();
-        final CounterMetric failedPings = new CounterMetric();
-
-        public ScheduledPing() {
-            super(lifecycle, logger);
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeByte((byte) 'E');
-                out.writeByte((byte) 'S');
-                out.writeInt(PING_DATA_SIZE);
-                pingHeader = out.bytes();
-            } catch (IOException e) {
-                throw new IllegalStateException(e.getMessage(), e); // won't happen
-            }
-        }
-
-        @Override
-        protected void doRunInLifecycle() throws Exception {
-            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
-                DiscoveryNode node = entry.getKey();
-                NodeChannels channels = entry.getValue();
-                for (TcpChannel channel : channels.getChannels()) {
-                    internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
-                        @Override
-                        protected void innerInnerOnResponse(Void v) {
-                            successfulPings.inc();
-                        }
-
-                        @Override
-                        protected void innerOnFailure(Exception e) {
-                            if (channel.isOpen()) {
-                                logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
-                                failedPings.inc();
-                            } else {
-                                logger.trace(() ->
-                                    new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
-                            }
-
-                        }
-                    });
-                }
-            }
-        }
-
-        public long getSuccessfulPings() {
-            return successfulPings.count();
-        }
-
-        public long getFailedPings() {
-            return failedPings.count();
-        }
-
-        @Override
-        protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", e);
-            } else {
-                logger.warn("failed to send ping transport message", e);
-            }
-        }
-    }
-
-    public final class NodeChannels implements Connection {
+    public final class NodeChannels extends CloseableConnection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
+        private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
@@ -465,13 +342,34 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return connectionTypeHandle.getChannel(channels);
         }
 
-        public boolean allChannelsOpen() {
-            return channels.stream().allMatch(TcpChannel::isOpen);
+        @Override
+        public boolean sendPing() {
+            for (TcpChannel channel : channels) {
+                internalSendMessage(channel, pingMessage, new SendMetricListener(pingMessage.length()) {
+                    @Override
+                    protected void innerInnerOnResponse(Void v) {
+                        successfulPings.inc();
+                    }
+
+                    @Override
+                    protected void innerOnFailure(Exception e) {
+                        if (channel.isOpen()) {
+                            logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
+                            failedPings.inc();
+                        } else {
+                            logger.trace(() ->
+                                new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
+                        }
+
+                    }
+                });
+            }
+            return true;
         }
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (isClosing.compareAndSet(false, true)) {
                 try {
                     if (lifecycle.stopped()) {
                         /* We set SO_LINGER timeout to 0 to ensure that when we shutdown the node we don't
@@ -494,7 +392,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
-                    transportListener.onConnectionClosed(this);
+                    // Call the super method to trigger listeners
+                    super.close();
                 }
             }
         }
@@ -507,118 +406,29 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
-            if (closed.get()) {
+            if (isClosing.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
+    }
 
-        boolean isClosed() {
-            return closed.get();
-        }
+    // This allows transport implementations to potentially override specific connection profiles. This
+    // primarily exists for the test implementations.
+    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+        return connectionProfile;
     }
 
     @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return connectedNodes.containsKey(node);
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-        connectionProfile = resolveConnectionProfile(connectionProfile);
-        if (node == null) {
-            throw new ConnectTransportException(null, "can't connect to a null node");
-        }
-        closeLock.readLock().lock(); // ensure we don't open connections while we are closing
-        try {
-            ensureOpen();
-            try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                NodeChannels nodeChannels = connectedNodes.get(node);
-                if (nodeChannels != null) {
-                    return;
-                }
-                boolean success = false;
-                try {
-                    nodeChannels = openConnection(node, connectionProfile);
-                    connectionValidator.accept(nodeChannels, connectionProfile);
-                    // we acquire a connection lock, so no way there is an existing connection
-                    connectedNodes.put(node, nodeChannels);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("connected to node [{}]", node);
-                    }
-                    try {
-                        transportListener.onNodeConnected(node);
-                    } finally {
-                        if (nodeChannels.isClosed()) {
-                            // we got closed concurrently due to a disconnect or some other event on the channel.
-                            // the close callback will close the NodeChannel instance first and then try to remove
-                            // the connection from the connected nodes. It will NOT acquire the connectionLock for
-                            // the node to prevent any blocking calls on network threads. Yet, we still establish a happens
-                            // before relationship to the connectedNodes.put since we check if we can remove the
-                            // (DiscoveryNode, NodeChannels) tuple from the map after we closed. Here we check if it's closed an if so we
-                            // try to remove it first either way one of the two wins even if the callback has run before we even added the
-                            // tuple to the map since in that case we remove it here again
-                            if (connectedNodes.remove(node, nodeChannels)) {
-                                transportListener.onNodeDisconnected(node);
-                            }
-                            throw new NodeNotConnectedException(node, "connection concurrently closed");
-                        }
-                    }
-                    success = true;
-                } catch (ConnectTransportException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new ConnectTransportException(node, "general node connection failure", e);
-                } finally {
-                    if (success == false) { // close the connection if there is a failure
-                        logger.trace(() -> new ParameterizedMessage("failed to connect to [{}], cleaning dangling connections", node));
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    }
-                }
-            }
-        } finally {
-            closeLock.readLock().unlock();
-        }
-    }
-
-    /**
-     * takes a {@link ConnectionProfile} that have been passed as a parameter to the public methods
-     * and resolves it to a fully specified (i.e., no nulls) profile
-     */
-    static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile connectionProfile,
-                                                      ConnectionProfile defaultConnectionProfile) {
-        Objects.requireNonNull(defaultConnectionProfile);
-        if (connectionProfile == null) {
-            return defaultConnectionProfile;
-        } else if (connectionProfile.getConnectTimeout() != null && connectionProfile.getHandshakeTimeout() != null) {
-            return connectionProfile;
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(connectionProfile);
-            if (connectionProfile.getConnectTimeout() == null) {
-                builder.setConnectTimeout(defaultConnectionProfile.getConnectTimeout());
-            }
-            if (connectionProfile.getHandshakeTimeout() == null) {
-                builder.setHandshakeTimeout(defaultConnectionProfile.getHandshakeTimeout());
-            }
-            return builder.build();
-        }
-    }
-
-    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        return resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-    }
-
-    @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+    public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Objects.requireNonNull(connectionProfile, "connection profile cannot be null");
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
         boolean success = false;
         NodeChannels nodeChannels = null;
-        connectionProfile = resolveConnectionProfile(connectionProfile);
+        connectionProfile = maybeOverrideConnectionProfile(connectionProfile);
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
@@ -664,23 +474,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 // At this point we should construct the connection, notify the transport service, and attach close listeners to the
                 // underlying channels.
                 nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                transportListener.onConnectionOpened(nodeChannels);
                 final NodeChannels finalNodeChannels = nodeChannels;
-                final AtomicBoolean runOnce = new AtomicBoolean(false);
+
                 Consumer<TcpChannel> onClose = c -> {
                     assert c.isOpen() == false : "channel is still open when onClose is called";
-                    // we only need to disconnect from the nodes once since all other channels
-                    // will also try to run this we protect it from running multiple times.
-                    if (runOnce.compareAndSet(false, true)) {
-                        disconnectFromNodeCloseAndNotify(node, finalNodeChannels);
-                    }
+                    finalNodeChannels.close();
                 };
 
                 nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(() -> onClose.accept(ch))));
-
-                if (nodeChannels.allChannelsOpen() == false) {
-                    throw new ConnectTransportException(node, "a channel closed while connecting");
-                }
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -696,46 +497,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             closeLock.readLock().unlock();
-        }
-    }
-
-    private void disconnectFromNodeCloseAndNotify(DiscoveryNode node, NodeChannels nodeChannels) {
-        assert nodeChannels != null : "nodeChannels must not be null";
-        try {
-            IOUtils.closeWhileHandlingException(nodeChannels);
-        } finally {
-            if (closeLock.readLock().tryLock()) {
-                try {
-                    if (connectedNodes.remove(node, nodeChannels)) {
-                        transportListener.onNodeDisconnected(node);
-                    }
-                } finally {
-                    closeLock.readLock().unlock();
-                }
-            }
-        }
-    }
-
-    @Override
-    public NodeChannels getConnection(DiscoveryNode node) {
-        NodeChannels nodeChannels = connectedNodes.get(node);
-        if (nodeChannels == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
-        }
-        return nodeChannels;
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-        closeLock.readLock().lock();
-        NodeChannels nodeChannels = null;
-        try (Releasable ignored = connectionLock.acquire(node.getId())) {
-            nodeChannels = connectedNodes.remove(node);
-        } finally {
-            closeLock.readLock().unlock();
-            if (nodeChannels != null) { // if we found it and removed it we close and notify
-                IOUtils.closeWhileHandlingException(nodeChannels, () -> transportListener.onNodeDisconnected(node));
-            }
         }
     }
 
@@ -983,19 +744,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
                 acceptedChannels.clear();
 
-
-                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
-                // all instances and then clear them maps
-                Iterator<Map.Entry<DiscoveryNode, NodeChannels>> iterator = connectedNodes.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<DiscoveryNode, NodeChannels> next = iterator.next();
-                    try {
-                        IOUtils.closeWhileHandlingException(next.getValue());
-                        transportListener.onNodeDisconnected(next.getKey());
-                    } finally {
-                        iterator.remove();
-                    }
-                }
                 stopInternal();
             } finally {
                 closeLock.writeLock().unlock();
@@ -1111,8 +859,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
-                                      byte status) throws IOException,
-        TransportException {
+                                      byte status) throws IOException, TransportException {
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
@@ -1145,7 +892,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
             SendListener onRequestSent = new SendListener(channel, stream,
-                () -> transportListener.onRequestSent(node, requestId, action, request, finalOptions), message.length());
+                () -> messageListener.onRequestSent(node, requestId, action, request, finalOptions), message.length());
             internalSendMessage(channel, message, onRequestSent);
             addedReleaseListener = true;
         } finally {
@@ -1199,7 +946,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             CompositeBytesReference message = new CompositeBytesReference(header, bytes);
             SendListener onResponseSent = new SendListener(channel, null,
-                () -> transportListener.onResponseSent(requestId, action, error), message.length());
+                () -> messageListener.onResponseSent(requestId, action, error), message.length());
             internalSendMessage(channel, message, onResponseSent);
         }
     }
@@ -1248,7 +995,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
             SendListener listener = new SendListener(channel, stream,
-                () -> transportListener.onResponseSent(requestId, action, response, finalOptions), message.length());
+                () -> messageListener.onResponseSent(requestId, action, response, finalOptions), message.length());
             internalSendMessage(channel, message, listener);
             addedReleaseListener = true;
         } finally {
@@ -1504,7 +1251,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 if (isHandshake) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
-                    TransportResponseHandler theHandler = responseHandlers.onResponseReceived(requestId, transportListener);
+                    TransportResponseHandler theHandler = responseHandlers.onResponseReceived(requestId, messageListener);
                     if (theHandler == null && TransportStatus.isError(status)) {
                         handler = pendingHandshakes.remove(requestId);
                     } else {
@@ -1611,7 +1358,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             features = Collections.emptySet();
         }
         final String action = stream.readString();
-        transportListener.onRequestReceived(requestId, action);
+        messageListener.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
@@ -1920,26 +1667,27 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private static final class DelegatingTransportConnectionListener implements TransportConnectionListener {
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
+
+        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onRequestReceived(long requestId, String action) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onRequestReceived(requestId, action);
             }
         }
 
         @Override
         public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onResponseSent(requestId, action, response, finalOptions);
             }
         }
 
         @Override
         public void onResponseSent(long requestId, String action, Exception error) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onResponseSent(requestId, action, error);
             }
         }
@@ -1947,42 +1695,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                   TransportRequestOptions finalOptions) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onRequestSent(node, requestId, action, request, finalOptions);
             }
         }
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key);
-            }
-        }
-
-        @Override
-        public void onConnectionOpened(Connection nodeChannels) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onConnectionOpened(nodeChannels);
-            }
-        }
-
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeConnected(node);
-            }
-        }
-
-        @Override
-        public void onConnectionClosed(Connection nodeChannels) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onConnectionClosed(nodeChannels);
-            }
-        }
-
-        @Override
         public void onResponseReceived(long requestId, ResponseContext holder) {
-            for (TransportConnectionListener listener : listeners) {
+            for (TransportMessageListener listener : listeners) {
                 listener.onResponseReceived(requestId, holder);
             }
         }

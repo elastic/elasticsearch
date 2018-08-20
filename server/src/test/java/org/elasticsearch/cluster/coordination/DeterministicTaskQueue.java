@@ -39,6 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DeterministicTaskQueue extends AbstractComponent {
 
@@ -312,7 +313,21 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
             @Override
             public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
-                scheduleAt(currentTimeMillis + delay.millis(), command);
+                AtomicBoolean isCancelled = new AtomicBoolean();
+                scheduleAt(currentTimeMillis + delay.millis(), new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isCancelled.get() == false) {
+                            command.run();
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return command.toString();
+                    }
+                });
+
                 return new ScheduledFuture<Object>() {
                     @Override
                     public long getDelay(TimeUnit unit) {
@@ -326,12 +341,13 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
                     @Override
                     public boolean cancel(boolean mayInterruptIfRunning) {
-                        throw new UnsupportedOperationException();
+                        isCancelled.set(true);
+                        return true;
                     }
 
                     @Override
                     public boolean isCancelled() {
-                        throw new UnsupportedOperationException();
+                        return isCancelled.get();
                     }
 
                     @Override

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -298,6 +299,12 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         taskQueue.runAllTasks();
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
+
+        final TimeValue cancelledDelay = TimeValue.timeValueMillis(randomLongBetween(1, 100));
+        final ScheduledFuture<?> future = threadPool.schedule(cancelledDelay, "", () -> strings.add("cancelled before execution"));
+
+        future.cancel(false);
+        taskQueue.runAllTasks(random());
 
         assertThat(strings, contains("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
     }

@@ -43,7 +43,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashMap;
 import java.util.List;
@@ -74,7 +73,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    @TestLogging("_root:TRACE")
     public void testRetentionPolicyChangeDuringRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();

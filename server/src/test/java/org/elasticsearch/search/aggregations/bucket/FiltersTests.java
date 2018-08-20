@@ -178,4 +178,18 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertSame(rewritten,
             rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
     }
+
+    public void testRewritePreservesOtherBucket() throws IOException {
+        FiltersAggregationBuilder originalFilters = new FiltersAggregationBuilder("my-agg", new BoolQueryBuilder());
+        originalFilters.otherBucket(randomBoolean());
+        originalFilters.otherBucketKey(randomAlphaOfLength(10));
+
+        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(xContentRegistry(),
+            null, null, () -> 0L));
+        assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
+
+        FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
+        assertEquals(originalFilters.otherBucket(), rewrittenFilters.otherBucket());
+        assertEquals(originalFilters.otherBucketKey(), rewrittenFilters.otherBucketKey());
+    }
 }

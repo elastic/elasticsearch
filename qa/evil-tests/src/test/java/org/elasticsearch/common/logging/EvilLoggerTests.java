@@ -368,7 +368,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(events.size(), equalTo(2));
         final String location = "org.elasticsearch.common.logging.LogConfigurator";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.WARN, location, "\\[null\\] Some logging configurations have %marker but don't "
+        assertLogLine(events.get(0), Level.WARN, location, "\\[-------\\] Some logging configurations have %marker but don't "
                 + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
                 + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
                 + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");

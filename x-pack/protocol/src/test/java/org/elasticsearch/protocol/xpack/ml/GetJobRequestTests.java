@@ -18,29 +18,52 @@
  */
 package org.elasticsearch.protocol.xpack.ml;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-public class GetJobRequestTests extends ESTestCase {
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-    public void test_AllJobsRequest() {
-        assertEquals(GetJobRequest.getAllJobsRequest()
-            .getCommaDelimitedJobIdsString(), GetJobRequest.ALL_JOBS);
+public class GetJobRequestTests extends AbstractXContentTestCase<GetJobRequest> {
+
+    public void testAllJobsRequest() {
+        GetJobRequest request = GetJobRequest.getAllJobsRequest();
+
+        assertEquals(request.getJobIds().size(), 1);
+        assertEquals(request.getJobIds().get(0), "_all");
     }
 
-    public void test_AddJobId() {
-        expectThrows(NullPointerException.class, () -> new GetJobRequest(null));
-        expectThrows(NullPointerException.class, () -> new GetJobRequest("job").addJobId(null));
+    public void testNewWithJobId() {
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobRequest("job",null));
+        assertEquals(exception.getMessage(), "jobIds must not contain null values");
     }
 
-    public void test_getCommaDelimitedJobIdsString() {
-        GetJobRequest request = new GetJobRequest();
+    @Override
+    protected GetJobRequest createTestInstance() {
+        int jobCount = randomIntBetween(0, 10);
+        List<String> jobIds = new ArrayList<>(jobCount);
 
-        assertTrue(request.getCommaDelimitedJobIdsString().isEmpty());
+        for (int i = 0; i < jobCount; i++) {
+            jobIds.add(randomAlphaOfLength(10));
+        }
 
-        request.addJobId("job1");
-        assertEquals(request.getCommaDelimitedJobIdsString(), "job1");
+        GetJobRequest request = new GetJobRequest(jobIds);
 
-        request.addJobId("jobs*");
-        assertEquals(request.getCommaDelimitedJobIdsString(), "job1,jobs*");
+        if (randomBoolean()) {
+            request.setAllowNoJobs(randomBoolean());
+        }
+
+        return request;
+    }
+
+    @Override
+    protected GetJobRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetJobRequest.PARSER.parse(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

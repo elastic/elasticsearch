@@ -142,10 +142,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-ml-get-job-request
-            GetJobRequest request = new GetJobRequest(); //<1>
-            request.addJobId("get-machine-learning-job1"); //<2>
-            request.addJobId("get-machine-learning-job*"); //<3>
-            request.setAllowNoJobs(true); //<4>
+            GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); //<1>
+            request.setAllowNoJobs(true); //<2>
             //end::x-pack-ml-get-job-request
 
             //tag::x-pack-ml-get-job-execute
@@ -160,9 +158,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 containsInAnyOrder(job.getId(), secondJob.getId()));
         }
         {
-            GetJobRequest request = new GetJobRequest();
-            request.addJobId("get-machine-learning-job1");
-            request.addJobId("get-machine-learning-job*");
+            GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*");
 
             // tag::x-pack-ml-get-job-listener
             ActionListener<GetJobResponse> listener = new ActionListener<GetJobResponse>() {

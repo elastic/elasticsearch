@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -55,12 +56,14 @@ final class MLRequestConverters {
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
             .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(getJobRequest.getCommaDelimitedJobIdsString())
+            .addPathPart(Strings.collectionToCommaDelimitedString(getJobRequest.getJobIds()))
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.isAllowNoJobs()));
+        if (getJobRequest.isAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.isAllowNoJobs()));
+        }
 
         return request;
     }

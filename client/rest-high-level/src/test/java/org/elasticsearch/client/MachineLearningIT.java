@@ -66,8 +66,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         machineLearningClient.putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
         machineLearningClient.putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
 
-        GetJobRequest request = new GetJobRequest(jobId1);
-        request.addJobId(jobId2);
+        GetJobRequest request = new GetJobRequest(jobId1, jobId2);
 
         // Test getting specific jobs
         GetJobResponse response = execute(request, machineLearningClient::getJob, machineLearningClient::getJobAsync);

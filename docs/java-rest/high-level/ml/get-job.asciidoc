@@ -8,7 +8,7 @@ with a `GetJobResponse` object.
 [[java-rest-high-x-pack-ml-get-job-request]]
 ==== Get Job Request
 
-An `GetJobRequest` object gets can have any number of `jobId` or `groupName`
+A `GetJobRequest` object gets can have any number of `jobId` or `groupName`
 entries. However, they all must be non-null. An empty list is the same as
 requesting for all jobs.
 
@@ -16,10 +16,8 @@ requesting for all jobs.
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-request]
 --------------------------------------------------
-<1> Constructing a new request referencing no `jobId`
-<2> Adding a new specific `jobId` we want to find
-<3> Adding a new wildcard matching `jobId` we want to find
-<4> Whether to ignore if a wildcard expression matches no jobs.
+<1> Constructing a new request referencing existing `jobIds`, can contain wildcards
+<2> Whether to ignore if a wildcard expression matches no jobs.
  (This includes `_all` string or when no jobs have been specified)
 
 [[java-rest-high-x-pack-ml-get-job-execution]]

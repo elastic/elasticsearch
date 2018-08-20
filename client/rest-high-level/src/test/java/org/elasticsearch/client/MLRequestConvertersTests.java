@@ -62,15 +62,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors", request.getEndpoint());
-        assertEquals(Boolean.toString(getJobRequest.isAllowNoJobs()), request.getParameters().get("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
 
-        getJobRequest.setAllowNoJobs(false);
-        getJobRequest.addJobId("job1");
-        getJobRequest.addJobId("jobs*");
+        getJobRequest = new GetJobRequest("job1", "jobs*");
+        getJobRequest.setAllowNoJobs(true);
         request = MLRequestConverters.getJob(getJobRequest);
 
         assertEquals("/_xpack/ml/anomaly_detectors/job1,jobs*", request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("allow_no_jobs"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
     }
 
     public void testOpenJob() throws Exception {

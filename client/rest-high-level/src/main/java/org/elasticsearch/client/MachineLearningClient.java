@@ -85,13 +85,13 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets Machine Learning job configuration info.
+     * Gets one or more Machine Learning job configuration info.
      *
      * <p>
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
      * </p>
-     * @param request {@link GetJobRequest} request containing a list of jobId(s)
+     * @param request {@link GetJobRequest} request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetJobResponse} response object containing
      * the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects and the number of jobs found
@@ -106,13 +106,13 @@ public final class MachineLearningClient {
     }
 
      /**
-     * Gets Machine Learning job configuration info, asynchronously.
+     * Gets one or more Machine Learning job configuration info, asynchronously.
      *
      * <p>
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
      * </p>
-     * @param request {@link GetJobRequest} request containing a list of jobId(s) and optional additional parameters
+     * @param request {@link GetJobRequest} request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified with {@link GetJobResponse} upon request completion
      */

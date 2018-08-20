@@ -503,3 +503,31 @@ guide to the {painless}/index.html[Painless Scripting Language].
 
 See the {painless}/painless-api-reference.html[Painless API Reference] in
 the guide to the {painless}/index.html[Painless Scripting Language].
+
+[role="exclude", id="security-api-roles"]
+=== Role management APIs
+
+You can use the following APIs to add, remove, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-get-role,Get roles>>
+
+[role="exclude",id="security-api-tokens"]
+=== Token management APIs
+
+You can use the following APIs to create and invalidate bearer tokens for access
+without requiring basic authentication:
+
+* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
+
+[role="exclude",id="security-api-users"]
+=== User Management APIs
+
+You can use the following APIs to create, read, update, and delete users from the
+native realm:
+
+* <<security-api-put-user,Create users>>, <<security-api-delete-user,Delete users>>
+* <<security-api-enable-user,Enable users>>, <<security-api-disable-user,Disable users>>
+* <<security-api-change-password,Change passwords>>
+* <<security-api-get-user,Get users>>

@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
@@ -79,7 +77,6 @@ import static org.mockito.Mockito.when;
 
 public class EmailActionTests extends ESTestCase {
 
-    private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
     private HttpClient httpClient = mock(HttpClient.class);
     private EmailAttachmentsParser emailAttachmentParser;
 
@@ -87,7 +84,7 @@ public class EmailActionTests extends ESTestCase {
     public void addEmailAttachmentParsers() {
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient,
-                new HttpRequestTemplate.Parser(registry), new MockTextTemplateEngine()));
+            new MockTextTemplateEngine()));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
     }
@@ -511,10 +508,8 @@ public class EmailActionTests extends ESTestCase {
                 .thenReturn(new HttpResponse(403));
 
         // setup email attachment parsers
-        HttpRequestTemplate.Parser httpRequestTemplateParser = new HttpRequestTemplate.Parser(registry);
         Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpRequestTemplateParser,
-                engine));
+        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         XContentBuilder builder = jsonBuilder().startObject()

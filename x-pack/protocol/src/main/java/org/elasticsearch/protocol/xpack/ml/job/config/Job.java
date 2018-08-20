@@ -314,7 +314,9 @@ public class Job implements ToXContentObject {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+        if (createTime != null) {
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+        }
         if (finishedTime != null) {
             builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
                 finishedTime.getTime());
@@ -410,6 +412,10 @@ public class Job implements ToXContentObject {
         return Strings.toString(this);
     }
 
+    public static Builder builder(String id) {
+        return new Builder(id);
+    }
+
     public static class Builder {
 
         private String id;
@@ -433,7 +439,7 @@ public class Job implements ToXContentObject {
         private String resultsIndexName;
         private boolean deleted;
 
-        public Builder() {
+        private Builder() {
         }
 
         public Builder(String id) {

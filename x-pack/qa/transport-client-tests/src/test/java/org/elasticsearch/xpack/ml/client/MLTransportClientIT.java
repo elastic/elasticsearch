@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.client;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
@@ -62,7 +63,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         assertThat(getJobResponse.getResponse().count(), equalTo(1L));
 
         // Open job POST data, flush, close and check a result
-        OpenJobAction.Response openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
+        AcknowledgedResponse openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
         assertThat(openJobResponse.isAcknowledged(), equalTo(true));
 
         String content = "{\"time\":1000, \"msg\": \"some categorical message\"}\n" +
@@ -97,7 +98,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         assertThat(updateModelSnapshotResponse.getModel().getDescription(), equalTo("Changed description"));
 
         // and delete the job
-        DeleteJobAction.Response deleteJobResponse = mlClient.deleteJob(new DeleteJobAction.Request(jobId)).actionGet();
+        AcknowledgedResponse deleteJobResponse = mlClient.deleteJob(new DeleteJobAction.Request(jobId)).actionGet();
         assertThat(deleteJobResponse, notNullValue());
         assertThat(deleteJobResponse.isAcknowledged(), equalTo(true));
     }
@@ -110,12 +111,12 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         Detector.Builder detector = new Detector.Builder();
         detector.setFunction("count");
         ValidateDetectorAction.Request validateDetectorRequest = new ValidateDetectorAction.Request(detector.build());
-        ValidateDetectorAction.Response validateDetectorResponse = mlClient.validateDetector(validateDetectorRequest).actionGet();
+        AcknowledgedResponse validateDetectorResponse = mlClient.validateDetector(validateDetectorRequest).actionGet();
         assertThat(validateDetectorResponse.isAcknowledged(), equalTo(true));
 
         Job.Builder job = createJob("ml-transport-client-it-validate-job");
         ValidateJobConfigAction.Request validateJobRequest = new ValidateJobConfigAction.Request(job.build(new Date()));
-        ValidateJobConfigAction.Response validateJobResponse = mlClient.validateJobConfig(validateJobRequest).actionGet();
+        AcknowledgedResponse validateJobResponse = mlClient.validateJobConfig(validateJobRequest).actionGet();
         assertThat(validateJobResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -144,7 +145,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         assertThat(getDatafeedResponse.getResponse(), notNullValue());
 
         // Open job before starting the datafeed
-        OpenJobAction.Response openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
+        AcknowledgedResponse openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
         assertThat(openJobResponse.isAcknowledged(), equalTo(true));
 
         // create the index for the data feed
@@ -154,7 +155,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         client.prepareIndex(datafeedIndex, datatype).setSource(source).get();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedId, new Date().getTime());
-        StartDatafeedAction.Response startDataFeedResponse = mlClient.startDatafeed(startDatafeedRequest).actionGet();
+        AcknowledgedResponse startDataFeedResponse = mlClient.startDatafeed(startDatafeedRequest).actionGet();
         assertThat(startDataFeedResponse.isAcknowledged(), equalTo(true));
 
         StopDatafeedAction.Response stopDataFeedResponse = mlClient.stopDatafeed(new StopDatafeedAction.Request(datafeedId)).actionGet();

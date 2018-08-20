@@ -28,7 +28,7 @@ public class TragicExceptionHolder {
      * Sets the tragic exception or if the tragic exception is already set adds passed exception as suppressed exception
      * @param ex tragic exception to set
      */
-    public void setTragicException(Exception ex){
+    public void setTragicException(Exception ex) {
         assert ex != null;
         if (tragedy.compareAndSet(null, ex) == false) {
             if (tragedy.get() != ex) { // to ensure there is no self-suppression

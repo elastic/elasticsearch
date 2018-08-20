@@ -142,7 +142,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
-
     /**
      * add the given bytes to the translog and return the location they were written at
      */

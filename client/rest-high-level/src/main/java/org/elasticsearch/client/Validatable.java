@@ -22,6 +22,10 @@ package org.elasticsearch.client;
  * Defines a validation layer for Requests.
  */
 public interface Validatable {
+    ValidationException EMPTY_VALIDATION = new ValidationException() {
+        @Override
+        public void addValidationError(String error) { }
+    };
 
     /**
      * Perform validation. This method does not have to be overridden in the event that no validation needs to be done.
@@ -30,6 +34,6 @@ public interface Validatable {
      * {@link ValidationException} that contains a list of all failed validation.
      */
     default ValidationException validate() {
-        return new ValidationException();
+        return EMPTY_VALIDATION;
     }
 }

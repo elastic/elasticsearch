@@ -31,7 +31,7 @@ public class ValidationException extends IllegalArgumentException {
      * Add a new validation error to the accumulating validation errors
      * @param error the error to add
      */
-    public final void addValidationError(String error) {
+    public void addValidationError(String error) {
         validationErrors.add(error);
     }
 

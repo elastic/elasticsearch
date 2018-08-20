@@ -106,8 +106,7 @@ public class CapturingTransport implements Transport {
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
-                requests.put(requestId, Tuple.tuple(discoveryNode, action));
-                capturedRequests.add(new CapturedRequest(discoveryNode, requestId, action, request));
+                onSendRequest(requestId, action, request, discoveryNode);
             }
 
             @Override

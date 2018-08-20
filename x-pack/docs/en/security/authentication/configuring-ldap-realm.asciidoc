@@ -56,7 +56,7 @@ xpack:
           group_search:
             base_dn: "dc=example,dc=com"
           files:
-            role_mapping: "CONFIG_DIR/role_mapping.yml"
+            role_mapping: "ES_PATH_CONF/role_mapping.yml"
           unmapped_groups_as_roles: false
 ------------------------------------------------------------
 

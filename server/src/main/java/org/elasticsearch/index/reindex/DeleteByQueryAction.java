@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 
-public class DeleteByQueryAction extends Action<DeleteByQueryRequest, BulkByScrollResponse> {
+public class DeleteByQueryAction extends Action<BulkByScrollResponse> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();
     public static final String NAME = "indices:data/write/delete/byquery";

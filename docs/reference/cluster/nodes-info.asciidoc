@@ -142,7 +142,7 @@ The result will look similar to:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "oss",
+      "build_flavor": "{build_flavor}",
       "build_type": "zip",
       "build_hash": "587409e",
       "roles": [
@@ -237,7 +237,7 @@ The result will look similar to:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "oss",
+      "build_flavor": "{build_flavor}",
       "build_type": "zip",
       "build_hash": "587409e",
       "roles": [],

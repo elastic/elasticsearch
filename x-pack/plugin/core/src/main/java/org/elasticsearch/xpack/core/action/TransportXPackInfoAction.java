@@ -8,19 +8,20 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,29 +31,29 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final Set<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                XPackInfoRequest::new);
+    public TransportXPackInfoAction(Settings settings, TransportService transportService,
+                                    ActionFilters actionFilters, LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
+        super(settings, XPackInfoAction.NAME, transportService, actionFilters,
+            XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;
     }
 
     @Override
-    protected void doExecute(XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
+    protected void doExecute(Task task, XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
 
 
         XPackInfoResponse.BuildInfo buildInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
-            buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT);
+            buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT.shortHash(), XPackBuild.CURRENT.date());
         }
 
         LicenseInfo licenseInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             License license = licenseService.getLicense();
             if (license != null) {
-                licenseInfo = new LicenseInfo(license);
+                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
+                        license.status(), license.expiryDate());
             }
         }
 

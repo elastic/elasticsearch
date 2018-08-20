@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -81,8 +80,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
         action = new TransportWatcherStatsAction(Settings.EMPTY, transportService, clusterService, threadPool, new
-            ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), watcherLifeCycleService,
-            executionService, triggerService);
+            ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
     }
 
     public void testWatcherStats() throws Exception {

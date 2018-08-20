@@ -47,6 +47,11 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
     }
 
     protected void register() throws IOException {
+        doSelectorRegister();
+    }
+
+    // Package private for testing
+    void doSelectorRegister() throws IOException {
         setSelectionKey(rawChannel.register(getSelector().rawSelector(), 0));
     }
 
@@ -66,7 +71,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
      * @throws IOException during channel / context close
      */
     public void closeFromSelector() throws IOException {
-        if (closeContext.isDone() == false) {
+        if (isOpen()) {
             try {
                 rawChannel.close();
                 closeContext.complete(null);

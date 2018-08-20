@@ -22,7 +22,6 @@ package org.elasticsearch.env;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**

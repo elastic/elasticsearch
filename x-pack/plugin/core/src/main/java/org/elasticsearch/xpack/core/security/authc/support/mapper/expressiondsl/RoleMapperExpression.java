@@ -18,7 +18,7 @@ public interface RoleMapperExpression extends ToXContentObject, NamedWriteable {
 
     /**
      * Determines whether this expression matches against the provided object.
-     * @param model
+     * @param model the {@link ExpressionModel}
      */
     boolean match(ExpressionModel model);
 

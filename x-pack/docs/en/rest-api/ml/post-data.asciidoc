@@ -5,7 +5,7 @@
 <titleabbrev>Post Data to Jobs</titleabbrev>
 ++++
 
-This API enables you to send data to an anomaly detection job for analysis.
+Sends data to an anomaly detection job for analysis.
 
 
 ==== Request

@@ -57,7 +57,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
+    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>/.*)?");
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
@@ -139,10 +139,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
         Matcher hostMatcher = HOST_PATTERN.matcher(hostInRequest);
         if (false == hostMatcher.matches()) {
-            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port] but was [" + hostInRequest + "]");
+            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
+                + hostInRequest + "]");
         }
         String scheme = hostMatcher.group("scheme");
         String host = hostMatcher.group("host");
+        String pathPrefix = hostMatcher.group("pathPrefix");
         int port = Integer.parseInt(hostMatcher.group("port"));
         Map<String, String> headers = extractStringStringMap(remote, "headers");
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
@@ -151,7 +153,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers, socketTimeout, connectTimeout);
+        return new RemoteInfo(scheme, host, port, pathPrefix, queryForRemote(source),
+            username, password, headers, socketTimeout, connectTimeout);
     }
 
     /**

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -265,9 +264,8 @@ public class SignificanceHeuristicTests extends ESTestCase {
     protected void checkParseException(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             String faultyHeuristicDefinition, String expectedError) throws IOException {
 
-        try {
-            XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                    "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+        try (XContentParser stParser = createParser(JsonXContent.jsonXContent,
+                    "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}")) {
             stParser.nextToken();
             SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", stParser);
             fail();
@@ -302,9 +300,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     protected SignificanceHeuristic parseFromString(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             String heuristicString) throws IOException {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
-        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
+        try (XContentParser stParser = createParser(JsonXContent.jsonXContent,
+                "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}")) {
+            return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
+        }
     }
 
     void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {

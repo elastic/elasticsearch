@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -61,13 +62,15 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final RestStatus failedStatus = failedCheckStatus();
         final Response response = response("GET", endpoint, failedStatus);
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
 
         verifyNoMoreInteractions(client, logger);
@@ -95,8 +98,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Response response = response("GET", endpoint, failedStatus);
         final XContent xContent = mock(XContent.class);
         final int minimumVersion = randomInt();
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.versionCheckForResource(client, logger,
                                                     resourceBasePath, resourceName, resourceType, owner, ownerType,
@@ -104,7 +109,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
                    is(CheckResponse.ERROR));
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
 
         verifyNoMoreInteractions(client, logger);
@@ -117,8 +122,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final HttpEntity entity = entityForResource(CheckResponse.ERROR, resourceName, minimumVersion);
         final Response response = response("GET", endpoint, okStatus, entity);
         final XContent xContent = mock(XContent.class);
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.versionCheckForResource(client, logger,
                                                     resourceBasePath, resourceName, resourceType, owner, ownerType,
@@ -127,7 +134,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(logger).debug("{} [{}] found on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
 
         verifyNoMoreInteractions(client, logger);
@@ -140,12 +147,14 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
         final Response response = e == responseException ? responseException.getResponse() : null;
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenThrow(e);
+        Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
+        when(client.performRequest(request)).thenThrow(e);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
 
         verifyNoMoreInteractions(client, logger);
@@ -162,13 +171,16 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     public void testPutResourceFalseWithException() throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
+        final Request request = new Request("PUT", endpoint);
+        addParameters(request, resource.getParameters());
+        request.setEntity(entity);
 
-        when(client.performRequest("PUT", endpoint, resource.getParameters(), entity)).thenThrow(e);
+        when(client.performRequest(request)).thenThrow(e);
 
         assertThat(resource.putResource(client, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType), is(false));
 
         verify(logger).trace("uploading {} [{}] to the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("PUT", endpoint, resource.getParameters(), entity);
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
 
         verifyNoMoreInteractions(client, logger);
@@ -190,13 +202,15 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final ResponseException responseException = responseException("DELETE", endpoint, failedStatus);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
         final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+        final Request request = new Request("DELETE", endpoint);
+        addParameters(request, deleteParameters);
 
-        when(client.performRequest("DELETE", endpoint, deleteParameters)).thenThrow(e);
+        when(client.performRequest(request)).thenThrow(e);
 
         assertThat(resource.deleteResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType), is(false));
 
         verify(logger).trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("DELETE", endpoint, deleteParameters);
+        verify(client).performRequest(request);
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), eq(e));
 
         verifyNoMoreInteractions(client, logger);
@@ -277,13 +291,15 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, expected, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
 
         if (expected == CheckResponse.EXISTS || expected == CheckResponse.DOES_NOT_EXIST) {
             verify(response).getStatusLine();
@@ -310,8 +326,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final HttpEntity entity = status == RestStatus.OK ? entityForResource(expected, resourceName, minimumVersion) : null;
         final Response response = response("GET", endpoint, status, entity);
         final XContent xContent = XContentType.JSON.xContent();
+        final Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.versionCheckForResource(client, logger,
                                                     resourceBasePath, resourceName, resourceType, owner, ownerType,
@@ -319,7 +337,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
                    is(expected));
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
-        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(client).performRequest(request);
 
         if (shouldReplace || expected == CheckResponse.EXISTS) {
             verify(response).getStatusLine();
@@ -341,13 +359,16 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     private void assertPutResource(final RestStatus status, final boolean expected) throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("PUT", endpoint, status);
+        final Request request = new Request("PUT", endpoint);
+        addParameters(request, resource.getParameters());
+        request.setEntity(entity);
 
-        when(client.performRequest("PUT", endpoint, resource.getParameters(), entity)).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.putResource(client, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType),
                    is(expected));
 
-        verify(client).performRequest("PUT", endpoint, resource.getParameters(), entity);
+        verify(client).performRequest(request);
         verify(response).getStatusLine();
 
         verify(logger).trace("uploading {} [{}] to the [{}] {}", resourceType, resourceName, owner, ownerType);
@@ -388,12 +409,14 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("DELETE", endpoint, status);
         final Map<String, String> deleteParameters = deleteParameters(resource.getParameters());
+        final Request request = new Request("DELETE", endpoint);
+        addParameters(request, deleteParameters);
 
-        when(client.performRequest("DELETE", endpoint, deleteParameters)).thenReturn(response);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.deleteResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType), is(expected));
 
-        verify(client).performRequest("DELETE", endpoint, deleteParameters);
+        verify(client).performRequest(request);
         verify(response).getStatusLine();
 
         verify(logger).trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, owner, ownerType);

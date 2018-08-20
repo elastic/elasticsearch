@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response> {
+public class FlushJobAction extends Action<FlushJobAction.Response> {
 
     public static final FlushJobAction INSTANCE = new FlushJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";

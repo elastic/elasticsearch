@@ -1,0 +1,12 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-spec]]
+== SQL Language
+
+This chapter describes the SQL semantics supported in X-Pack namely:
+
+<<sql-data-types>>:: Data types
+<<sql-commands>>:: Commands
+
+include::data-types.asciidoc[]
+include::syntax/index.asciidoc[]

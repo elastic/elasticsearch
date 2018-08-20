@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * The action for clearing the cache used by native roles that are stored in an index.
  */
-public class ClearRolesCacheAction extends Action<ClearRolesCacheRequest, ClearRolesCacheResponse> {
+public class ClearRolesCacheAction extends Action<ClearRolesCacheResponse> {
 
     public static final ClearRolesCacheAction INSTANCE = new ClearRolesCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/roles/cache/clear";

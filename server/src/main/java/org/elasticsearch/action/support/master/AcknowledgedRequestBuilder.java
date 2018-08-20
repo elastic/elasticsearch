@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 

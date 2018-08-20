@@ -25,7 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {
 
-    public RankEvalRequestBuilder(ElasticsearchClient client, Action<RankEvalRequest, RankEvalResponse> action,
+    public RankEvalRequestBuilder(ElasticsearchClient client, Action<RankEvalResponse> action,
             RankEvalRequest request) {
         super(client, action, request);
     }

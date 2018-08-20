@@ -67,7 +67,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
         StringBuffer sb = new StringBuffer();
         while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase());
+            m.appendReplacement(sb, m.group(1).toUpperCase(Locale.ROOT));
         }
         m.appendTail(sb);
         sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
@@ -219,6 +219,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
         // particular token filters based on the attributes of the current token.
         .put("protectedterm", Void.class)
+        // LUCENE-8332
+        .put("concatenategraph", Void.class)
 
         .immutableMap();
 

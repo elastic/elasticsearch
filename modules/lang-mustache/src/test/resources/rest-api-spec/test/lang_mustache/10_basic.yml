@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: lang-mustache  }
+    - contains:  { nodes.$master.modules: { name: lang-mustache } }

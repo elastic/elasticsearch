@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class PutIndexTemplateAction extends Action<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class PutIndexTemplateAction extends Action<AcknowledgedResponse> {
 
     public static final PutIndexTemplateAction INSTANCE = new PutIndexTemplateAction();
     public static final String NAME = "indices:admin/template/put";
@@ -31,7 +32,7 @@ public class PutIndexTemplateAction extends Action<PutIndexTemplateRequest, PutI
     }
 
     @Override
-    public PutIndexTemplateResponse newResponse() {
-        return new PutIndexTemplateResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

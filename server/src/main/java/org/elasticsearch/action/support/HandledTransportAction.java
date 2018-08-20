@@ -22,7 +22,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -38,40 +37,32 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Supplier<Request> request) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Supplier<Request> request) {
+        this(settings, actionName, true, transportService, actionFilters, request);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, requestReader, indexNameExpressionResolver);
+    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
+        this(settings, actionName, true, transportService, actionFilters, requestReader);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+                                     TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
             new TransportHandler());
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
-                                     Writeable.Reader<Request> requestReader, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+                                     Writeable.Reader<Request> requestReader) {
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {
-
-        @Override
-        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {

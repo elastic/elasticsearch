@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.Response> {
+public class GetJobsAction extends Action<GetJobsAction.Response> {
 
     public static final GetJobsAction INSTANCE = new GetJobsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/get";

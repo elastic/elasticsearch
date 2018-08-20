@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -154,6 +153,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
     }
 
     public void testClusterRestartWithOldSignature() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM. We can't generate old licenses since PBEWithSHA1AndDESede is not available", inFipsJvm());
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();

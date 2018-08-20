@@ -46,7 +46,7 @@ public final class AggregationTestUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static Histogram createHistogramAggregation(String name, List histogramBuckets) {
+    static Histogram createHistogramAggregation(String name, List<Histogram.Bucket> histogramBuckets) {
         Histogram histogram = mock(Histogram.class);
         when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
         when(histogram.getName()).thenReturn(name);
@@ -72,7 +72,7 @@ public final class AggregationTestUtils {
     static Terms createTerms(String name, Term... terms) {
         Terms termsAgg = mock(Terms.class);
         when(termsAgg.getName()).thenReturn(name);
-        List buckets = new ArrayList<>();
+        List<Terms.Bucket> buckets = new ArrayList<>();
         for (Term term: terms) {
             StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
             when(bucket.getKey()).thenReturn(term.key);

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.movfn;
 
 import org.elasticsearch.script.ScriptContext;
 
-import java.util.Collection;
 import java.util.Map;
 
 /**

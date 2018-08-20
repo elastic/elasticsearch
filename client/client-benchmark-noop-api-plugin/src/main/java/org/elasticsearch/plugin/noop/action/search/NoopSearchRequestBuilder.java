@@ -329,7 +329,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      *
      * @see org.elasticsearch.search.sort.SortBuilders
      */
-    public NoopSearchRequestBuilder addSort(SortBuilder sort) {
+    public NoopSearchRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().sort(sort);
         return this;
     }
@@ -415,7 +415,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param window   rescore window
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public NoopSearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }

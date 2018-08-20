@@ -48,7 +48,8 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static final String TYPE_NAME = "type";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
-        return BulkProcessor.builder(highLevelClient()::bulkAsync, listener);
+        return BulkProcessor.builder(
+                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {
@@ -128,7 +129,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
         }
 
         highLevelClient().indices().refresh(new RefreshRequest(), RequestOptions.DEFAULT);
-        int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest, RequestOptions.DEFAULT).getResponses().length;
+        int multiGetResponsesCount = highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT).getResponses().length;
 
         if (rejectedExecutionExpected) {
             assertThat(multiGetResponsesCount, lessThanOrEqualTo(numberOfAsyncOps));

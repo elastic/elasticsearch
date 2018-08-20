@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * This action acks a watch in memory, and the index
  */
-public class AckWatchAction extends Action<AckWatchRequest, AckWatchResponse> {
+public class AckWatchAction extends Action<AckWatchResponse> {
 
     public static final AckWatchAction INSTANCE = new AckWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/ack";

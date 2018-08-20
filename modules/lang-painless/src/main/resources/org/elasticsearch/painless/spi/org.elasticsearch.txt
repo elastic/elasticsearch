@@ -24,31 +24,31 @@
 
 #### Primitive types
 
-class void only_fqn {
+class void no_import {
 }
 
-class boolean only_fqn {
+class boolean no_import {
 }
 
-class byte only_fqn {
+class byte no_import {
 }
 
-class short only_fqn {
+class short no_import {
 }
 
-class char only_fqn {
+class char no_import {
 }
 
-class int only_fqn {
+class int no_import {
 }
 
-class long only_fqn {
+class long no_import {
 }
 
-class float only_fqn {
+class float no_import {
 }
 
-class double only_fqn {
+class double no_import {
 }
 
 #### Painless debugging API
@@ -77,8 +77,8 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
-  org.joda.time.ReadableDateTime get(int)
-  org.joda.time.ReadableDateTime getValue()
+  Object get(int)
+  Object getValue()
   List getValues()
 }
 
@@ -134,7 +134,7 @@ class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues
 
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
-class org.elasticsearch.painless.FeatureTest only_fqn {
+class org.elasticsearch.painless.FeatureTest no_import {
   int z
   ()
   (int,int)

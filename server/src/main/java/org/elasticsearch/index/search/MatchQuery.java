@@ -51,7 +51,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -62,7 +61,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
-public class MatchQuery {
+public class    MatchQuery {
 
     public enum Type implements Writeable {
         /**
@@ -401,9 +400,9 @@ public class MatchQuery {
             // query based on the analysis chain.
             try (TokenStream source = analyzer.tokenStream(field, queryText)) {
                 if (source.hasAttribute(DisableGraphAttribute.class)) {
-                    /**
-                     * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
-                     * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                    /*
+                      A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                      paths explosion. See {@link org.elasticsearch.index.analysis.ShingleTokenFilterFactory} for details.
                      */
                     setEnableGraphQueries(false);
                 }

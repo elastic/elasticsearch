@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class KillProcessAction extends Action<KillProcessAction.Request, KillProcessAction.Response> {
+public class KillProcessAction extends Action<KillProcessAction.Response> {
 
     public static final KillProcessAction INSTANCE = new KillProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/kill/process";

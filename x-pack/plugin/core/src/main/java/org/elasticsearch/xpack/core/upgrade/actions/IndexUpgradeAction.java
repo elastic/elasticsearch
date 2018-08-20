@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.upgrade.IndexUpgradeServiceFields.UPGRADE_INDEX_OPTIONS;
 
-public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkByScrollResponse> {
+public class IndexUpgradeAction extends Action<BulkByScrollResponse> {
 
     public static final IndexUpgradeAction INSTANCE = new IndexUpgradeAction();
     public static final String NAME = "cluster:admin/xpack/upgrade";
@@ -76,7 +76,6 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
         /**
          * Sets the index.
          */
-        @SuppressWarnings("unchecked")
         public final Request index(String index) {
             this.index = index;
             return this;

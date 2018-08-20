@@ -21,7 +21,24 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+/**
+ * A listener interface that allows to react on transport events. All methods may be
+ * executed on network threads. Consumers must fork in the case of long running or blocking
+ * operations.
+ */
 public interface TransportConnectionListener {
+
+    /**
+     * Called once a connection was opened
+     * @param connection the connection
+     */
+    default void onConnectionOpened(Transport.Connection connection) {}
+
+    /**
+     * Called once a connection ws closed.
+     * @param connection the closed connection
+     */
+    default void onConnectionClosed(Transport.Connection connection) {}
 
     /**
      * Called once a node connection is opened and registered.
@@ -32,15 +49,4 @@ public interface TransportConnectionListener {
      * Called once a node connection is closed and unregistered.
      */
     default void onNodeDisconnected(DiscoveryNode node) {}
-
-    /**
-     * Called once a node connection is closed. The connection might not have been registered in the
-     * transport as a shared connection to a specific node
-     */
-    default void onConnectionClosed(Transport.Connection connection) {}
-
-    /**
-     * Called once a node connection is opened.
-     */
-    default void onConnectionOpened(Transport.Connection connection) {}
 }

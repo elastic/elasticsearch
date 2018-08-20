@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Upgrade index/indices action.
  */
-public class UpgradeAction extends Action<UpgradeRequest, UpgradeResponse> {
+public class UpgradeAction extends Action<UpgradeResponse> {
 
     public static final UpgradeAction INSTANCE = new UpgradeAction();
     public static final String NAME = "indices:admin/upgrade";

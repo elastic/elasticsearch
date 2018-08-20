@@ -27,7 +27,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 

@@ -46,7 +46,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Locale;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
@@ -133,7 +132,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length());
+                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length(), true);
             }
         });
     }
@@ -151,7 +150,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length());
+                blobContainer.writeBlob(blobName, stream, bytesArray.length(), true);
             }
         });
     }

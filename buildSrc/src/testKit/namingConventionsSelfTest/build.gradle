@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+    id 'elasticsearch.build'
+}
+
+dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
+forbiddenApisMain.enabled = false
+forbiddenApisTest.enabled = false
+jarHell.enabled = false
+thirdPartyAudit.enabled = false
+
+ext.licenseFile = file("$buildDir/dummy/license")
+ext.noticeFile = file("$buildDir/dummy/notice")
+
+task hello {
+    doFirst {
+        println "build plugin can be applied"
+    }
+}
+
+dependencies {
+    compile "junit:junit:${versions.junit}"
+}
+
+namingConventions  {
+    checkForTestsInMain = project.property("checkForTestsInMain") == "true"
+    testClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$UnitTestCase'
+    integTestClass = 'org.elasticsearch.test.NamingConventionsCheckBadClasses$IntegTestCase'
+}

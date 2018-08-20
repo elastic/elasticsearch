@@ -19,13 +19,10 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.Booleans;
 import org.junit.Before;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeThat;

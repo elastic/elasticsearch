@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +41,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -52,7 +51,7 @@ import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Request, GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Response> {
 
     public static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     public static final String NAME = "cluster:admin/ingest/processor/grok/get";
@@ -115,14 +114,12 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, Request::new);
+        public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
+            super(settings, NAME, transportService, actionFilters, Request::new);
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
                 listener.onResponse(new Response(GROK_PATTERNS));
             } catch (Exception e) {

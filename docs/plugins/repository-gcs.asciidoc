@@ -27,9 +27,9 @@ To create a new bucket:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser]
 4. Click the "Create Bucket" button
-5. Enter a the name of the new bucket
+5. Enter the name of the new bucket
 6. Select a storage class
 7. Select a location
 8. Click the "Create" button
@@ -111,6 +111,15 @@ PUT _snapshot/my_gcs_repository
 ----
 // CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
+
+The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+After you reload the settings, the internal `gcs` clients, used to transfer the
+snapshot contents, will utilize the latest settings from the keystore.
+
+
+NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
+of the client's `credentials_file` settings. They will complete using the client
+as it was built when the operation started.
 
 [[repository-gcs-client]]
 ==== Client Settings

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
@@ -49,16 +49,18 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     public abstract void testParseEnvelope() throws IOException;
     public abstract void testParseGeometryCollection() throws IOException;
 
-    protected void assertValidException(XContentBuilder builder, Class expectedException) throws IOException {
-        XContentParser parser = createParser(builder);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+    protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {
+        try (XContentParser parser = createParser(builder)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, expectedException);
+        }
     }
 
     protected void assertGeometryEquals(Shape expected, XContentBuilder geoJson) throws IOException {
-        XContentParser parser = createParser(geoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).build());
+        try (XContentParser parser = createParser(geoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).build());
+        }
     }
 
     protected ShapeCollection<Shape> shapeCollection(Shape... shapes) {

@@ -68,8 +68,11 @@ if [ ! -x "`which unzip 2>/dev/null`" ]; then
 fi
 
 if [ ! -x "`which java 2>/dev/null`" ]; then
-    echo "'java' command is mandatory to run the tests"
-    exit 1
+    # there are some tests that move java temporarily
+    if [ ! -x "`command -v java.bak 2>/dev/null`" ]; then
+        echo "'java' command is mandatory to run the tests"
+        exit 1
+    fi
 fi
 
 # Returns 0 if the 'dpkg' command is available
@@ -463,8 +466,9 @@ debug_collect_logs() {
 
 set_debug_logging() {
     if [ "$ESCONFIG" ] && [ -d "$ESCONFIG" ] && [ -f /etc/os-release ] && (grep -qi suse /etc/os-release); then
-        echo 'logger.org.elasticsearch.indices: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.indices: TRACE' >> "$ESCONFIG/elasticsearch.yml"
         echo 'logger.org.elasticsearch.gateway: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.cluster: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
     fi
 }
 
@@ -551,7 +555,10 @@ run_elasticsearch_tests() {
 # Move the config directory to another directory and properly chown it.
 move_config() {
     local oldConfig="$ESCONFIG"
-    export ESCONFIG="${1:-$(mktemp -d -t 'config.XXXX')}"
+    # The custom config directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionaly means different
+    # processes can have different views of what's in these directories
+    export ESCONFIG="${1:-$(mktemp -p /etc -d -t 'config.XXXX')}"
     echo "Moving configuration directory from $oldConfig to $ESCONFIG"
 
     # Move configuration files to the new configuration directory
@@ -576,4 +583,18 @@ file_privileges_for_user_from_umask() {
     shift
 
     echo $((0777 & ~$(sudo -E -u $user sh -c umask) & ~0111))
+}
+
+# move java to simulate it not being in the path
+move_java() {
+    which_java=`command -v java`
+    assert_file_exist $which_java
+    mv $which_java ${which_java}.bak
+}
+
+# move java back to its original location
+unmove_java() {
+    which_java=`command -v java.bak`
+    assert_file_exist $which_java
+    mv $which_java `dirname $which_java`/java
 }

@@ -32,7 +32,7 @@ import static org.elasticsearch.common.util.BigArrays.OBJECT_PAGE_SIZE;
  */
 final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T> {
 
-    private static final BigObjectArray ESTIMATOR = new BigObjectArray(0, BigArrays.NON_RECYCLING_INSTANCE);
+    private static final BigObjectArray<Long> ESTIMATOR = new BigObjectArray<Long>(0, BigArrays.NON_RECYCLING_INSTANCE);
 
     private Object[][] pages;
 

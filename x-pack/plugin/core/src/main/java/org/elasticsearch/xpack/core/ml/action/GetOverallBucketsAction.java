@@ -48,7 +48,7 @@ import java.util.function.LongSupplier;
  * the interval.
  * </p>
  */
-public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Request, GetOverallBucketsAction.Response> {
+public class GetOverallBucketsAction extends Action<GetOverallBucketsAction.Response> {
 
     public static final GetOverallBucketsAction INSTANCE = new GetOverallBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";

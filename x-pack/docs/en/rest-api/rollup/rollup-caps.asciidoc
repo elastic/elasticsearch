@@ -5,6 +5,8 @@
 <titleabbrev>Get Rollup Caps</titleabbrev>
 ++++
 
+experimental[]
+
 This API returns the rollup capabilities that have been configured for an index or index pattern.  This API is useful
 because a rollup job is often configured to rollup only a subset of fields from the source index.  Furthermore, only
 certain aggregations can be configured for various fields, leading to a limited subset of functionality depending on
@@ -25,13 +27,13 @@ live?
 ==== Path Parameters
 
 `index`::
-  (string) Index, indices or index-pattern to return rollup capabilities for.  If omitted (or `_all` is used) all available
-  rollup job capabilities will be returned
+  (string) Index, indices or index-pattern to return rollup capabilities for.  `_all` may be used to fetch
+  rollup capabilities from all jobs
 
 
 ==== Request Body
 
-There is no request body for the Get Jobs API.
+There is no request body for the Get Rollup Caps API.
 
 ==== Authorization
 

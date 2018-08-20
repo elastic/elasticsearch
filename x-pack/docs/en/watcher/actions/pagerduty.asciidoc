@@ -25,6 +25,7 @@ The following snippet shows a simple PagerDuty action definition:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Description of the message
 
 
@@ -59,6 +60,7 @@ payload as well as an array of contexts to the action.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 
 [[pagerduty-action-attributes]]

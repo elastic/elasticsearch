@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsP
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -56,23 +57,26 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private static final String EARLIEST_TIME = "earliest_time";
     private static final String LATEST_TIME = "latest_time";
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final JobManager jobManager;
 
     @Inject
     public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetOverallBucketsAction.Request::new);
+                                            ActionFilters actionFilters, ClusterService clusterService,
+                                            JobManager jobManager, Client client) {
+        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
+            (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
         QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
         if (jobsPage.count() == 0) {
             listener.onResponse(new GetOverallBucketsAction.Response());

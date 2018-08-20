@@ -23,7 +23,6 @@ import joptsimple.OptionSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -31,11 +30,8 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.

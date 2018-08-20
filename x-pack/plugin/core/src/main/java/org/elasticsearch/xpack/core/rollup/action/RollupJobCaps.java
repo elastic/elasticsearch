@@ -9,13 +9,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 
 import java.io.IOException;
@@ -25,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * Represents the Rollup capabilities for a specific job on a single rollup index
@@ -48,8 +42,8 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         jobID = job.getId();
         rollupIndex = job.getRollupIndex();
         indexPattern = job.getIndexPattern();
-        Map<String, Object> dateHistoAggCap = job.getGroupConfig().getDateHisto().toAggCap();
-        String dateField = job.getGroupConfig().getDateHisto().getField();
+        Map<String, Object> dateHistoAggCap = job.getGroupConfig().getDateHistogram().toAggCap();
+        String dateField = job.getGroupConfig().getDateHistogram().getField();
         RollupFieldCaps fieldCaps = fieldCapLookup.get(dateField);
         if (fieldCaps == null) {
             fieldCaps = new RollupFieldCaps();
@@ -57,9 +51,9 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         fieldCaps.addAgg(dateHistoAggCap);
         fieldCapLookup.put(dateField, fieldCaps);
 
-        if (job.getGroupConfig().getHisto() != null) {
-            Map<String, Object> histoAggCap = job.getGroupConfig().getHisto().toAggCap();
-            Arrays.stream(job.getGroupConfig().getHisto().getFields()).forEach(field -> {
+        if (job.getGroupConfig().getHistogram() != null) {
+            Map<String, Object> histoAggCap = job.getGroupConfig().getHistogram().toAggCap();
+            Arrays.stream(job.getGroupConfig().getHistogram().getFields()).forEach(field -> {
                 RollupFieldCaps caps = fieldCapLookup.get(field);
                 if (caps == null) {
                     caps = new RollupFieldCaps();

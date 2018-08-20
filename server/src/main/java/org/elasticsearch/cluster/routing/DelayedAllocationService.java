@@ -67,7 +67,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     class DelayedRerouteTask extends ClusterStateUpdateTask {
         final TimeValue nextDelay; // delay until submitting the reroute command
         final long baseTimestampNanos; // timestamp (in nanos) upon which delay was calculated
-        volatile ScheduledFuture future;
+        volatile ScheduledFuture<?> future;
         final AtomicBoolean cancelScheduling = new AtomicBoolean();
 
         DelayedRerouteTask(TimeValue nextDelay, long baseTimestampNanos) {

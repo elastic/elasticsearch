@@ -76,6 +76,9 @@ public class UnifiedHighlighter implements Highlighter {
             fieldValues = fieldValues.stream()
                 .map((s) -> convertFieldValue(fieldType, s))
                 .collect(Collectors.toList());
+            if (fieldValues.size() == 0) {
+                return null;
+            }
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);

@@ -22,14 +22,9 @@ import org.apache.commons.io.output.TeeOutputStream
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
-import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
 
 import javax.inject.Inject
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.locks.Lock
-import java.util.concurrent.locks.ReadWriteLock
-import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Runs a vagrant command. Pretty much like Exec task but with a nicer output

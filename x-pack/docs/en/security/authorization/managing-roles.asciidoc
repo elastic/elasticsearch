@@ -130,14 +130,14 @@ manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*.
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
 roles are stored in an internal {es} index. For more information and examples, 
-see {ref}/security-api-roles.html[Role Management APIs]. 
+see {ref}/security-api.html#security-role-apis[role management APIs]. 
 
 [float]
 [[roles-management-file]]
 === File-based role management
 
 Apart from the _Role Management APIs_, roles can also be defined in local
-`roles.yml` file located in `CONFIG_DIR`. This is a YAML file where each
+`roles.yml` file located in `ES_PATH_CONF`. This is a YAML file where each
 role definition is keyed by its name.
 
 [IMPORTANT]

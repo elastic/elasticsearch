@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -27,13 +27,13 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The configuration object for the metrics portion of a rollup job config
@@ -51,14 +51,7 @@ import java.util.stream.Stream;
  *     ]
  * }
  */
-public class MetricConfig implements Writeable, ToXContentFragment {
-    private static final String NAME = "metric_config";
-
-    private String field;
-    private List<String> metrics;
-
-    private static final ParseField FIELD = new ParseField("field");
-    private static final ParseField METRICS = new ParseField("metrics");
+public class MetricConfig implements Writeable, ToXContentObject {
 
     // TODO: replace these with an enum
     private static final ParseField MIN = new ParseField("min");
@@ -67,37 +60,54 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField AVG = new ParseField("avg");
     private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final List<String> MAPPER_TYPES;
+    static final String NAME = "metrics";
+    private static final String FIELD = "field";
+    private static final String METRICS = "metrics";
+    private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
     static {
-        List<String> types = Stream.of(NumberFieldMapper.NumberType.values())
-                .map(NumberFieldMapper.NumberType::typeName)
-                .collect(Collectors.toList());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
-        MAPPER_TYPES = types;
+        PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            @SuppressWarnings("unchecked") List<String> metrics = (List<String>) args[1];
+            return new MetricConfig((String) args[0], metrics);
+        });
+        PARSER.declareString(constructorArg(), new ParseField(FIELD));
+        PARSER.declareStringArray(constructorArg(), new ParseField(METRICS));
     }
 
-    public static final ConstructingObjectParser<MetricConfig, Void> PARSER = new ConstructingObjectParser<>(
-            NAME, a -> new MetricConfig((String)a[0], (List<String>) a[1]));
+    private final String field;
+    private final List<String> metrics;
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), METRICS);
-    }
-
-    MetricConfig(String name, List<String> metrics) {
-        this.field = name;
+    public MetricConfig(final String field, final List<String> metrics) {
+        if (field == null || field.isEmpty()) {
+            throw new IllegalArgumentException("Field must be a non-null, non-empty string");
+        }
+        if (metrics == null || metrics.isEmpty()) {
+            throw new IllegalArgumentException("Metrics must be a non-null, non-empty array of strings");
+        }
+        metrics.forEach(m -> {
+            if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
+                throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
+                    "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
+            }
+        });
+        this.field = field;
         this.metrics = metrics;
     }
 
-    MetricConfig(StreamInput in) throws IOException {
+    MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readList(StreamInput::readString);
     }
 
+    /**
+     * @return the name of the field used in the metric configuration. Never {@code null}.
+     */
     public String getField() {
         return field;
     }
 
+    /**
+     * @return the names of the metrics used in the metric configuration. Never {@code null}.
+     */
     public List<String> getMetrics() {
         return metrics;
     }
@@ -155,7 +165,7 @@ public class MetricConfig implements Writeable, ToXContentFragment {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
-                if (MAPPER_TYPES.contains(key)) {
+                if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     if (value.isAggregatable() == false) {
                         validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                 "but is not.");
@@ -172,10 +182,13 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD.getPreferredName(), field);
-        builder.field(METRICS.getPreferredName(), metrics);
-        return builder;
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(FIELD, field);
+            builder.field(METRICS, metrics);
+        }
+        return builder.endObject();
     }
 
     @Override
@@ -185,19 +198,16 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(final Object other) {
         if (this == other) {
             return true;
         }
-
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
 
-        MetricConfig that = (MetricConfig) other;
-
-        return Objects.equals(this.field, that.field)
-                && Objects.equals(this.metrics, that.metrics);
+        final MetricConfig that = (MetricConfig) other;
+        return Objects.equals(field, that.field) && Objects.equals(metrics, that.metrics);
     }
 
     @Override
@@ -210,52 +220,7 @@ public class MetricConfig implements Writeable, ToXContentFragment {
         return Strings.toString(this, true, true);
     }
 
-
-    public static class Builder {
-        private String field;
-        private List<String> metrics;
-
-        public Builder() {
-        }
-
-        public Builder(MetricConfig config) {
-            this.field = config.getField();
-            this.metrics = config.getMetrics();
-        }
-
-        public String getField() {
-            return field;
-        }
-
-        public MetricConfig.Builder setField(String field) {
-            this.field = field;
-            return this;
-        }
-
-        public List<String> getMetrics() {
-            return metrics;
-        }
-
-        public MetricConfig.Builder setMetrics(List<String> metrics) {
-            this.metrics = metrics;
-            return this;
-        }
-
-        public MetricConfig build() {
-            if (Strings.isNullOrEmpty(field) == true) {
-                throw new IllegalArgumentException("Parameter [" + FIELD.getPreferredName() + "] must be a non-null, non-empty string.");
-            }
-            if (metrics == null || metrics.isEmpty()) {
-                throw new IllegalArgumentException("Parameter [" + METRICS.getPreferredName()
-                        + "] must be a non-null, non-empty array of strings.");
-            }
-            metrics.forEach(m -> {
-                if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
-                    throw new IllegalArgumentException("Unsupported metric [" + m + "].  " +
-                            "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
-                }
-            });
-            return new MetricConfig(field, metrics);
-        }
+    public static MetricConfig fromXContent(final XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -321,7 +322,7 @@ public class MasterFaultDetection extends FaultDetection {
     private class MasterPingRequestHandler implements TransportRequestHandler<MasterPingRequest> {
 
         @Override
-        public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final MasterPingRequest request, final TransportChannel channel, Task task) throws Exception {
             final DiscoveryNodes nodes = clusterStateSupplier.get().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port

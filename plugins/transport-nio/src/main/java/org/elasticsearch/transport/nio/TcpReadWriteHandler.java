@@ -28,10 +28,10 @@ import java.io.IOException;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
-    private final TcpNioSocketChannel channel;
+    private final NioTcpChannel channel;
     private final TcpTransport transport;
 
-    public TcpReadWriteHandler(TcpNioSocketChannel channel, TcpTransport transport) {
+    public TcpReadWriteHandler(NioTcpChannel channel, TcpTransport transport) {
         this.channel = channel;
         this.transport = transport;
     }

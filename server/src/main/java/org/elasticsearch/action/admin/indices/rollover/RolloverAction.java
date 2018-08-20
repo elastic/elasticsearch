@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.Action;
 
-public class RolloverAction extends Action<RolloverRequest, RolloverResponse> {
+public class RolloverAction extends Action<RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();
     public static final String NAME = "indices:admin/rollover";

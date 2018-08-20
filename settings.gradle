@@ -34,7 +34,6 @@ List projects = [
   'server',
   'server:cli',
   'test:framework',
-  'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
@@ -129,3 +128,8 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+// enable in preparation for Gradle 5.0
+enableFeaturePreview('STABLE_PUBLISHING')
+
+project(":libs:cli").name = 'elasticsearch-cli'

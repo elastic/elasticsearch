@@ -21,7 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.Action;
 
-public class SearchTemplateAction extends Action<SearchTemplateRequest, SearchTemplateResponse> {
+public class SearchTemplateAction extends Action<SearchTemplateResponse> {
 
     public static final SearchTemplateAction INSTANCE = new SearchTemplateAction();
     public static final String NAME = "indices:data/read/search/template";

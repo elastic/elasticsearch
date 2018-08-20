@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-configuring-transform]]
-=== Transforming Data With Script Fields
+=== Transforming data with script fields
 
 If you use {dfeeds}, you can add scripts to transform your data before
 it is analyzed. {dfeeds-cap} contain an optional `script_fields` property, where
@@ -602,10 +603,3 @@ The preview {dfeed} API returns the following results, which show that
 ]
 ----------------------------------
 // TESTRESPONSE
-
-////
-==== Configuring Script Fields in {dfeeds-cap}
-
-//TO-DO: Add Kibana steps from
-//https://github.com/elastic/prelert-legacy/wiki/Transforming-data-with-script_fields#transforming-geo_point-data-to-a-workable-string-format
-////

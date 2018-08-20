@@ -1,6 +1,6 @@
-
+[role="xpack"]
 [[ml-sum-functions]]
-=== Sum Functions
+=== Sum functions
 
 The sum functions detect anomalies when the sum of a field in a bucket is anomalous.
 
@@ -16,16 +16,9 @@ The {xpackml} features include the following sum functions:
 * xref:ml-sum[`sum`, `high_sum`, `low_sum`]
 * xref:ml-nonnull-sum[`non_null_sum`, `high_non_null_sum`, `low_non_null_sum`]
 
-////
-TBD: Incorporate from prelert docs?:
-Input data may contain pre-calculated fields giving the total count of some value e.g. transactions per minute.
-Ensure you are familiar with our advice on Summarization of Input Data, as this is likely to provide
-a more appropriate method to using the sum function.
-////
-
 [float]
 [[ml-sum]]
-==== Sum, High_sum, Low_sum
+==== Sum, high_sum, low_sum
 
 The `sum` function detects anomalies where the sum of a field in a bucket is
 anomalous.
@@ -54,6 +47,7 @@ For more information about those properties, see
   "over_field_name" : "employee"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `sum` function in a detector in your job, it
 models total expenses per employees for each cost center. For each time bucket,
@@ -69,6 +63,7 @@ to other employees.
   "over_field_name" : "cs_host"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_sum` function in a detector in your job, it
 models total `cs_bytes`. It detects `cs_hosts` that transfer unusually high
@@ -79,7 +74,7 @@ to find users that are abusing internet privileges.
 
 [float]
 [[ml-nonnull-sum]]
-==== Non_null_sum, High_non_null_sum, Low_non_null_sum
+==== Non_null_sum, high_non_null_sum, low_non_null_sum
 
 The `non_null_sum` function is useful if your data is sparse. Buckets without
 values are ignored and buckets with a zero value are analyzed.
@@ -110,6 +105,7 @@ is not applicable for this function.
   "byFieldName" : "employee"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_non_null_sum` function in a detector in your job, it
 models the total `amount_approved` for each employee. It ignores any buckets

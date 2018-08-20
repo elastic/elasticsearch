@@ -394,6 +394,22 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(double value) {
+            /**
+             * Explicitly check for NaN, since it formats to "�" or "NaN" depending on JDK version.
+             *
+             * Decimal formatter uses the JRE's default symbol list (via Locale.ROOT above).  In JDK8,
+             * this translates into using {@link sun.util.locale.provider.JRELocaleProviderAdapter}, which loads
+             * {@link sun.text.resources.FormatData} for symbols.  There, `NaN` is defined as `\ufffd` (�)
+             *
+             * In JDK9+, {@link sun.util.cldr.CLDRLocaleProviderAdapter} is used instead, which loads
+             * {@link sun.text.resources.cldr.FormatData}.  There, `NaN` is defined as `"NaN"`
+             *
+             * Since the character � isn't very useful, and makes the output change depending on JDK version,
+             * we manually check to see if the value is NaN and return the string directly.
+             */
+            if (Double.isNaN(value)) {
+                return String.valueOf(Double.NaN);
+            }
             return format.format(value);
         }
 

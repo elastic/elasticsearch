@@ -20,11 +20,11 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 import org.elasticsearch.client.sniff.Sniffer.DefaultScheduler;
 import org.elasticsearch.client.sniff.Sniffer.Scheduler;
-import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -62,6 +62,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollectionOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -71,12 +72,12 @@ import static org.mockito.Mockito.when;
 public class SnifferTests extends RestClientTestCase {
 
     /**
-     * Tests the {@link Sniffer#sniff()} method in isolation. Verifies that it uses the {@link HostsSniffer} implementation
+     * Tests the {@link Sniffer#sniff()} method in isolation. Verifies that it uses the {@link NodesSniffer} implementation
      * to retrieve nodes and set them (when not empty) to the provided {@link RestClient} instance.
      */
     public void testSniff() throws IOException {
-        HttpHost initialHost = new HttpHost("localhost", 9200);
-        try (RestClient restClient = RestClient.builder(initialHost).build()) {
+        Node initialNode = new Node(new HttpHost("localhost", 9200));
+        try (RestClient restClient = RestClient.builder(initialNode).build()) {
             Scheduler noOpScheduler = new Scheduler() {
                 @Override
                 public Future<?> schedule(Sniffer.Task task, long delayMillis) {
@@ -88,53 +89,53 @@ public class SnifferTests extends RestClientTestCase {
 
                 }
             };
-            CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+            CountingNodesSniffer nodesSniffer = new CountingNodesSniffer();
             int iters = randomIntBetween(5, 30);
-            try (Sniffer sniffer = new Sniffer(restClient, hostsSniffer, noOpScheduler, 1000L, -1)){
+            try (Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 1000L, -1)){
                 {
-                    assertEquals(1, restClient.getHosts().size());
-                    HttpHost httpHost = restClient.getHosts().get(0);
-                    assertEquals("localhost", httpHost.getHostName());
-                    assertEquals(9200, httpHost.getPort());
+                    assertEquals(1, restClient.getNodes().size());
+                    Node node = restClient.getNodes().get(0);
+                    assertEquals("localhost", node.getHost().getHostName());
+                    assertEquals(9200, node.getHost().getPort());
                 }
                 int emptyList = 0;
                 int failures = 0;
                 int runs = 0;
-                List<HttpHost> lastHosts = Collections.singletonList(initialHost);
+                List<Node> lastNodes = Collections.singletonList(initialNode);
                 for (int i = 0; i < iters; i++) {
                     try {
                         runs++;
                         sniffer.sniff();
-                        if (hostsSniffer.failures.get() > failures) {
+                        if (nodesSniffer.failures.get() > failures) {
                             failures++;
-                            fail("should have failed given that hostsSniffer says it threw an exception");
-                        } else if (hostsSniffer.emptyList.get() > emptyList) {
+                            fail("should have failed given that nodesSniffer says it threw an exception");
+                        } else if (nodesSniffer.emptyList.get() > emptyList) {
                             emptyList++;
-                            assertEquals(lastHosts, restClient.getHosts());
+                            assertEquals(lastNodes, restClient.getNodes());
                         } else {
-                            assertNotEquals(lastHosts, restClient.getHosts());
-                            List<HttpHost> expectedHosts = CountingHostsSniffer.buildHosts(runs);
-                            assertEquals(expectedHosts, restClient.getHosts());
-                            lastHosts = restClient.getHosts();
+                            assertNotEquals(lastNodes, restClient.getNodes());
+                            List<Node> expectedNodes = CountingNodesSniffer.buildNodes(runs);
+                            assertEquals(expectedNodes, restClient.getNodes());
+                            lastNodes = restClient.getNodes();
                         }
                     } catch(IOException e) {
-                        if (hostsSniffer.failures.get() > failures) {
+                        if (nodesSniffer.failures.get() > failures) {
                             failures++;
                             assertEquals("communication breakdown", e.getMessage());
                         }
                     }
                 }
-                assertEquals(hostsSniffer.emptyList.get(), emptyList);
-                assertEquals(hostsSniffer.failures.get(), failures);
-                assertEquals(hostsSniffer.runs.get(), runs);
+                assertEquals(nodesSniffer.emptyList.get(), emptyList);
+                assertEquals(nodesSniffer.failures.get(), failures);
+                assertEquals(nodesSniffer.runs.get(), runs);
             }
         }
     }
 
     /**
-     * Test multiple sniffing rounds by mocking the {@link Scheduler} as well as the {@link HostsSniffer}.
+     * Test multiple sniffing rounds by mocking the {@link Scheduler} as well as the {@link NodesSniffer}.
      * Simulates the ordinary behaviour of {@link Sniffer} when sniffing on failure is not enabled.
-     * The {@link CountingHostsSniffer} doesn't make any network connection but may throw exception or return no hosts, which makes
+     * The {@link CountingNodesSniffer} doesn't make any network connection but may throw exception or return no nodes, which makes
      * it possible to verify that errors are properly handled and don't affect subsequent runs and their scheduling.
      * The {@link Scheduler} implementation submits rather than scheduling tasks, meaning that it doesn't respect the requested sniff
      * delays while allowing to assert that the requested delays for each requested run and the following one are the expected values.
@@ -143,7 +144,7 @@ public class SnifferTests extends RestClientTestCase {
         final long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
         RestClient restClient = mock(RestClient.class);
-        CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+        CountingNodesSniffer nodesSniffer = new CountingNodesSniffer();
         final int iters = randomIntBetween(30, 100);
         final Set<Future<?>> futures = new CopyOnWriteArraySet<>();
         final CountDownLatch completionLatch = new CountDownLatch(1);
@@ -185,7 +186,7 @@ public class SnifferTests extends RestClientTestCase {
             }
         };
         try {
-            new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
+            new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
             assertTrue("timeout waiting for sniffing rounds to be completed", completionLatch.await(1000, TimeUnit.MILLISECONDS));
             assertEquals(iters, futures.size());
             //the last future is the only one that may not be completed yet, as the count down happens
@@ -200,10 +201,10 @@ public class SnifferTests extends RestClientTestCase {
             executor.shutdown();
             assertTrue(executor.awaitTermination(1000, TimeUnit.MILLISECONDS));
         }
-        int totalRuns = hostsSniffer.runs.get();
+        int totalRuns = nodesSniffer.runs.get();
         assertEquals(iters, totalRuns);
-        int setHostsRuns = totalRuns - hostsSniffer.failures.get() - hostsSniffer.emptyList.get();
-        verify(restClient, times(setHostsRuns)).setHosts(Matchers.<HttpHost>anyVararg());
+        int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
         verifyNoMoreInteractions(restClient);
     }
 
@@ -234,7 +235,7 @@ public class SnifferTests extends RestClientTestCase {
             }
         };
 
-        Sniffer sniffer = new Sniffer(restClient, new MockHostsSniffer(), scheduler, sniffInterval, sniffAfterFailureDelay);
+        Sniffer sniffer = new Sniffer(restClient, new MockNodesSniffer(), scheduler, sniffInterval, sniffAfterFailureDelay);
         assertEquals(0, shutdown.get());
         int iters = randomIntBetween(3, 10);
         for (int i = 1; i <= iters; i++) {
@@ -246,7 +247,7 @@ public class SnifferTests extends RestClientTestCase {
 
     public void testSniffOnFailureNotInitialized() {
         RestClient restClient = mock(RestClient.class);
-        CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+        CountingNodesSniffer nodesSniffer = new CountingNodesSniffer();
         long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicInteger scheduleCalls = new AtomicInteger(0);
@@ -262,15 +263,15 @@ public class SnifferTests extends RestClientTestCase {
             }
         };
 
-        Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
+        Sniffer sniffer = new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
         for (int i = 0; i < 10; i++) {
             sniffer.sniffOnFailure();
         }
         assertEquals(1, scheduleCalls.get());
-        int totalRuns = hostsSniffer.runs.get();
+        int totalRuns = nodesSniffer.runs.get();
         assertEquals(0, totalRuns);
-        int setHostsRuns = totalRuns - hostsSniffer.failures.get() - hostsSniffer.emptyList.get();
-        verify(restClient, times(setHostsRuns)).setHosts(Matchers.<HttpHost>anyVararg());
+        int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
         verifyNoMoreInteractions(restClient);
     }
 
@@ -281,7 +282,7 @@ public class SnifferTests extends RestClientTestCase {
      */
     public void testSniffOnFailure() throws Exception {
         RestClient restClient = mock(RestClient.class);
-        CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+        CountingNodesSniffer nodesSniffer = new CountingNodesSniffer();
         final AtomicBoolean initializing = new AtomicBoolean(true);
         final long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         final long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
@@ -351,7 +352,7 @@ public class SnifferTests extends RestClientTestCase {
                 public void shutdown() {
                 }
             };
-            final Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
+            final Sniffer sniffer = new Sniffer(restClient, nodesSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
             assertTrue("timeout waiting for sniffer to get initialized", initializingLatch.await(1000, TimeUnit.MILLISECONDS));
 
             ExecutorService onFailureExecutor = Executors.newFixedThreadPool(randomIntBetween(5, 20));
@@ -413,9 +414,9 @@ public class SnifferTests extends RestClientTestCase {
             }
             assertEquals(onFailureTasks.size(), cancelledTasks);
 
-            assertEquals(completedTasks, hostsSniffer.runs.get());
-            int setHostsRuns = hostsSniffer.runs.get() - hostsSniffer.failures.get() - hostsSniffer.emptyList.get();
-            verify(restClient, times(setHostsRuns)).setHosts(Matchers.<HttpHost>anyVararg());
+            assertEquals(completedTasks, nodesSniffer.runs.get());
+            int setNodesRuns = nodesSniffer.runs.get() - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
+            verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
             verifyNoMoreInteractions(restClient);
         } finally {
             executor.shutdown();
@@ -446,7 +447,7 @@ public class SnifferTests extends RestClientTestCase {
 
     public void testTaskCancelling() throws Exception {
         RestClient restClient = mock(RestClient.class);
-        HostsSniffer hostsSniffer = mock(HostsSniffer.class);
+        NodesSniffer nodesSniffer = mock(NodesSniffer.class);
         Scheduler noOpScheduler = new Scheduler() {
             @Override
             public Future<?> schedule(Sniffer.Task task, long delayMillis) {
@@ -457,7 +458,7 @@ public class SnifferTests extends RestClientTestCase {
             public void shutdown() {
             }
         };
-        Sniffer sniffer = new Sniffer(restClient, hostsSniffer, noOpScheduler, 0L, 0L);
+        Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 0L, 0L);
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         try {
             int numIters = randomIntBetween(50, 100);
@@ -540,18 +541,18 @@ public class SnifferTests extends RestClientTestCase {
     }
 
     /**
-     * Mock {@link HostsSniffer} implementation used for testing, which most of the times return a fixed host.
-     * It rarely throws exception or return an empty list of hosts, to make sure that such situations are properly handled.
+     * Mock {@link NodesSniffer} implementation used for testing, which most of the times return a fixed node.
+     * It rarely throws exception or return an empty list of nodes, to make sure that such situations are properly handled.
      * It also asserts that it never gets called concurrently, based on the assumption that only one sniff run can be run
      * at a given point in time.
      */
-    private static class CountingHostsSniffer implements HostsSniffer {
+    private static class CountingNodesSniffer implements NodesSniffer {
         private final AtomicInteger runs = new AtomicInteger(0);
         private final AtomicInteger failures = new AtomicInteger(0);
         private final AtomicInteger emptyList = new AtomicInteger(0);
 
         @Override
-        public List<HttpHost> sniffHosts() throws IOException {
+        public List<Node> sniff() throws IOException {
             int run = runs.incrementAndGet();
             if (rarely()) {
                 failures.incrementAndGet();
@@ -562,24 +563,23 @@ public class SnifferTests extends RestClientTestCase {
                 emptyList.incrementAndGet();
                 return Collections.emptyList();
             }
-            return buildHosts(run);
+            return buildNodes(run);
         }
 
-        private static List<HttpHost> buildHosts(int run) {
+        private static List<Node> buildNodes(int run) {
             int size = run % 5 + 1;
             assert size > 0;
-            List<HttpHost> hosts = new ArrayList<>(size);
+            List<Node> nodes = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                hosts.add(new HttpHost("sniffed-" + run, 9200 + i));
+                nodes.add(new Node(new HttpHost("sniffed-" + run, 9200 + i)));
             }
-            return hosts;
+            return nodes;
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testDefaultSchedulerSchedule() {
         RestClient restClient = mock(RestClient.class);
-        HostsSniffer hostsSniffer = mock(HostsSniffer.class);
+        NodesSniffer nodesSniffer = mock(NodesSniffer.class);
         Scheduler noOpScheduler = new Scheduler() {
             @Override
             public Future<?> schedule(Sniffer.Task task, long delayMillis) {
@@ -591,7 +591,7 @@ public class SnifferTests extends RestClientTestCase {
 
             }
         };
-        Sniffer sniffer = new Sniffer(restClient, hostsSniffer, noOpScheduler, 0L, 0L);
+        Sniffer sniffer = new Sniffer(restClient, nodesSniffer, noOpScheduler, 0L, 0L);
         Sniffer.Task task = sniffer.new Task(randomLongBetween(1, Long.MAX_VALUE));
 
         ScheduledExecutorService scheduledExecutorService = mock(ScheduledExecutorService.class);

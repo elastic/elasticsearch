@@ -527,8 +527,7 @@ public final class IngestDocument {
 
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
-            List<?> valueList = (List<?>) value;
-            valueList.stream().forEach(list::add);
+            list.addAll((List<?>) value);
         } else {
             list.add(value);
         }
@@ -571,6 +570,17 @@ public final class IngestDocument {
     }
 
     /**
+     * Does the same thing as {@link #extractMetadata} but does not mutate the map.
+     */
+    public Map<MetaData, Object> getMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
+        for (MetaData metaData : MetaData.values()) {
+            metadataMap.put(metaData, sourceAndMetadata.get(metaData.getFieldName()));
+        }
+        return metadataMap;
+    }
+
+    /**
      * Returns the available ingest metadata fields, by default only timestamp, but it is possible to set additional ones.
      * Use only for reading values, modify them instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
      */
@@ -588,7 +598,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
+    public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
         return (Map<K, V>) deepCopy(source);
     }
 

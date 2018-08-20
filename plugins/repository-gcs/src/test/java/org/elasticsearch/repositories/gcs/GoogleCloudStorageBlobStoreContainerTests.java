@@ -26,11 +26,22 @@ import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     @Override
     protected BlobStore newBlobStore() {
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, new MockStorage(bucket, new ConcurrentHashMap<>()));
+        final String bucketName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
+        try {
+            when(storageService.client(any(String.class))).thenReturn(new MockStorage(bucketName, new ConcurrentHashMap<>()));
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucketName, clientName, storageService);
     }
 }

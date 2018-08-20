@@ -37,7 +37,6 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.hamcrest.Matchers.hasSize;
 
 public class BulkByScrollTaskStatusTests extends ESTestCase {
     public void testBulkByTaskStatus() throws IOException {

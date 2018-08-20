@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -94,6 +93,7 @@ public class UpdateIT extends ESIntegTestCase {
                 }
 
                 Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                params.remove("ctx");
                 source.putAll(params);
 
                 return ctx;
@@ -141,8 +141,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     private void createTestIndex() throws Exception {
         logger.info("--> creating index test");
-
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, null))));
     }
 
     public void testUpsert() throws Exception {

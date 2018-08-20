@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.Action;
 
-public class GetIndexTemplatesAction extends Action<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class GetIndexTemplatesAction extends Action<GetIndexTemplatesResponse> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();
     public static final String NAME = "indices:admin/template/get";

@@ -23,6 +23,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.bouncycastle.bcpg.ArmoredInputStream;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
@@ -47,7 +48,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -74,7 +74,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -543,8 +542,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 InputStream fin = pluginZipInputStream(zip);
                 // sin is a URL stream to the signature corresponding to the downloaded plugin zip
                 InputStream sin = urlOpenStream(ascUrl);
-                // pin is a input stream to the public key in ASCII-Armor format (RFC4880); the Armor data is in RFC2045 format
-                InputStream pin = getPublicKey()) {
+                // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
+                InputStream ain = new ArmoredInputStream(getPublicKey())) {
             final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
             final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
 
@@ -555,18 +554,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
 
             // compute the signature of the downloaded plugin zip
-            final List<String> lines =
-                    new BufferedReader(new InputStreamReader(pin, StandardCharsets.UTF_8)).lines().collect(Collectors.toList());
-            // skip armor headers and possible blank line
-            int index = 1;
-            for (; index < lines.size(); index++) {
-                if (lines.get(index).matches(".*: .*") == false && lines.get(index).matches("\\s*") == false) {
-                    break;
-                }
-            }
-            final byte[] armoredData =
-                    lines.subList(index, lines.size() - 1).stream().collect(Collectors.joining("\n")).getBytes(StandardCharsets.UTF_8);
-            final InputStream ain = Base64.getMimeDecoder().wrap(new ByteArrayInputStream(armoredData));
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
             signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);

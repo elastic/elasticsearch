@@ -5,7 +5,7 @@
 <titleabbrev>Get Overall Buckets</titleabbrev>
 ++++
 
-This API enables you to retrieve overall bucket results that summarize the
+Retrieves overall bucket results that summarize the
 bucket results of multiple jobs.
 
 ==== Request

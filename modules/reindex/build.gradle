@@ -121,6 +121,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
            baseDir,
            unzip.temporaryDir,
            version == '090'
+      waitCondition = { fixture, ant ->
+        // the fixture writes the ports file when Elasticsearch's HTTP service
+        // is ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
     }
     integTest.dependsOn fixture
     integTestRunner {

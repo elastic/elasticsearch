@@ -19,11 +19,12 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.Pipeline;
@@ -80,52 +81,13 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         void execute(Request request, RequestOptions options, ActionListener<Response> listener);
     }
 
-    /**
-     * Executes the provided request using either the sync method or its async variant, both provided as functions
-     */
-    @Deprecated
-    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod, AsyncMethod<Req, Resp> asyncMethod,
-                                              SyncMethodWithHeaders<Req, Resp> syncMethodWithHeaders,
-                                              AsyncMethodWithHeaders<Req, Resp> asyncMethodWithHeaders) throws IOException {
-        switch(randomIntBetween(0, 3)) {
-            case 0:
-                return syncMethod.execute(request, RequestOptions.DEFAULT);
-            case 1:
-                PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
-                asyncMethod.execute(request, RequestOptions.DEFAULT, future);
-                return future.actionGet();
-            case 2:
-                return syncMethodWithHeaders.execute(request);
-            case 3:
-                PlainActionFuture<Resp> futureWithHeaders = PlainActionFuture.newFuture();
-                asyncMethodWithHeaders.execute(request, futureWithHeaders);
-                return futureWithHeaders.actionGet();
-            default:
-                throw new UnsupportedOperationException();
-        }
-    }
-
-    @Deprecated
-    @FunctionalInterface
-    protected interface SyncMethodWithHeaders<Request, Response> {
-        Response execute(Request request, Header... headers) throws IOException;
-    }
-
-    @Deprecated
-    @FunctionalInterface
-    protected interface AsyncMethodWithHeaders<Request, Response> {
-        void execute(Request request, ActionListener<Response> listener, Header... headers);
-    }
-
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
     }
 
-    protected static XContentBuilder buildRandomXContentPipeline() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
+    protected static XContentBuilder buildRandomXContentPipeline(XContentBuilder pipelineBuilder) throws IOException {
         pipelineBuilder.startObject();
         {
             pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
@@ -152,6 +114,12 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         return pipelineBuilder;
     }
 
+    protected static XContentBuilder buildRandomXContentPipeline() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
+        return buildRandomXContentPipeline(pipelineBuilder);
+    }
+
     protected static void createPipeline(String pipelineId) throws IOException {
         XContentBuilder builder = buildRandomXContentPipeline();
         createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
@@ -159,5 +127,13 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
+    }
+
+    protected static void clusterUpdateSettings(Settings persistentSettings,
+                                                Settings transientSettings) throws IOException {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(persistentSettings);
+        request.transientSettings(transientSettings);
+        assertOK(client().performRequest(RequestConverters.clusterPutSettings(request)));
     }
 }

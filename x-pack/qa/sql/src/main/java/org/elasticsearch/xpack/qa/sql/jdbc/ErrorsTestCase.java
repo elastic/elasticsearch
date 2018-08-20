@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 
 import static org.hamcrest.Matchers.startsWith;

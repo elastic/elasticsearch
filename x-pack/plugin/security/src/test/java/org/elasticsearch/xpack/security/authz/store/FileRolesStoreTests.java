@@ -16,8 +16,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -124,7 +124,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role3" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
@@ -148,7 +148,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
@@ -161,7 +161,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as1" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
@@ -174,7 +174,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_fields" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
@@ -196,7 +196,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
@@ -217,7 +217,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query_fields" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
@@ -342,14 +342,15 @@ public class FileRolesStoreTests extends ESTestCase {
                 fail("Waited too long for the updated file to be picked up");
             }
 
+            final TransportRequest request = mock(TransportRequest.class);
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
             Role role = Role.builder(descriptors.iterator().next(), null).build();
             assertThat(role, notNullValue());
             assertThat(role.names(), equalTo(new String[] { "role5" }));
-            assertThat(role.cluster().check("cluster:monitor/foo/bar"), is(true));
-            assertThat(role.cluster().check("cluster:admin/foo/bar"), is(false));
+            assertThat(role.cluster().check("cluster:monitor/foo/bar", request), is(true));
+            assertThat(role.cluster().check("cluster:admin/foo/bar", request), is(false));
 
         } finally {
             if (watcherService != null) {

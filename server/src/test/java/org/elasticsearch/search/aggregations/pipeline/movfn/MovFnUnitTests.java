@@ -45,7 +45,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +98,6 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
 
-    @SuppressWarnings("unchecked")
     private void executeTestCase(Query query,
                                  DateHistogramAggregationBuilder aggBuilder,
                                  Consumer<Histogram> verify,

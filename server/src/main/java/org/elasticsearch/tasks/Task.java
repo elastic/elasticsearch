@@ -34,6 +34,11 @@ import java.util.Map;
  */
 public class Task {
 
+    /**
+     * The request header to mark tasks with specific ids
+     */
+    public static final String X_OPAQUE_ID = "X-Opaque-Id";
+
     private final long id;
 
     private final String type;

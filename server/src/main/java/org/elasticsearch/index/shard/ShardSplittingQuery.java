@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.Uid;
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 /**

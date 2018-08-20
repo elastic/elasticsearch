@@ -46,6 +46,24 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
         assertThat(forEachProcessor.getProcessor(), Matchers.sameInstance(processor));
+        assertFalse(forEachProcessor.isIgnoreMissing());
+    }
+
+    public void testSetIgnoreMissing() throws Exception {
+        Processor processor = new TestProcessor(ingestDocument -> { });
+        Map<String, Processor.Factory> registry = new HashMap<>();
+        registry.put("_name", (r, t, c) -> processor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        config.put("ignore_missing", true);
+        ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config);
+        assertThat(forEachProcessor, Matchers.notNullValue());
+        assertThat(forEachProcessor.getField(), equalTo("_field"));
+        assertThat(forEachProcessor.getProcessor(), Matchers.sameInstance(processor));
+        assertTrue(forEachProcessor.isIgnoreMissing());
     }
 
     public void testCreateWithTooManyProcessorTypes() throws Exception {

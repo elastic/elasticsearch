@@ -36,7 +36,7 @@ public enum Transports {
      * used in assertions to make sure that we do not call blocking code from
      * networking threads.
      */
-    public static final boolean isTransportThread(Thread t) {
+    public static boolean isTransportThread(Thread t) {
         final String threadName = t.getName();
         for (String s : Arrays.asList(
                 HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,

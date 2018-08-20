@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -30,7 +31,7 @@ import java.util.Map;
  * Builder for request to modify many aliases at once.
  */
 public class IndicesAliasesRequestBuilder
-        extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
+        extends AcknowledgedRequestBuilder<IndicesAliasesRequest, AcknowledgedResponse, IndicesAliasesRequestBuilder> {
 
     public IndicesAliasesRequestBuilder(ElasticsearchClient client, IndicesAliasesAction action) {
         super(client, action, new IndicesAliasesRequest());
@@ -127,6 +128,18 @@ public class IndicesAliasesRequestBuilder
      */
     public IndicesAliasesRequestBuilder addAlias(String index, String alias, QueryBuilder filterBuilder) {
         request.addAliasAction(AliasActions.add().index(index).alias(alias).filter(filterBuilder));
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
+     * @param index         The index
+     * @param alias         The alias
+     * @param writeIndex    write index flag
+     */
+    public IndicesAliasesRequestBuilder addAlias(String index, String alias, boolean writeIndex) {
+        request.addAliasAction(AliasActions.add().index(index).alias(alias).writeIndex(writeIndex));
         return this;
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.Action;
 
-public class GetSettingsAction extends Action<GetSettingsRequest, GetSettingsResponse> {
+public class GetSettingsAction extends Action<GetSettingsResponse> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
     public static final String NAME = "indices:monitor/settings/get";

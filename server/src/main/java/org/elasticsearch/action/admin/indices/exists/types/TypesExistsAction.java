@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.Action;
 
-public class TypesExistsAction extends Action<TypesExistsRequest, TypesExistsResponse> {
+public class TypesExistsAction extends Action<TypesExistsResponse> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();
     public static final String NAME = "indices:admin/types/exists";

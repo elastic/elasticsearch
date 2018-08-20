@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -48,6 +49,19 @@ public interface Discovery extends LifecycleComponent {
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
 
     interface AckListener {
+        /**
+         * Should be called when the discovery layer has committed the clusters state (i.e. even if this publication fails,
+         * it is guaranteed to appear in future publications).
+         * @param commitTime the time it took to commit the cluster state
+         */
+        void onCommit(TimeValue commitTime);
+
+        /**
+         * Should be called whenever the discovery layer receives confirmation from a node that it has successfully applied
+         * the cluster state. In case of failures, an exception should be provided as parameter.
+         * @param node the node
+         * @param e the optional exception
+         */
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
     }
 

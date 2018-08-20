@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.Action;
 
-public class ClusterStatsAction extends Action<ClusterStatsRequest, ClusterStatsResponse> {
+public class ClusterStatsAction extends Action<ClusterStatsResponse> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();
     public static final String NAME = "cluster:monitor/stats";

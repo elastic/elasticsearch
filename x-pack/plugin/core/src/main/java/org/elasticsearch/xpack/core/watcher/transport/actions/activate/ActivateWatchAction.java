@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * This action acks a watch in memory, and the index
  */
-public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWatchResponse> {
+public class ActivateWatchAction extends Action<ActivateWatchResponse> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";

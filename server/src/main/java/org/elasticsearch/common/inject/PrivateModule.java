@@ -17,15 +17,10 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeListener;
 
-import java.lang.annotation.Annotation;
 
 /**
  * A module whose configuration information is hidden from its environment by default. Only bindings

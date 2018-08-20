@@ -304,6 +304,7 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
         private final long version;
+        private final long term;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
@@ -311,19 +312,21 @@ public abstract class Engine implements Closeable {
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
+            this.term = term;
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
+            this.term = term;
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
@@ -333,6 +336,7 @@ public abstract class Engine implements Closeable {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.term = 0L;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -355,6 +359,10 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        public long getTerm() {
+            return term;
         }
 
         /**
@@ -415,20 +423,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created) {
+            super(Operation.TYPE.INDEX, version, term, seqNo);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
-        public IndexResult(Exception failure, long version, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
             this.created = false;
         }
 
@@ -447,20 +455,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean found;
 
-        public DeleteResult(long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, version, term, seqNo);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
             this.found = found;
         }
 
@@ -477,12 +485,12 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, seqNo);
+        NoOpResult(long term, long seqNo) {
+            super(Operation.TYPE.NO_OP, term, 0, seqNo);
         }
 
-        NoOpResult(long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        NoOpResult(long term, long seqNo, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
         }
 
     }
@@ -566,17 +574,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the translog associated with this engine.
-     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
-     */
-    abstract Translog getTranslog();
-
-    /**
      * Checks if the underlying storage sync is required.
      */
-    public boolean isTranslogSyncNeeded() {
-        return getTranslog().syncNeeded();
-    }
+    public abstract boolean isTranslogSyncNeeded();
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -585,35 +585,25 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public Closeable acquireTranslogRetentionLock() {
-        return getTranslog().acquireRetentionLock();
-    }
+    public abstract Closeable acquireTranslogRetentionLock();
 
     /**
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
      * The caller has to close the returned snapshot after finishing the reading.
      */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
-    }
+    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
 
     /**
      * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
-    }
+    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
 
-    public TranslogStats getTranslogStats() {
-        return getTranslog().stats();
-    }
+    public abstract TranslogStats getTranslogStats();
 
     /**
      * Returns the last location that the translog of this engine has written into.
      */
-    public Translog.Location getTranslogLastWriteLocation() {
-        return getTranslog().getLastWriteLocation();
-    }
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -661,9 +651,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
-    public long getLastSyncedGlobalCheckpoint() {
-        return getTranslog().getLastSyncedGlobalCheckpoint();
-    }
+    public abstract long getLastSyncedGlobalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -820,6 +808,8 @@ public abstract class Engine implements Closeable {
                     } catch (IOException e) {
                         logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
+                    segment.segmentSort = info.info.getIndexSort();
+                    segment.attributes = info.info.getAttributes();
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;
@@ -935,9 +925,7 @@ public abstract class Engine implements Closeable {
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
-    public boolean shouldRollTranslogGeneration() {
-        return getTranslog().shouldRollGeneration();
-    }
+    public abstract boolean shouldRollTranslogGeneration();
 
     /**
      * Rolls the translog generation and cleans unneeded.
@@ -1190,6 +1178,7 @@ public abstract class Engine implements Closeable {
         public Index(Term uid, ParsedDocument doc, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin,
                      long startTime, long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.doc = doc;
             this.isRetry = isRetry;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
@@ -1267,6 +1256,7 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
         }

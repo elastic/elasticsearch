@@ -9,9 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -197,7 +197,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final MetaData metaData = clusterState.metaData();
         return metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MLMetadataField.TYPE) != null ||
+            metaData.custom(MlMetadata.TYPE) != null ||
             metaData.custom(WatcherMetaData.TYPE) != null ||
             clusterState.custom(TokenMetaData.TYPE) != null;
     }
@@ -261,8 +261,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     @Override
-    public List<GenericAction> getClientActions() {
-        List<GenericAction> actions = new ArrayList<>();
+    public List<Action<? extends ActionResponse>> getClientActions() {
+        List<Action<? extends ActionResponse>> actions = new ArrayList<>();
         actions.addAll(licensing.getClientActions());
         actions.addAll(super.getClientActions());
         return actions;

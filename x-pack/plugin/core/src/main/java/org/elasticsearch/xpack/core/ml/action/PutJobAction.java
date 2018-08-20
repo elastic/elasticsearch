@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response> {
+public class PutJobAction extends Action<PutJobAction.Response> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
@@ -42,7 +42,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
-            Job.Builder jobBuilder = Job.CONFIG_PARSER.apply(parser, null);
+            Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
             } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(jobBuilder.getId())) {

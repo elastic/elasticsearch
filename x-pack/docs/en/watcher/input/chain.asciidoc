@@ -38,6 +38,7 @@ path set by a `simple` input:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The inputs in a chain are specified as an array to guarantee the order in
     which the inputs are processed. (JSON does not guarantee the order of
     arbitrary objects.)
@@ -90,3 +91,4 @@ still be available in its original form in `ctx.payload.first`.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

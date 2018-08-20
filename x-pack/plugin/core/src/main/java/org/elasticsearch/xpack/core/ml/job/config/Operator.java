@@ -12,19 +12,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Enum representing logical comparisons on doubles
  */
 public enum Operator implements Writeable {
-    EQ {
-        @Override
-        public boolean test(double lhs, double rhs) {
-            return Double.compare(lhs, rhs) == 0;
-        }
-    },
     GT {
         @Override
         public boolean test(double lhs, double rhs) {
@@ -48,32 +40,15 @@ public enum Operator implements Writeable {
         public boolean test(double lhs, double rhs) {
             return Double.compare(lhs, rhs) <= 0;
         }
-    },
-    MATCH {
-        @Override
-        public boolean match(Pattern pattern, String field) {
-            Matcher match = pattern.matcher(field);
-            return match.matches();
-        }
-
-        @Override
-        public boolean expectsANumericArgument() {
-            return false;
-        }
     };
+    // EQ was considered but given the oddity of such a
+    // condition and the fact that it would be a numerically
+    // unstable condition, it was rejected.
 
     public static final ParseField OPERATOR_FIELD = new ParseField("operator");
 
     public boolean test(double lhs, double rhs) {
         return false;
-    }
-
-    public boolean match(Pattern pattern, String field) {
-        return false;
-    }
-
-    public boolean expectsANumericArgument() {
-        return true;
     }
 
     public static Operator fromString(String name) {

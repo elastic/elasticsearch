@@ -43,7 +43,8 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
@@ -123,6 +124,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_ENTITY_ID;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_LOGOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.TYPE;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.REQUESTED_AUTHN_CONTEXT_CLASS_REF;
 
 /**
  * This class is {@link Releasable} because it uses a library that thinks timers and timer tasks
@@ -273,8 +275,9 @@ public final class SamlRealm extends Realm implements Releasable {
         final String serviceProviderId = require(config, SP_ENTITY_ID);
         final String assertionConsumerServiceURL = require(config, SP_ACS);
         final String logoutUrl = SP_LOGOUT.get(config.settings());
+        final List<String> reqAuthnCtxClassRef = REQUESTED_AUTHN_CONTEXT_CLASS_REF.get(config.settings());
         return new SpConfiguration(serviceProviderId, assertionConsumerServiceURL,
-                logoutUrl, buildSigningConfiguration(config), buildEncryptionCredential(config));
+            logoutUrl, buildSigningConfiguration(config), buildEncryptionCredential(config), reqAuthnCtxClassRef);
     }
 
 
@@ -496,10 +499,11 @@ public final class SamlRealm extends Realm implements Releasable {
 
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
-        Settings sslSettings = config.settings().getByPrefix(SamlRealmSettings.SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+        final String sslKey = RealmSettings.getFullSettingKey(config, SamlRealmSettings.SSL_PREFIX);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
+        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);

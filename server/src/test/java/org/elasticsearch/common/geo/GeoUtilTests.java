@@ -59,13 +59,14 @@ public class GeoUtilTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         tokenGenerator.accept(builder);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // field name
-        assertTrue(parser.nextToken().isValue()); // field value
-        int precision = GeoUtils.parsePrecision(parser);
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken()); // }
-        assertNull(parser.nextToken()); // no more tokens
-        return precision;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken()); // {
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // field name
+            assertTrue(parser.nextToken().isValue()); // field value
+            int precision = GeoUtils.parsePrecision(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken()); // }
+            assertNull(parser.nextToken()); // no more tokens
+            return precision;
+        }
     }
 }

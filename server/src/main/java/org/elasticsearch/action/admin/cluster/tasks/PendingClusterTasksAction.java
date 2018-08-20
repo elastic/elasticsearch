@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.Action;
 
-public class PendingClusterTasksAction extends Action<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+public class PendingClusterTasksAction extends Action<PendingClusterTasksResponse> {
 
     public static final PendingClusterTasksAction INSTANCE = new PendingClusterTasksAction();
     public static final String NAME = "cluster:monitor/task";

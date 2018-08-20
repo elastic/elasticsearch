@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedConsumer;
@@ -34,7 +31,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
@@ -86,7 +82,11 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/doc/1");
+        index(index, "1", body);
+    }
+
+    public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
         request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);

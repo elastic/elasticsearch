@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
 
-public class SearchAction extends Action<SearchRequest, SearchResponse> {
+public class SearchAction extends Action<SearchResponse> {
 
     public static final SearchAction INSTANCE = new SearchAction();
     public static final String NAME = "indices:data/read/search";

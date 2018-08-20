@@ -6,14 +6,12 @@
 package org.elasticsearch.xpack.security.audit.index;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -35,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
@@ -50,12 +49,13 @@ import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -77,7 +77,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 
@@ -189,7 +188,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         // Disable native ML autodetect_process as the c++ controller won't be available
 //                        .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
-                if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+                String transport = builder.get(NetworkModule.TRANSPORT_TYPE_KEY);
+                if (useSecurity == false && (transport == null || SecurityField.NAME4.equals(transport)
+                    || SecurityField.NIO.equals(transport))) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 }
                 return builder.build();
@@ -917,7 +918,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     private RestRequest mockRestRequest() {
         RestRequest request = mock(RestRequest.class);
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(InetAddress.getLoopbackAddress(), 9200));
+        HttpChannel httpChannel = mock(HttpChannel.class);
+        when(request.getHttpChannel()).thenReturn(httpChannel);
+        when(httpChannel.getRemoteAddress()).thenReturn(new InetSocketAddress(InetAddress.getLoopbackAddress(), 9200));
         when(request.uri()).thenReturn("_uri");
         return request;
     }

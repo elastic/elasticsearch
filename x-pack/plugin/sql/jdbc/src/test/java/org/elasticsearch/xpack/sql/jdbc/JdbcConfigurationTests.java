@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
-import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.PAGE_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

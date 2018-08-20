@@ -184,12 +184,6 @@ is the same as `like`.
 `fields`::
 A list of fields to fetch and analyze the text from.
 
-`like_text`::
-The text to find documents like it.
-
-`ids` or `docs`::
-A list of documents following the same syntax as the <<docs-multi-get,Multi GET API>>.
-
 [float]
 [[mlt-query-term-selection]]
 ==== Term Selection Parameters

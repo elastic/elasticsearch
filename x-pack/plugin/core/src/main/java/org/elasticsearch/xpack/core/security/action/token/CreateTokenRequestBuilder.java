@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 public final class CreateTokenRequestBuilder
         extends ActionRequestBuilder<CreateTokenRequest, CreateTokenResponse> {
 
-    public CreateTokenRequestBuilder(ElasticsearchClient client, Action<CreateTokenRequest, CreateTokenResponse> action) {
+    public CreateTokenRequestBuilder(ElasticsearchClient client, Action<CreateTokenResponse> action) {
         super(client, action, new CreateTokenRequest());
     }
 

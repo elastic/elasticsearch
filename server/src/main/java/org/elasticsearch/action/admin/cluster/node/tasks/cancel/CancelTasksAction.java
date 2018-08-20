@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for cancelling running tasks
  */
-public class CancelTasksAction extends Action<CancelTasksRequest, CancelTasksResponse> {
+public class CancelTasksAction extends Action<CancelTasksResponse> {
 
     public static final CancelTasksAction INSTANCE = new CancelTasksAction();
     public static final String NAME = "cluster:admin/tasks/cancel";

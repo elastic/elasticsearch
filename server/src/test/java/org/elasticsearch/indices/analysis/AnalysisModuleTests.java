@@ -165,7 +165,7 @@ public class AnalysisModuleTests extends ESTestCase {
         assertEquals(Version.V_5_0_0.luceneVersion,
                 indexAnalyzers.get("standard").analyzer().getVersion());
         assertEquals(Version.V_5_0_0.luceneVersion,
-                indexAnalyzers.get("thai").analyzer().getVersion());
+                indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
         assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0),

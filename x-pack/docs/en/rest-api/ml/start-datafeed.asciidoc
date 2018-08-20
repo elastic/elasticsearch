@@ -5,7 +5,7 @@
 <titleabbrev>Start {dfeeds-cap}</titleabbrev>
 ++++
 
-This API enables you to start one or more {dfeeds}.
+Starts one or more {dfeeds}.
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 

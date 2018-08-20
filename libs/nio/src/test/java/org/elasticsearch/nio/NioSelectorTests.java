@@ -262,11 +262,28 @@ public class NioSelectorTests extends ESTestCase {
     public void testQueueDirectlyInChannelBufferSuccessful() throws Exception {
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
 
-        assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) == 0);
+        assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
 
-        selector.queueWriteInChannelBuffer(writeOperation);
+        when(channelContext.readyForFlush()).thenReturn(true);
+        selector.writeToChannel(writeOperation);
 
         verify(channelContext).queueWriteOperation(writeOperation);
+        verify(eventHandler, times(0)).handleWrite(channelContext);
+        verify(eventHandler, times(0)).postHandling(channelContext);
+        assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
+    }
+
+    public void testShouldFlushIfNoPendingFlushes() throws Exception {
+        WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
+
+        assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
+
+        when(channelContext.readyForFlush()).thenReturn(false);
+        selector.writeToChannel(writeOperation);
+
+        verify(channelContext).queueWriteOperation(writeOperation);
+        verify(eventHandler).handleWrite(channelContext);
+        verify(eventHandler).postHandling(channelContext);
         assertTrue((selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0);
     }
 
@@ -277,10 +294,13 @@ public class NioSelectorTests extends ESTestCase {
         CancelledKeyException cancelledKeyException = new CancelledKeyException();
 
         when(channelContext.getSelectionKey()).thenReturn(selectionKey);
+        when(channelContext.readyForFlush()).thenReturn(false);
         when(selectionKey.interestOps(anyInt())).thenThrow(cancelledKeyException);
-        selector.queueWriteInChannelBuffer(writeOperation);
+        selector.writeToChannel(writeOperation);
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
+        verify(eventHandler, times(0)).handleWrite(channelContext);
+        verify(eventHandler, times(0)).postHandling(channelContext);
         verify(listener).accept(null, cancelledKeyException);
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobSta
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
@@ -100,7 +101,9 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .build();
 
         final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, date3, date4, date5, date6, date7);
-        final JobStats jobStats = new JobStats("_job", dataCounts, modelStats, JobState.OPENED, discoveryNode, "_explanation", time);
+        final ForecastStats forecastStats = new ForecastStats();
+        final JobStats jobStats = new JobStats("_job", dataCounts, modelStats, forecastStats, JobState.OPENED, discoveryNode,
+                "_explanation", time);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final JobStatsMonitoringDoc document = new JobStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, jobStats);
@@ -151,6 +154,9 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                          + "\"memory_status\":\"ok\","
                          + "\"log_time\":1483315322002,"
                          + "\"timestamp\":1483228861001"
+                        + "},"
+                        + "\"forecasts_stats\":{"
+                         + "\"total\":0,\"forecasted_jobs\":0"
                         + "},"
                        + "\"state\":\"opened\","
                        + "\"node\":{"

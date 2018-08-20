@@ -439,6 +439,6 @@
                                 source: "def x = [:] ; def y = [:] ; x.a = y ; y.a = x ; return x"
 
     - match: { error.root_cause.0.type: "illegal_argument_exception" }
-    - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself" }
+    - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ScriptBytesValues value)" }
     - match: { error.type: "search_phase_execution_exception" }
     - match: { error.reason: "all shards failed" }

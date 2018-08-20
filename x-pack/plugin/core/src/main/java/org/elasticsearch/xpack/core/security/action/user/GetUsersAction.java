@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for retrieving a user from the security index
  */
-public class GetUsersAction extends Action<GetUsersRequest, GetUsersResponse> {
+public class GetUsersAction extends Action<GetUsersResponse> {
 
     public static final GetUsersAction INSTANCE = new GetUsersAction();
     public static final String NAME = "cluster:admin/xpack/security/user/get";

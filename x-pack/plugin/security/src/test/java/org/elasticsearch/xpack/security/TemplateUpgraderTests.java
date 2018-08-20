@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -49,7 +48,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
             return map;
         };
 
-        PutIndexTemplateResponse putIndexTemplateResponse = client().admin().indices().preparePutTemplate("removed-template")
+        AcknowledgedResponse putIndexTemplateResponse = client().admin().indices().preparePutTemplate("removed-template")
                 .setOrder(1)
                 .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
                 .get();

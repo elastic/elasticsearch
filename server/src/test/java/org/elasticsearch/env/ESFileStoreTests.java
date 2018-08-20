@@ -20,10 +20,7 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.file.FileStore;
-import java.nio.file.attribute.FileAttributeView;
-import java.nio.file.attribute.FileStoreAttributeView;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

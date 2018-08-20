@@ -5,7 +5,7 @@
 <titleabbrev>Revert Model Snapshots</titleabbrev>
 ++++
 
-This API enables you to revert to a specific snapshot.
+Reverts to a specific snapshot.
 
 ==== Request
 

@@ -230,8 +230,11 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         Map<String, IndexTemplateMetaData> upgradedMap = new HashMap<>(indexTemplateMetaDataUpgraders.apply(existingMap));
         String defaultTemplateName = "_default";
         if (templates.containsKey(defaultTemplateName) == false) {
-            upgradedMap.put(defaultTemplateName, IndexTemplateMetaData.builder(defaultTemplateName)
-                .autoCreateIndex(true).patterns(Collections.singletonList("*")).build());
+            upgradedMap.put(
+                defaultTemplateName,
+                IndexTemplateMetaData.builder(defaultTemplateName).autoCreateIndex(true)
+                    .patterns(Collections.singletonList("*")).order(Integer.MAX_VALUE).build()
+            );
         }
         if (upgradedMap.equals(existingMap) == false) {
             Set<String> deletes = new HashSet<>();

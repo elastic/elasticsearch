@@ -165,16 +165,19 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testMinCompatVersion() {
-        Version prerelease = VersionUtils.getFirstVersion();
-        assertThat(prerelease.minimumCompatibilityVersion(), equalTo(prerelease));
         Version major = Version.fromString("2.0.0");
         assertThat(Version.fromString("2.0.0").minimumCompatibilityVersion(), equalTo(major));
         assertThat(Version.fromString("2.2.0").minimumCompatibilityVersion(), equalTo(major));
         assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
+
         Version major5x = Version.fromString("5.0.0");
         assertThat(Version.fromString("5.0.0").minimumCompatibilityVersion(), equalTo(major5x));
         assertThat(Version.fromString("5.2.0").minimumCompatibilityVersion(), equalTo(major5x));
         assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
+
+        Version major56x = Version.fromString("5.6.0");
+        assertThat(Version.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(Version.V_6_3_3.minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()

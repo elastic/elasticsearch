@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -45,7 +45,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {
-            assertThat(query, instanceOf(BoostingQuery.class));
+            assertThat(query, instanceOf(FunctionScoreQuery.class));
         }
     }
 

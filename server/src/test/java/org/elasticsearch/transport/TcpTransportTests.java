@@ -161,6 +161,13 @@ public class TcpTransportTests extends ESTestCase {
             TcpTransport.ensureVersionCompatibility(Version.fromString("6.0.0"), Version.fromString("7.0.0"), false));
         assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: [6.5.0]", ise.getMessage());
 
+        // For handshake we are compatible with N-2
+        TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), Version.fromString("7.0.0"), true);
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("5.6.0"), Version.fromString("7.0.0"), false));
+        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: [6.5.0]",
+            ise.getMessage());
+
         ise = expectThrows(IllegalStateException.class, () ->
             TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("7.0.0"), true));
         assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [6.5.0]",

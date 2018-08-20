@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import java.util.function.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -103,10 +104,19 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put("search.remote.foo.seeds", "192.168.0.1").build();
         expectThrows(IllegalArgumentException.class, () ->
         RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
+
+        Settings brokenPortSettings = Settings.builder()
+            .put("search.remote.foo.seeds", "192.168.0.1:123456789123456789").build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(brokenSettings)
+                .forEach(setting -> setting.get(brokenPortSettings))
+        );
+        assertEquals("failed to parse port", e.getMessage());
     }
 
     public void testBuiltRemoteClustersSeeds() throws Exception {
-        Map<String, List<DiscoveryNode>> map = RemoteClusterService.buildRemoteClustersSeeds(
+        Map<String, List<Supplier<DiscoveryNode>>> map = RemoteClusterService.buildRemoteClustersSeeds(
             Settings.builder().put("search.remote.foo.seeds", "192.168.0.1:8080").put("search.remote.bar.seeds", "[::1]:9090").build());
         assertEquals(2, map.size());
         assertTrue(map.containsKey("foo"));
@@ -114,13 +124,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals(1, map.get("foo").size());
         assertEquals(1, map.get("bar").size());
 
-        DiscoveryNode foo = map.get("foo").get(0);
+        DiscoveryNode foo = map.get("foo").get(0).get();
 
         assertEquals(foo.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("192.168.0.1"), 8080)));
         assertEquals(foo.getId(), "foo#192.168.0.1:8080");
         assertEquals(foo.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
 
-        DiscoveryNode bar = map.get("bar").get(0);
+        DiscoveryNode bar = map.get("bar").get(0).get();
         assertEquals(bar.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("[::1]"), 9090)));
         assertEquals(bar.getId(), "bar#[::1]:9090");
         assertEquals(bar.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
@@ -194,10 +204,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().address()));
+                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()));
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    service.updateRemoteCluster("cluster_2", Collections.singletonList(otherSeedNode.getAddress().address()));
+                    service.updateRemoteCluster("cluster_2", Collections.singletonList(otherSeedNode.getAddress().toString()));
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
@@ -252,22 +262,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
 
-                    final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
-                    final InetSocketAddress c1N2Address = c1N2Node.getAddress().address();
-                    final InetSocketAddress c2N1Address = c2N1Node.getAddress().address();
-                    final InetSocketAddress c2N2Address = c2N2Node.getAddress().address();
-
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            Arrays.asList(c1N1Address, c1N2Address),
+                            Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()),
                             connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            Arrays.asList(c2N1Address, c2N2Address),
+                            Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()),
                             connectionListener(secondLatch));
                     secondLatch.await();
 
@@ -321,22 +326,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
 
-                    final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
-                    final InetSocketAddress c1N2Address = c1N2Node.getAddress().address();
-                    final InetSocketAddress c2N1Address = c2N1Node.getAddress().address();
-                    final InetSocketAddress c2N2Address = c2N2Node.getAddress().address();
-
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_1",
-                            Arrays.asList(c1N1Address, c1N2Address),
+                            Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()),
                             connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                             "cluster_2",
-                            Arrays.asList(c2N1Address, c2N2Address),
+                            Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()),
                             connectionListener(secondLatch));
                     secondLatch.await();
 
@@ -398,22 +398,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
 
-                    final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
-                    final InetSocketAddress c1N2Address = c1N2Node.getAddress().address();
-                    final InetSocketAddress c2N1Address = c2N1Node.getAddress().address();
-                    final InetSocketAddress c2N2Address = c2N2Node.getAddress().address();
-
                     final CountDownLatch firstLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_1",
-                        Arrays.asList(c1N1Address, c1N2Address),
+                        Arrays.asList(c1N1Node.getAddress().toString(), c1N2Node.getAddress().toString()),
                         connectionListener(firstLatch));
                     firstLatch.await();
 
                     final CountDownLatch secondLatch = new CountDownLatch(1);
                     service.updateRemoteCluster(
                         "cluster_2",
-                        Arrays.asList(c2N1Address, c2N2Address),
+                        Arrays.asList(c2N1Node.getAddress().toString(), c2N2Node.getAddress().toString()),
                         connectionListener(secondLatch));
                     secondLatch.await();
                     CountDownLatch latch = new CountDownLatch(1);

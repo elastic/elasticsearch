@@ -19,14 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,6 +44,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -417,7 +416,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
-                                ActionListener<PutStoredScriptResponse> listener) {
+                                ActionListener<AcknowledgedResponse> listener) {
         int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
 
         if (request.content().length() > max) {
@@ -454,11 +453,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         clusterService.submitStateUpdateTask("put-script-" + request.id(),
-            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
-            protected PutStoredScriptResponse newResponse(boolean acknowledged) {
-                return new PutStoredScriptResponse(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
 
             @Override
@@ -473,13 +472,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
-                                   ActionListener<DeleteStoredScriptResponse> listener) {
+                                   ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
-            protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
-                return new DeleteStoredScriptResponse(acknowledged);
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
 
             @Override

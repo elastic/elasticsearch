@@ -20,8 +20,16 @@
 package org.elasticsearch.ingest.common;
 
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -61,7 +69,7 @@ public class ConditionalProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
         if (scriptService.compile(condition, ProcessorConditionalScript.CONTEXT)
-            .newInstance(condition.getParams()).execute(IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()))) {
+            .newInstance(condition.getParams()).execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
             processor.execute(ingestDocument);
         }
     }
@@ -113,6 +121,237 @@ public class ConditionalProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, null, "script",
                     "property isn't a map or string, but of type [" + scriptConfig.getClass().getName() + "]");
             }
+        }
+    }
+
+    private static Object wrapUnmodifiable(Object raw) {
+        if (raw instanceof Map) {
+            return new UnmodifiableIngestData((Map<String, Object>) raw);
+        } else if (raw instanceof List) {
+            return new UnmodifiableIngestList((List<Object>) raw);
+        } else if (raw instanceof byte[]) {
+            return ((byte[]) raw).clone();
+        } else if (raw instanceof Date) {
+            return ((Date) raw).clone();
+        }
+        return raw;
+    }
+
+    private static final class UnmodifiableIngestData implements Map<String, Object> {
+
+        private final Map<String, Object> data;
+
+        UnmodifiableIngestData(Map<String, Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(final Object key) {
+            return data.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(final Object value) {
+            return data.containsValue(value);
+        }
+
+        @Override
+        public Object get(final Object key) {
+            return wrapUnmodifiable(data.get(key));
+        }
+
+        @Override
+        public Object put(final String key, final Object value) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public Object remove(final Object key) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public void putAll(final Map<? extends String, ?> m) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return Collections.unmodifiableSet(data.keySet());
+        }
+
+        @Override
+        public Collection<Object> values() {
+            return new UnmodifiableIngestList(new ArrayList<>(data.values()));
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            throw new UnsupportedOperationException("Getting EntrySet for ingest documents in conditionals is not supported");
+        }
+    }
+
+    private static final class UnmodifiableIngestList implements List<Object> {
+
+        private final List<Object> data;
+
+        UnmodifiableIngestList(List<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(final Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            Iterator<Object> wrapped = data.iterator();
+            return new Iterator<Object>() {
+                @Override
+                public boolean hasNext() {
+                    return wrapped.hasNext();
+                }
+
+                @Override
+                public Object next() {
+                    return wrapped.next();
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+                }
+            };
+        }
+
+        @Override
+        public Object[] toArray() {
+            Object[] wrapped = data.toArray(new Object[0]);
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        public <T> T[] toArray(final T[] a) {
+            Object[] raw = data.toArray(new Object[0]);
+            T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = (T) wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        public boolean add(final Object o) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public boolean remove(final Object o) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public boolean containsAll(final Collection<?> c) {
+            return data.contains(c);
+        }
+
+        @Override
+        public boolean addAll(final Collection<?> c) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public boolean addAll(final int index, final Collection<?> c) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public boolean removeAll(final Collection<?> c) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public boolean retainAll(final Collection<?> c) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public Object get(final int index) {
+            return wrapUnmodifiable(data.get(index));
+        }
+
+        @Override
+        public Object set(final int index, final Object element) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public void add(final int index, final Object element) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public Object remove(final int index) {
+            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+        }
+
+        @Override
+        public int indexOf(final Object o) {
+            return data.indexOf(o);
+        }
+
+        @Override
+        public int lastIndexOf(final Object o) {
+            return data.lastIndexOf(o);
+        }
+
+        @Override
+        public ListIterator<Object> listIterator() {
+            return null;
+        }
+
+        @Override
+        public ListIterator<Object> listIterator(final int index) {
+            return null;
+        }
+
+        @Override
+        public List<Object> subList(final int fromIndex, final int toIndex) {
+            return new UnmodifiableIngestList(data.subList(fromIndex, toIndex));
         }
     }
 }

@@ -736,3 +736,16 @@ setups['admin_role'] = '''
             "metadata" : {"version": 1}
           }
 '''
+setups['jacknich_user'] = '''
+  - do:
+      xpack.security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "test-password",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+'''

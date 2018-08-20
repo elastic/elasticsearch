@@ -13,20 +13,15 @@ import java.util.Objects;
 
 public abstract class CronnableSchedule implements Schedule {
 
-    private static final Comparator<Cron> CRON_COMPARATOR = new Comparator<Cron>() {
-        @Override
-        public int compare(Cron c1, Cron c2) {
-            return c1.expression().compareTo(c2.expression());
-        }
-    };
+    private static final Comparator<Cron> CRON_COMPARATOR = Comparator.comparing(Cron::expression);
 
     protected final Cron[] crons;
 
-    public CronnableSchedule(String... expressions) {
+    CronnableSchedule(String... expressions) {
         this(crons(expressions));
     }
 
-    public CronnableSchedule(Cron... crons) {
+    private CronnableSchedule(Cron... crons) {
         assert crons.length > 0;
         this.crons = crons;
         Arrays.sort(crons, CRON_COMPARATOR);
@@ -37,7 +32,15 @@ public abstract class CronnableSchedule implements Schedule {
         assert time >= startTime;
         long nextTime = Long.MAX_VALUE;
         for (Cron cron : crons) {
-            nextTime = Math.min(nextTime, cron.getNextValidTimeAfter(time));
+            long nextValidTimeAfter = cron.getNextValidTimeAfter(time);
+
+            boolean previousCronExpired = nextTime == -1;
+            boolean currentCronValid = nextValidTimeAfter > -1;
+            if (previousCronExpired && currentCronValid) {
+                nextTime = nextValidTimeAfter;
+            } else {
+                nextTime = Math.min(nextTime, nextValidTimeAfter);
+            }
         }
         return nextTime;
     }

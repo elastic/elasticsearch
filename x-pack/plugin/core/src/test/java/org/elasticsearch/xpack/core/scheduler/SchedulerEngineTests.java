@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -19,6 +21,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,7 +55,7 @@ public class SchedulerEngineTests extends ESTestCase {
                     listener = event -> {
                         if (trigger.compareAndSet(false, true)) {
                             latch.countDown();
-                            throw new RuntimeException();
+                            throw new RuntimeException(getTestName());
                         } else {
                             fail("listener invoked twice");
                         }
@@ -80,8 +85,7 @@ public class SchedulerEngineTests extends ESTestCase {
             // now check that every listener was invoked
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(AtomicBoolean::get));
             if (numberOfFailingListeners > 0) {
-                verify(mockLogger, times(numberOfFailingListeners))
-                        .warn("listener failed while handling triggered event [{}]", getTestName());
+                assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
             verifyNoMoreInteractions(mockLogger);
         } finally {
@@ -102,7 +106,7 @@ public class SchedulerEngineTests extends ESTestCase {
                 final SchedulerEngine.Listener listener = event -> {
                     if (triggerCount.incrementAndGet() <= numberOfSchedules) {
                         listenersLatch.countDown();
-                        throw new RuntimeException();
+                        throw new RuntimeException(getTestName());
                     } else {
                         fail("listener invoked more than [" + numberOfSchedules + "] times");
                     }
@@ -130,11 +134,25 @@ public class SchedulerEngineTests extends ESTestCase {
             listenersLatch.await();
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
-            verify(mockLogger, times(numberOfListeners * numberOfSchedules))
-                    .warn("listener failed while handling triggered event [{}]", getTestName());
+            assertFailedListenerLogMessage(mockLogger, numberOfListeners * numberOfSchedules);
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
+        }
+    }
+
+    private void assertFailedListenerLogMessage(Logger mockLogger, int times) {
+        final ArgumentCaptor<ParameterizedMessage> messageCaptor = ArgumentCaptor.forClass(ParameterizedMessage.class);
+        final ArgumentCaptor<Throwable> throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
+        verify(mockLogger, times(times)).warn(messageCaptor.capture(), throwableCaptor.capture());
+        for (final ParameterizedMessage message : messageCaptor.getAllValues()) {
+            assertThat(message.getFormat(), equalTo("listener failed while handling triggered event [{}]"));
+            assertThat(message.getParameters(), arrayWithSize(1));
+            assertThat(message.getParameters()[0], equalTo(getTestName()));
+        }
+        for (final Throwable throwable : throwableCaptor.getAllValues()) {
+            assertThat(throwable, instanceOf(RuntimeException.class));
+            assertThat(throwable.getMessage(), equalTo(getTestName()));
         }
     }
 

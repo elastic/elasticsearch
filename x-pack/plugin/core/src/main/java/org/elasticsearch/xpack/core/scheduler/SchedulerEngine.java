@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -163,7 +164,7 @@ public class SchedulerEngine {
                 listener.triggered(event);
             } catch (final Exception e) {
                 // do not allow exceptions to escape this method; we should continue to notify listeners and schedule the next run
-                logger.warn("listener failed while handling triggered event [{}]", name);
+                logger.warn(new ParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
             }
         }
     }

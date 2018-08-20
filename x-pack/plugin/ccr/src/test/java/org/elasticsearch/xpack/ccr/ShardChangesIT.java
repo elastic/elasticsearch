@@ -17,6 +17,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -431,7 +431,6 @@ public class ShardChangesIT extends ESIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
-    @TestLogging("_root:DEBUG")
     public void testValidateFollowingIndexSettings() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)));
@@ -452,7 +451,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test-follower"));
         assertAcked(client().admin().indices().prepareUpdateSettings("test-follower")
             .setSettings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)));
-        assertAcked(client().admin().indices().prepareOpen("test-follower"));
+        assertAcked(client().admin().indices().prepareOpen("test-follower").setWaitForActiveShards(ActiveShardCount.DEFAULT));
         assertAcked(client().execute(FollowIndexAction.INSTANCE,
             createFollowRequest("test-leader", "test-follower")).actionGet());
         unfollowIndex("test-follower");

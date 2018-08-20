@@ -356,6 +356,7 @@ address such as `admin@staff.example.com.attacker.net`. It is important that
 you make sure your regular expressions are as precise as possible so that
 you do not inadvertently open an avenue for user impersonation attacks.
 
+[[req-authn-context]]
 ==== Requesting specific authentication methods
 
 It is sometimes necessary for a SAML SP to be able to impose specific
@@ -370,9 +371,9 @@ that can be used for this purpose as defined in SAML 2.0 Core Specification.
 In short, the SAML SP defines a set of Authentication Context Class Reference
 values describing the restrictions to be imposed on the IdP and sends these
 in the Authentication Request. The IdP attempts to grant these restrictions,
-and either returns an indication of which it satisfied in the Authentication
-Statement of the SAML Response if it can, or it fails to authenticate the
-user if it can't adhere to the restrictions.
+and fails the authentication attempt if it can't. If the user is successfully
+authenticated, then the Authentication Statement of the SAML Response will
+contain an indication of the restrictions that were satisfied.
 
 You can define the  Authentication Context Class Reference values that should
 be sent to the IdP in the Authentication Request, using the `req_authn_context_class_ref`
@@ -382,7 +383,7 @@ so upon receiving the Authentication Response from the IdP, the value of
 the Authentication Context Class Reference that is part of the
 Authentication Statement of the SAML Assertion is examined. If it matches
 one of the requested values, the authentication is considered successful,
-otherwise failed.
+otherwise, the authentication attempt fails.
 
 [[saml-logout]]
 ==== SAML logout

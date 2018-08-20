@@ -861,6 +861,9 @@ included in the Requested Authentication Context when requesting the IdP to
 authenticate the current user. The Authentication Context of the corresponding
 authentication response should contain at least one of the requested values.
 
+For more information, see
+{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
+
 [float]
 [[ref-saml-signing-settings]]
 ===== SAML realm signing settings

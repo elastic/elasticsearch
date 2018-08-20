@@ -84,6 +84,12 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         this.threadPool = threadPool;
         this.indexTemplateMetaDataUpgraders = templates -> {
             Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
+            String defaultTemplateName = "_default";
+            upgradedTemplates.computeIfAbsent(
+                defaultTemplateName,
+                def -> IndexTemplateMetaData.builder(defaultTemplateName).autoCreateIndex(true)
+                    .patterns(Collections.singletonList("*")).order(Integer.MAX_VALUE).build()
+            );
             for (UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader : indexTemplateMetaDataUpgraders) {
                 upgradedTemplates = upgrader.apply(upgradedTemplates);
             }
@@ -227,15 +233,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             existingMap.put(customCursor.key, customCursor.value);
         }
         // upgrade global custom meta data
-        Map<String, IndexTemplateMetaData> upgradedMap = new HashMap<>(indexTemplateMetaDataUpgraders.apply(existingMap));
-        String defaultTemplateName = "_default";
-        if (templates.containsKey(defaultTemplateName) == false) {
-            upgradedMap.put(
-                defaultTemplateName,
-                IndexTemplateMetaData.builder(defaultTemplateName).autoCreateIndex(true)
-                    .patterns(Collections.singletonList("*")).order(Integer.MAX_VALUE).build()
-            );
-        }
+        Map<String, IndexTemplateMetaData> upgradedMap = indexTemplateMetaDataUpgraders.apply(existingMap);
         if (upgradedMap.equals(existingMap) == false) {
             Set<String> deletes = new HashSet<>();
             Map<String, BytesReference> changes = new HashMap<>();

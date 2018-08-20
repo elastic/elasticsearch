@@ -103,7 +103,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         MetaData metaData = randomMetaData(
             IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
             IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("_default").patterns(randomIndexPatterns()).build()
         );
 
         final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, threadPool,
@@ -266,7 +267,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         MetaData metaData = randomMetaData(
             IndexTemplateMetaData.builder("user_template").patterns(randomIndexPatterns()).build(),
             IndexTemplateMetaData.builder("removed_test_template").patterns(randomIndexPatterns()).build(),
-            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
+            IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build(),
+            IndexTemplateMetaData.builder("_default").patterns(randomIndexPatterns()).build()
         );
 
         Client mockClient = mock(Client.class);
@@ -283,7 +285,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 assertThat(addedListener.getAndSet((ActionListener) args[1]), nullValue());
             } else if (request.name().equals("changed_test_template")) {
                 assertThat(changedListener.getAndSet((ActionListener) args[1]), nullValue());
-            } else {
+            } else if ("_default".equals(request.name()) == false) {
                 fail("unexpected put template call for " + request.name());
             }
             return null;

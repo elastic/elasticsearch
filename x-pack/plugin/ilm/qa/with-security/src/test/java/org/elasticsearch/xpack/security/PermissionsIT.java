@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,12 +63,10 @@ public class PermissionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
         pollIntervalEntity.startObject();
-        {
-            pollIntervalEntity.startObject("transient");
-            {
-                pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-            }pollIntervalEntity.endObject();
-        } pollIntervalEntity.endObject();
+        pollIntervalEntity.startObject("transient");
+        pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
+        pollIntervalEntity.endObject();
+        pollIntervalEntity.endObject();
         request.setJsonEntity(Strings.toString(pollIntervalEntity));
         assertOK(adminClient().performRequest(request));
         indexSettingsWithPolicy = Settings.builder()
@@ -106,17 +103,18 @@ public class PermissionsIT extends ESRestTestCase {
                 Map<String, Object> mapResponse = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 Map<String, Object> indexExplain = (Map<String, Object>) ((Map<String, Object>) mapResponse.get("indices")).get("not-ilm");
                 assertThat(indexExplain.get("managed"), equalTo(true));
-                assertThat(indexExplain.get("step"), equalTo("error"));
+                assertThat(indexExplain.get("step"), equalTo("ERROR"));
                 assertThat(indexExplain.get("failed_step"), equalTo("readonly"));
-                assertThat(indexExplain.get("step_info"), equalTo("permissionsss!"));
+                Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
+                assertThat(stepInfo.get("type"), equalTo("security_exception"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:admin/settings/update] is unauthorized for user [test_ilm]"));
             }
         });
     }
 
     private void createNewSingletonPolicy(String policy, String phaseName, LifecycleAction action) throws IOException {
         Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy =
-            new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy, singletonMap(phase.getName(), phase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
@@ -130,6 +128,6 @@ public class PermissionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
             + ", \"mappings\" : {" + mapping + "} }");
-        adminClient().performRequest(request);
+        assertOK(adminClient().performRequest(request));
     }
 }

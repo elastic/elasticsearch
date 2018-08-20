@@ -75,14 +75,13 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
                 assertThat(action, equalTo(TransportService.HANDSHAKE_ACTION_NAME));
                 assertEquals(remoteNode.getAddress(), node.getAddress());
-                assertNotEquals(remoteNode, node);
                 if (dropHandshake == false) {
                     handleResponse(requestId, new HandshakeResponse(remoteNode, new ClusterName(remoteClusterName), Version.CURRENT));
                 }
             }
         };
 
-        transportService = new TransportService(settings, capturingTransport, threadPool,
+        transportService = capturingTransport.createCapturingTransportService(settings, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
 
         transportService.start();

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import java.util.function.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -40,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -115,7 +115,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
-    private synchronized void updateRemoteClusters(Map<String, List<DiscoveryNode>> seeds, ActionListener<Void> connectionListener) {
+    private synchronized void updateRemoteClusters(Map<String, List<Supplier<DiscoveryNode>>> seeds,
+        ActionListener<Void> connectionListener) {
         if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
@@ -125,7 +126,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } else {
             CountDown countDown = new CountDown(seeds.size());
             remoteClusters.putAll(this.remoteClusters);
-            for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
+            for (Map.Entry<String, List<Supplier<DiscoveryNode>>> entry : seeds.entrySet()) {
                 RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
                 if (entry.getValue().isEmpty()) { // with no seed nodes we just remove the connection
                     try {
@@ -310,16 +311,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+    @Override
+    protected void updateRemoteCluster(String clusterAlias, List<String> addresses) {
         updateRemoteCluster(clusterAlias, addresses, ActionListener.wrap((x) -> {}, (x) -> {}));
     }
 
     void updateRemoteCluster(
             final String clusterAlias,
-            final List<InetSocketAddress> addresses,
+            final List<String> addresses,
             final ActionListener<Void> connectionListener) {
-        final List<DiscoveryNode> nodes = addresses.stream().map(address -> {
-            final TransportAddress transportAddress = new TransportAddress(address);
+        final List<Supplier<DiscoveryNode>> nodes = addresses.stream().<Supplier<DiscoveryNode>>map(address -> () -> {
+            final TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
             final String id = clusterAlias + "#" + transportAddress.toString();
             final Version version = Version.CURRENT.minimumCompatibilityVersion();
             return new DiscoveryNode(id, transportAddress, version);
@@ -334,7 +336,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, List<DiscoveryNode>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(settings);
+        Map<String, List<Supplier<DiscoveryNode>>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(settings);
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);

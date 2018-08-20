@@ -44,6 +44,10 @@ public class ForceMergeActionTests extends AbstractXContentTestCase<ForceMergeAc
 
     @Override
     protected ForceMergeAction createTestInstance() {
+        return randomInstance();
+    }
+
+    static ForceMergeAction randomInstance() {
         return new ForceMergeAction(randomIntBetween(1, 100));
     }
 

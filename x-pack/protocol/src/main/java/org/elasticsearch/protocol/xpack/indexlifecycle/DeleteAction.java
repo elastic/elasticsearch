@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DeleteAction extends LifecycleAction implements ToXContentObject {
+public class DeleteAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "delete";
 
     private static final ObjectParser<DeleteAction, Void> PARSER = new ObjectParser<>(NAME, DeleteAction::new);
@@ -44,6 +44,11 @@ public class DeleteAction extends LifecycleAction implements ToXContentObject {
         builder.startObject();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override

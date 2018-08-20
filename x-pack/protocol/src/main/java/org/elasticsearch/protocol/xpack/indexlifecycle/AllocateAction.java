@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class AllocateAction extends LifecycleAction implements ToXContentObject {
+public class AllocateAction implements LifecycleAction, ToXContentObject {
 
     public static final String NAME = "allocate";
     static final ParseField NUMBER_OF_REPLICAS_FIELD = new ParseField("number_of_replicas");
@@ -100,6 +100,11 @@ public class AllocateAction extends LifecycleAction implements ToXContentObject 
 
     public Map<String, String> getRequire() {
         return require;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override

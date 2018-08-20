@@ -1,15 +1,25 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.indexlifecycle;
+package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -21,7 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,22 +38,22 @@ import java.util.stream.Collectors;
  * Represents set of {@link LifecycleAction}s which should be executed at a
  * particular point in the lifecycle of an index.
  */
-public class Phase implements ToXContentObject, Writeable {
+public class Phase implements ToXContentObject {
 
-    public static final ParseField AFTER_FIELD = new ParseField("after");
-    public static final ParseField ACTIONS_FIELD = new ParseField("actions");
+    static final ParseField AFTER_FIELD = new ParseField("after");
+    static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
-            (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
+        (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
+            .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
-                    throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
-                }, ACTIONS_FIELD);
+            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
+                throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
+            }, ACTIONS_FIELD);
     }
 
     public static Phase parse(XContentParser parser, String name) {
@@ -63,9 +72,8 @@ public class Phase implements ToXContentObject, Writeable {
      *            {@link Phase}.
      * @param actions
      *            a {@link Map} of the {@link LifecycleAction}s to run when
-     *            during his {@link Phase}. The keys in this map are the associated
-     *            action names. The order of these actions is defined
-     *            by the {@link LifecycleType}
+     *            during this {@link Phase}. The keys in this map are the associated
+     *            action names.
      */
     public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
         this.name = name;
@@ -75,31 +83,6 @@ public class Phase implements ToXContentObject, Writeable {
             this.after = after;
         }
         this.actions = actions;
-    }
-
-    /**
-     * For Serialization
-     */
-    public Phase(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.after = in.readTimeValue();
-        int size = in.readVInt();
-        TreeMap<String, LifecycleAction> actions = new TreeMap<>();
-        for (int i = 0; i < size; i++) {
-            actions.put(in.readString(), in.readNamedWriteable(LifecycleAction.class));
-        }
-        this.actions = actions;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeTimeValue(after);
-        out.writeVInt(actions.size());
-        for (Map.Entry<String, LifecycleAction> entry : actions.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeNamedWriteable(entry.getValue());
-        }
     }
 
     /**
@@ -119,7 +102,7 @@ public class Phase implements ToXContentObject, Writeable {
 
     /**
      * @return a {@link Map} of the {@link LifecycleAction}s to run when during
-     *         his {@link Phase}.
+     *         this {@link Phase}.
      */
     public Map<String, LifecycleAction> getActions() {
         return actions;
@@ -149,13 +132,12 @@ public class Phase implements ToXContentObject, Writeable {
         }
         Phase other = (Phase) obj;
         return Objects.equals(name, other.name) &&
-                Objects.equals(after, other.after) &&
-                Objects.equals(actions, other.actions);
+            Objects.equals(after, other.after) &&
+            Objects.equals(actions, other.actions);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
     }
-
 }

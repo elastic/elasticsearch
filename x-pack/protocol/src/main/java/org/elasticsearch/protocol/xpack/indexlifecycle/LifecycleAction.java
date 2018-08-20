@@ -19,7 +19,12 @@
 package org.elasticsearch.protocol.xpack.indexlifecycle;
 
 /**
- * Marker interface for index lifecycle management actions
+ * interface for index lifecycle management actions
  */
-public class LifecycleAction {
+public interface LifecycleAction {
+
+    /**
+     * @return the name of this action
+     */
+    String getName();
 }

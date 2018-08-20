@@ -108,10 +108,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -1178,7 +1178,6 @@ final class RequestConverters {
         return request;
     }
 
-
     static Request getLicense(GetLicenseRequest getLicenseRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1190,15 +1189,11 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putMachineLearningJob(PutJobRequest putJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(putJobRequest.getJob().getId())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putJobRequest, REQUEST_BODY_CONTENT_TYPE));
+    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteLicenseRequest.timeout());
+        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
         return request;
     }
 
@@ -1213,7 +1208,7 @@ final class RequestConverters {
         return request;
     }
 
-    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }

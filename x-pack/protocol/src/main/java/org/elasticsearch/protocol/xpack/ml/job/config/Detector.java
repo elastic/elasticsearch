@@ -265,6 +265,10 @@ public class Detector implements ToXContentObject {
                 excludeFrequent, rules, detectorIndex);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
 
         private String detectorDescription;

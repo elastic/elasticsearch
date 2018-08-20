@@ -91,6 +91,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -101,6 +102,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -729,4 +732,48 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
     }
+
+    public void testGlobalCheckpointListeners() throws Exception {
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen();
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        final int numberOfUpdates = randomIntBetween(1, 128);
+        for (int i = 0; i < numberOfUpdates; i++) {
+            final int index = i;
+            final AtomicLong globalCheckpoint = new AtomicLong();
+            shard.addGlobalCheckpointListener(
+                    i - 1,
+                    (g, e) -> {
+                        assert g >= NO_OPS_PERFORMED;
+                        assert e == null;
+                        globalCheckpoint.set(g);
+                    });
+            client().prepareIndex("test", "_doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
+            // adding a listener expecting a lower global checkpoint should fire immediately
+            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
+            shard.addGlobalCheckpointListener(
+                    randomLongBetween(NO_OPS_PERFORMED, i - 1),
+                    (g, e) -> {
+                        assert g >= NO_OPS_PERFORMED;
+                        assert e == null;
+                        immediateGlobalCheckpint.set(g);
+                    });
+            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
+        }
+        final AtomicBoolean invoked = new AtomicBoolean();
+        shard.addGlobalCheckpointListener(
+                numberOfUpdates - 1,
+                (g, e) -> {
+                    invoked.set(true);
+                    assert g == UNASSIGNED_SEQ_NO;
+                    assert e != null;
+                    assertThat(e.getShardId(), equalTo(shard.shardId()));
+                });
+        shard.close("closed", randomBoolean());
+        assertBusy(() -> assertTrue(invoked.get()));
+    }
+
 }

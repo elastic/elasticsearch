@@ -31,21 +31,25 @@ setup:
             }
 
   - do:
-      xpack.security.put_privilege:
-        application: app-allow
-        name: read
+      xpack.security.put_privileges:
         body:  >
             {
-              "actions": [ "data:read/*" ]
+              "app-allow": {
+                "read": {
+                  "actions": [ "data:read/*" ]
+                }
+              }
             }
 
   - do:
-      xpack.security.put_privilege:
-        application: app_deny
-        name: read
+      xpack.security.put_privileges:
         body:  >
             {
-              "actions": [ "data:read/*" ]
+              "app-deny": {
+                "read": {
+                  "actions": [ "data:read/*" ]
+                }
+              }
             }
 
 ---
@@ -82,12 +86,14 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.put_privilege:
-        application: app
-        name: read
+      xpack.security.put_privileges:
         body:  >
             {
-              "actions": [ "data:read/*" ]
+              "app": {
+                "read": {
+                  "actions": [ "data:read/*" ]
+                }
+              }
             }
   - match: { "app.read" : { created: true } }
 
@@ -112,12 +118,14 @@ teardown:
 "Test put application privileges when not allowed":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      xpack.security.put_privilege:
-          application: app_deny
-          name: write
+      xpack.security.put_privileges:
           body:  >
               {
-                "actions": [ "data:write/*" ]
+                "app_deny": {
+                  "write": {
+                    "actions": [ "data:write/*" ]
+                  }
+                }
               }
       catch: forbidden
 

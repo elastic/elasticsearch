@@ -32,7 +32,10 @@ import java.util.Objects;
 
 /**
  * A strategy for rounding long values.
+ *
+ * Use the java based Rounding class where applicable
  */
+@Deprecated
 public abstract class Rounding implements Writeable {
 
     public abstract byte id();
@@ -404,7 +407,7 @@ public abstract class Rounding implements Writeable {
         }
 
         public static Rounding read(StreamInput in) throws IOException {
-            Rounding rounding = null;
+            Rounding rounding;
             byte id = in.readByte();
             switch (id) {
                 case TimeUnitRounding.ID: rounding = new TimeUnitRounding(in); break;

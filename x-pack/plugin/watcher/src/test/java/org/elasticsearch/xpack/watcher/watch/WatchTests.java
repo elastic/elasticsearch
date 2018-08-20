@@ -61,8 +61,6 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
@@ -160,7 +158,6 @@ public class WatchTests extends ESTestCase {
     private EmailService emailService;
     private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
-    private HttpAuthRegistry authRegistry;
     private XPackLicenseState licenseState;
     private Logger logger;
     private Settings settings = Settings.EMPTY;
@@ -175,7 +172,6 @@ public class WatchTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         licenseState = mock(XPackLicenseState.class);
-        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
         logger = Loggers.getLogger(WatchTests.class);
         searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
@@ -623,8 +619,7 @@ public class WatchTests extends ESTestCase {
                     parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
-                            new HttpRequestTemplate.Parser(authRegistry), templateEngine));
+                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
                     break;
                 case LoggingAction.TYPE:
                     parsers.put(LoggingAction.TYPE, new LoggingActionFactory(settings, new MockTextTemplateEngine()));

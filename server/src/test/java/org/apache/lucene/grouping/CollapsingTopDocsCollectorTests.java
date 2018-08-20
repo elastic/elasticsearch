@@ -280,7 +280,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Float>() {
             @Override
             public Float randomGroup(int maxGroup) {
-                return new Float(randomIntBetween(0, maxGroup - 1));
+                return Float.valueOf(randomIntBetween(0, maxGroup - 1));
             }
 
             @Override
@@ -308,7 +308,7 @@ public class CollapsingTopDocsCollectorTests extends ESTestCase {
         CollapsingDocValuesProducer producer = new CollapsingDocValuesProducer<Double>() {
             @Override
             public Double randomGroup(int maxGroup) {
-                return new Double(randomIntBetween(0, maxGroup - 1));
+                return Double.valueOf(randomIntBetween(0, maxGroup - 1));
             }
 
             @Override

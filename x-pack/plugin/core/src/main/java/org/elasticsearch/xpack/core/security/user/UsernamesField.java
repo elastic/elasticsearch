@@ -20,8 +20,8 @@ public final class UsernamesField {
     public static final String LOGSTASH_ROLE = "logstash_system";
     public static final String BEATS_NAME = "beats_system";
     public static final String BEATS_ROLE = "beats_system";
-    public static final String APM_SERVER_NAME = "apm_server_system";
-    public static final String APM_SERVER_ROLE = "apm_server_system";
+    public static final String APM_NAME = "apm_system";
+    public static final String APM_ROLE = "apm_system";
 
     private UsernamesField() {}
 }

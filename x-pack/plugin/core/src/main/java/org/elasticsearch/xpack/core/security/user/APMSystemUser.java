@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 /**
  * Built in user for APM server internals. Currently used for APM server monitoring.
  */
-public class APMServerSystemUser extends User {
+public class APMSystemUser extends User {
 
-    public static final String NAME = UsernamesField.APM_SERVER_NAME;
-    public static final String ROLE_NAME = UsernamesField.APM_SERVER_ROLE;
+    public static final String NAME = UsernamesField.APM_NAME;
+    public static final String ROLE_NAME = UsernamesField.APM_ROLE;
     public static final Version DEFINED_SINCE = Version.V_6_5_0;
     public static final BuiltinUserInfo USER_INFO = new BuiltinUserInfo(NAME, ROLE_NAME, DEFINED_SINCE);
 
-    public APMServerSystemUser(boolean enabled) {
+    public APMSystemUser(boolean enabled) {
         super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

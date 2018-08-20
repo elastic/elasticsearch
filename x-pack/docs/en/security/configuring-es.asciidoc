@@ -56,7 +56,7 @@ simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
 to enter new passwords for the `elastic`, `kibana`, `beats_system`,
-`logstash_system`, and `apm_server_system` users:
+`logstash_system`, and `apm_system` users:
 
 [source,shell]
 --------------------------------------------------

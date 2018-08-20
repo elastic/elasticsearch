@@ -94,7 +94,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.user.APMServerSystemUser;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -148,7 +148,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(LogstashSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(BeatsSystemUser.ROLE_NAME), is(true));
-        assertThat(ReservedRolesStore.isReserved(APMServerSystemUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(APMSystemUser.ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -630,27 +630,27 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false));
     }
 
-    public void testAPMServerSystemRole() {
+    public void testAPMSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(APMServerSystemUser.ROLE_NAME);
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(APMSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role apmServerSystemRole = Role.builder(roleDescriptor, null).build();
-        assertThat(apmServerSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
-        assertThat(apmServerSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
-        assertThat(apmServerSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
-        assertThat(apmServerSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
-        assertThat(apmServerSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
-        assertThat(apmServerSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
-        assertThat(apmServerSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
+        Role APMSystemRole = Role.builder(roleDescriptor, null).build();
+        assertThat(APMSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(APMSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(APMSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(APMSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(APMSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(APMSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(APMSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
-        assertThat(apmServerSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+        assertThat(APMSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(apmServerSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(apmServerSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(apmServerSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
     }
 

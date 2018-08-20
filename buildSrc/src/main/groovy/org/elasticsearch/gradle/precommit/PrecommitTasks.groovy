@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.precommit
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
@@ -78,10 +77,7 @@ class PrecommitTasks {
     private static Task configureForbiddenApisCli(Project project) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5') {
-                // FIXME
-                transitive = false
-            }
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
         }
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
 
@@ -103,7 +99,7 @@ class PrecommitTasks {
                             sourceSet.runtimeClasspath
                     )
 
-                    targetCompatibility = JavaVersion.VERSION_1_8 // FIXME
+                    targetCompatibility = project.compilerJavaVersion
                     bundledSignatures = [
                        "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
                     ]

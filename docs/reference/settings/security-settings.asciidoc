@@ -1057,6 +1057,33 @@ Specifies the
 cipher suites that should be supported.
 
 [float]
+[[ref-kerberos-settings]]
+===== Kerberos realm settings
+
+For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
+
+`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
+service principal used by this {es} node. This must be a location within the
+{es} configuration directory and the file must have read permissions. Required.
+
+`remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
+Principal names in Kerberos have the form `user/instance@REALM`. If this option 
+is `true`, the realm part (`@REALM`) will not be included in the username.
+Defaults to `false`.
+
+`krb.debug`:: Set to `true` to enable debug logs for the Java login module that
+provides support for Kerberos authentication. Defaults to `false`.
+
+`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+this period of time. Specify the time period using the standard {es}
+<<time-units,time units>>. Defaults to `20m`.
+
+`cache.max_users`:: The maximum number of user entries that can live in the
+cache at any given time. Defaults to 100,000.
+
+[float]
 [[load-balancing]]
 ===== Load balancing and failover
 

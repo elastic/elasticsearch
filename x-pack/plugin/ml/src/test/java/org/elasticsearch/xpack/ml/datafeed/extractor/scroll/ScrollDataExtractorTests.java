@@ -392,7 +392,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         output = extractor.next();
         assertThat(output.isPresent(), is(true));
-        assertEquals(new Long(1400L), extractor.getLastTimestamp());
+        assertEquals(Long.valueOf(1400L), extractor.getLastTimestamp());
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);

@@ -23,7 +23,6 @@ import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.io.IOException;
 
 public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> {
 
@@ -33,7 +32,7 @@ public class PutJobRequestTests extends AbstractXContentTestCase<PutJobRequest> 
     }
 
     @Override
-    protected PutJobRequest doParseInstance(XContentParser parser) throws IOException {
+    protected PutJobRequest doParseInstance(XContentParser parser) {
         return new PutJobRequest(Job.PARSER.apply(parser, null).build());
     }
 

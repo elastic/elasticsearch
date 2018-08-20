@@ -4,9 +4,9 @@
 
 The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS PUB
 140-2), titled "Security Requirements for Cryptographic Modules" is a U.S.
-government computer  security standard used to approve cryptographic modules.
-{es} is FIPS-140 compliant and as such can run in a FIPS-140 enabled JVM. In
-order to set {es} in fips mode, you must set the
+government computer security standard used to approve cryptographic modules.
+{es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
+enabled JVM. In order to set {es} in fips mode, you must set the
 `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`
 
 For {es}, FIPS 140-2 compliance is ensured by
@@ -53,21 +53,19 @@ be used for <<ssl-tls-settings, xpack.ssl.supported_protocols>>
 
 NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 (the FIPS Approved Security Provider that your JVM uses). All the ciphers that
-are configured by default in {es} are FIPS-140 compliant and as such can be
-used in a FIPS-140 JVM. (see <<ssl-tls-settings, xpack.ssl.cipher_suites>>)
+are configured by default in {es} are FIPS 140-2 compliant and as such can be
+used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, xpack.ssl.cipher_suites>>)
 
 ==== TLS Keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
 conveniently store key and trust material. Neither `JKS`, nor `PKCS#12` keystores
 can be used in a FIPS 140-2 enabled JVM however, so you must refrain from using
-keystores in your configuration, and use `PEM` encoded files instead. For key
-material, you can use the relevant `\*.key` and `*.certificate` configuration
+these keystores.  Your FIPS 140-2 provider may provide a compliant keystore that
+can be used or you can use PEM encoded files. To use PEM encoded key material,
+you can use the relevant `\*.key` and `*.certificate` configuration
 options, and for trust material you can use `*.certificate_authorities`.
 
-NOTE: If your Cryptographic Module offers a keystore type that is FIPS 140-2
-compliant, you can use that instead, ensuring you set the correct value for
-the type identifier in `\*.truststore.type` and `*.keystore.type` settings.
 
 FIPS 140-2 compliance dictates that the length of the public keys used for TLS
 must correspond to the strength of the symmetric key algorithm in use in TLS.
@@ -122,5 +120,5 @@ features is not available while running in fips mode. The list is as follows:
   available.
 * The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
   TLS for transport security or PKI for client authentication.
-* SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
+* The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
   attributes in Attribute Statements from the SAML IdP.

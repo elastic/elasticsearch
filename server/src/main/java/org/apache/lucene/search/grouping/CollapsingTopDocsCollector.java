@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TotalHits;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,6 +36,9 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * A collector that groups documents based on field values and returns {@link CollapseTopFieldDocs}
  * output. The collapsing is done in a single pass by selecting only the top sorted document per collapse key.
  * The value used for the collapse key of each group can be found in {@link CollapseTopFieldDocs#collapseValues}.
+ *
+ * TODO: If the sort is based on score we should propagate the mininum competitive score when <code>orderedGroups</code> is full.
+ * This is safe for collapsing since the group <code>sort</code> is the same as the query sort.
  */
 public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
     protected final String collapseField;
@@ -46,8 +50,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     private float maxScore;
     private final boolean trackMaxScore;
 
-    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort,
-                                       int topN, boolean trackMaxScore) {
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN, boolean trackMaxScore) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
         this.trackMaxScore = trackMaxScore;
@@ -59,16 +62,20 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         this.sort = sort;
     }
 
+    public float getMaxScore() {
+        return maxScore;
+    }
+
     /**
-     * Transform {@link FirstPassGroupingCollector#getTopGroups(int, boolean)} output in
+     * Transform {@link FirstPassGroupingCollector#getTopGroups(int)} output in
      * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can get the final top docs at the end
      * of the first pass.
      */
     public CollapseTopFieldDocs getTopDocs() throws IOException {
-        Collection<SearchGroup<T>> groups = super.getTopGroups(0, true);
+        Collection<SearchGroup<T>> groups = super.getTopGroups(0);
         if (groups == null) {
-            return new CollapseTopFieldDocs(collapseField, totalHitCount, new ScoreDoc[0],
-                sort.getSort(), new Object[0], Float.NaN);
+            TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+            return new CollapseTopFieldDocs(collapseField, totalHits, new ScoreDoc[0], sort.getSort(), new Object[0]);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];
         Object[] collapseValues = new Object[groups.size()];
@@ -93,8 +100,8 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
             collapseValues[pos] = group.groupValue;
             pos++;
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, docs, sort.getSort(),
-            collapseValues, maxScore);
+        TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
+        return new CollapseTopFieldDocs(collapseField, totalHits, docs, sort.getSort(), collapseValues);
     }
 
     @Override

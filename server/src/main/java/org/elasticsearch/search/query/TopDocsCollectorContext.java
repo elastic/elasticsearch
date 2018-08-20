@@ -38,6 +38,7 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.Nullable;
@@ -159,7 +160,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
-            result.topDocs(topDocsCollector.getTopDocs(), sortFmt);
+            CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
+            result.topDocs(new TopDocsAndMaxScore(topDocs, topDocsCollector.getMaxScore()), sortFmt);
         }
     }
 
@@ -354,8 +356,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                searchContext.sort(), numDocs, trackScores);
+            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(), numDocs, trackScores);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

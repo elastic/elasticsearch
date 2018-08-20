@@ -26,10 +26,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -104,12 +106,13 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TopDocs topDocs;
         Arrays.sort(scoreDocs, scoreDocComparator());
         if (testInstancesLookSortedByField) {
-            topDocs = new TopFieldDocs(totalHits, scoreDocs, testInstancesSortFields, maxScore);
+            topDocs = new TopFieldDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs, testInstancesSortFields);
         } else {
-            topDocs = new TopDocs(totalHits, scoreDocs, maxScore);
+            topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
 
-        return new InternalTopHits(name, from, requestedSize, topDocs, searchHits, pipelineAggregators, metaData);
+        return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
     }
 
     @Override
@@ -179,7 +182,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             totalHits += internalHits.getTotalHits();
             maxScore = max(maxScore, internalHits.getMaxScore());
             for (int i = 0; i < internalHits.getHits().length; i++) {
-                ScoreDoc doc = inputs.get(input).getTopDocs().scoreDocs[i];
+                ScoreDoc doc = inputs.get(input).getTopDocs().topDocs.scoreDocs[i];
                 if (testInstancesLookSortedByField) {
                     doc = new FieldDoc(doc.doc, doc.score, ((FieldDoc) doc).fields, input);
                 } else {
@@ -253,7 +256,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         String name = instance.getName();
         int from = instance.getFrom();
         int size = instance.getSize();
-        TopDocs topDocs = instance.getTopDocs();
+        TopDocsAndMaxScore topDocs = instance.getTopDocs();
         SearchHits searchHits = instance.getHits();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metaData = instance.getMetaData();
@@ -268,7 +271,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             size += between(1, 100);
             break;
         case 3:
-            topDocs = new TopDocs(topDocs.totalHits + between(1, 100), topDocs.scoreDocs, topDocs.getMaxScore() + randomFloat());
+            topDocs = new TopDocsAndMaxScore(new TopDocs(new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100),
+                    topDocs.topDocs.totalHits.relation), topDocs.topDocs.scoreDocs), topDocs.maxScore + randomFloat());
             break;
         case 4:
             searchHits = new SearchHits(searchHits.getHits(), searchHits.totalHits + between(1, 100),

@@ -502,7 +502,7 @@ public class FunctionScoreTests extends ESTestCase {
             score *= weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) score, is(1f));
-        float explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        float explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -518,7 +518,7 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) sum, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -536,7 +536,7 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) (sum / norm), is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -552,7 +552,7 @@ public class FunctionScoreTests extends ESTestCase {
             min = Math.min(min, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) min, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -568,7 +568,7 @@ public class FunctionScoreTests extends ESTestCase {
             max = Math.max(max, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) max, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
@@ -587,7 +587,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query,0f, Float.POSITIVE_INFINITY);
         Explanation fsqExpl = searcher.explain(fsq, 0);
         assertTrue(fsqExpl.isMatch());
-        assertEquals(queryExpl.getValue(), fsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getValue(), fsqExpl.getValue());
         assertEquals(queryExpl.getDescription(), fsqExpl.getDescription());
 
         fsq = new FunctionScoreQuery(query, 10f, Float.POSITIVE_INFINITY);
@@ -598,7 +598,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery ffsq = new FunctionScoreQuery(query, 0f, Float.POSITIVE_INFINITY);
         Explanation ffsqExpl = searcher.explain(ffsq, 0);
         assertTrue(ffsqExpl.isMatch());
-        assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getValue(), ffsqExpl.getValue());
         assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
 
         ffsq = new FunctionScoreQuery(query, 10f, Float.POSITIVE_INFINITY);

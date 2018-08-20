@@ -36,6 +36,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -374,7 +375,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             IndexSearcher searcher = newSearcher(reader);
-            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, false, 1f);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
             assertEquals(1, reader.leaves().size());
             LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
             Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorerSupplier(leafReaderContext));

@@ -103,6 +103,11 @@ public class MinScoreScorerTests extends LuceneTestCase {
                 final int idx = Arrays.binarySearch(docs, docID());
                 return scores[idx];
             }
+
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
+                return Float.MAX_VALUE;
+            }
         };
     }
 

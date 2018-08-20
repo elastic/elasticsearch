@@ -59,7 +59,7 @@ public class FuzzinessTests extends ESTestCase {
                 Float floatRep = randomFloat();
                 Number value = intValue;
                 if (randomBoolean()) {
-                    value = new Float(floatRep += intValue);
+                    value = Float.valueOf(floatRep += intValue);
                 }
                 XContentBuilder json = jsonBuilder().startObject()
                         .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? value.toString() : value)

@@ -1,0 +1,239 @@
+[role="xpack"]
+[[security-api-put-role-mapping]]
+=== Add role mappings API
+
+Adds and updates role mappings.
+
+==== Request
+
+`POST /_xpack/security/role_mapping/<name>` +
+
+`PUT /_xpack/security/role_mapping/<name>`
+
+
+==== Description
+
+Role mappings define which roles are assigned to each user. Each mapping has 
+_rules_ that identify users and a list of _roles_ that are
+granted to those users.  
+
+NOTE: This API does not create roles. Rather, it maps users to existing roles.
+Roles can be created by using <<security-api-roles, Role Management APIs>> or
+{stack-ov}/defining-roles.html#roles-management-file[roles files].
+
+For more information, see 
+{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+
+
+==== Path Parameters
+
+`name`::
+ (string) The distinct name that identifies the role mapping. The name is
+  used solely as an identifier to facilitate interaction via the API; it does
+  not affect the behavior of the mapping in any way.
+
+
+==== Request Body
+
+The following parameters can be specified in the body of a PUT or POST request
+and pertain to adding a role mapping:
+
+`enabled` (required)::
+(boolean)  Mappings that have `enabled` set to `false` are ignored when role
+mapping is performed.
+
+`metadata`::
+(object) Additional metadata that helps define which roles are assigned to each
+user. Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
+
+`roles` (required)::
+(list) A list of roles that are granted to the users that match the role mapping
+rules.
+
+`rules` (required)::
+(object) The rules that determine which users should be matched by the mapping.
+A rule is a logical condition that is expressed by using a JSON DSL. See 
+<<role-mapping-resources>>. 
+
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+The following example assigns the "user" role to all users:
+
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping1
+{
+  "roles": [ "user"],
+  "enabled": true, <1>
+  "rules": {
+    "field" : { "username" : "*" }
+  },
+  "metadata" : { <2>
+    "version" : 1
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+<1> Mappings that have `enabled` set to `false` are ignored when role mapping
+    is performed.
+<2> Metadata is optional.
+
+A successful call returns a JSON structure that shows whether the mapping has
+been created or updated.
+
+[source,js]
+--------------------------------------------------
+{
+  "role_mapping" : {
+    "created" : true <1>
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> When an existing mapping is updated, `created` is set to false.
+
+The following example assigns the "user" and "admin" roles to specific users:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/role_mapping/mapping2
+{
+  "roles": [ "user", "admin" ],
+  "enabled": true,
+  "rules": {
+     "field" : { "username" : [ "esadmin01", "esadmin02" ] }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The following example matches any user where either the username is `esadmin`
+or the user is in the `cn=admin,dc=example,dc=com` group:
+
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping3
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "any": [
+      {
+        "field": {
+          "username": "esadmin"
+        }
+      },
+      {
+        "field": {
+          "groups": "cn=admins,dc=example,dc=com"
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The following example matches users who authenticated against a specific realm:
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping4
+{
+  "roles": [ "ldap-user" ],
+  "enabled": true,
+  "rules": {
+    "field" : { "realm.name" : "ldap1" }
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The following example matches users within a specific LDAP sub-tree:
+
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping5
+{
+  "roles": [ "example-user" ],
+  "enabled": true,
+  "rules": {
+    "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" }
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The following example matches users within a particular LDAP sub-tree in a
+specific realm:
+
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping6
+{
+  "roles": [ "ldap-example-user" ],
+  "enabled": true,
+  "rules": {
+    "all": [
+      { "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" } },
+      { "field" : { "realm.name" : "ldap1" } }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The rules can be more complex and include wildcard matching. For example, the
+following mapping matches any user where *all* of these conditions are met:
+
+- the _Distinguished Name_ matches the pattern `*,ou=admin,dc=example,dc=com`,
+  or the username is `es-admin`, or the username is `es-system`
+- the user in in the `cn=people,dc=example,dc=com` group
+- the user does not have a `terminated_date`
+
+
+[source, js]
+------------------------------------------------------------
+POST /_xpack/security/role_mapping/mapping7
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "all": [
+      {
+        "any": [
+          {
+            "field": {
+              "dn": "*,ou=admin,dc=example,dc=com"
+            }
+          },
+          {
+            "field": {
+              "username": [ "es-admin", "es-system" ]
+            }
+          }
+        ]
+      },
+      {
+        "field": {
+          "groups": "cn=people,dc=example,dc=com"
+        }
+      },
+      {
+        "except": {
+          "field": {
+            "metadata.terminated_date": null
+          }
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE

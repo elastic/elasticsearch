@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.scheduler;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -92,9 +93,9 @@ public class SchedulerEngine {
     private final Clock clock;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
-    public SchedulerEngine(Clock clock) {
+    public SchedulerEngine(Settings settings, Clock clock) {
         this.clock = clock;
-        this.scheduler = Executors.newScheduledThreadPool(1,  EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
+        this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "trigger_engine_scheduler"));
     }
 
     public void register(Listener listener) {

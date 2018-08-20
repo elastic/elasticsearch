@@ -73,6 +73,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32089")
     public void testRetentionPolicyChangeDuringRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();
@@ -99,7 +100,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             releaseRecovery.countDown();
             future.get();
             // rolling/flushing is async
-            assertBusy(() -> assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0)));
+            assertBusy(() -> {
+                assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(19L));
+                assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0));
+            });
         }
     }
 

@@ -22,7 +22,7 @@ Role mappings have _rules_ that identify users and a list of _roles_ that are
 granted to those users.
 
 NOTE: This API does not create roles. Rather, it maps users to existing roles.
-Roles can be created by using <<security-api-roles, Role Management APIs>> or
+Roles can be created by using <<security-role-apis,role management APIs>> or
 {xpack-ref}/defining-roles.html#roles-management-file[roles files].
 
 The role mapping rule is a logical condition that is expressed using a JSON DSL.

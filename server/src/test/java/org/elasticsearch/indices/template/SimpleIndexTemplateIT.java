@@ -121,7 +121,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(2));
+        assertThat(response.getIndexTemplates(), hasSize(3));
 
 
         // index something into test_index, will match on both templates
@@ -350,7 +350,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(0));
+        assertThat(response.getIndexTemplates(), hasSize(1));
     }
 
     public void testInvalidSettings() throws Exception {
@@ -358,8 +358,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().admin().indices().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), empty());
+        assertBusy(()-> assertThat(client().admin().indices().prepareGetTemplates().get().getIndexTemplates().size(), is(1)));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
@@ -369,8 +368,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertEquals("unknown setting [index.does_not_exist] please check that any required plugins are" +
             " installed, or check the breaking changes documentation for removed settings", e.getMessage());
 
-        response = client().admin().indices().prepareGetTemplates().get();
-        assertEquals(0, response.getIndexTemplates().size());
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertEquals(1, response.getIndexTemplates().size());
 
         createIndex("test");
 
@@ -697,7 +696,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
 
         response = client().admin().indices().prepareGetTemplates().get();
-        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(response.getIndexTemplates(), hasSize(2));
 
     }
 
@@ -793,7 +792,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // no templates yet
         response = client().admin().indices().prepareGetTemplates().get();
-        assertEquals(0, response.getIndexTemplates().size());
+        assertEquals(1, response.getIndexTemplates().size());
 
         // a valid configuration that only provides the partition size
         assertAcked(client().admin().indices().preparePutTemplate("just_partitions")

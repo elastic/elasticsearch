@@ -31,6 +31,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -88,7 +89,7 @@ public final class InnerHitsContext {
             this.context = context;
         }
 
-        public abstract TopDocs[] topDocs(SearchHit[] hits) throws IOException;
+        public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
 
         public String getName() {
             return name;

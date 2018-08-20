@@ -31,9 +31,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -169,12 +172,12 @@ public final class SearchPhaseController extends AbstractComponent {
              * top docs anymore but instead only pass relevant results / top docs to the merge method*/
             QuerySearchResult queryResult = sortedResult.queryResult();
             if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
-                final TopDocs td = queryResult.consumeTopDocs();
+                final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
                 topDocsStats.add(td);
-                if (td.scoreDocs.length > 0) { // make sure we set the shard index before we add it - the consumer didn't do that yet
-                    setShardIndex(td, queryResult.getShardIndex());
-                    topDocs.add(td);
+                if (td.topDocs.scoreDocs.length > 0) { // make sure we set the shard index before we add it - the consumer didn't do that yet
+                    setShardIndex(td.topDocs, queryResult.getShardIndex());
+                    topDocs.add(td.topDocs);
                 }
             }
             if (queryResult.hasSuggestHits()) {
@@ -683,10 +686,10 @@ public final class SearchPhaseController extends AbstractComponent {
                 aggsBuffer[i] = (InternalAggregations) querySearchResult.consumeAggs();
             }
             if (hasTopDocs) {
-                final TopDocs topDocs = querySearchResult.consumeTopDocs(); // can't be null
+                final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
                 topDocsStats.add(topDocs);
-                SearchPhaseController.setShardIndex(topDocs, querySearchResult.getShardIndex());
-                topDocsBuffer[i] = topDocs;
+                SearchPhaseController.setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
+                topDocsBuffer[i] = topDocs.topDocs;
             }
         }
 
@@ -743,6 +746,7 @@ public final class SearchPhaseController extends AbstractComponent {
     static final class TopDocsStats {
         final boolean trackTotalHits;
         long totalHits;
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
@@ -755,13 +759,16 @@ public final class SearchPhaseController extends AbstractComponent {
             this.totalHits = trackTotalHits ? 0 : -1;
         }
 
-        void add(TopDocs topDocs) {
+        void add(TopDocsAndMaxScore topDocs) {
             if (trackTotalHits) {
-                totalHits += topDocs.totalHits;
+                totalHits += topDocs.topDocs.totalHits.value;
+                if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
             }
-            fetchHits += topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.getMaxScore())) {
-                maxScore = Math.max(maxScore, topDocs.getMaxScore());
+            fetchHits += topDocs.topDocs.scoreDocs.length;
+            if (!Float.isNaN(topDocs.maxScore)) {
+                maxScore = Math.max(maxScore, topDocs.maxScore);
             }
         }
     }

@@ -54,6 +54,11 @@ public class ScriptScoreFunction extends ScoreFunction {
         public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private final Script sScript;
@@ -88,10 +93,10 @@ public class ScriptScoreFunction extends ScoreFunction {
                 if (leafScript instanceof ExplainableSearchScript) {
                     leafScript.setDocument(docId);
                     scorer.docid = docId;
-                    scorer.score = subQueryScore.getValue();
+                    scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
-                    double score = score(docId, subQueryScore.getValue());
+                    double score = score(docId, subQueryScore.getValue().floatValue());
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
                     if (sScript.getParams() != null) {
                         explanation += " and parameters: \n" + sScript.getParams().toString();

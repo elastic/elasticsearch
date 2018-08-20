@@ -26,7 +26,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
@@ -305,10 +304,9 @@ public class FunctionScoreQuery extends Query {
                     ScoreFunction function = functions[i];
                     Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, expl);
                     if (function instanceof FilterScoreFunction) {
-                        double factor = functionExplanation.getValue();
-                        float sc = (float) factor;
+                        float factor = functionExplanation.getValue().floatValue();
                         Query filterQuery = ((FilterScoreFunction) function).filter;
-                        Explanation filterExplanation = Explanation.match(sc, "function score, product of:",
+                        Explanation filterExplanation = Explanation.match(factor, "function score, product of:",
                             Explanation.match(1.0f, "match filter: " + filterQuery.toString()), functionExplanation);
                         functionsExplanations.add(filterExplanation);
                     } else {
@@ -325,14 +323,14 @@ public class FunctionScoreQuery extends Query {
                     FunctionFactorScorer scorer = functionScorer(context);
                     int actualDoc = scorer.iterator().advance(doc);
                     assert (actualDoc == doc);
-                    double score = scorer.computeScore(doc, expl.getValue());
+                    double score = scorer.computeScore(doc, expl.getValue().floatValue());
                     factorExplanation = Explanation.match(
                         (float) score,
                         "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]", functionsExplanations);
                 }
                 expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             }
-            if (minScore != null && minScore > expl.getValue()) {
+            if (minScore != null && minScore > expl.getValue().floatValue()) {
                 expl = Explanation.noMatch("Score value is too low, expected at least " + minScore + " but got " + expl.getValue(), expl);
             }
             return expl;
@@ -447,6 +445,11 @@ public class FunctionScoreQuery extends Query {
                     break;
             }
             return factor;
+        }
+
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            return Float.MAX_VALUE; // TODO: what would be a good upper bound?
         }
     }
 

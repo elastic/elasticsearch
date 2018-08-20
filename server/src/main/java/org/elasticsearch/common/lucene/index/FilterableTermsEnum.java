@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.index;
 
+import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -205,6 +206,11 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public ImpactsEnum impacts(int flags) throws IOException {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 

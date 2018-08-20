@@ -31,9 +31,9 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(null);
         Map<String, Object> config = new HashMap<>();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
-        assertThat(e.getHeader("property_name").get(0), equalTo("field"));
-        assertThat(e.getHeader("processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
-        assertThat(e.getHeader("processor_tag").get(0), equalTo("_tag"));
+        assertThat(e.getMetadata("es.property_name").get(0), equalTo("field"));
+        assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
+        assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));
     }
 
     public void testProcessor_validProperties() throws Exception {
@@ -52,9 +52,9 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", Arrays.asList("invalid"));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", config));
-        assertThat(e.getHeader("property_name").get(0), equalTo("properties"));
-        assertThat(e.getHeader("processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
-        assertThat(e.getHeader("processor_tag").get(0), equalTo("_tag"));
+        assertThat(e.getMetadata("es.property_name").get(0), equalTo("properties"));
+        assertThat(e.getMetadata("es.processor_type").get(0), equalTo(SetSecurityUserProcessor.TYPE));
+        assertThat(e.getMetadata("es.processor_tag").get(0), equalTo("_tag"));
     }
 
 }

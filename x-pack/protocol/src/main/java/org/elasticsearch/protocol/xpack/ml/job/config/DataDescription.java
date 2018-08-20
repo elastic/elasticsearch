@@ -243,28 +243,34 @@ public class DataDescription implements ToXContentObject {
         private Character fieldDelimiter;
         private Character quoteCharacter;
 
-        public void setFormat(DataFormat format) {
+        public Builder setFormat(DataFormat format) {
             dataFormat = Objects.requireNonNull(format);
+            return this;
         }
 
-        private void setFormat(String format) {
+        private Builder setFormat(String format) {
             setFormat(DataFormat.forString(format));
+            return this;
         }
 
-        public void setTimeField(String fieldName) {
+        public Builder setTimeField(String fieldName) {
             timeFieldName = Objects.requireNonNull(fieldName);
+            return this;
         }
 
-        public void setTimeFormat(String format) {
+        public Builder setTimeFormat(String format) {
             timeFormat = Objects.requireNonNull(format);
+            return this;
         }
 
-        public void setFieldDelimiter(Character delimiter) {
+        public Builder setFieldDelimiter(Character delimiter) {
             fieldDelimiter = delimiter;
+            return this;
         }
 
-        public void setQuoteCharacter(Character value) {
+        public Builder setQuoteCharacter(Character value) {
             quoteCharacter = value;
+            return this;
         }
 
         public DataDescription build() {

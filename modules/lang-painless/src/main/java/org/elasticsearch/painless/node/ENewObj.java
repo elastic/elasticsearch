@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
+
 /**
  * Represents and object instantiation.
  */
@@ -58,16 +60,17 @@ public final class ENewObj extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        try {
-            actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
-        } catch (IllegalArgumentException exception) {
+        actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+
+        if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        try {
-            constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
-        } catch (IllegalArgumentException iae) {
-            throw createError(iae);
+        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+
+        if (constructor == null) {
+            throw createError(new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];

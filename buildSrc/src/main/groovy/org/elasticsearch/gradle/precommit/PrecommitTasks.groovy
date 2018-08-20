@@ -98,6 +98,10 @@ class PrecommitTasks {
                         )
                         spec.executable = "${project.runtimeJavaHome}/bin/java"
                     }
+                    inputs.files(
+                            sourceSet.compileClasspath,
+                            sourceSet.runtimeClasspath
+                    )
 
                     targetCompatibility = JavaVersion.VERSION_1_8 // FIXME
                     bundledSignatures = [

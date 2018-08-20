@@ -21,8 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 
-import java.io.IOException;
-
 /** A script that is used to build {@link ScriptedSimilarity} instances. */
 public abstract class SimilarityScript  {
 

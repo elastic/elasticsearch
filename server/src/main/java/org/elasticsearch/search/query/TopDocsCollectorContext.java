@@ -54,7 +54,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_COUNT;

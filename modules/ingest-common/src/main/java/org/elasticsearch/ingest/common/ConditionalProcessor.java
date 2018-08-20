@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -137,6 +138,10 @@ public class ConditionalProcessor extends AbstractProcessor {
         return raw;
     }
 
+    private static UnsupportedOperationException unmodifiableException() {
+        return new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+    }
+
     private static final class UnmodifiableIngestData implements Map<String, Object> {
 
         private final Map<String, Object> data;
@@ -172,22 +177,22 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public Object put(final String key, final Object value) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public Object remove(final Object key) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public void putAll(final Map<? extends String, ?> m) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public void clear() {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
@@ -202,7 +207,33 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            throw new UnsupportedOperationException("Getting EntrySet for ingest documents in conditionals is not supported");
+            return data.entrySet().stream().map(entry ->
+                new Entry<String, Object>() {
+                    @Override
+                    public String getKey() {
+                        return entry.getKey();
+                    }
+
+                    @Override
+                    public Object getValue() {
+                        return wrapUnmodifiable(entry.getValue());
+                    }
+
+                    @Override
+                    public Object setValue(final Object value) {
+                        throw unmodifiableException();
+                    }
+
+                    @Override
+                    public boolean equals(final Object o) {
+                        return entry.equals(o);
+                    }
+
+                    @Override
+                    public int hashCode() {
+                        return entry.hashCode();
+                    }
+                }).collect(Collectors.toSet());
         }
     }
 
@@ -245,7 +276,7 @@ public class ConditionalProcessor extends AbstractProcessor {
 
                 @Override
                 public void remove() {
-                    throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+                    throw unmodifiableException();
                 }
             };
         }
@@ -271,12 +302,12 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public boolean add(final Object o) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public boolean remove(final Object o) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
@@ -286,27 +317,27 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public boolean addAll(final Collection<?> c) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public boolean addAll(final int index, final Collection<?> c) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public boolean removeAll(final Collection<?> c) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public boolean retainAll(final Collection<?> c) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public void clear() {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
@@ -316,17 +347,17 @@ public class ConditionalProcessor extends AbstractProcessor {
 
         @Override
         public Object set(final int index, final Object element) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public void add(final int index, final Object element) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
         public Object remove(final int index) {
-            throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+            throw unmodifiableException();
         }
 
         @Override
@@ -394,17 +425,17 @@ public class ConditionalProcessor extends AbstractProcessor {
 
             @Override
             public void remove() {
-                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+                throw unmodifiableException();
             }
 
             @Override
             public void set(final Object o) {
-                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+                throw unmodifiableException();
             }
 
             @Override
             public void add(final Object o) {
-                throw new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+                throw unmodifiableException();
             }
         }
     }

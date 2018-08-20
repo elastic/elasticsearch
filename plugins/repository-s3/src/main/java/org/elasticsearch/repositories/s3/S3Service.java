@@ -23,11 +23,14 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.internal.Constants;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -93,19 +96,17 @@ class S3Service extends AbstractComponent implements Closeable {
         }
     }
 
-    private AmazonS3 buildClient(S3ClientSettings clientSettings) {
-        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
-        final ClientConfiguration configuration = buildConfiguration(clientSettings);
-        final AmazonS3 client = buildClient(credentials, configuration);
-        if (Strings.hasText(clientSettings.endpoint)) {
-            client.setEndpoint(clientSettings.endpoint);
-        }
-        return client;
-    }
-
     // proxy for testing
-    AmazonS3 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-        return new AmazonS3Client(credentials, configuration);
+    AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+        final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+        builder.withCredentials(buildCredentials(logger, clientSettings));
+        builder.withClientConfiguration(buildConfiguration(clientSettings));
+
+        final String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        logger.debug(() -> new ParameterizedMessage("using endpoint [{}]", endpoint));
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
+
+        return builder.build();
     }
 
     // pkg private for tests

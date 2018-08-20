@@ -108,8 +108,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         IndexMetaData indexMetadata = IndexMetaData.builder(indexName)
             .settings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, "pre-phase")
-                .put(LifecycleSettings.LIFECYCLE_ACTION, "pre-action")
+                .put(LifecycleSettings.LIFECYCLE_PHASE, "new")
+                .put(LifecycleSettings.LIFECYCLE_ACTION, "init")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "init"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         index = indexMetadata.getIndex();

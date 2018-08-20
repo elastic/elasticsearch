@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 public final class InitializePolicyContextStep extends ClusterStateActionStep {
-    public static final StepKey KEY = new StepKey("pre-phase", "pre-action", "init");
+    public static final StepKey KEY = new StepKey("new", "init", "init");
 
     public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);

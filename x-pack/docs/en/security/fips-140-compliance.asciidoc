@@ -106,7 +106,7 @@ using the compliant `PBKDF2` algorithm you have selected.
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of
-features is not available while running in fips mode. The list is as follows:
+features are not available while running in fips mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
 * Ingest Attachment Plugin

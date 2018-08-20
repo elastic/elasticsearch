@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.util.Collections;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -226,7 +227,12 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             existingMap.put(customCursor.key, customCursor.value);
         }
         // upgrade global custom meta data
-        Map<String, IndexTemplateMetaData> upgradedMap = indexTemplateMetaDataUpgraders.apply(existingMap);
+        Map<String, IndexTemplateMetaData> upgradedMap = new HashMap<>(indexTemplateMetaDataUpgraders.apply(existingMap));
+        String defaultTemplateName = "_default";
+        if (templates.containsKey(defaultTemplateName) == false) {
+            upgradedMap.put(defaultTemplateName, IndexTemplateMetaData.builder(defaultTemplateName)
+                .autoCreateIndex(true).patterns(Collections.singletonList("*")).build());
+        }
         if (upgradedMap.equals(existingMap) == false) {
             Set<String> deletes = new HashSet<>();
             Map<String, BytesReference> changes = new HashMap<>();

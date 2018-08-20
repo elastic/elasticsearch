@@ -97,7 +97,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
         transportService.start();
         return transportService;
     }
-    
+
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),

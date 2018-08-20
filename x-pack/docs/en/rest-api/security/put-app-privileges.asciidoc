@@ -23,47 +23,18 @@ For more information, see
 To check a user's application privileges, use the
 <<security-api-has-privileges,has privileges API>>.
 
-////
-==== Path Parameters
-
-`application` (required)::
-  (string) The name of the application. Application privileges are always
-  associated with exactly one application.
-  The validation rules for application names are described below.
-
-`privilege` (required)::
-  (string) The name of the privilege.
-  The validation rules for privilege names are described below.
-////
-
 ==== Request Body
 
-For PUT and POST requests where the application name and privilege name are
-included as path parameters, the body of the request is a JSON object that
+The body is a JSON object where the names of the fields are the application
+names and the value of each field is an object. The fields in this inner
+object are the names of the privileges and each value is a JSON object that 
 includes the following fields:
-
-`application`:: (string) The name of the application to which this privilege
-belongs. This field is optional, but if it exists it must match the application
-name in the path parameter.
-
-`name`:: (string) The name of the privilege to store. This field is optional,
-but if it exists it must match the privilege name in the path parameter.
 
 `actions`:: (array-of-string) A list of action names that are granted by this
 privilege. This field must exist and cannot be an empty array.
 
 `metadata`:: (object) Optional meta-data. Within the `metadata` object, keys
 that begin with `_` are reserved for system usage.
-
-For POST requests that do not include the application and privilege names as
-path parameters, the body of the request can define multiple privileges.
-
-//TBD: Is the above still valid?
-
-The body is a JSON object where the names of the fields are the application
-names and the value of each field is an object. The fields in this inner
-object are the names of the privileges and each value is a JSON object that
-follows the same structure as per the PUT request described above.
 
 
 [[security-api-app-privileges-validation]]
@@ -106,17 +77,15 @@ To add a single privilege, submit a PUT or POST request to the
 PUT /_xpack/security/privilege
 {
   "myapp": {
-                "read": {
-                  "application": "myapp",
-                  "name": "read",
-                  "actions": [ <1>
-                    "data:read/*" , <2> 
-                    "action:login" ], 
-                  "metadata": { <3>
-                    "description": "Read access to myapp"
-                  }
-                }
-              }
+    "read": {
+      "actions": [ <1>
+        "data:read/*" , <2> 
+        "action:login" ], 
+        "metadata": { <3>
+          "description": "Read access to myapp"
+        }
+      }
+    }
 }
 --------------------------------------------------
 // CONSOLE

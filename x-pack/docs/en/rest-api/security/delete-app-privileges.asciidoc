@@ -32,8 +32,8 @@ To use this API, you must have either:
 
 ==== Examples
 
-The following example deletes the `write` application privilege from the 
-`app01` application:
+The following example deletes the `read` application privilege from the 
+`myapp` application:
 
 [source,js]
 --------------------------------------------------

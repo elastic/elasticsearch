@@ -1,0 +1,57 @@
+[[cluster-nodes-reload-secure-settings]]
+== Nodes Reload Secure Settings
+
+The cluster nodes reload secure settings API is used to re-read the
+local node's encrypted keystore. Specifically, it broadcasts a password
+which is used to decrypt the contents of the node's keystore. The keystore's
+plain content is then used to reinitialize compatible plugins. The operation is
+complete when all compatible plugins have finished reinitilizing. Subsequently,
+the keystore is closed and any modifications will not be reflected by plugins.
+
+Note: At the moment, the password parameter is not supported. The empty password
+is the only valid value. Consequently, the request body is empty.
+
+[source,js]
+--------------------------------------------------
+POST _nodes/reload_secure_settings
+POST _nodes/nodeId1,nodeId2/reload_secure_settings
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:node]
+// TEST[s/nodeId1,nodeId2/*/]
+
+The first command reloads the keystore on each node. The seconds allows
+to selectively target `nodeId1` and `nodeId2`. The node selection options are
+detailed <<cluster-nodes,here>>.
+
+Note: It is an error if secure settings are inconsistent across the cluster
+nodes, yet consistency is not enforced whatsoever. Hence, reloading specific
+nodes is not standard. It is only justifiable when retrying failed reload operations.
+
+[float]
+[[rest-reload-secure-settings]]
+==== REST Reload Secure Settings Response
+
+The response contains the `nodes` object, which is a map, keyed by the
+node id. Each value has the node `name` and an optional `reload_exception`
+field. The `reload_exception` field is a serialization of the exception
+that was thrown during the reload process, if any.
+
+[source,js]
+--------------------------------------------------
+{
+  "_nodes": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "cluster_name": "my_cluster",
+  "nodes": {
+    "pQHNt5rXTTWNvUgOrdynKg": {
+      "name": "node-0"
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
+// TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]

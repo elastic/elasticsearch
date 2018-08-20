@@ -28,7 +28,7 @@ you are able to map users to both API-managed roles and file-managed roles
 ==== Using the role mapping API
 
 You can define role-mappings through the
-{ref}/security-api-role-mapping.html[role mapping API].
+{ref}/security-api-put-role-mapping.html[add role mapping API].
 
 [[mapping-roles-file]]
 ==== Using role mapping files

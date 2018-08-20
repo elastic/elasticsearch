@@ -38,10 +38,10 @@ Dynamic templates are specified as an array of named objects:
 <3> The mapping that the matched field should use.
 
 
-Templates are processed in order -- the first matching template wins. New
-templates can be appended to the end of the list with the
-<<indices-put-mapping,PUT mapping>> API.  If a new template has the same
-name as an existing template, it will replace the old version.
+Templates are processed in order -- the first matching template wins. When
+putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
+all existing templates are overwritten. This allows for dynamic templates to be
+reordered or deleted after they were initially added.
 
 [[match-mapping-type]]
 ==== `match_mapping_type`

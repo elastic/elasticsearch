@@ -529,11 +529,12 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
             // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
             // just make a copy.
+            generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-${project.version}.pom"
             doLast {
                 project.copy {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
-                    rename { "${project.archivesBaseName}-${project.version}.pom" }
+                    rename { generatePOMTask.ext.pomFileName }
                 }
             }
             // build poms with assemble (if the assemble task exists)
@@ -799,6 +800,8 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
+            // TODO: remove this deprecation compatibility setting for 7.0
+            systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
             systemProperty 'es.scripting.exception_for_missing_value', 'true'
             systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
             if (project.ext.inFipsJvm) {

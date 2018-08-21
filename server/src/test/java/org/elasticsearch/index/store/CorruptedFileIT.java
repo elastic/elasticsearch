@@ -70,8 +70,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -338,19 +336,15 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
-                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
-                        hasCorrupted.countDown();
-                    }
-                    super.sendRequest(connection, requestId, action, request, options);
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+                if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                    byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                    int i = randomIntBetween(0, req.content().length() - 1);
+                    array[i] = (byte) ~array[i]; // flip one byte in the content
+                    hasCorrupted.countDown();
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 
@@ -410,25 +404,21 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
-                    if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        if (truncate && req.length() > 1) {
-                            BytesRef bytesRef = req.content().toBytesRef();
-                            BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
-                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
-                        } else {
-                            assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
-                            final byte[] array = req.content().toBytesRef().bytes;
-                            int i = randomIntBetween(0, req.content().length() - 1);
-                            array[i] = (byte) ~array[i]; // flip one byte in the content
-                        }
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), (connection, requestId, action, request, options) -> {
+                if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                    if (truncate && req.length() > 1) {
+                        BytesRef bytesRef = req.content().toBytesRef();
+                        BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
+                        request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
+                    } else {
+                        assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
+                        final byte[] array = req.content().toBytesRef().bytes;
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 

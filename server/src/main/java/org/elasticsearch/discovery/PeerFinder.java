@@ -89,21 +89,25 @@ public abstract class PeerFinder extends AbstractComponent {
         logger.trace("activating with {}", lastAcceptedNodes);
 
         synchronized (mutex) {
-            assert active == false;
+            assert assertInactiveWithNoKnownPeers();
             active = true;
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
-            handleWakeUp();
+            handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
         }
     }
 
     public void deactivate(DiscoveryNode leader) {
+        final boolean peersRemoved;
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
-            handleWakeUp();
+            peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
+        }
+        if (peersRemoved) {
+            onFoundPeersUpdated();
         }
     }
 
@@ -114,7 +118,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
     boolean assertInactiveWithNoKnownPeers() {
         assert active == false;
-        assert peersByAddress.isEmpty();
+        assert peersByAddress.isEmpty() : peersByAddress.keySet();
         return true;
     }
 
@@ -142,9 +146,19 @@ public abstract class PeerFinder extends AbstractComponent {
     }
 
     /**
-     * Called on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
+     * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
+     * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
      */
     protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+
+    /**
+     * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
+     * that the change to the set of found peers happens before this method is invoked. If there are multiple concurrent changes then there
+     * will be multiple concurrent invocations of this method, with no guarantee as to their order. For this reason we do not pass the
+     * updated set of peers as an argument to this method, leaving it to the implementation to call getFoundPeers() with appropriate
+     * synchronisation to avoid lost updates. Also, by the time this method is invoked we may have been deactivated.
+     */
+    protected abstract void onFoundPeersUpdated();
 
     public interface TransportAddressConnector {
         /**
@@ -170,7 +184,6 @@ public abstract class PeerFinder extends AbstractComponent {
     }
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {
-        assert active;
         assert holdsLock() : "PeerFinder mutex not held";
         return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).collect(Collectors.toList());
     }
@@ -181,16 +194,21 @@ public abstract class PeerFinder extends AbstractComponent {
         return peer;
     }
 
-    private void handleWakeUp() {
+    /**
+     * @return whether any peers were removed due to disconnection
+     */
+    private boolean handleWakeUp() {
         assert holdsLock() : "PeerFinder mutex not held";
 
+        boolean peersRemoved = false;
+
         for (final Peer peer : peersByAddress.values()) {
-            peer.handleWakeUp();
+            peersRemoved = peer.handleWakeUp() || peersRemoved; // care: avoid short-circuiting, each peer needs waking up
         }
 
         if (active == false) {
             logger.trace("not active");
-            return;
+            return peersRemoved;
         }
 
         logger.trace("probing master nodes from cluster state: {}", lastAcceptedNodes);
@@ -220,8 +238,11 @@ public abstract class PeerFinder extends AbstractComponent {
             @Override
             protected void doRun() {
                 synchronized (mutex) {
-                    handleWakeUp();
+                    if (handleWakeUp() == false) {
+                        return;
+                    }
                 }
+                onFoundPeersUpdated();
             }
 
             @Override
@@ -229,6 +250,8 @@ public abstract class PeerFinder extends AbstractComponent {
                 return "PeerFinder::handleWakeUp";
             }
         });
+
+        return peersRemoved;
     }
 
     private void startProbe(TransportAddress transportAddress) {
@@ -260,12 +283,12 @@ public abstract class PeerFinder extends AbstractComponent {
             return discoveryNode.get();
         }
 
-        void handleWakeUp() {
+        boolean handleWakeUp() {
             assert holdsLock() : "PeerFinder mutex not held";
 
             if (active == false) {
                 removePeer();
-                return;
+                return true;
             }
 
             final DiscoveryNode discoveryNode = getDiscoveryNode();
@@ -279,8 +302,11 @@ public abstract class PeerFinder extends AbstractComponent {
                 } else {
                     logger.trace("{} no longer connected", this);
                     removePeer();
+                    return true;
                 }
             }
+
+            return false;
         }
 
         void establishConnection() {
@@ -295,12 +321,17 @@ public abstract class PeerFinder extends AbstractComponent {
                     assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
-                        if (active) {
-                            assert discoveryNode.get() == null : "discoveryNode unexpectedly already set to " + discoveryNode.get();
-                            discoveryNode.set(remoteNode);
-                            requestPeers();
+                        if (active == false) {
+                            return;
                         }
+
+                        assert discoveryNode.get() == null : "discoveryNode unexpectedly already set to " + discoveryNode.get();
+                        discoveryNode.set(remoteNode);
+                        requestPeers();
                     }
+
+                    assert holdsLock() == false : "PeerFinder mutex is held in error";
+                    onFoundPeersUpdated();
                 }
 
                 @Override

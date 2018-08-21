@@ -57,11 +57,51 @@ Snapshot/Restore::
 Task Management::
 * Remove metadata customs that can break serialization {pull}30945[#30945] (issues: {issue}30731[#30731])
 
-//[float]
-//=== Breaking Java Changes
+[float]
+[[breaking-java-6.4.0]]
+=== Breaking Java changes
 
-//[float]
-//=== Deprecations
+Authentication::
+* Configurable password hashing algorithm/cost {pull}31234[#31234], {pull}32092[#32092] (issue: {issue}31723[#31723])
+
+Discovery-Plugins::
+* Allow multiple unicast host providers {pull}31509[#31509]
+
+Java High Level REST Client::
+* Add x-pack-info API {pull}31870[#31870]
+
+Java Low Level REST Client::
+* Support host selection {pull}30523[#30523] (issue: {issue}21888[#21888])
+
+[float]
+[[deprecation-6.4.0]]
+=== Deprecations
+
+Analysis::
+* Correct spelling of AnalysisPlugin#requriesAnalysisSettings {pull}32025[#32025]
+* Deprecate `nGram` and `edgeNGram` names for ngram filters {pull}30209[#30209]
+
+Index APIs::
+* Add deprecation warning for default shards {pull}30587[#30587]
+* Deprecate not copy settings and explicitly disallow {pull}30404[#30404] (issues: {issue}28347[#28347])
+
+Java High Level REST Client::
+* Add high-level client methods that accept RequestOptions {pull}31069[#31069]
+
+Java Low Level REST Client::
+* Client: Deprecate many argument performRequest {pull}30315[#30315]
+
+Mapping::
+* Deprecate unindexed phrases {pull}31072[#31072]
+
+Scripting::
+* Deprecate accepting malformed requests in stored script API {pull}28939[#28939] (issue: {issue}27612[#27612])
+
+Search::
+* In the field capabilities API, deprecate support for providing fields in the request body. {pull}30157[#30157]
+
+Suggesters::
+* Deprecates indexing and querying a context completion field without context {pull}30712[#30712] (issue: {issue}29222[#29222])
 
 [float]
 === New Features
@@ -147,69 +187,6 @@ Search::
 coming[6.4.0]
 
 Also see <<breaking-changes-6.4>>.
-
-
-
-
-[[breaking-java-6.4.0]]
-[float]
-=== Breaking Java changes
-
-Authentication::
-* Configurable password hashing algorithm/cost(#31234) {pull}32092[#32092] (issue: {issue}31723[#31723])
-* Configurable password hashing algorithm/cost {pull}31234[#31234]
-
-Discovery-Plugins::
-* Allow multiple unicast host providers {pull}31509[#31509]
-
-Java High Level REST Client::
-* HLREST: Add x-pack-info API {pull}31870[#31870]
-
-Java Low Level REST Client::
-* LLClient: Support host selection {pull}30523[#30523] (issue: {issue}21888[#21888])
-
-Settings::
-* Obtain plugin settings in a static context {pull}28100[#28100]
-
-
-
-[[deprecation-6.4.0]]
-[float]
-=== Deprecations
-
-Aggregations::
-* Deprecate dots in aggregation names [OPEN] {pull}31468[#31468] (issues: {issue}17600[#17600], {issue}19040[#19040])
-
-Allocation::
-* Deprecate disk.threshold_enabled setting {pull}30254[#30254] (issues: {issue}23395[#23395], {issue}26854[#26854], {issue}30256[#30256])
-
-Analysis::
-* [Analysis] Deprecate Standard Html Strip Analyzer in 6.x [OPEN] {pull}26719[#26719] (issue: {issue}4704[#4704])
-* Correct spelling of AnalysisPlugin#requriesAnalysisSettings {pull}32025[#32025]
-* Deprecate `nGram` and `edgeNGram` names for ngram filters {pull}30209[#30209]
-
-Index APIs::
-* Add deprecation warning for default shards {pull}30587[#30587] (issue: {issue}30539[#30539])
-* Deprecate not copy settings and explicitly disallow {pull}30404[#30404] (issues: {issue}28347[#28347], {issue}30255[#30255], {issue}30321[#30321])
-
-Java High Level REST Client::
-* Add high-level client methods that accept RequestOptions {pull}31069[#31069] (issue: {issue}30490[#30490])
-
-Java Low Level REST Client::
-* Client: Deprecate many argument performRequest {pull}30315[#30315] (issue: {issue}29623[#29623])
-
-Mapping::
-* Deprecate unindexed phrases {pull}31072[#31072] (issue: {issue}31060[#31060])
-
-Scripting::
-* Deprecate accepting malformed requests in stored script API {pull}28939[#28939] (issue: {issue}27612[#27612])
-
-Search::
-* In the field capabilities API, deprecate support for providing fields in the request body. {pull}30157[#30157] (issue: {issue}29664[#29664])
-
-Suggesters::
-* Deprecates indexing and querying a context completion field without context {pull}30712[#30712] (issue: {issue}29222[#29222])
-
 
 
 [[feature-6.4.0]]
@@ -360,7 +337,7 @@ Java High Level REST Client::
 * REST high-level client: add cluster get settings API {pull}31706[#31706] (issue: {issue}27205[#27205])
 * REST high-level client: add get index API {pull}31703[#31703] (issues: {issue}27205[#27205], {issue}31675[#31675])
 * turn GetFieldMappingsResponse to ToXContentObject {pull}31544[#31544]
-* Add Get Snapshots High Level REST API {pull}31537[#31537] (issue: {issue}27205[#27205])
+* Add Get Snapshots High Level REST API pull}31537[#31537] (issue: {issue}27205[#27205])
 * Add Snapshots Status API to High Level Rest Client {pull}31515[#31515] (issue: {issue}27205[#27205])
 * Add get field mappings to High Level REST API Client {pull}31423[#31423] (issue: {issue}27205[#27205])
 * Add Delete Snapshot High Level REST API {pull}31393[#31393] (issue: {issue}27205[#27205])

@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.graph.action;
 
 import org.elasticsearch.action.Action;
-<<<<<<< HEAD
 import org.elasticsearch.client.ElasticsearchClient;
-=======
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
->>>>>>> 38bdf9ce323... HLRC GraphClient and associated tests (#32366)
 
 public class GraphExploreAction extends Action<GraphExploreRequest, GraphExploreResponse, 
     GraphExploreRequestBuilder> {

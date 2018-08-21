@@ -227,16 +227,24 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = copySpec {
-      // delay by using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':server').jar }
-      from { project(':server').configurations.runtime }
-      from { project(':libs:plugin-classloader').jar }
-      from { project(':distribution:tools:java-version-checker').jar }
-      from { project(':distribution:tools:launchers').jar }
-      into('tools/plugin-cli') {
-        from { project(':distribution:tools:plugin-cli').jar }
-        from { project(':distribution:tools:plugin-cli').configurations.runtime }
+    libFiles = { oss ->
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from { project(':server').jar }
+        from { project(':server').configurations.runtime }
+        from { project(':libs:plugin-classloader').jar }
+        from { project(':distribution:tools:java-version-checker').jar }
+        from { project(':distribution:tools:launchers').jar }
+        into('tools/plugin-cli') {
+          from { project(':distribution:tools:plugin-cli').jar }
+          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+        }
+        if (oss == false) {
+          into('tools/security-cli') {
+            from { project(':x-pack:plugin:security:cli').jar }
+            from { project(':x-pack:plugin:security:cli').configurations.compile }
+          }
+        }
       }
     }
 

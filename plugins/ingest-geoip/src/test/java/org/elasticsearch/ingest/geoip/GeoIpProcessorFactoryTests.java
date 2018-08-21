@@ -284,7 +284,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config1.put("properties", Collections.singletonList("invalid"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config1));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
-            "COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
+            "COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
 
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "_field");

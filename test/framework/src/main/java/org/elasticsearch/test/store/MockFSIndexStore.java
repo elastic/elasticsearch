@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -42,13 +43,14 @@ import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class MockFSIndexStore extends IndexStore {
 
     public static final Setting<Boolean> INDEX_CHECK_INDEX_ON_CLOSE_SETTING =
         Setting.boolSetting("index.store.mock.check_index_on_close", true, Property.IndexScope, Property.NodeScope);
 
-    public static class TestPlugin extends Plugin {
+    public static class TestPlugin extends Plugin implements IndexStorePlugin {
         @Override
         public Settings additionalSettings() {
             return Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mock").build();
@@ -65,13 +67,17 @@ public class MockFSIndexStore extends IndexStore {
         }
 
         @Override
+        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
+            return Collections.singletonMap("mock", MockFSIndexStore::new);
+        }
+
+        @Override
         public void onIndexModule(IndexModule indexModule) {
             Settings indexSettings = indexModule.getSettings();
             if ("mock".equals(indexSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
                 if (INDEX_CHECK_INDEX_ON_CLOSE_SETTING.get(indexSettings)) {
                     indexModule.addIndexEventListener(new Listener());
                 }
-                indexModule.addIndexStore("mock", MockFSIndexStore::new);
             }
         }
     }

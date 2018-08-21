@@ -248,7 +248,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         logger.info("--> verify index folder deleted from blob container");
         RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
-        @SuppressWarnings("unchecked") BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
         final SetOnce<RepositoryData> repositoryData = new SetOnce<>();

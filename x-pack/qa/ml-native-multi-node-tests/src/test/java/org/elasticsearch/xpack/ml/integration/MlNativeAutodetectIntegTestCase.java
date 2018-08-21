@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -124,9 +125,11 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
-        Path keyStore;
+        Path key;
+        Path certificate;
         try {
-            keyStore = PathUtils.get(getClass().getResource("/test-node.jks").toURI());
+            key = PathUtils.get(getClass().getResource("/testnode.pem").toURI());
+            certificate = PathUtils.get(getClass().getResource("/testnode.crt").toURI());
         } catch (URISyntaxException e) {
             throw new IllegalStateException("error trying to get keystore path", e);
         }
@@ -135,8 +138,9 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put("xpack.security.transport.ssl.enabled", true);
-        builder.put("xpack.security.transport.ssl.keystore.path", keyStore.toAbsolutePath().toString());
-        builder.put("xpack.security.transport.ssl.keystore.password", "keypass");
+        builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
+        builder.put("xpack.security.transport.ssl.certificate", certificate.toAbsolutePath().toString());
+        builder.put("xpack.security.transport.ssl.key_passphrase", "testnode");
         builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
     }
@@ -210,7 +214,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
-    protected OpenJobAction.Response openJob(String jobId) {
+    protected AcknowledgedResponse openJob(String jobId) {
         OpenJobAction.Request request = new OpenJobAction.Request(jobId);
         return client().execute(OpenJobAction.INSTANCE, request).actionGet();
     }
@@ -231,7 +235,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(UpdateJobAction.INSTANCE, request).actionGet();
     }
 
-    protected DeleteJobAction.Response deleteJob(String jobId) {
+    protected AcknowledgedResponse deleteJob(String jobId) {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         return client().execute(DeleteJobAction.INSTANCE, request).actionGet();
     }
@@ -246,12 +250,12 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(StopDatafeedAction.INSTANCE, request).actionGet();
     }
 
-    protected DeleteDatafeedAction.Response deleteDatafeed(String datafeedId) {
+    protected AcknowledgedResponse deleteDatafeed(String datafeedId) {
         DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
         return client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
     }
 
-    protected StartDatafeedAction.Response startDatafeed(String datafeedId, long start, Long end) {
+    protected AcknowledgedResponse startDatafeed(String datafeedId, long start, Long end) {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedId, start);
         request.getParams().setEndTime(end);
         return client().execute(StartDatafeedAction.INSTANCE, request).actionGet();

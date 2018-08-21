@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.core.security.support;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -111,6 +114,41 @@ public class AutomatonsTests extends ESTestCase {
             fail("expected an error on invalid pattern [" + text + "]");
         } catch (IllegalArgumentException iae) {
             // expected
+        }
+    }
+
+    public void testLotsOfIndices() {
+        final int numberOfIndices = scaledRandomIntBetween(512, 1024);
+        final List<String> names = new ArrayList<>(numberOfIndices);
+        for (int i = 0; i < numberOfIndices; i++) {
+            names.add(randomAlphaOfLengthBetween(6, 48));
+        }
+        final Automaton automaton = Automatons.patterns(names);
+        assertTrue(automaton.isDeterministic());
+
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+        for (String name : names) {
+            assertTrue(runAutomaton.run(name));
+        }
+    }
+
+    public void testSettingMaxDeterminizedStates() {
+        try {
+            assertNotEquals(10000, Automatons.getMaxDeterminizedStates());
+            // set to the min value
+            Settings settings = Settings.builder().put(Automatons.MAX_DETERMINIZED_STATES_SETTING.getKey(), 10000).build();
+            Automatons.updateMaxDeterminizedStates(settings);
+            assertEquals(10000, Automatons.getMaxDeterminizedStates());
+
+            final List<String> names = new ArrayList<>(1024);
+            for (int i = 0; i < 1024; i++) {
+                names.add(randomAlphaOfLength(48));
+            }
+            TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
+            assertThat(e.getMaxDeterminizedStates(), equalTo(10000));
+        } finally {
+            Automatons.updateMaxDeterminizedStates(Settings.EMPTY);
+            assertEquals(100000, Automatons.getMaxDeterminizedStates());
         }
     }
 }

@@ -19,10 +19,22 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.nio.file.Paths;
+
+import static org.elasticsearch.packaging.util.FileUtils.slurp;
+
 public class Platforms {
     public static final String OS_NAME = System.getProperty("os.name");
     public static final boolean LINUX = OS_NAME.startsWith("Linux");
     public static final boolean WINDOWS = OS_NAME.startsWith("Windows");
+
+    public static String getOsRelease() {
+        if (LINUX) {
+            return slurp(Paths.get("/etc/os-release"));
+        } else {
+            throw new RuntimeException("os-release is only supported on linux");
+        }
+    }
 
     public static boolean isDPKG() {
         if (WINDOWS) {
@@ -31,25 +43,11 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which dpkg").isSuccess();
     }
 
-    public static boolean isAptGet() {
-        if (WINDOWS) {
-            return false;
-        }
-        return new Shell().runIgnoreExitCode("which apt-get").isSuccess();
-    }
-
     public static boolean isRPM() {
         if (WINDOWS) {
             return false;
         }
         return new Shell().runIgnoreExitCode("which rpm").isSuccess();
-    }
-
-    public static boolean isYUM() {
-        if (WINDOWS) {
-            return false;
-        }
-        return new Shell().runIgnoreExitCode("which yum").isSuccess();
     }
 
     public static boolean isSystemd() {
@@ -74,6 +72,18 @@ public class Platforms {
 
     public static void onLinux(PlatformAction action) {
         if (LINUX) {
+            action.run();
+        }
+    }
+
+    public static void onRPM(PlatformAction action) {
+        if (isRPM()) {
+            action.run();
+        }
+    }
+
+    public static void onDPKG(PlatformAction action) {
+        if (isDPKG()) {
             action.run();
         }
     }

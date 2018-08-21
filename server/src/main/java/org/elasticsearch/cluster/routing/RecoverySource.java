@@ -217,7 +217,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 return false;
             }
 
-            @SuppressWarnings("unchecked") SnapshotRecoverySource that = (SnapshotRecoverySource) o;
+            SnapshotRecoverySource that = (SnapshotRecoverySource) o;
             return snapshot.equals(that.snapshot) && index.equals(that.index) && version.equals(that.version);
         }
 

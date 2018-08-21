@@ -1,0 +1,278 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.security.authz.store;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+
+/**
+ * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
+ * from an Elasticsearch index.
+ */
+public class NativePrivilegeStore extends AbstractComponent {
+
+    private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
+        Tuple::v1,
+        t -> CollectionUtils.newSingletonArrayList(t.v2()), (a, b) -> {
+            a.addAll(b);
+            return a;
+        });
+
+    private final Client client;
+    private final SecurityClient securityClient;
+    private final SecurityIndexManager securityIndexManager;
+
+    public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
+        super(settings);
+        this.client = client;
+        this.securityClient = new SecurityClient(client);
+        this.securityIndexManager = securityIndexManager;
+    }
+
+    public void getPrivileges(Collection<String> applications, Collection<String> names,
+                              ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+        if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
+            getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
+                ActionListener.wrap(privilege ->
+                        listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
+                    listener::onFailure));
+        } else {
+            securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                final QueryBuilder query;
+                final TermQueryBuilder typeQuery = QueryBuilders
+                    .termQuery(ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
+                if (isEmpty(applications) && isEmpty(names)) {
+                    query = typeQuery;
+                } else if (isEmpty(names)) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(
+                        QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.APPLICATION.getPreferredName(), applications));
+                } else if (isEmpty(applications)) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery)
+                        .filter(QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names));
+                } else {
+                    final String[] docIds = applications.stream()
+                        .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
+                        .toArray(String[]::new);
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery("doc").addIds(docIds));
+                }
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setScroll(TimeValue.timeValueSeconds(10L))
+                        .setQuery(query)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
+                    logger.trace(() ->
+                        new ParameterizedMessage("Searching for privileges [{}] with query [{}]", names, Strings.toString(query)));
+                    request.indicesOptions().ignoreUnavailable();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                        hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
+                }
+            });
+        }
+    }
+
+    private static boolean isEmpty(Collection<String> collection) {
+        return collection == null || collection.isEmpty();
+    }
+
+    public void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure,
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                client.prepareGet(SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
+                new ActionListener<GetResponse>() {
+                    @Override
+                    public void onResponse(GetResponse response) {
+                        if (response.isExists()) {
+                            listener.onResponse(buildPrivilege(response.getId(), response.getSourceAsBytesRef()));
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // if the index or the shard is not there / available we just claim the privilege is not there
+                        if (TransportActions.isShardNotAvailableException(e)) {
+                            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name), e);
+                            listener.onResponse(null);
+                        } else {
+                            logger.error(new ParameterizedMessage("failed to load privilege [{}]", name), e);
+                            listener.onFailure(e);
+                        }
+                    }
+                },
+                client::get));
+    }
+
+    public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
+                              ActionListener<Map<String, List<String>>> listener) {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+                ActionListener.wrap((Collection<IndexResponse> responses) -> {
+                    final Map<String, List<String>> createdNames = responses.stream()
+                        .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
+                        .map(r -> r.getId())
+                        .map(NativePrivilegeStore::nameFromDocId)
+                        .collect(TUPLES_TO_MAP);
+                    clearRolesCache(listener, createdNames);
+                }, listener::onFailure), privileges.size(), Collections.emptyList());
+            for (ApplicationPrivilegeDescriptor privilege : privileges) {
+                innerPutPrivilege(privilege, refreshPolicy, groupListener);
+            }
+        });
+    }
+
+    private void innerPutPrivilege(ApplicationPrivilegeDescriptor privilege, WriteRequest.RefreshPolicy refreshPolicy,
+                                   ActionListener<IndexResponse> listener) {
+        try {
+            final String name = privilege.getName();
+            final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
+            ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
+                    .setSource(xContentBuilder)
+                    .setRefreshPolicy(refreshPolicy)
+                    .request(), listener, client::index);
+        } catch (Exception e) {
+            logger.warn("Failed to put privilege {} - {}", Strings.toString(privilege), e.toString());
+            listener.onFailure(e);
+        }
+
+    }
+
+    public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
+                                 ActionListener<Map<String, List<String>>> listener) {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
+                ActionListener.wrap(responses -> {
+                    final Map<String, List<String>> deletedNames = responses.stream()
+                        .filter(r -> r.getResult() == DocWriteResponse.Result.DELETED)
+                        .map(r -> r.getId())
+                        .map(NativePrivilegeStore::nameFromDocId)
+                        .collect(TUPLES_TO_MAP);
+                    clearRolesCache(listener, deletedNames);
+                }, listener::onFailure), names.size(), Collections.emptyList());
+            for (String name : names) {
+                ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareDelete(SECURITY_INDEX_NAME, "doc", toDocId(application, name))
+                        .setRefreshPolicy(refreshPolicy)
+                        .request(), groupListener, client::delete);
+            }
+        });
+    }
+
+    private <T> void clearRolesCache(ActionListener<T> listener, T value) {
+        // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
+        ClearRolesCacheRequest request = new ClearRolesCacheRequest();
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+            new ActionListener<ClearRolesCacheResponse>() {
+                @Override
+                public void onResponse(ClearRolesCacheResponse nodes) {
+                    listener.onResponse(value);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unable to clear role cache", e);
+                    listener.onFailure(
+                        new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
+                }
+            }, securityClient::clearRolesCache);
+    }
+
+    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+        logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
+        if (source == null) {
+            return null;
+        }
+        final Tuple<String, String> name = nameFromDocId(docId);
+        try {
+            // EMPTY is safe here because we never use namedObject
+
+            try (StreamInput input = source.streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, input)) {
+                final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
+                assert privilege.getApplication().equals(name.v1())
+                    : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
+                assert privilege.getName().equals(name.v2())
+                    : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.getName();
+                return privilege;
+            }
+        } catch (IOException | XContentParseException e) {
+            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            return null;
+        }
+    }
+
+    private static Tuple<String, String> nameFromDocId(String docId) {
+        final String name = docId.substring(DOC_TYPE_VALUE.length() + 1);
+        assert name != null && name.length() > 0 : "Invalid name '" + name + "'";
+        final int colon = name.indexOf(':');
+        assert colon > 0 : "Invalid name '" + name + "' (missing colon)";
+        return new Tuple<>(name.substring(0, colon), name.substring(colon + 1));
+    }
+
+    private static String toDocId(String application, String name) {
+        return DOC_TYPE_VALUE + "_" + application + ":" + name;
+    }
+
+}

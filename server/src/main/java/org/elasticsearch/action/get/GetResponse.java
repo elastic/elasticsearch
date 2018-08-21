@@ -129,7 +129,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     /**
      * The source of the document (As a map).
      */
-    @SuppressWarnings({"unchecked"})
     public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
         return getResult.sourceAsMap();
     }

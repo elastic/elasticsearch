@@ -68,11 +68,9 @@ public class SEach extends AStatement {
         expression.expected = expression.actual;
         expression = expression.cast(locals);
 
-        Class<?> clazz;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
@@ -85,7 +83,7 @@ public class SEach extends AStatement {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
             throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(expression.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);

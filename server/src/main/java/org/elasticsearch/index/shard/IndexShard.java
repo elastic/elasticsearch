@@ -1269,10 +1269,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // package-private for testing
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        if (isEngineResetting() == false) {
-            recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
-            recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
-        }
+        recoveryState.getTranslog().setOrIncreaseTotalOperations(snapshot.totalOperations());
+        recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
@@ -1291,9 +1289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 opsRecovered++;
-                if (isEngineResetting() == false) {
-                    recoveryState.getTranslog().incrementRecoveredOperations();
-                }
+                recoveryState.getTranslog().incrementRecoveredOperations();
             } catch (Exception e) {
                 if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
@@ -2145,7 +2141,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine createNewEngine(EngineConfig config) throws IOException {
         assert Thread.holdsLock(mutex);
         if (state == IndexShardState.CLOSED) {
-            throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
+            throw new IndexShardClosedException(shardId, "can't create engine - shard is closed");
         }
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
@@ -2290,9 +2286,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 if (isEngineResetting()) {
                                     engineHolder.closePendingEngine();
                                 } else {
-                                    getEngine().resetLocalCheckpoint(localCheckpoint);
-                                    getEngine().rollTranslogGeneration();
                                     sync();
+                                    getEngine().flush(true, true); // force=true to make sure that we roll a translog generation
+                                    getEngine().resetLocalCheckpoint(localCheckpoint);
                                 }
                                 logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
                                     opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
@@ -2730,13 +2726,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return activeEngine;
         }
 
-        synchronized void makeActiveEngineSearchOnly() throws IOException {
+        void makeActiveEngineSearchOnly() throws IOException {
+            Engine closing = null;
             assert activeEngine != null : "engine is not activated yet";
-            if ((this.activeEngine instanceof SearchOnlyEngine) == false) {
-                final Engine current = this.activeEngine;
-                this.activeEngine = new SearchOnlyEngine(this.activeEngine);
-                IOUtils.close(current);
+            synchronized (this) {
+                if ((this.activeEngine instanceof SearchOnlyEngine) == false) {
+                    final SeqNoStats seqNoStats = this.activeEngine.getSeqNoStats(activeEngine.getLastSyncedGlobalCheckpoint());
+                    closing = this.activeEngine;
+                    this.activeEngine = new SearchOnlyEngine(this.activeEngine.config(), seqNoStats);
+                }
             }
+            IOUtils.close(closing);
         }
 
         synchronized Engine getEngineForResync() {
@@ -2762,31 +2762,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.minRequiredCheckpoint = Math.min(minRequiredCheckpoint, newMinRequiredCheckpoint);
         }
 
-        synchronized void closePendingEngine() throws IOException {
-            final Engine closing = this.pendingEngine;
-            this.pendingEngine = null;
+        void closePendingEngine() throws IOException {
+            final Engine closing;
+            synchronized (this) {
+                closing = this.pendingEngine;
+                this.pendingEngine = null;
+            }
             IOUtils.close(closing);
         }
 
-        synchronized void maybeActivatePendingEngine() throws IOException {
-            if (pendingEngine != null && pendingEngine.getLocalCheckpoint() >= minRequiredCheckpoint) {
-                // make sure that all acknowledged writes are visible
-                pendingEngine.refresh("rollback");
-                final Engine closing = this.activeEngine;
-                this.activeEngine = this.pendingEngine;
-                this.pendingEngine = null;
-                IOUtils.close(closing);
+        void maybeActivatePendingEngine() throws IOException {
+            Engine closing = null;
+            synchronized (this) {
+                if (pendingEngine != null && pendingEngine.getLocalCheckpoint() >= minRequiredCheckpoint) {
+                    // make sure that all acknowledged writes are visible
+                    pendingEngine.refresh("rollback");
+                    closing = this.activeEngine;
+                    this.activeEngine = this.pendingEngine;
+                    this.pendingEngine = null;
+                }
             }
+            IOUtils.close(closing);
         }
 
         @Override
         public void close() throws IOException {
-            try {
-                IOUtils.close(activeEngine, pendingEngine);
-            } finally {
-                activeEngine = null;
-                pendingEngine = null;
+            final Engine closingActive;
+            final Engine closingPending;
+            synchronized (this) {
+                closingActive = this.activeEngine;
+                this.activeEngine = null;
+                closingPending = this.pendingEngine;
+                this.pendingEngine = null;
             }
+            IOUtils.close(closingActive, closingPending);
         }
     }
 }

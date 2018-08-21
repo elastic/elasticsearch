@@ -36,7 +36,7 @@ public class SearchOnlyEngineTests extends EngineTestCase {
     
     public void testSearchOnlyEngine() throws Exception {
         IOUtils.close(engine, store);
-        Engine lockedDownEngine = null;
+        Engine searchOnlyEngine = null;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
@@ -57,12 +57,13 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                     globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
                 }
                 engine.syncTranslog();
-                lockedDownEngine = new SearchOnlyEngine(engine);
+                engine.flush();
+                searchOnlyEngine = new SearchOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()));
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
+                assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(searchOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
+                assertThat(getDocIds(searchOnlyEngine, false), equalTo(lastDocIds));
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
@@ -73,21 +74,21 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                     }
                 }
                 // the locked down engine should still point to the previous commit
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
+                assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(searchOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
+                assertThat(getDocIds(searchOnlyEngine, false), equalTo(lastDocIds));
             }
             // Close and reopen the main engine
             trimUnsafeCommits(config);
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
                 recoveringEngine.recoverFromTranslog(Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
-                assertThat(lockedDownEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
-                assertThat(lockedDownEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(lockedDownEngine, false), equalTo(lastDocIds));
+                assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
+                assertThat(searchOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
+                assertThat(getDocIds(searchOnlyEngine, false), equalTo(lastDocIds));
             }
         } finally {
-            IOUtils.close(lockedDownEngine);
+            IOUtils.close(searchOnlyEngine);
         }
     }
 }

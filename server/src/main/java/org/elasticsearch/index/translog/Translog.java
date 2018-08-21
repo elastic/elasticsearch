@@ -593,6 +593,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 .filter(reader -> reader.getGeneration() >= minTranslogFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
             Snapshot snapshot = newMultiSnapshot(snapshots);
+            if (upToSeqNo == Long.MAX_VALUE) {
+                return snapshot;
+            }
             return new Snapshot() {
                 int skipped = 0;
                 @Override

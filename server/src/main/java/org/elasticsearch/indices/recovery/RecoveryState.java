@@ -505,6 +505,18 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
 
         /**
+         * Sets or increases the total number of translog operations to be recovered by the given value.
+         */
+        public synchronized void setOrIncreaseTotalOperations(int newOperations) {
+            if (total == UNKNOWN) {
+                this.total = newOperations;
+            } else {
+                this.total += newOperations;
+            }
+            assert total >= recovered : "total [" + total + "] < recovered [" + recovered + "]";
+        }
+
+        /**
          * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
          * this does change during recovery.
          * <p>

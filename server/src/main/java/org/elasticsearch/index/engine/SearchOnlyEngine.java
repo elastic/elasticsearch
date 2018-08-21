@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -46,33 +49,40 @@ public final class SearchOnlyEngine extends Engine {
     private final SeqNoStats seqNoStats;
     private final TranslogStats translogStats;
     private final SearcherManager searcherManager;
-    private final Searcher lastCommitSearcher;
 
-    public SearchOnlyEngine(Engine engine) throws IOException {
-        super(engine.config());
-        engine.refresh("lockdown");
-        this.seqNoStats = engine.getSeqNoStats(engine.getLastSyncedGlobalCheckpoint());
-        this.translogStats = engine.getTranslogStats();
-        this.lastCommittedSegmentInfos = engine.getLastCommittedSegmentInfos();
-        Searcher searcher = engine.acquireSearcher("lockdown", SearcherScope.INTERNAL);
+    public SearchOnlyEngine(EngineConfig config, SeqNoStats seqNoStats) {
+        super(config);
+        this.seqNoStats = seqNoStats;
         try {
-            this.searcherManager = new SearcherManager(searcher.getDirectoryReader(),
-                new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-            this.lastCommitSearcher = searcher;
-            searcher = null;
-        } finally {
-            IOUtils.close(searcher);
+            store.incRef();
+            ElasticsearchDirectoryReader reader = null;
+            boolean success = false;
+            try {
+                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                this.translogStats = new TranslogStats(0, 0, 0, 0, 0);
+                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), config.getShardId());
+                this.searcherManager = new SearcherManager(reader, new RamAccountingSearcherFactory(config.getCircuitBreakerService()));
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.close(reader, store::decRef);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     @Override
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
-        try {
-            IOUtils.close(lastCommitSearcher);
-        } catch (Exception ex) {
-            logger.warn("failed to close searcher", ex);
-        } finally {
-            closedLatch.countDown();
+        if (isClosed.compareAndSet(false, true)) {
+            try {
+                IOUtils.close(searcherManager, store::decRef);
+            } catch (Exception ex) {
+                logger.warn("failed to close engine", ex);
+            } finally {
+                closedLatch.countDown();
+            }
         }
     }
 
@@ -310,6 +320,5 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {
-
     }
 }

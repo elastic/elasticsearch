@@ -47,8 +47,7 @@ omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
 sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
-Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more
-information, see {xpack-ref}/fips-140-compliance.html[FIPS 140-2 compliance]. Defaults to `false`.
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [float]
 [[password-security-settings]]

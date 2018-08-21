@@ -1,6 +1,6 @@
 [role="xpack"]
 [[fips-140-compliance]]
-== FIPS 140-2
+=== FIPS 140-2
 
 The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS PUB
 140-2), titled "Security Requirements for Cryptographic Modules" is a U.S.
@@ -20,7 +20,8 @@ For {es}, FIPS 140-2 compliance is ensured by
 
 IMPORTANT: Only {es} 6.4.0 and later can be run in a FIPS 140-2 enabled JVM
 
-=== Upgrade considerations
+[float]
+==== Upgrade considerations
 
 If you plan to upgrade your existing Cluster to a version that can be run in
 a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
@@ -40,12 +41,14 @@ FIPS 140-2 JVM. In this case, you would need to also regenerate your
 `elasticsearch.keystore` and migrate all secure settings to it, in addition to the
 necessary configuration changes outlined below, before starting each node.
 
+[float]
 === Configuring {es} for FIPS 140-2
 
 Apart from setting `xpack.security.fips_mode.enabled`, a number of security
 related settings need to be configured accordingly in order to be compliant
 and able to run {es} successfully in a FIPS 140-2 enabled JVM.
 
+[float]
 ==== TLS
 
 SSLv2 and SSLv3 are not allowed by FIPS 140-2, so `SSLv2Hello` and `SSLv3` cannot
@@ -56,6 +59,7 @@ NOTE: The use of TLS ciphers is mainly governed by the relevant crypto module
 are configured by default in {es} are FIPS 140-2 compliant and as such can be
 used in a FIPS 140-2 JVM. (see <<ssl-tls-settings, xpack.ssl.cipher_suites>>)
 
+[float]
 ==== TLS Keystores and keys
 
 Keystores can be used in a number of <<ssl-tls-settings>> in order to
@@ -82,7 +86,7 @@ the following table:
 | `AES-256`               | 15630          | 512+
 |=======================
 
-
+[float]
 ==== Password Hashing
 
 {es} offers a number of algorithms for securely hashing credentials in memory and
@@ -104,6 +108,7 @@ The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created
 using the compliant `PBKDF2` algorithm you have selected.
 
+[float]
 === Limitations
 
 Due to the limitations that FIPS 140-2 compliance enforces, a small number of

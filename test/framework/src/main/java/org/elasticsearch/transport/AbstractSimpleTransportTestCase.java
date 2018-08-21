@@ -2650,7 +2650,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void onConnectionOpened(final Transport.Connection connection) {
                     closeConnectionChannel(connection);
                     try {
-                        assertBusy(connection::isClosed);
+                        assertBusy(() -> assertTrue(connection.isClosed()));
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }

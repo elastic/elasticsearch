@@ -10,7 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -293,11 +294,19 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         private final RemoteClusterService remoteClusterService;
         private final PersistentTasksService persistentTasksService;
         private final IndicesService indicesService;
+        private final CcrLicenseChecker ccrLicenseChecker;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               Client client, ClusterService clusterService, PersistentTasksService persistentTasksService,
-                               IndicesService indicesService) {
+        public TransportAction(
+                final Settings settings,
+                final ThreadPool threadPool,
+                final TransportService transportService,
+                final ActionFilters actionFilters,
+                final Client client,
+                final ClusterService clusterService,
+                final PersistentTasksService persistentTasksService,
+                final IndicesService indicesService,
+                final CcrLicenseChecker ccrLicenseChecker) {
             super(settings, NAME, transportService, actionFilters, Request::new);
             this.client = client;
             this.threadPool = threadPool;
@@ -305,43 +314,60 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.persistentTasksService = persistentTasksService;
             this.indicesService = indicesService;
+            this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         }
 
         @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            ClusterState localClusterState = clusterService.state();
-            IndexMetaData followIndexMetadata = localClusterState.getMetaData().index(request.followerIndex);
-
-            String[] indices = new String[]{request.leaderIndex};
-            Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-            if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                // Following an index in local cluster, so use local cluster state to fetch leader IndexMetaData:
-                IndexMetaData leaderIndexMetadata = localClusterState.getMetaData().index(request.leaderIndex);
-                try {
-                    start(request, null, leaderIndexMetadata, followIndexMetadata, listener);
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                    return;
+        protected void doExecute(final Task task, final Request request, final ActionListener<Response> listener) {
+            if (ccrLicenseChecker.isCcrAllowed()) {
+                final String[] indices = new String[]{request.leaderIndex};
+                final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+                if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    followLocalIndex(request, listener);
+                } else {
+                    assert remoteClusterIndices.size() == 1;
+                    final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
+                    assert entry.getValue().size() == 1;
+                    final String clusterAlias = entry.getKey();
+                    final String leaderIndex = entry.getValue().get(0);
+                    followRemoteIndex(request, clusterAlias, leaderIndex, listener);
                 }
             } else {
-                // Following an index in remote cluster, so use remote client to fetch leader IndexMetaData:
-                assert remoteClusterIndices.size() == 1;
-                Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-                assert entry.getValue().size() == 1;
-                String clusterNameAlias = entry.getKey();
-                String leaderIndex = entry.getValue().get(0);
-
-                Client remoteClient = client.getRemoteClusterClient(clusterNameAlias);
-                ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-                clusterStateRequest.clear();
-                clusterStateRequest.metaData(true);
-                clusterStateRequest.indices(leaderIndex);
-                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(r -> {
-                    ClusterState remoteClusterState = r.getState();
-                    IndexMetaData leaderIndexMetadata = remoteClusterState.getMetaData().index(leaderIndex);
-                    start(request, clusterNameAlias, leaderIndexMetadata, followIndexMetadata, listener);
-                }, listener::onFailure));
+                listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             }
+        }
+
+        private void followLocalIndex(final Request request, final ActionListener<Response> listener) {
+            final ClusterState state = clusterService.state();
+            final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+            // following an index in local cluster, so use local cluster state to fetch leader index metadata
+            final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
+            try {
+                start(request, null, leaderIndexMetadata, followerIndexMetadata, listener);
+            } catch (final IOException e) {
+                listener.onFailure(e);
+            }
+        }
+
+        private void followRemoteIndex(
+                final Request request,
+                final String clusterAlias,
+                final String leaderIndex,
+                final ActionListener<Response> listener) {
+            final ClusterState state = clusterService.state();
+            final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+                    client,
+                    clusterAlias,
+                    leaderIndex,
+                    listener,
+                    leaderIndexMetadata -> {
+                        try {
+                            start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);
+                        } catch (final IOException e) {
+                            listener.onFailure(e);
+                        }
+                    });
         }
 
         /**

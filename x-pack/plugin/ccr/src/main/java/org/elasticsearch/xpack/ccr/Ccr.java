@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,10 +33,12 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
@@ -54,8 +58,10 @@ import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -72,15 +78,42 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     private final boolean enabled;
     private final Settings settings;
+    private final CcrLicenseChecker ccrLicenseChecker;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
      *
      * @param settings the settings
      */
+    @SuppressWarnings("unused") // constructed reflectively by the plugin infrastructure
     public Ccr(final Settings settings) {
+        this(settings, new CcrLicenseChecker());
+    }
+
+    /**
+     * Construct an instance of the CCR container with the specified settings and license checker.
+     *
+     * @param settings          the settings
+     * @param ccrLicenseChecker the CCR license checker
+     */
+    Ccr(final Settings settings, final CcrLicenseChecker ccrLicenseChecker) {
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
+        this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+            final Client client,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ResourceWatcherService resourceWatcherService,
+            final ScriptService scriptService,
+            final NamedXContentRegistry xContentRegistry,
+            final Environment environment,
+            final NodeEnvironment nodeEnvironment,
+            final NamedWriteableRegistry namedWriteableRegistry) {
+        return Collections.singleton(ccrLicenseChecker);
     }
 
     @Override

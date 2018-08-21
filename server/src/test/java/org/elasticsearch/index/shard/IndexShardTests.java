@@ -2654,7 +2654,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // create corrupted marker
         final String corruptionMessage = "fake ioexception";
-        try(final Store store = createStore(indexShard.indexSettings(), shardPath)){
+        try(Store store = createStore(indexShard.indexSettings(), shardPath)){
             store.markStoreCorrupted(new IOException(corruptionMessage));
         }
 

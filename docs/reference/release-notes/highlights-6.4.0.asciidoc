@@ -52,10 +52,8 @@ data.
 [float]
 === Security
 
-* Kerberos authentication support is now available.
-// For more information, see <<configuring-kerberos-realm, configuring a Kerberos realm>>.
-* {es} now offers a FIPS 140-2 compliant mode.
-// For more information, see <<fips-140-compliance, FIPS 140-2 compliance>>.
+* Kerberos authentication support is now available. For more information, see <<configuring-kerberos-realm, configuring a Kerberos realm>>.
+* {es} now offers a FIPS 140-2 compliant mode. For more information, see <<fips-140-compliance, FIPS 140-2 compliance>>.
 
 [float]
 === Snapshot and Restore

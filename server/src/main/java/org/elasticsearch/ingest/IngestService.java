@@ -72,17 +72,13 @@ public class IngestService implements ClusterStateApplier {
 
     private final ClusterService clusterService;
     private final Map<String, Processor.Factory> processorFactories;
-
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, Pipeline> pipelines = new HashMap<>();
-
     private final ThreadPool threadPool;
-
     private final StatsHolder totalStats = new StatsHolder();
-
     private volatile Map<String, StatsHolder> statsHolderPerPipeline = Collections.emptyMap();
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,

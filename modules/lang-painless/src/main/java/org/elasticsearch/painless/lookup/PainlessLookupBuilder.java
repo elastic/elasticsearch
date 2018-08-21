@@ -928,7 +928,7 @@ public final class PainlessLookupBuilder {
                     typesToCanonicalTypeNames(methodTypeParameters) + "]");
         }
 
-        String painlessMethodKey = buildPainlessMethodKey(methodName, methodTypeParametersSize);
+        String painlessMethodKey = buildPainlessMethodKey(methodName, constructorTypeParametersSize + methodTypeParametersSize);
         PainlessBinding painlessBinding = painlessMethodKeysToPainlessBindings.get(painlessMethodKey);
 
         if (painlessBinding == null) {
@@ -969,7 +969,7 @@ public final class PainlessLookupBuilder {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
         }
 
-        return new PainlessLookup(canonicalClassNamesToClasses, classesToPainlessClasses);
+        return new PainlessLookup(canonicalClassNamesToClasses, classesToPainlessClasses, painlessMethodKeysToPainlessBindings);
     }
 
     private void copyPainlessClassMembers() {

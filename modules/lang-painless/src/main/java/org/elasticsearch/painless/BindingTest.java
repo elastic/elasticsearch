@@ -22,11 +22,11 @@ package org.elasticsearch.painless;
 public class BindingTest {
     public int state;
 
-    public BindingTest(int state) {
-        this.state = state;
+    public BindingTest(int state0, int state1) {
+        this.state = state0 + state1;
     }
 
-    public int addWithState(int stateless) {
+    public int testAddWithState(int stateless) {
         return stateless + state;
     }
 }

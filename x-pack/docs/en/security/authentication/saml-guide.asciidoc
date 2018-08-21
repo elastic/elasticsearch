@@ -592,9 +592,9 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to X-Pack Security
+Your SAML users cannot do anything until they are mapped to {security}
 roles. This mapping is performed through the
-{ref}/security-api-role-mapping.html[role-mapping API]
+{ref}/security-api-put-role-mapping.html[add role mapping API].
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
@@ -626,7 +626,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api-role-mapping.html[Role Mapping APIs]. 
+{ref}/security-api.html#security-role-mapping-apis[role mapping APIs]. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in

@@ -25,6 +25,8 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
+import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -217,6 +219,58 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-open-job-execute-async
             client.machineLearning().openJobAsync(openJobRequest, RequestOptions.DEFAULT, listener); //<1>
             // end::x-pack-ml-open-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
+    public void testCloseJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Job job = MachineLearningIT.buildJob("closing-my-first-machine-learning-job");
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+            client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+            //tag::x-pack-ml-close-job-request
+            CloseJobRequest closeJobRequest = new CloseJobRequest("closing-my-first-machine-learning-job", "otherjobs*"); //<1>
+            closeJobRequest.setForce(false); //<2>
+            closeJobRequest.setAllowNoJobs(true); //<3>
+            closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10)); //<4>
+            //end::x-pack-ml-close-job-request
+
+            //tag::x-pack-ml-close-job-execute
+            CloseJobResponse closeJobResponse = client.machineLearning().closeJob(closeJobRequest, RequestOptions.DEFAULT);
+            boolean isClosed = closeJobResponse.isClosed(); //<1>
+            //end::x-pack-ml-close-job-execute
+
+        }
+        {
+            Job job = MachineLearningIT.buildJob("closing-my-second-machine-learning-job");
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+            client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+            //tag::x-pack-ml-close-job-listener
+            ActionListener<CloseJobResponse> listener = new ActionListener<CloseJobResponse>() {
+                @Override
+                public void onResponse(CloseJobResponse closeJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-close-job-listener
+            CloseJobRequest closeJobRequest = new CloseJobRequest("closing-my-second-machine-learning-job");
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-close-job-execute-async
+            client.machineLearning().closeJobAsync(closeJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-close-job-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -292,16 +292,17 @@ public class IndexLifecycleRunner {
      */
     static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) throws IOException {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
-        XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
-        stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
-        String stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
-        if (stepInfoString.equals(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxMeta.getSettings()))) {
-            return clusterState;
-        }
-        Settings.Builder indexSettings = Settings.builder().put(idxMeta.getSettings())
+        try (XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder()) {
+            stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
+            String stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+            if (stepInfoString.equals(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxMeta.getSettings()))) {
+                return clusterState;
+            }
+            Settings.Builder indexSettings = Settings.builder().put(idxMeta.getSettings())
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.getKey(), stepInfoString);
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
-        return newClusterStateBuilder.build();
+            ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
+            return newClusterStateBuilder.build();
+        }
     }
 
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {

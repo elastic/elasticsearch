@@ -317,7 +317,7 @@ public final class IndexModule {
 
         static {
             final Map<String, Type> types = new HashMap<>(4);
-            for (Type type : values()) {
+            for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }
             TYPES = Collections.unmodifiableMap(types);

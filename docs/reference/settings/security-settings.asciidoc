@@ -46,6 +46,9 @@ settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
 omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
 sensitive nature of the information.
 
+`xpack.security.fips_mode.enabled`::
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+
 [float]
 [[password-security-settings]]
 ==== Default password security settings
@@ -1124,7 +1127,12 @@ settings such as those for HTTP or Transport.
 `xpack.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`.
+`TLSv1`. 
++
+--
+NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
+or `SSLv3`. See <<fips-140-compliance>>.
+--
 
 `xpack.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
@@ -1223,6 +1231,9 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
+keystore files. See <<fips-140-compliance>>. 
+
 [float]
 ===== PKCS#12 files
 
@@ -1260,6 +1271,9 @@ Password to the truststore.
 
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
+
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
+keystore files. See <<fips-140-compliance>>. 
 
 [[pkcs12-truststore-note]]
 [NOTE]

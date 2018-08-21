@@ -1,13 +1,28 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.graph.action;
+package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,9 +36,10 @@ import java.util.Set;
  * inclusion list to filter which terms are considered.
  * 
  */
-public class VertexRequest {
+public class VertexRequest implements ToXContentObject {
     private String fieldName;
-    private int size = 5;
+    private int size = DEFAULT_SIZE;
+    public static final int DEFAULT_SIZE = 5;
     private Map<String, TermBoost> includes;
     private Set<String> excludes;
     public static final int DEFAULT_MIN_DOC_COUNT = 3;
@@ -193,6 +209,40 @@ public class VertexRequest {
     public VertexRequest shardMinDocCount(int value) {
         shardMinDocCount = value;
         return this;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("field", fieldName);
+        if (size != DEFAULT_SIZE) {
+            builder.field("size", size);
+        }
+        if (minDocCount != DEFAULT_MIN_DOC_COUNT) {
+            builder.field("min_doc_count", minDocCount);
+        }
+        if (shardMinDocCount != DEFAULT_SHARD_MIN_DOC_COUNT) {
+            builder.field("shard_min_doc_count", shardMinDocCount);
+        }
+        if(includes!=null) {
+            builder.startArray("include");
+            for (TermBoost tb : includes.values()) {
+                builder.startObject();
+                builder.field("term", tb.term);
+                builder.field("boost", tb.boost);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        if(excludes!=null) {
+            builder.startArray("exclude");
+            for (String value : excludes) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+        return builder;
     }
 
 }

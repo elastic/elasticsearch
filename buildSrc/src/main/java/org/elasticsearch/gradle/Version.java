@@ -162,11 +162,11 @@ public final class Version implements Comparable<Version> {
             revision == other.revision;
     }
 
-    public Version dropQualifier() {
-        return new Version(major, minor, revision, "", snapshot);
+    public Version withoutQualifier() {
+        return new Version(major, minor, revision, null, snapshot);
     }
 
-    public Version dropSnapshot() {
+    public Version withoutSnapshot() {
         return new Version(major, minor, revision, qualifier, false);
     }
 

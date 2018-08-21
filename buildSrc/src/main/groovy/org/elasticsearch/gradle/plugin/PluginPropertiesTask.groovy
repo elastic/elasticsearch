@@ -71,7 +71,7 @@ class PluginPropertiesTask extends Copy {
             'name': extension.name,
             'description': extension.description,
             'version': extension.version as String,
-            'elasticsearchVersion': VersionProperties.elasticsearch.dropQualifier().dropSnapshot() as String,
+            'elasticsearchVersion': VersionProperties.elasticsearch.withoutQualifier().withoutSnapshot() as String,
             'javaVersion': project.targetCompatibility as String,
             'classname': extension.classname,
             'extendedPlugins': extension.extendedPlugins.join(','),

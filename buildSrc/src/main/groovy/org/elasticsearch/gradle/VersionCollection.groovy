@@ -290,7 +290,7 @@ class VersionCollection {
         return items
             .tailSet(Version.fromString("${version.major}.0.0"))
             .headSet(Version.fromString("${version.major + 1}.0.0"))
-            .count { it.qualifier.isEmpty() }  // count only non qualifier'd versions as actual versions that may be released
+            .count { it.qualifier.isEmpty() }  // count only non qualified versions as actual versions that may be released
             .intValue() > 1
     }
 

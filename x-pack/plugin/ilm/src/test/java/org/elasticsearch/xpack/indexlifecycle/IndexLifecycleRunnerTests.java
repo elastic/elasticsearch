@@ -1035,9 +1035,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         ClusterState newClusterState = IndexLifecycleRunner.removePolicyForIndexes(indices, clusterState, failedIndexes);
 
-        assertEquals(1, failedIndexes.size());
-        assertEquals(index.getName(), failedIndexes.get(0));
-        assertSame(clusterState, newClusterState);
+        assertTrue(failedIndexes.isEmpty());
+        assertIndexNotManagedByILM(newClusterState, index);
     }
 
     public static void assertIndexNotManagedByILM(ClusterState clusterState, Index index) {

@@ -52,11 +52,11 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
 
         if (request.isAcknowledged() == false) {
             listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.NEED_ACKNOWLEDGEMENT,
-                    ACK_MESSAGES, ACKNOWLEDGEMENT_HEADER));
+                    request.getType(), ACK_MESSAGES, ACKNOWLEDGEMENT_HEADER));
         } else if (oldLicensesMetaData == null || oldLicensesMetaData.isEligibleForTrial()) {
-            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL));
+            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, request.getType()));
         } else {
-            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED));
+            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED, request.getType()));
         }
     }
 

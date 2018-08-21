@@ -369,17 +369,19 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored())  {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
+
+            if (!fieldType().hasDocValues() && fieldType().omitNorms()) {
+                createFieldNamesField(context, fields);
+            }
         }
+
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            createFieldNamesField(context, fields);
         }
     }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

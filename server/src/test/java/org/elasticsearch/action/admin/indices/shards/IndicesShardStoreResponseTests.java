@@ -80,7 +80,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
             assertThat(failureMap.containsKey("index"), equalTo(true));
             assertThat(((String) failureMap.get("index")), equalTo("test"));
             assertThat(failureMap.containsKey("shard"), equalTo(true));
-            assertThat(((Integer) failureMap.get("shard")), equalTo(3));
+            assertThat(((int) failureMap.get("shard")), equalTo(3));
             assertThat(failureMap.containsKey("node"), equalTo(true));
             assertThat(((String) failureMap.get("node")), equalTo("node1"));
 

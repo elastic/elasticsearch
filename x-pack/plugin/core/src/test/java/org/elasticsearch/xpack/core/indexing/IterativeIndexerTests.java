@@ -59,7 +59,7 @@ public class IterativeIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStart(long now) {
+        protected void onStartJob(long now) {
             assertThat(step, equalTo(0));
             ++step;
         }

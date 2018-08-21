@@ -72,7 +72,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
     }
 
     @Override
-    protected void onStart(long now) {
+    protected void onStartJob(long now) {
         // this is needed to exclude buckets that can still receive new documents.
         DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         long rounded = dateHisto.createRounding().round(now);
@@ -83,7 +83,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
             maxBoundary = rounded;
         }
     }
-    
+
     @Override
     protected SearchRequest buildSearchRequest() {
             // Indexer is single-threaded, and only place that the ID scheme can get upgraded is doSaveState(), so
@@ -97,7 +97,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
                 .aggregation(compositeBuilder.aggregateAfter(position));
         return new SearchRequest(job.getConfig().getIndexPattern()).source(searchSource);
     }
-    
+
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);

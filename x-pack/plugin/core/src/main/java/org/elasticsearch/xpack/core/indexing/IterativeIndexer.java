@@ -21,13 +21,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
- * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position). 
+ * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position).
  * Only one background job can run simultaneously and {@link #onFinish()} is called when the job
  * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
  * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
  * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
  *
- * In a nutshell this is a 2 cycle engine: 1st it sends a query, 2nd it indexes documents based on the response, sends the next query, 
+ * In a nutshell this is a 2 cycle engine: 1st it sends a query, 2nd it indexes documents based on the response, sends the next query,
  * indexes, queries, indexes, ... until a condition lets the engine pause until the source provides new input.
  *
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
@@ -73,7 +73,7 @@ public abstract class IterativeIndexer<JobPosition> {
      * Sets the internal state to {@link IndexerState#STARTED} if the previous state
      * was {@link IndexerState#STOPPED}. Setting the state to STARTED allows a job
      * to run in the background when {@link #maybeTriggerAsyncJob(long)} is called.
-     * 
+     *
      * @return The new state for the indexer (STARTED, INDEXING or ABORTING if the
      *         job was already aborted).
      */
@@ -88,7 +88,7 @@ public abstract class IterativeIndexer<JobPosition> {
      * as soon as the background job detects that the indexer is stopped. If there
      * is no job running when this function is called, the state is directly set to
      * {@link IndexerState#STOPPED} and {@link #onFinish()} will never be called.
-     * 
+     *
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the
      *         job was already aborted).
      */
@@ -111,7 +111,7 @@ public abstract class IterativeIndexer<JobPosition> {
      * will be called as soon as the background job detects that the indexer is
      * aborted. If there is no job running when this function is called, it returns
      * true and {@link #onAbort()} will never be called.
-     * 
+     *
      * @return true if the indexer is aborted, false if a background job is running
      *         and abort is delayed.
      */
@@ -146,7 +146,7 @@ public abstract class IterativeIndexer<JobPosition> {
         case STARTED:
             logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
             stats.incrementNumInvocations(1);
-            onStart(now);
+            onStartJob(now);
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
@@ -167,14 +167,14 @@ public abstract class IterativeIndexer<JobPosition> {
 
     /**
      * Called to get the Id of the job, used for logging.
-     * 
+     *
      * @return a string with the id of the job
      */
     protected abstract String getJobId();
 
     /**
      * Called to process a response from the 1 search request in order to turn it into a {@link IterationResult}.
-     * 
+     *
      * @param searchResponse response from the search phase.
      * @return Iteration object to be passed to indexing phase.
      */
@@ -182,18 +182,18 @@ public abstract class IterativeIndexer<JobPosition> {
 
     /**
      * Called to build the next search request.
-     * 
+     *
      * @return SearchRequest to be passed to the search phase.
      */
     protected abstract SearchRequest buildSearchRequest();
 
     /**
-     * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the 
+     * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
-     * 
+     *
      * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
      */
-    protected abstract void onStart(long now);
+    protected abstract void onStartJob(long now);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
@@ -233,7 +233,7 @@ public abstract class IterativeIndexer<JobPosition> {
 
     /**
      * Called when a failure occurs in an async job causing the execution to stop.
-     * 
+     *
      * @param exc
      *            The exception
      */
@@ -293,10 +293,10 @@ public abstract class IterativeIndexer<JobPosition> {
                 throw new RuntimeException("Shard failures encountered while running indexer for job [" + getJobId() + "]: "
                         + Arrays.toString(searchResponse.getShardFailures()));
             }
-            
+
             stats.incrementNumPages(1);
             IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
-            
+
             if (iterationResult.isDone()) {
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
@@ -334,7 +334,7 @@ public abstract class IterativeIndexer<JobPosition> {
             finishWithFailure(e);
         }
     }
-    
+
     private void onBulkResponse(BulkResponse response, JobPosition position) {
         try {
 
@@ -349,7 +349,7 @@ public abstract class IterativeIndexer<JobPosition> {
             finishWithFailure(e);
         }
     }
-    
+
     /**
      * Checks the {@link IndexerState} and returns false if the execution should be
      * stopped.

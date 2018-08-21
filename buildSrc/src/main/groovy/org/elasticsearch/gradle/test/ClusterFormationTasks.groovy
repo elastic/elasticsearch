@@ -304,15 +304,13 @@ class ClusterFormationTasks {
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
+                'node.name'                    : "node-" + node.nodeNum,
                 'pidfile'                      : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
                 'node.attr.testattr'           : 'test'
         ]
-        if (node.config.addStandardNodeName) {
-            esConfig['node.name'] = "node-${node.nodeNum}"
-        }
         int minimumMasterNodes = node.config.minimumMasterNodes.call()
         if (minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
@@ -339,7 +337,13 @@ class ClusterFormationTasks {
         if (node.nodeVersion.major >= 7) {
             esConfig['indices.breaker.total.use_real_memory'] = false
         }
-        esConfig.putAll(node.config.settings)
+        for (Map.Entry<String, Object> setting : node.config.settings) {
+            if (setting.value == null) {
+                esConfig.remove(setting.key)
+            } else {
+                esConfig.put(setting.key, setting.value)
+            }
+        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {

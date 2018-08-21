@@ -161,12 +161,6 @@ class ClusterConfiguration {
 
     List<Object> dependencies = new ArrayList<>()
 
-    /**
-     * Should elasticsearch.yml contain an explicit node name?
-     */
-    @Input
-    boolean addStandardNodeName = true
-
     @Input
     void systemProperty(String property, Object value) {
         systemProperties.put(property, value)

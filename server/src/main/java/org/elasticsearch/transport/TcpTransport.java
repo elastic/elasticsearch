@@ -441,7 +441,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     try {
                         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
-                        TcpChannel channel = initiateChannel(node.getAddress().address(), connectFuture);
+                        TcpChannel channel = initiateChannel(node, connectFuture);
                         logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                         channels.add(channel);
                     } catch (Exception e) {
@@ -841,12 +841,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Initiate a single tcp socket channel.
      *
-     * @param address address for the initiated connection
+     * @param node for the initiated connection
      * @param connectListener listener to be called when connection complete
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException;
 
     /**
      * Called to tear down internal resources

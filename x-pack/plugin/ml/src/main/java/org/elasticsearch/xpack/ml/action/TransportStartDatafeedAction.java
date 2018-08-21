@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -46,10 +47,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
-import org.elasticsearch.xpack.ml.datafeed.MlRemoteLicenseChecker;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -141,19 +142,22 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             DatafeedConfig datafeed = mlMetadata.getDatafeed(params.getDatafeedId());
             Job job = mlMetadata.getJobs().get(datafeed.getJobId());
 
-            if (MlRemoteLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
-                MlRemoteLicenseChecker remoteLicenseChecker = new MlRemoteLicenseChecker(client);
-                remoteLicenseChecker.checkRemoteClusterLicenses(MlRemoteLicenseChecker.remoteClusterNames(datafeed.getIndices()),
+            if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+                final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
+                        new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                        RemoteClusterLicenseChecker.remoteClusterAliases(datafeed.getIndices()),
                         ActionListener.wrap(
                                 response -> {
-                                    if (response.isViolated()) {
+                                    if (response.isSuccess() == false) {
                                         listener.onFailure(createUnlicensedError(datafeed.getId(), response));
                                     } else {
                                         createDataExtractor(job, datafeed, params, waitForTaskListener);
                                     }
                                 },
-                                e -> listener.onFailure(createUnknownLicenseError(datafeed.getId(),
-                                        MlRemoteLicenseChecker.remoteIndices(datafeed.getIndices()), e))
+                                e -> listener.onFailure(
+                                        createUnknownLicenseError(
+                                                datafeed.getId(), RemoteClusterLicenseChecker.remoteIndices(datafeed.getIndices()), e))
                         ));
             } else {
                 createDataExtractor(job, datafeed, params, waitForTaskListener);
@@ -232,23 +236,35 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         );
     }
 
-    private ElasticsearchStatusException createUnlicensedError(String datafeedId,
-                                                               MlRemoteLicenseChecker.LicenseViolation licenseViolation) {
-        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use "
-                + "indices on a remote cluster [" + licenseViolation.get().getClusterName()
-                + "] that is not licensed for Machine Learning. "
-                + MlRemoteLicenseChecker.buildErrorMessage(licenseViolation.get());
-
+    private ElasticsearchStatusException createUnlicensedError(
+            final String datafeedId, final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final String message = String.format(
+                Locale.ROOT,
+                "cannot start datafeed [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for ml; %s",
+                datafeedId,
+                licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
+                RemoteClusterLicenseChecker.buildErrorMessage(
+                        "ml",
+                        licenseCheck.remoteClusterLicenseInfo(),
+                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
-    private ElasticsearchStatusException createUnknownLicenseError(String datafeedId, List<String> remoteIndices,
-                                                                   Exception cause) {
-        String message = "Cannot start datafeed [" + datafeedId + "] as it is configured to use"
-                + " indices on a remote cluster " + remoteIndices
-                + " but the license type could not be verified";
+    private ElasticsearchStatusException createUnknownLicenseError(
+            final String datafeedId, final List<String> remoteIndices, final Exception cause) {
+        final int numberOfRemoteClusters = RemoteClusterLicenseChecker.remoteClusterAliases(remoteIndices).size();
+        assert numberOfRemoteClusters > 0;
+        final String remoteClusterQualifier = numberOfRemoteClusters == 1 ? "a remote cluster" : "remote clusters";
+        final String licenseTypeQualifier = numberOfRemoteClusters == 1 ? "" : "s";
+        final String message = String.format(
+                Locale.ROOT,
+                "cannot start datafeed [%s] as it uses indices on %s %s but the license type%s could not be verified",
+                datafeedId,
+                remoteClusterQualifier,
+                remoteIndices,
+                licenseTypeQualifier);
 
-        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, new Exception(cause.getMessage()));
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {

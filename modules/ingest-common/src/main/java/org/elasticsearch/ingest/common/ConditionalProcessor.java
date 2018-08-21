@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -132,8 +131,6 @@ public class ConditionalProcessor extends AbstractProcessor {
             return new UnmodifiableIngestList((List<Object>) raw);
         } else if (raw instanceof byte[]) {
             return ((byte[]) raw).clone();
-        } else if (raw instanceof Date) {
-            return ((Date) raw).clone();
         }
         return raw;
     }

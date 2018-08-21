@@ -100,7 +100,7 @@ public interface Processor {
 
         public final LongSupplier relativeTimeSupplier;
 
-        public final PipelineHolder pipelines;
+        public final IngestService ingestService;
 
         /**
          * Provides scheduler support
@@ -109,14 +109,14 @@ public interface Processor {
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler,
-            PipelineHolder pipelines) {
+            IngestService ingestService) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
-            this.pipelines = pipelines;
+            this.ingestService = ingestService;
         }
 
     }

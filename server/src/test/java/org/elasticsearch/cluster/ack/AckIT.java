@@ -19,13 +19,11 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -53,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(minNumDataNodes = 2)
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32767")
 public class AckIT extends ESIntegTestCase {
 
     @Override
@@ -79,7 +78,7 @@ public class AckIT extends ESIntegTestCase {
 
     public void testUpdateSettingsNoAcknowledgement() {
         createIndex("test");
-        UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
+        AcknowledgedResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
                 .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
     }
@@ -229,7 +228,7 @@ public class AckIT extends ESIntegTestCase {
     public void testIndicesAliasesNoAcknowledgement() {
         createIndex("test");
 
-        IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
+        AcknowledgedResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -249,7 +248,7 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").setTimeout("0s").get();
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").setTimeout("0s").get();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
     }
 
@@ -282,7 +281,7 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=keyword").setTimeout("0s").get();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 

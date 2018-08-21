@@ -25,24 +25,24 @@ import java.util.Objects;
 
 /**
  * Constructor represents the equivalent of a Java constructor available as a whitelisted class
- * constructor within Painless.  Constructors for Painless classes may be accessed exactly as
- * constructors for Java classes are using the 'new' keyword.  Painless classes may have multiple
+ * constructor within Painless. Constructors for Painless classes may be accessed exactly as
+ * constructors for Java classes are using the 'new' keyword. Painless classes may have multiple
  * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
  */
 public final class WhitelistConstructor {
 
-    /** Information about where this constructor was whitelisted from.  Can be used for error messages. */
+    /** Information about where this constructor was whitelisted from. */
     public final String origin;
 
     /**
      * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
      * constructor which can be used to look up the Java constructor through reflection.
      */
-    public final List<String> painlessParameterTypeNames;
+    public final List<String> canonicalTypeNameParameters;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistConstructor(String origin, List<String> painlessParameterTypeNames) {
+    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters) {
         this.origin = Objects.requireNonNull(origin);
-        this.painlessParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(painlessParameterTypeNames));
+        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
     }
 }

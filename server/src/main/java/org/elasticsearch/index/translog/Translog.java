@@ -66,6 +66,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -117,6 +118,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final Path location;
     private TranslogWriter current;
 
+    protected final TragicExceptionHolder tragedy = new TragicExceptionHolder();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
@@ -310,8 +312,28 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return closed.get() == false;
     }
 
+    private static boolean calledFromOutsideOrViaTragedyClose() {
+        List<StackTraceElement> frames = Stream.of(Thread.currentThread().getStackTrace()).
+                skip(3). //skip getStackTrace, current method and close method frames
+                limit(10). //limit depth of analysis to 10 frames, it should be enough to catch closing with, e.g. IOUtils
+                filter(f ->
+                    {
+                        try {
+                            return Translog.class.isAssignableFrom(Class.forName(f.getClassName()));
+                        } catch (Exception ignored) {
+                            return false;
+                        }
+                    }
+                ). //find all inner callers including Translog subclasses
+                collect(Collectors.toList());
+        //the list of inner callers should be either empty or should contain closeOnTragicEvent method
+        return frames.isEmpty() || frames.stream().anyMatch(f -> f.getMethodName().equals("closeOnTragicEvent"));
+    }
+
     @Override
     public void close() throws IOException {
+        assert calledFromOutsideOrViaTragedyClose() :
+                "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
         if (closed.compareAndSet(false, true)) {
             try (ReleasableLock lock = writeLock.acquire()) {
                 try {
@@ -462,7 +484,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 getChannelFactory(),
                 config.getBufferSize(),
                 initialMinTranslogGen, initialGlobalCheckpoint,
-                globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong());
+                globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -491,7 +513,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 if (operation.primaryTerm() > current.getPrimaryTerm()) {
-                    throw new IllegalArgumentException("Operation term is newer than the current term;"
+                    assert false :
+                        "Operation term is newer than the current term; "
+                            + "current term[" + current.getPrimaryTerm() + "], operation term[" + operation + "]";
+                    throw new IllegalArgumentException("Operation term is newer than the current term; "
                         + "current term[" + current.getPrimaryTerm() + "], operation term[" + operation + "]");
                 }
                 return current.add(bytes, operation.seqNo());
@@ -723,7 +748,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             } catch (IOException e) {
                 IOUtils.closeWhileHandlingException(newReaders);
-                close();
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
                 throw e;
             }
 
@@ -776,10 +802,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *
      * @param ex if an exception occurs closing the translog, it will be suppressed into the provided exception
      */
-    private void closeOnTragicEvent(final Exception ex) {
+    protected void closeOnTragicEvent(final Exception ex) {
         // we can not hold a read lock here because closing will attempt to obtain a write lock and that would result in self-deadlock
         assert readLock.isHeldByCurrentThread() == false : Thread.currentThread().getName();
-        if (current.getTragicException() != null) {
+        if (tragedy.get() != null) {
             try {
                 close();
             } catch (final AlreadyClosedException inner) {
@@ -1424,7 +1450,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long expectedChecksum = in.getChecksum();
         long readChecksum = Integer.toUnsignedLong(in.readInt());
         if (readChecksum != expectedChecksum) {
-            throw new TranslogCorruptedException("translog stream is corrupted, expected: 0x" +
+            throw new TranslogCorruptedException(in.getSource(), "checksum verification failed - expected: 0x" +
                 Long.toHexString(expectedChecksum) + ", got: 0x" + Long.toHexString(readChecksum));
         }
     }
@@ -1432,10 +1458,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Reads a list of operations written with {@link #writeOperations(StreamOutput, List)}
      */
-    public static List<Operation> readOperations(StreamInput input) throws IOException {
+    public static List<Operation> readOperations(StreamInput input, String source) throws IOException {
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
-        final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input);
+        final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
         for (int i = 0; i < numOps; i++) {
             operations.add(readOperation(checksumStreamInput));
         }
@@ -1447,7 +1473,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try {
             final int opSize = in.readInt();
             if (opSize < 4) { // 4byte for the checksum
-                throw new TranslogCorruptedException("operation size must be at least 4 but was: " + opSize);
+                throw new TranslogCorruptedException(in.getSource(), "operation size must be at least 4 but was: " + opSize);
             }
             in.resetDigest(); // size is not part of the checksum!
             if (in.markSupported()) { // if we can we validate the checksum first
@@ -1462,17 +1488,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             operation = Translog.Operation.readOperation(in);
             verifyChecksum(in);
-        } catch (TranslogCorruptedException e) {
-            throw e;
         } catch (EOFException e) {
-            throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
+            throw new TruncatedTranslogException(in.getSource(), "reached premature end of file, translog is truncated", e);
         }
         return operation;
     }
 
     /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
-     * use {@link #readOperations(StreamInput)} to read it back.
+     * use {@link #readOperations(StreamInput, String)} to read it back.
      */
     public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
@@ -1555,7 +1579,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(current.getGeneration() + 1);
                 logger.trace("current translog set to [{}]", current.getGeneration());
             } catch (final Exception e) {
-                IOUtils.closeWhileHandlingException(this); // tragic event
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
                 throw e;
             }
         }
@@ -1668,7 +1693,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     private void ensureOpen() {
         if (closed.get()) {
-            throw new AlreadyClosedException("translog is already closed", current.getTragicException());
+            throw new AlreadyClosedException("translog is already closed", tragedy.get());
         }
     }
 
@@ -1682,7 +1707,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Otherwise (no tragic exception has occurred) it returns null.
      */
     public Exception getTragicException() {
-        return current.getTragicException();
+        return tragedy.get();
     }
 
     /** Reads and returns the current checkpoint */
@@ -1713,7 +1738,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {
-            throw new TranslogCorruptedException("Translog at [" + location + "] is corrupted", ex);
+            throw new TranslogCorruptedException(location.toString(), ex);
         }
         return checkpoint;
     }
@@ -1765,8 +1790,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final String translogUUID = UUIDs.randomBase64UUID();
         TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm
-        );
+            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm,
+                new TragicExceptionHolder());
         writer.close();
         return translogUUID;
     }

@@ -23,8 +23,8 @@ import java.util.Map;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineHolder;
 import org.elasticsearch.ingest.Processor;
 
 public class PipelineProcessor extends AbstractProcessor {
@@ -33,17 +33,17 @@ public class PipelineProcessor extends AbstractProcessor {
 
     private final String pipelineName;
 
-    private final PipelineHolder pipelines;
+    private final IngestService ingestService;
 
-    PipelineProcessor(final String tag, String pipelineName, PipelineHolder pipelines) {
+    PipelineProcessor(final String tag, String pipelineName, IngestService ingestService) {
         super(tag);
         this.pipelineName = pipelineName;
-        this.pipelines = pipelines;
+        this.ingestService = ingestService;
     }
 
     @Override
     public void execute(final IngestDocument ingestDocument) throws Exception {
-        Pipeline pipeline = pipelines.getPipelines().get(pipelineName);
+        Pipeline pipeline = ingestService.getPipeline(pipelineName);
         if (pipeline == null) {
             throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']');
         }
@@ -57,10 +57,10 @@ public class PipelineProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final PipelineHolder pipelines;
+        private final IngestService ingestService;
 
-        public Factory(PipelineHolder pipelines) {
-            this.pipelines = pipelines;
+        public Factory(IngestService ingestService) {
+            this.ingestService = ingestService;
         }
 
         @Override
@@ -68,7 +68,7 @@ public class PipelineProcessor extends AbstractProcessor {
             Map<String, Object> config) throws Exception {
             String pipeline =
                 ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pipeline");
-            return new PipelineProcessor(processorTag, pipeline, pipelines);
+            return new PipelineProcessor(processorTag, pipeline, ingestService);
         }
     }
 }

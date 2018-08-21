@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -37,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -194,10 +196,30 @@ public class TransportPutUserActionTests extends ESTestCase {
             }
         });
 
+        assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().created(), is(created));
-        assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1)).putUser(eq(request), any(ActionListener.class));
+    }
+
+    public void testInvalidUser() {
+        NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class),
+            usersStore, transportService);
+
+        final PutUserRequest request = new PutUserRequest();
+        request.username("fóóbár");
+        request.roles("bar");
+        ActionRequestValidationException validation = request.validate();
+        assertNull(validation);
+
+        PlainActionFuture<PutUserResponse> responsePlainActionFuture = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), request, responsePlainActionFuture);
+        validation = expectThrows(ActionRequestValidationException.class, responsePlainActionFuture::actionGet);
+        assertThat(validation.validationErrors(), contains(containsString("must be")));
+        assertThat(validation.validationErrors().size(), is(1));
     }
 
     public void testException() {

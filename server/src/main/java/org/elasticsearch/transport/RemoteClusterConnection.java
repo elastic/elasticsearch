@@ -99,6 +99,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param seedNodes a list of seed nodes to discover eligible nodes from
      * @param transportService the local nodes transport service
+     * @param connectionManager the connection manager to use for this remote connection
      * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      */

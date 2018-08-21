@@ -120,8 +120,8 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     @Override
-    public int connectedNodeCount() {
-        return delegate.connectedNodeCount();
+    public int size() {
+        return delegate.size();
     }
 
     @Override

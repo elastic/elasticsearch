@@ -24,9 +24,12 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.execution.TaskActionListener;
+import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.tasks.TaskState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -73,17 +76,34 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 })
         );
 
-        // we need to claim all the clusters before starting executing
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
                     taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfiguration::claim)
                 )
         );
-
-        // create the listener to start the clusters on-demand and terminate when no longer claimed.
         project.getGradle().addListener(
-            new ClusterFormationTaskExecutionListener(Collections.unmodifiableMap(taskToCluster))
+            new TaskActionListener() {
+                @Override
+                public void beforeActions(Task task) {
+                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::start);
+                }
+                @Override
+                public void afterActions(Task task) {}
+            }
+        );
+        project.getGradle().addListener(
+            new TaskExecutionListener() {
+                @Override
+                public void afterExecute(Task task, TaskState state) {
+                    // always un-claim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
+                    // cluster to start.
+                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::unClaimAndStop);
+                }
+                @Override
+                public void beforeExecute(Task task) {}
+            }
         );
     }
 

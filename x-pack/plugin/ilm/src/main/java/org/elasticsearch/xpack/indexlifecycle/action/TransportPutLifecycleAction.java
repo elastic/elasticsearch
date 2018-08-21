@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
 import java.util.Map;
 import java.util.SortedMap;
@@ -80,11 +78,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
-                        }
-                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName()) && IndexLifecycleRunner
-                                .canUpdatePolicy(request.getPolicy().getName(), request.getPolicy(), currentState) == false) {
-                            throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
-                                    request.getPolicy().getName());
                         }
                         // NORELEASE Check if current step exists in new policy and if not move to next available step
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());

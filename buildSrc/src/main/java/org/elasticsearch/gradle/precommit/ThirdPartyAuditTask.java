@@ -190,6 +190,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             );
         }
 
+        // TODO: This either no longer works, or we have no such classes
         sheistyClasses.removeAll(excludes);
         if (sheistyClasses.isEmpty() == false) {
             throw new IllegalStateException("Jar Hell with the JDK:" + formatClassList(sheistyClasses));

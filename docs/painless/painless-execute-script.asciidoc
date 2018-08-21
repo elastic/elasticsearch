@@ -26,7 +26,7 @@ The only variable that is available is `params`, which can be used to access use
 The result of the script is always converted to a string.
 If no context is specified then this context is used by default.
 
-====== Example
+*Example*
 
 Request:
 
@@ -67,7 +67,7 @@ The following parameters may be specified in `context_setup` for a filter contex
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
 index:: The name of an index containing a mapping that is compatable with the document being indexed.
 
-====== Example
+*Example*
 
 [source,js]
 ----------------------------------------------------------------
@@ -125,7 +125,7 @@ document:: Contains the document that will be temporarily indexed in-memory and 
 index:: The name of an index containing a mapping that is compatable with the document being indexed.
 query:: If `_score` is used in the script then a query can specified that will be used to compute a score.
 
-====== Example
+*Example*
 
 [source,js]
 ----------------------------------------------------------------

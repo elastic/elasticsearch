@@ -78,6 +78,35 @@ public class FollowIndexIT extends ESRestTestCase {
         }
     }
 
+    public void testAutoFollowPatterns() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+
+        Request request = new Request("PUT", "/_ccr/_autofollow/leader_cluster");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        assertOK(client().performRequest(request));
+
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Settings settings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            request = new Request("PUT", "/logs-20190101");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
+                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+            assertOK(leaderClient.performRequest(request));
+
+            for (int i = 0; i < 5; i++) {
+                String id = Integer.toString(i);
+                index(leaderClient, "logs-20190101", id, "field", i, "filtered_field", "true");
+            }
+        }
+
+        assertBusy(() -> {
+            Request indexExists = new Request("HEAD", "/logs-20190101");
+            assertOK(client().performRequest(indexExists));
+            verifyDocuments("logs-20190101", 5);
+        });
+    }
+
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {

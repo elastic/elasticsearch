@@ -1,0 +1,17 @@
+{
+  "ccr.delete_auto_follow_pattern": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_ccr/_autofollow/{remote_cluster_alias}",
+      "paths": [ "/_ccr/_autofollow/{remote_cluster_alias}" ],
+      "parts": {
+        "remote_cluster_alias": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the remote cluster alias."
+        }
+      }
+    }
+  }
+}

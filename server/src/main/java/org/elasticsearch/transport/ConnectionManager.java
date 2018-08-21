@@ -91,7 +91,8 @@ public class ConnectionManager implements Closeable {
     }
 
     public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return transport.openConnection(node, ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile));
+        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
+        return internalOpenConnection(node, resolvedProfile);
     }
 
     /**
@@ -115,7 +116,7 @@ public class ConnectionManager implements Closeable {
                 }
                 boolean success = false;
                 try {
-                    connection = transport.openConnection(node, resolvedProfile);
+                    connection = internalOpenConnection(node, resolvedProfile);
                     connectionValidator.accept(connection, resolvedProfile);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, connection);
@@ -227,6 +228,19 @@ public class ConnectionManager implements Closeable {
         }
     }
 
+    private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Transport.Connection connection = transport.openConnection(node, connectionProfile);
+        try {
+            connectionListener.onConnectionOpened(connection);
+        } finally {
+            connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+        }
+        if (connection.isClosed()) {
+            throw new ConnectTransportException(node, "a channel closed while connecting");
+        }
+        return connection;
+    }
+
     private void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("connection manager is closed");
@@ -287,6 +301,20 @@ public class ConnectionManager implements Closeable {
         public void onNodeConnected(DiscoveryNode node) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onNodeConnected(node);
+            }
+        }
+
+        @Override
+        public void onConnectionOpened(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionOpened(connection);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionClosed(connection);
             }
         }
     }

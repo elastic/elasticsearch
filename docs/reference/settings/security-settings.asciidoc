@@ -243,7 +243,8 @@ the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 `authorization_realms`::
 The names of the realms that should be consulted for delegate authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
-instead loads the user from the listed realms.
+instead loads the user from the listed realms. The referenced realms are
+consulted in the order that they are defined in this list.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --

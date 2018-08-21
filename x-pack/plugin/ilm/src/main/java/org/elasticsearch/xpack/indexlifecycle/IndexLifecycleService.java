@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
@@ -101,7 +102,7 @@ public class IndexLifecycleService extends AbstractComponent
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
 
             if (scheduler.get() == null) { // metadata installed and scheduler should be kicked off. start your engines.
-                scheduler.set(new SchedulerEngine(clock));
+                scheduler.set(new SchedulerEngine(settings, clock));
                 scheduler.get().register(this);
                 scheduleJob(pollInterval);
             } else if (scheduledJob == null) {

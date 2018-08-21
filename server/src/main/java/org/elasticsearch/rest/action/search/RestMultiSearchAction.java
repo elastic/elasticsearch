@@ -90,7 +90,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         if (restRequest.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
             // based on the number of nodes in the cluster
-            maxConcurrentShardRequests= restRequest.paramAsInt("max_concurrent_shard_requests", Integer.MIN_VALUE);
+            maxConcurrentShardRequests = restRequest.paramAsInt("max_concurrent_shard_requests", Integer.MIN_VALUE);
         } else {
             maxConcurrentShardRequests = null;
         }

@@ -52,6 +52,12 @@ sensitive nature of the information.
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
 
+[[password-hashing-settings]]
+==== Password hashing settings
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage. 
+See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+
 [float]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
@@ -164,9 +170,8 @@ the standard {es} <<time-units,time units>>. Defaults to `20m`.
 cache at any given time. Defaults to 100,000.
 
 `cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see 
-{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
-`ssha256`.
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+Defaults to `ssha256`.
 
 
 [[ref-users-settings]]
@@ -190,8 +195,7 @@ Defaults to 100,000.
 
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
-user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
-all possible values. Defaults to `ssha256`.
+user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ldap-settings]]
 [float]
@@ -444,8 +448,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values. Defaults to `ssha256`.
+in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
@@ -684,7 +687,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
-the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 
@@ -1057,6 +1060,33 @@ Specifies the
 cipher suites that should be supported.
 
 [float]
+[[ref-kerberos-settings]]
+===== Kerberos realm settings
+
+For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
+
+`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
+service principal used by this {es} node. This must be a location within the
+{es} configuration directory and the file must have read permissions. Required.
+
+`remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
+Principal names in Kerberos have the form `user/instance@REALM`. If this option 
+is `true`, the realm part (`@REALM`) will not be included in the username.
+Defaults to `false`.
+
+`krb.debug`:: Set to `true` to enable debug logs for the Java login module that
+provides support for Kerberos authentication. Defaults to `false`.
+
+`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+this period of time. Specify the time period using the standard {es}
+<<time-units,time units>>. Defaults to `20m`.
+
+`cache.max_users`:: The maximum number of user entries that can live in the
+cache at any given time. Defaults to 100,000.
+
+[float]
 [[load-balancing]]
 ===== Load balancing and failover
 
@@ -1308,3 +1338,5 @@ List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 List of IP addresses to deny for this profile.
+
+include::security-hash-settings.asciidoc[]

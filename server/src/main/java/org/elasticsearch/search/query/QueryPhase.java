@@ -139,7 +139,7 @@ public class QueryPhase implements SearchPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
-                if (scrollContext.totalHits == -1) {
+                if (scrollContext.totalHits == null) {
                     // first round
                     assert scrollContext.lastEmittedDoc == null;
                     // there is not much that we can optimize here since we want to collect all

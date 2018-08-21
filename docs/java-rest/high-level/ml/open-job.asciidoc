@@ -44,7 +44,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-open-job-exec
 the execution completes
 
 The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListner` for `OpenJobResponse` may
+to notify the caller of completion. A typical `ActionListener` for `OpenJobResponse` may
 look like
 
 ["source","java",subs="attributes,callouts,macros"]

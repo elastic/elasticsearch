@@ -1,9 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.graph.action;
+package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,6 +27,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -29,7 +44,7 @@ import java.util.List;
  * Holds the criteria required to guide the exploration of connected terms which
  * can be returned as a graph.
  */
-public class GraphExploreRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GraphExploreRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
@@ -51,8 +66,8 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Constructs a new graph request to run against the provided
-     * indices. No indices means it will run against all indices.
+     * Constructs a new graph request to run against the provided indices. No
+     * indices means it will run against all indices.
      */
     public GraphExploreRequest(String... indices) {
         this.indices = indices;
@@ -75,7 +90,6 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this.indices;
     }
 
-    
     @Override
     public GraphExploreRequest indices(String... indices) {
         this.indices = indices;
@@ -123,10 +137,14 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Graph exploration can be set to timeout after the given period. Search operations involved in 
-     * each hop are limited to the remaining time available but can still overrun due to the nature
-     * of their "best efforts" timeout support. When a timeout occurs partial results are returned.
-     * @param timeout a {@link TimeValue} object which determines the maximum length of time to spend exploring
+     * Graph exploration can be set to timeout after the given period. Search
+     * operations involved in each hop are limited to the remaining time
+     * available but can still overrun due to the nature of their "best efforts"
+     * timeout support. When a timeout occurs partial results are returned.
+     * 
+     * @param timeout
+     *            a {@link TimeValue} object which determines the maximum length
+     *            of time to spend exploring
      */
     public GraphExploreRequest timeout(TimeValue timeout) {
         if (timeout == null) {
@@ -153,10 +171,10 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         sampleSize = in.readInt();
         sampleDiversityField = in.readOptionalString();
         maxDocsPerDiversityValue = in.readInt();
-        
+
         useSignificance = in.readBoolean();
         returnDetailedInfo = in.readBoolean();
-        
+
         int numHops = in.readInt();
         Hop parentHop = null;
         for (int i = 0; i < numHops; i++) {
@@ -180,7 +198,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         out.writeInt(sampleSize);
         out.writeOptionalString(sampleDiversityField);
         out.writeInt(maxDocsPerDiversityValue);
-        
+
         out.writeBoolean(useSignificance);
         out.writeBoolean(returnDetailedInfo);
         out.writeInt(hops.size());
@@ -196,18 +214,21 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * The number of top-matching documents that are considered during each hop (default is 
-     * {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
-     * Very small values (less than 50) may not provide sufficient weight-of-evidence to identify
-     * significant connections between terms. 
-     * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or those 
-     *  with many OR clauses).
-     *  This is because any useful signals in the best documents are diluted with irrelevant noise from low-quality matches.
-     *  Performance is also typically better with smaller samples as there are less look-ups required for background frequencies 
-     *  of terms found in the documents  
+     * The number of top-matching documents that are considered during each hop
+     * (default is {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
+     * Very small values (less than 50) may not provide sufficient
+     * weight-of-evidence to identify significant connections between terms.
+     * <p>
+     * Very large values (many thousands) are not recommended with loosely
+     * defined queries (fuzzy queries or those with many OR clauses). This is
+     * because any useful signals in the best documents are diluted with
+     * irrelevant noise from low-quality matches. Performance is also typically
+     * better with smaller samples as there are less look-ups required for
+     * background frequencies of terms found in the documents
      * </p>
      * 
-     * @param maxNumberOfDocsPerHop shard-level sample size in documents
+     * @param maxNumberOfDocsPerHop
+     *            shard-level sample size in documents
      */
     public void sampleSize(int maxNumberOfDocsPerHop) {
         sampleSize = maxNumberOfDocsPerHop;
@@ -242,10 +263,13 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Controls the choice of algorithm used to select interesting terms. The default
-     * value is true which means terms are selected based on significance (see the {@link SignificantTerms}
-     * aggregation) rather than popularity (using the {@link TermsAggregator}).  
-     * @param value true if the significant_terms algorithm should be used.
+     * Controls the choice of algorithm used to select interesting terms. The
+     * default value is true which means terms are selected based on
+     * significance (see the {@link SignificantTerms} aggregation) rather than
+     * popularity (using the {@link TermsAggregator}).
+     * 
+     * @param value
+     *            true if the significant_terms algorithm should be used.
      */
     public void useSignificance(boolean value) {
         this.useSignificance = value;
@@ -254,32 +278,37 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     public boolean useSignificance() {
         return useSignificance;
     }
-    
+
     /**
-     * Return detailed information about vertex frequencies as part of JSON results - defaults to false
-     * @param value true if detailed information is required in JSON responses
+     * Return detailed information about vertex frequencies as part of JSON
+     * results - defaults to false
+     * 
+     * @param value
+     *            true if detailed information is required in JSON responses
      */
     public void returnDetailedInfo(boolean value) {
         this.returnDetailedInfo = value;
-    }    
+    }
 
     public boolean returnDetailedInfo() {
         return returnDetailedInfo;
     }
-    
 
     /**
-     * Add a stage in the graph exploration. Each hop represents a stage of 
-     * querying elasticsearch to identify terms which can then be connnected
-     * to other terms in a subsequent hop.
-     * @param guidingQuery optional choice of query which influences which documents
-     * are considered in this stage
-     * @return a {@link Hop} object that holds settings for a stage in the graph exploration
+     * Add a stage in the graph exploration. Each hop represents a stage of
+     * querying elasticsearch to identify terms which can then be connnected to
+     * other terms in a subsequent hop.
+     * 
+     * @param guidingQuery
+     *            optional choice of query which influences which documents are
+     *            considered in this stage
+     * @return a {@link Hop} object that holds settings for a stage in the graph
+     *         exploration
      */
     public Hop createNextHop(QueryBuilder guidingQuery) {
         Hop parent = null;
         if (hops.size() > 0) {
-           parent = hops.get(hops.size() - 1);
+            parent = hops.get(hops.size() - 1);
         }
         Hop newHop = new Hop(parent);
         newHop.guidingQuery = guidingQuery;
@@ -330,6 +359,43 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         }
 
     }
-    
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        
+        builder.startObject("controls");
+        {
+            if (sampleSize != SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE) {
+                builder.field("sample_size", sampleSize);
+            }
+            if (sampleDiversityField != null) {
+                builder.startObject("sample_diversity");
+                builder.field("field", sampleDiversityField);
+                builder.field("max_docs_per_value", maxDocsPerDiversityValue);
+                builder.endObject();
+            }
+            builder.field("use_significance", useSignificance);
+            if (returnDetailedInfo) {
+                builder.field("return_detailed_stats", returnDetailedInfo);
+            }
+        }
+        builder.endObject();
+
+        for (Hop hop : hops) {
+            if (hop.parentHop != null) {
+                builder.startObject("connections");
+            }
+            hop.toXContent(builder, params);
+        }
+        for (Hop hop : hops) {
+            if (hop.parentHop != null) {
+                builder.endObject();
+            }
+        }
+        builder.endObject();
+
+        return builder;
+    }
 
 }

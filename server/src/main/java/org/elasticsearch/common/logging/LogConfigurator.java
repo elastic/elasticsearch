@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -63,6 +64,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -134,6 +136,17 @@ public class LogConfigurator {
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
     }
 
+    /**
+     * Sets the node name if it was loaded after logging is initialized. This
+     * is only called if the node name is not in elasticsearcy.yml which is a
+     * normal "first time" thing but not a normal "production" thing.
+     */
+    public static void setNodeNameAfterLoggerInitialized(Environment environment, String nodeName) throws IOException, UserException {
+        NodeNamePatternConverter.setNodeName(nodeName);
+        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        context.updateLoggers();
+    }
+
     private static void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
@@ -152,14 +165,22 @@ public class LogConfigurator {
 
         loadLog4jPlugins();
 
+        /*
+         * Initialize the node name on the logger if it was set in
+         * elasticsearch.yml. If we don't have it now we'll set it when we
+         * get it.
+         */
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            NodeNamePatternConverter.setNodeName(Node.NODE_NAME_SETTING.get(settings));
+        }
+
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         configureStatusLogger();
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        final List<AbstractConfiguration> configurations = new ArrayList<>();
-
+        final Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         /*
          * Subclass the properties configurator to hack the new pattern in
          * place so users don't have to change log4j2.properties in
@@ -170,7 +191,6 @@ public class LogConfigurator {
          * Everything in this subclass that isn't marked as a hack is copied
          * from log4j2's source.
          */
-        Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory() {
             @Override
             public PropertiesConfiguration getConfiguration(final LoggerContext loggerContext, final ConfigurationSource source) {
@@ -206,6 +226,7 @@ public class LogConfigurator {
                         .build();
             }
         };
+        final List<AbstractConfiguration> configurations = new ArrayList<>();
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
         Files.walkFileTree(configsPath, options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
             @Override
@@ -222,9 +243,7 @@ public class LogConfigurator {
                     ExitCodes.CONFIG,
                     "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
         }
-
         context.start(new CompositeConfiguration(configurations));
-
         configureLoggerLevels(settings);
 
         final String deprecatedLocationsString = String.join("\n  ", locationsWithDeprecatedPatterns);

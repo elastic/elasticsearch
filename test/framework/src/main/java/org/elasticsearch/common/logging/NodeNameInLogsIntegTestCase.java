@@ -57,11 +57,15 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
         BufferedReader logReader = openReader(getLogFile());
         try {
             String line = logReader.readLine();
+            assertNotNull("no logs at all?!", line);
             Matcher m = Pattern.compile("\\] \\[([^\\]]+)\\] ").matcher(line);
             if (false == m.find()) {
                 fail("Didn't see the node name in [" + line + "]");
             }
             String nodeName = m.group(1);
+
+            assertNotEquals("unknown", nodeName);
+
             int lineNumber = 1;
             while (true) {
                 if (lineNumber < LINES_TO_CHECK) {

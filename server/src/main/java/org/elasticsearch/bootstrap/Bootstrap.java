@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -220,7 +219,12 @@ final class Bootstrap {
 
             @Override
             protected void registerDerivedNodeNameWithLogger(String nodeName) {
-                NodeNamePatternConverter.setNodeName(nodeName);
+                try {
+                    LogConfigurator.setNodeNameAfterLoggerInitialized(environment, nodeName);
+                } catch (IOException | UserException e) {
+                    // Neither of these exceptions are likely because we've already read the files ones
+                    throw new ElasticsearchException("failed to register the derived node name", e);
+                }
             }
         };
     }
@@ -293,15 +297,6 @@ final class Bootstrap {
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
-
-        /*
-         * Initialize the node name early if was set in elasticsearch.yml.
-         * If it wasn't, we'll set it further in startup.
-         */
-        if (Node.NODE_NAME_SETTING.exists(environment.settings())) {
-            String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
-            NodeNamePatternConverter.setNodeName(nodeName);
-        }
 
         try {
             LogConfigurator.configure(environment);

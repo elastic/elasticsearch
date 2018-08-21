@@ -37,13 +37,29 @@ import org.apache.lucene.util.SetOnce;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({"node_name"})
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
-    private static final SetOnce<String> NODE_NAME = new SetOnce<>();
+    /**
+     * The name of this node. This is intentionally not {@code volatile} so we
+     * don't have to pay for the volatile read when we log every log line.
+     * Instead we rely on a volatile inside of log4j2 to set up the
+     * "happens before" relationship guaranteeing the correctness here.
+     * Specifically, before every log, log4j2 reads
+     * {@code Logger.privateConfiguration}. These volatiles are written to
+     * after every write to this static variable. The only two writes to this
+     * variable are both followed shortly by writes to
+     * {@code Logger.privateConfiguration}. Thus all writes all writes to this
+     * variable "happen before" all reads from this variable. So long as we
+     * don't add any more writes. And we don't plan to. We also guard against
+     * it by declaring the variable private and making the method to write to
+     * it package private. It isn't great protection, but we plan to remove
+     * the need for all of this shortly.
+     */
+    private static String nodeName = "unknown";
 
     /**
      * Set the name of this node.
      */
-    public static void setNodeName(String nodeName) {
-        NODE_NAME.set(nodeName);
+    static void setNodeName(String nodeName) {
+        NodeNamePatternConverter.nodeName = nodeName;
     }
 
     /**
@@ -63,17 +79,6 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        String nodeName = NODE_NAME.get();
-        if (nodeName == null) {
-            /*
-             * If node.name isn't explicitly configured in elasticsearch.yml
-             * we won't have it during bootstrap but the node name pattern
-             * is still in the log format so we stick *something* in there.
-             * This is ok because we don't generally log anything before
-             * we have the node name.
-             */
-            nodeName = "unknown";
-        }
         toAppendTo.append(nodeName);
     }
 }

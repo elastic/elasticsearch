@@ -55,7 +55,7 @@ public class Connection {
         this.docCount = docCount;
     }
 
-    void readFrom(StreamInput in, Map<VertexId, Vertex> vertices) throws IOException {
+    public Connection(StreamInput in, Map<VertexId, Vertex> vertices) throws IOException {
         from = vertices.get(new VertexId(in.readString(), in.readString()));
         to = vertices.get(new VertexId(in.readString(), in.readString()));
         weight = in.readDouble();

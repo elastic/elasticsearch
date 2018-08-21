@@ -2602,7 +2602,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
     
-    public void testXPackGraphExplore() throws Exception {
+    public void testGraphExplore() throws Exception {
         Map<String, String> expectedParams = new HashMap<>();
 
         GraphExploreRequest graphExploreRequest = new GraphExploreRequest();

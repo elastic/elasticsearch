@@ -121,8 +121,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
         connections = new HashMap<>();
         for (int i = 0; i < size; i++) {
-            Connection e = new Connection();
-            e.readFrom(in, vertices);
+            Connection e = new Connection(in, vertices);
             connections.put(e.getId(), e);
         }
         

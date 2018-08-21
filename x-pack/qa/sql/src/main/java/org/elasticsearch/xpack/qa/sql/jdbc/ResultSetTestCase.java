@@ -136,7 +136,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotByte);
             builder.field("test_float", floatNotByte);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -275,7 +275,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotShort);
             builder.field("test_float", floatNotShort);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -408,7 +408,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotInt);
             builder.field("test_float", floatNotInt);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -525,7 +525,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotLong);
             builder.field("test_float", floatNotLong);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -627,7 +627,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -718,7 +718,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         try (Connection connection = esJdbc()) {
@@ -758,7 +758,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         // false values
@@ -771,7 +771,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 0d);
             builder.field("test_float", 0f);
             builder.field("test_keyword", "false");
-            builder.field("test_date", new Date(randomMillisSinceEpoch()));
+            builder.field("test_date", randomLong());
         });
         
         // other (non 0 = true) values
@@ -837,7 +837,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
         
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
+        Date randomDate = new Date(randomLongDate);
         String timeZoneId = randomKnownTimeZone();
         Calendar connCalendar = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
         index("test", "1", builder -> {
@@ -849,7 +850,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
         });
         
         try (Connection connection = esJdbc(timeZoneId)) {
@@ -898,7 +899,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
         
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
+        Date randomDate = new Date(randomLongDate);
         String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
@@ -912,7 +914,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
         });
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -963,7 +965,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
         
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
+        Date randomDate = new Date(randomLongDate);
         String timeZoneId = randomKnownTimeZone();
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
         index("test", "1", builder -> {
@@ -975,7 +978,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
         });
         
         try (Connection connection = esJdbc(timeZoneId)) {
@@ -1024,7 +1027,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
         
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
+        Date randomDate = new Date(randomLongDate);
         String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
@@ -1038,7 +1042,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
         });
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -1082,19 +1086,24 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
     }
     
     public void testGettingTimestampWithoutCalendar() throws Exception {
-        long randomMillis = randomLongBetween(0, System.currentTimeMillis());
+        createIndex("library");
+        updateMapping("library", builder -> {
+            builder.startObject("release_date").field("type", "date").endObject();
+            builder.startObject("republish_date").field("type", "date").endObject();
+        });
+        long randomMillis = randomLong();
 
         index("library", "1", builder -> {
             builder.field("name", "Don Quixote");
             builder.field("page_count", 1072);
-            builder.timeField("release_date", new Date(randomMillis));
+            builder.field("release_date", randomMillis);
             builder.timeField("republish_date", null);
         });
         index("library", "2", builder -> {
             builder.field("name", "1984");
             builder.field("page_count", 328);
-            builder.timeField("release_date", new Date(-649036800000L));
-            builder.timeField("republish_date", new Date(599616000000L));
+            builder.field("release_date", -649036800000L);
+            builder.field("republish_date", 599616000000L);
         });
 
         try (Connection connection = esJdbc()) {
@@ -1130,7 +1139,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
         });
         
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
+        Date randomDate = new Date(randomLongDate);
         String timeZoneId = randomKnownTimeZone();
         String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
@@ -1144,7 +1154,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 1d);
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
         });
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -1198,7 +1208,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         double d = randomDouble();
         float f = randomFloat();
         boolean randomBool = randomBoolean();
-        Date randomDate = new Date(randomMillisSinceEpoch());
+        Long randomLongDate = randomLong();
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
                 
         index("test", "1", builder -> {
@@ -1209,7 +1219,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", d);
             builder.field("test_float", f);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomDate);
+            builder.field("test_date", randomLongDate);
             builder.field("test_boolean", randomBool);
         });
         
@@ -1239,7 +1249,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
                     assertEquals(randomString, results.getObject("test_keyword"));
                     assertTrue(results.getObject("test_keyword") instanceof String);
                     
-                    assertEquals(randomDate, results.getObject("test_date"));
+                    assertEquals(new Date(randomLongDate), results.getObject("test_date"));
                     assertTrue(results.getObject("test_date") instanceof Timestamp);
                     
                     assertEquals(randomBool, results.getObject("test_boolean"));

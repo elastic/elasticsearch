@@ -11,6 +11,11 @@ import org.elasticsearch.xpack.qa.sql.jdbc.ResultSetTestCase;
 
 import java.util.Properties;
 
+/*
+ * Integration testing class for "with security" (cluster running with the Security plugin,
+ * and the Security is enabled) scenario. Runs all tests in the base class, the only changed
+ * bit is the "environment".
+ */
 public class JdbcResultSetIT extends ResultSetTestCase {
     @Override
     protected Settings restClientSettings() {

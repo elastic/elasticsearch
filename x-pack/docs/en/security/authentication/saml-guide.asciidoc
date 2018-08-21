@@ -76,12 +76,13 @@ binding.
 
 There are five configuration steps to enable SAML authentication in {es}:
 
-. Enable SSL/TLS for HTTP
-. Enable the Token Service
-. Create one or more SAML realms
-. Configure role mappings
+. <<saml-enable-http,Enable SSL/TLS for HTTP>>
+. <<saml-enable-token,Enable the Token Service>>
+. <<saml-create-realm,Create one or more SAML realms>>
+. <<saml-role-mapping,Configure role mappings>>
 . Generate a SAML Metadata file for use by your Identity Provider _(optional)_
 
+[[saml-enable-http]]
 ==== Enable TLS for HTTP
 
 If your {es} cluster is operating in production mode, then you must
@@ -91,6 +92,7 @@ authentication.
 For more information, see
 {ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
 
+[[saml-enable-token]]
 ==== Enable the token service
 
 The {es} SAML implementation makes use of the {es} Token Service.  This service
@@ -364,26 +366,26 @@ restrictions regarding the authentication that will take place at an IdP,
 in order to assess the level of confidence that it can place in
 the corresponding authentication response. The restrictions might have to do
 with the authentication method (password, client certificates, etc), the
-user identification method during registration and others. {es} implements
-https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context]
-that can be used for this purpose as defined in SAML 2.0 Core Specification.
+user identification method during registration, and other details. {es} implements
+https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core 
+Specification.
 
 In short, the SAML SP defines a set of Authentication Context Class Reference
-values describing the restrictions to be imposed on the IdP and sends these
-in the Authentication Request. The IdP attempts to grant these restrictions,
-and fails the authentication attempt if it can't. If the user is successfully
-authenticated, then the Authentication Statement of the SAML Response will
-contain an indication of the restrictions that were satisfied.
+values, which describe the restrictions to be imposed on the IdP, and sends these
+in the Authentication Request. The IdP attempts to grant these restrictions. 
+If it cannot grant them, the authentication attempt fails. If the user is 
+successfully authenticated, the Authentication Statement of the SAML Response 
+contains an indication of the restrictions that were satisfied.
 
-You can define the  Authentication Context Class Reference values that should
-be sent to the IdP in the Authentication Request, using the `req_authn_context_class_ref`
-option in the SAML Realm configuration. {es}
-supports only the `exact` comparison method for the Authentication Context,
-so upon receiving the Authentication Response from the IdP, the value of
-the Authentication Context Class Reference that is part of the
-Authentication Statement of the SAML Assertion is examined. If it matches
-one of the requested values, the authentication is considered successful,
-otherwise, the authentication attempt fails.
+You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
+{ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+
+{es} supports only the `exact` comparison method for the Authentication Context. 
+When it receives the Authentication Response from the IdP, {es} examines the 
+value of the Authentication Context Class Reference that is part of the
+Authentication Statement of the SAML Assertion. If it matches one of the 
+requested values, the authentication is considered successful. Otherwise, the 
+authentication attempt fails.
 
 [[saml-logout]]
 ==== SAML logout
@@ -602,6 +604,7 @@ The passphrase for the keystore, if the file is encypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
+[[saml-sp-metadata]]
 === Generating SP metadata
 
 Some Identity Providers support importing a metadata file from the Service

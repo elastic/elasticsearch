@@ -25,7 +25,7 @@ import org.gradle.testkit.runner.TaskOutcome;
  */
 public class JarHellTaskIT extends GradleIntegrationTestCase {
 
-    public void testModuleInfo()
+    public void testDoesNotFailOnModuleInfo()
     {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("jarHell"))

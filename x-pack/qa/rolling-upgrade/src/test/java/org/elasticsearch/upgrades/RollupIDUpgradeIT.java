@@ -221,7 +221,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertRollUpJob(final String rollupJob) throws Exception {
-        final Matcher<?> expectedStates = anyOf(equalTo("indexing"), equalTo("started"));
+        final Matcher<Object> expectedStates = anyOf(equalTo("indexing"), equalTo("started"));
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
@@ -261,7 +261,7 @@ public class RollupIDUpgradeIT extends AbstractUpgradeTestCase {
 
     }
 
-    private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
+    private void waitForRollUpJob(final String rollupJob, final Matcher<Object> expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);

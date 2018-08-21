@@ -461,7 +461,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentFragment {
+        public abstract static class Entry<O extends Entry.Option> implements Iterable<O>, Writeable, ToXContentFragment {
 
             private static final String TEXT = "text";
             private static final String OFFSET = "offset";

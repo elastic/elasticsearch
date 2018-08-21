@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -198,13 +199,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     static {
-        System.setProperty("log4j.shutdownHookEnabled", "false");
-        System.setProperty("log4j2.disable.jmx", "true");
-
+        setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        // Enable Netty leak detection and monitor logger for logged leak errors
-        System.setProperty("io.netty.leakDetection.level", "paranoid");
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
         Appender leakAppender = new AbstractAppender(leakLoggerName, null,
@@ -242,6 +239,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<String> javaZoneIds = new ArrayList<>(ZoneId.getAvailableZoneIds());
         Collections.sort(javaZoneIds);
         JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
+    }
+    @SuppressForbidden(reason = "force log4j and netty sysprops")
+    private static void setTestSysProps() {
+        System.setProperty("log4j.shutdownHookEnabled", "false");
+        System.setProperty("log4j2.disable.jmx", "true");
+
+        // Enable Netty leak detection and monitor logger for logged leak errors
+        System.setProperty("io.netty.leakDetection.level", "paranoid");
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());

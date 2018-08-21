@@ -20,16 +20,16 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,8 +37,9 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -46,8 +47,6 @@ import org.elasticsearch.transport.TransportStats;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -70,7 +71,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    roles, Version.CURRENT));
+                roles, Version.CURRENT));
         }
         return nodes;
     }
@@ -106,7 +107,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(event.state());
     }
 
-
     public void testReconnect() {
         List<DiscoveryNode> nodes = generateNodes();
         NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
@@ -121,7 +121,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
             for (DiscoveryNode node : randomSubsetOf(nodes)) {
-                transport.disconnectFromNode(node);
+                transportService.disconnectFromNode(node);
             }
             service.new ConnectionChecker().run();
         }
@@ -134,18 +134,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
-        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));
+        assertThat(transportService.getConnectionManager().connectedNodeCount(), equalTo(state.nodes().getSize()));
     }
 
     private void assertConnected(Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
-            assertTrue("not connected to " + node, transport.connectedNodes.contains(node));
-        }
-    }
-
-    private void assertNotConnected(Iterable<DiscoveryNode> nodes) {
-        for (DiscoveryNode node : nodes) {
-            assertFalse("still connected to " + node, transport.connectedNodes.contains(node));
+            assertTrue("not connected to " + node, transportService.nodeConnected(node));
         }
     }
 
@@ -155,7 +149,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         super.setUp();
         this.threadPool = new TestThreadPool(getClass().getName());
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        transportService = new NoHandshakeTransportService(Settings.EMPTY, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
         transportService.start();
@@ -171,11 +166,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    final class MockTransport implements Transport {
-        Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
-        volatile boolean randomConnectionExceptions = false;
+    private final class NoHandshakeTransportService extends TransportService {
+
+        private NoHandshakeTransportService(Settings settings,
+                                            Transport transport,
+                                            ThreadPool threadPool,
+                                            TransportInterceptor transportInterceptor,
+                                            Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                            ClusterSettings clusterSettings,
+                                            Set<String> taskHeaders) {
+            super(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders);
+        }
+
+        @Override
+        public HandshakeResponse handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate) {
+            return new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT);
+        }
+    }
+
+    private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
-        private TransportConnectionListener listener = new TransportConnectionListener() {};
+        private volatile boolean randomConnectionExceptions = false;
+        private TransportMessageListener listener = new TransportMessageListener() {
+        };
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
@@ -187,12 +200,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void addConnectionListener(TransportConnectionListener listener) {
+        public void addMessageListener(TransportMessageListener listener) {
             this.listener = listener;
         }
 
         @Override
-        public boolean removeConnectionListener(TransportConnectionListener listener) {
+        public boolean removeMessageListener(TransportMessageListener listener) {
             throw new UnsupportedOperationException();
         }
 
@@ -207,37 +220,18 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
             return new TransportAddress[0];
         }
 
         @Override
-        public boolean nodeConnected(DiscoveryNode node) {
-            return connectedNodes.contains(node);
-        }
-
-        @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-            throws ConnectTransportException {
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
             if (connectionProfile == null) {
-                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
+                if (randomConnectionExceptions && randomBoolean()) {
                     throw new ConnectTransportException(node, "simulated");
                 }
-                connectedNodes.add(node);
-                listener.onNodeConnected(node);
             }
-        }
-
-        @Override
-        public void disconnectFromNode(DiscoveryNode node) {
-            connectedNodes.remove(node);
-            listener.onNodeDisconnected(node);
-        }
-
-        @Override
-        public Connection getConnection(DiscoveryNode node) {
-            return new Connection() {
+            Connection connection = new Connection() {
                 @Override
                 public DiscoveryNode getNode() {
                     return node;
@@ -250,16 +244,20 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public void addCloseListener(ActionListener<Void> listener) {
+
+                }
+
+                @Override
                 public void close() {
 
                 }
-            };
-        }
 
-        @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-            Connection connection = getConnection(node);
-            listener.onConnectionOpened(connection);
+                @Override
+                public boolean isClosed() {
+                    return false;
+                }
+            };
             return connection;
         }
 
@@ -282,13 +280,16 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start() {
+        }
 
         @Override
-        public void stop() {}
+        public void stop() {
+        }
 
         @Override
-        public void close() {}
+        public void close() {
+        }
 
         @Override
         public TransportStats getStats() {

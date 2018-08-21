@@ -231,3 +231,11 @@ The Java High Level REST Client supports the following Watcher APIs:
 
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
+
+== Graph APIs
+
+The Java High Level REST Client supports the following Graph APIs:
+
+* <<java-rest-high-x-pack-graph-explore>>
+
+include::graph/explore.asciidoc[]

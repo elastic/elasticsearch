@@ -1,28 +1,49 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.graph.action;
+package org.elasticsearch.protocol.xpack.graph;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.graph.action.Connection.ConnectionId;
-import org.elasticsearch.xpack.core.graph.action.Vertex.VertexId;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
+import org.elasticsearch.protocol.xpack.graph.Connection.UnresolvedConnection;
+import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Graph explore response holds a graph of {@link Vertex} and {@link Connection} objects
@@ -100,8 +121,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
         connections = new HashMap<>();
         for (int i = 0; i < size; i++) {
-            Connection e = new Connection();
-            e.readFrom(in, vertices);
+            Connection e = new Connection(in, vertices);
             connections.put(e.getId(), e);
         }
         
@@ -146,23 +166,19 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
     }
 
-    static final class Fields {
-        static final String TOOK = "took";
-        static final String TIMED_OUT = "timed_out";
-        static final String INDICES = "_indices";
-        static final String FAILURES = "failures";
-        static final String VERTICES = "vertices";
-        static final String CONNECTIONS = "connections";
-
-    }
+    private static final ParseField TOOK = new ParseField("took");
+    private static final ParseField TIMED_OUT = new ParseField("timed_out");
+    private static final ParseField VERTICES = new ParseField("vertices");
+    private static final ParseField CONNECTIONS = new ParseField("connections");
+    private static final ParseField FAILURES = new ParseField("failures");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.TOOK, tookInMillis);
-        builder.field(Fields.TIMED_OUT, timedOut);
+        builder.field(TOOK.getPreferredName(), tookInMillis);
+        builder.field(TIMED_OUT.getPreferredName(), timedOut);
 
-        builder.startArray(Fields.FAILURES);
+        builder.startArray(FAILURES.getPreferredName());
         if (shardFailures != null) {
             for (ShardOperationFailedException shardFailure : shardFailures) {
                 builder.startObject();
@@ -178,7 +194,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         extraParams.put(RETURN_DETAILED_INFO_PARAM, Boolean.toString(returnDetailedInfo));
         Params extendedParams = new DelegatingMapParams(extraParams, params);
         
-        builder.startArray(Fields.VERTICES);
+        builder.startArray(VERTICES.getPreferredName());
         for (Vertex vertex : vertices.values()) {
             builder.startObject();
             vertexNumbers.put(vertex, vertexNumbers.size());
@@ -187,7 +203,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         }
         builder.endArray();
 
-        builder.startArray(Fields.CONNECTIONS);
+        builder.startArray(CONNECTIONS.getPreferredName());
         for (Connection connection : connections.values()) {
             builder.startObject();
             connection.toXContent(builder, extendedParams, vertexNumbers);
@@ -198,5 +214,48 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         return builder;
     }
 
+    private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
+            "GraphExploreResponsenParser", true,
+            args -> {
+                GraphExploreResponse result = new GraphExploreResponse();  
+                result.vertices = new HashMap<>();
+                result.connections = new HashMap<>();
+                
+                result.tookInMillis = (Long) args[0];
+                result.timedOut = (Boolean) args[1];
+                
+                @SuppressWarnings("unchecked")
+                List<Vertex> vertices = (List<Vertex>) args[2];
+                @SuppressWarnings("unchecked")
+                List<UnresolvedConnection> unresolvedConnections = (List<UnresolvedConnection>) args[3];
+                @SuppressWarnings("unchecked")
+                List<ShardSearchFailure> failures = (List<ShardSearchFailure>) args[4];
+                for (Vertex vertex : vertices) {
+                    // reverse-engineer if detailed stats were requested -
+                    // mainly here for testing framework's equality tests
+                    result.returnDetailedInfo = result.returnDetailedInfo || vertex.getFg() > 0;
+                    result.vertices.put(vertex.getId(), vertex);
+                }
+                for (UnresolvedConnection unresolvedConnection : unresolvedConnections) {
+                    Connection resolvedConnection = unresolvedConnection.resolve(vertices);
+                    result.connections.put(resolvedConnection.getId(), resolvedConnection);
+                }
+                if (failures.size() > 0) {
+                    result.shardFailures = failures.toArray(new ShardSearchFailure[failures.size()]);
+                }      
+                return result;
+            });
+
+    static {
+        PARSER.declareLong(constructorArg(), TOOK);
+        PARSER.declareBoolean(constructorArg(), TIMED_OUT);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Vertex.fromXContent(p), VERTICES);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> UnresolvedConnection.fromXContent(p), CONNECTIONS);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
+    } 
+    
+    public static GraphExploreResponse fromXContext(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
+    }
 
 }

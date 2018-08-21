@@ -54,7 +54,6 @@ public final class VectorQueryBuilder extends AbstractQueryBuilder<VectorQueryBu
     public static final String NAME = "vector";
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
-    private static final ParseField FILTER_FIELD = new ParseField("filter");
 
     private static final ObjectParser<VectorQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, true, VectorQueryBuilder::new);
     static {

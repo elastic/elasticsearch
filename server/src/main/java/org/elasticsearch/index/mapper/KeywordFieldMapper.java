@@ -28,6 +28,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -256,8 +257,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
-            } else {
+            } else if (omitNorms()) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            } else {
+                return new NormsFieldExistsQuery(name());
             }
         }
 

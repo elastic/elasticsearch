@@ -73,17 +73,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        if (closeJobRequest.isForce() != null) {
-            params.putParam("force", Boolean.toString(closeJobRequest.isForce()));
-        }
-        if (closeJobRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(closeJobRequest.isAllowNoJobs()));
-        }
-        if (closeJobRequest.getTimeout() != null) {
-            params.putParam("timeout", closeJobRequest.getTimeout().getStringRep());
-        }
-
+        request.setJsonEntity(closeJobRequest.getRequestBody().toString());
         return request;
     }
 

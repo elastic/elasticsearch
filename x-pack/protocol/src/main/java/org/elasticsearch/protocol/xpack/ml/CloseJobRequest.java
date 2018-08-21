@@ -21,6 +21,7 @@ package org.elasticsearch.protocol.xpack.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -55,9 +56,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
     private static final String ALL_JOBS = "_all";
 
     private final List<String> jobIds;
-    private TimeValue timeout;
-    private Boolean force;
-    private Boolean allowNoJobs;
+    private final RequestBody requestBody;
 
     /**
      * Explicitly close all jobs
@@ -76,6 +75,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
             throw new NullPointerException("jobIds must not contain null values");
         }
         this.jobIds = new ArrayList<>(jobIds);
+        this.requestBody = new RequestBody();
     }
 
     /**
@@ -100,14 +100,14 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      * Default: 30 minutes
      */
     public TimeValue getTimeout() {
-        return timeout;
+        return requestBody.timeout;
     }
 
     /**
      * {@link CloseJobRequest#getTimeout()}
      */
     public void setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+        this.requestBody.timeout = timeout;
     }
 
     /**
@@ -116,14 +116,14 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      * Use to close a failed job, or to forcefully close a job which has not responded to its initial close request.
      */
     public Boolean isForce() {
-        return force;
+        return requestBody.force;
     }
 
     /**
      * {@link CloseJobRequest#isForce()}
      */
     public void setForce(boolean force) {
-        this.force = force;
+        this.requestBody.force = force;
     }
 
     /**
@@ -132,14 +132,21 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
      * This includes `_all` string or when no jobs have been specified
      */
     public Boolean isAllowNoJobs() {
-        return allowNoJobs;
+        return this.requestBody.allowNoJobs;
     }
 
     /**
      * {@link CloseJobRequest#isAllowNoJobs()}
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+        this.requestBody.allowNoJobs = allowNoJobs;
+    }
+
+    /**
+     * The request body object containing request options
+     */
+    public RequestBody getRequestBody() {
+        return requestBody;
     }
 
     @Override
@@ -149,7 +156,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, timeout, allowNoJobs, force);
+        return Objects.hash(jobIds, requestBody);
     }
 
     @Override
@@ -163,29 +170,75 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         }
 
         CloseJobRequest that = (CloseJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs) &&
-            Objects.equals(force, that.force);
+        return Objects.equals(jobIds, that.jobIds) && Objects.equals(requestBody, that.requestBody);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
         builder.field(JOB_IDS.getPreferredName(), jobIds);
-
-        if (timeout != null) {
-            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
-        }
-        if (force != null) {
-            builder.field(FORCE.getPreferredName(), force);
-        }
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
-        }
-
+        requestBody.doXContent(builder);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    public static final class RequestBody implements ToXContentObject {
+
+        private TimeValue timeout;
+        private Boolean force;
+        private Boolean allowNoJobs;
+
+        XContentBuilder doXContent(XContentBuilder builder) throws IOException {
+            if (timeout != null) {
+                builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            }
+            if (force != null) {
+                builder.field(FORCE.getPreferredName(), force);
+            }
+            if (allowNoJobs != null) {
+                builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+            }
+            return builder;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            doXContent(builder);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(timeout, force, allowNoJobs);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            RequestBody that = (RequestBody)other;
+            return Objects.equals(timeout, that.timeout) &&
+                Objects.equals(force, that.force) &&
+                Objects.equals(allowNoJobs, that.allowNoJobs);
+        }
+
     }
 }

@@ -52,6 +52,12 @@ sensitive nature of the information.
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
 
+[[password-hashing-settings]]
+==== Password hashing settings
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage. 
+See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+
 [float]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
@@ -164,9 +170,8 @@ the standard {es} <<time-units,time units>>. Defaults to `20m`.
 cache at any given time. Defaults to 100,000.
 
 `cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see 
-{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
-`ssha256`.
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+Defaults to `ssha256`.
 
 
 [[ref-users-settings]]
@@ -190,8 +195,7 @@ Defaults to 100,000.
 
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
-user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
-all possible values. Defaults to `ssha256`.
+user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ldap-settings]]
 [float]
@@ -444,8 +448,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values. Defaults to `ssha256`.
+in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
@@ -684,7 +687,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
-the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 
@@ -1335,3 +1338,5 @@ List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 List of IP addresses to deny for this profile.
+
+include::security-hash-settings.asciidoc[]

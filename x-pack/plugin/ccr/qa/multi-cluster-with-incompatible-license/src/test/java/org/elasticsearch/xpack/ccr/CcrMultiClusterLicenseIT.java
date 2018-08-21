@@ -11,7 +11,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;

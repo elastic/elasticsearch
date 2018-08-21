@@ -143,7 +143,7 @@ public final class QueryParserHelper {
                 } catch (QueryShardException |UnsupportedOperationException e) {
                     // field type is never searchable with term queries (eg. geo point): ignore
                     continue;
-                } catch (RuntimeException e) {
+                } catch (IllegalArgumentException e) {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }

@@ -250,13 +250,13 @@ public final class ExceptionsHelper {
      * @param throwable the throwable to test
      */
     public static void dieOnError(Throwable throwable) {
-        final Optional<Error> maybeError = ExceptionsHelper.maybeError(throwable, logger);
-        if (maybeError.isPresent()) {
+        ExceptionsHelper.maybeError(throwable, logger).ifPresent(error -> {
             /*
-             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
-             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
-             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
-             * the exception so as to not lose the original cause during exit.
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
+             * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
+             * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
+             * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
+             * during exit.
              */
             try {
                 // try to log the current stack trace
@@ -264,12 +264,12 @@ public final class ExceptionsHelper {
                 logger.error("fatal error\n{}", formatted);
             } finally {
                 new Thread(
-                    () -> {
-                        throw maybeError.get();
-                    })
-                    .start();
+                        () -> {
+                            throw error;
+                        })
+                        .start();
             }
-        }
+        });
     }
 
     /**

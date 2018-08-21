@@ -7,7 +7,6 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
 * <<security-api-privileges>>
-* <<security-api-role-mapping>>
 * <<security-api-ssl>>
 
 [float]
@@ -19,6 +18,15 @@ You can use the following APIs to add, remove, and retrieve roles in the native 
 * <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
 * <<security-api-clear-role-cache,Clear roles cache>>
 * <<security-api-get-role,Get roles>>
+
+[float]
+[[security-role-mapping-apis]]
+=== Role mappings
+
+You can use the following APIs to add, remove, and retrieve role mappings:
+
+* <<security-api-put-role-mapping,Add role mappings>>, <<security-api-delete-role-mapping,Delete role mappings>>
+* <<security-api-get-role-mapping,Get role mappings>>
 
 [float]
 [[security-token-apis]]
@@ -44,17 +52,19 @@ native realm:
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
+include::security/delete-role-mappings.asciidoc[]
 include::security/delete-roles.asciidoc[]
 include::security/delete-tokens.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
 include::security/privileges.asciidoc[]
-include::security/role-mapping.asciidoc[]
 include::security/ssl.asciidoc[]

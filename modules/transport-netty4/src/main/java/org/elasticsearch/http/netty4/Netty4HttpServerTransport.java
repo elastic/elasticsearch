@@ -339,7 +339,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }
@@ -355,7 +355,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
                 transport.onServerException(httpServerChannel, new Exception(cause));

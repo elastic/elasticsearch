@@ -198,7 +198,7 @@ public class SchedulerEngine {
                  * to appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
                  * not escape from SchedulerEngine#notifyListeners.
                  */
-                ExceptionsHelper.maybeThrowErrorOnAnotherThread(t);
+                ExceptionsHelper.maybeDieOnAnotherThread(t);
                 throw t;
             }
             scheduleNextRun(triggeredTime);

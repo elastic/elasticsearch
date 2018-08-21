@@ -42,7 +42,7 @@ public class Netty4HttpChannel implements HttpChannel {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     closeContext.completeExceptionally(new Exception(cause));
                 } else {
                     closeContext.completeExceptionally((Exception) cause);
@@ -59,7 +59,7 @@ public class Netty4HttpChannel implements HttpChannel {
                 listener.onResponse(null);
             } else {
                 final Throwable cause = f.cause();
-                ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 if (cause instanceof Error) {
                     listener.onFailure(new Exception(cause));
                 } else {

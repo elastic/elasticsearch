@@ -40,7 +40,7 @@ public class Netty4HttpServerChannel implements HttpServerChannel {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     closeContext.completeExceptionally(new Exception(cause));
                 } else {
                     closeContext.completeExceptionally((Exception) cause);

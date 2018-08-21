@@ -57,7 +57,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();
                 if (cause instanceof Error) {
-                    ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
                 } else {
                     serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
@@ -73,7 +73,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        ExceptionsHelper.maybeThrowErrorOnAnotherThread(cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {
             serverTransport.onException(channel, new Exception(cause));

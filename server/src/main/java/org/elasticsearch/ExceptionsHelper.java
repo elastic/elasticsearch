@@ -250,7 +250,7 @@ public final class ExceptionsHelper {
      *
      * @param throwable the throwable to possibly throw on another thread
      */
-    public static void maybeThrowErrorOnAnotherThread(final Throwable throwable) {
+    public static void maybeDieOnAnotherThread(final Throwable throwable) {
         ExceptionsHelper.maybeError(throwable, logger).ifPresent(error -> {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack

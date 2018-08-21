@@ -820,6 +820,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.addStepInfoToClusterState(index, clusterState, stepInfo);
         assertClusterStateStepInfo(clusterState, index, currentStep, newClusterState, stepInfo);
+        ClusterState runAgainClusterState = IndexLifecycleRunner.addStepInfoToClusterState(index, newClusterState, stepInfo);
+        assertSame(newClusterState, runAgainClusterState);
     }
 
     @SuppressWarnings("unchecked")

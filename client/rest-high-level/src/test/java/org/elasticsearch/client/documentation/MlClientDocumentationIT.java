@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.MachineLearningIT;
+import org.elasticsearch.client.MlRestTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,7 +40,9 @@ import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.junit.After;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -52,6 +55,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    @After
+    public void cleanUp() throws IOException {
+        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+    }
 
     public void testCreateJob() throws Exception {
         RestHighLevelClient client = highLevelClient();

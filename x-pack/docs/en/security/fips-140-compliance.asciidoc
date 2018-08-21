@@ -18,10 +18,8 @@ For {es}, FIPS 140-2 compliance is ensured by
 - Allowing the configuration of {es} in a FIPS 140-2 compliant manner, as
   documented below.
 
-IMPORTANT: Only {es} 6.4.0 and later can be run in a FIPS 140-2 enabled JVM
-
 [float]
-==== Upgrade considerations
+=== Upgrade considerations
 
 If you plan to upgrade your existing Cluster to a version that can be run in
 a FIPS 140-2 enabled JVM, the suggested approach is to first perform a rolling
@@ -93,7 +91,7 @@ the following table:
 on disk. However, only the `PBKDF2` family of algorithms is compliant with FIPS
 140-2 for password hashing. You must set the the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
-available `PBKDF2` values. 
+available `PBKDF2` values.
 //See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed

@@ -1623,10 +1623,10 @@ public abstract class Engine implements Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
-     * Performs recovery from the transaction log.
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo}.
      * This operation will close the engine if the recovery fails.
      */
-    public abstract Engine recoverFromTranslog() throws IOException;
+    public abstract Engine recoverFromTranslog(long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.

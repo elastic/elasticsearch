@@ -16,12 +16,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.BUCKET_INFLUENCER;
-import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.PARTITION_SCORE;
-
 
 public class BucketNormalizable extends Normalizable {
 
-    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER, PARTITION_SCORE);
+    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER);
 
     private final Bucket bucket;
 
@@ -61,6 +59,11 @@ public class BucketNormalizable extends Normalizable {
 
     @Override
     public String getPersonFieldName() {
+        return null;
+    }
+
+    @Override
+    public String getPersonFieldValue() {
         return null;
     }
 
@@ -112,11 +115,6 @@ public class BucketNormalizable extends Normalizable {
                         .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
                         .collect(Collectors.toList()));
                 break;
-            case PARTITION_SCORE:
-                children.addAll(bucket.getPartitionScores().stream()
-                        .map(ps -> new PartitionScoreNormalizable(ps, getOriginatingIndex()))
-                        .collect(Collectors.toList()));
-                break;
             default:
                 throw new IllegalArgumentException("Invalid type: " + type);
         }
@@ -130,8 +128,6 @@ public class BucketNormalizable extends Normalizable {
                 double oldScore = bucket.getAnomalyScore();
                 bucket.setAnomalyScore(maxScore);
                 return maxScore != oldScore;
-            case PARTITION_SCORE:
-                return false;
             default:
                 throw new IllegalArgumentException("Invalid type: " + childrenType);
         }

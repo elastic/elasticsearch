@@ -722,3 +722,30 @@ setups['sensor_prefab_data'] = '''
           {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
 
 '''
+setups['admin_role'] = '''
+  - do:
+      xpack.security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+setups['jacknich_user'] = '''
+  - do:
+      xpack.security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "test-password",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+'''

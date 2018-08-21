@@ -191,7 +191,6 @@ import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
-import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegeAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
@@ -255,8 +254,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     private static final Logger logger = Loggers.getLogger(Security.class);
-    static final Setting<Boolean> FIPS_MODE_ENABLED =
-        Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -302,10 +299,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
-                new PasswordHashingAlgorithmBootstrapCheck(),
                 new FIPS140SecureSettingsBootstrapCheck(settings, env),
-                new FIPS140JKSKeystoreBootstrapCheck(settings),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings)));
+                new FIPS140JKSKeystoreBootstrapCheck(),
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(),
+                new FIPS140LicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateMaxDeterminizedStates(settings);
@@ -593,7 +590,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // The following just apply in node mode
-        settingsList.add(FIPS_MODE_ENABLED);
+        settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
@@ -765,7 +762,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
                 new RestGetPrivilegesAction(settings, restController, getLicenseState()),
                 new RestPutPrivilegesAction(settings, restController, getLicenseState()),
-                new RestPutPrivilegeAction(settings, restController, getLicenseState()),
                 new RestDeletePrivilegesAction(settings, restController, getLicenseState())
         );
     }
@@ -1000,7 +996,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized());
+                .andThen(new ValidateLicenseCanBeDeserialized())
+                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1044,6 +1041,27 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
                 throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
                     "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
+            }
+        }
+    }
+
+    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+        private final boolean inFipsMode;
+
+        ValidateLicenseForFIPS(boolean inFipsMode) {
+            this.inFipsMode = inFipsMode;
+        }
+
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            if (inFipsMode) {
+                License license = LicenseService.getLicense(state.metaData());
+                if (license != null &&
+                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+                        "] license. It is only allowed with a Platinum or Trial license.");
+
+                }
             }
         }
     }

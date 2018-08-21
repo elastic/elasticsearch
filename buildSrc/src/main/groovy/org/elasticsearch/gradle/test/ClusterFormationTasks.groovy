@@ -337,6 +337,8 @@ class ClusterFormationTasks {
         if (node.nodeVersion.major >= 7) {
             esConfig['indices.breaker.total.use_real_memory'] = false
         }
+
+        // Setting the setting to `null` should remove it
         for (Map.Entry<String, Object> setting : node.config.settings) {
             if (setting.value == null) {
                 esConfig.remove(setting.key)

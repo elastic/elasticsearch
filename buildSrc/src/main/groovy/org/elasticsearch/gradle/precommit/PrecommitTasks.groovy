@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.precommit
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**
@@ -75,7 +76,7 @@ class PrecommitTasks {
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        project.configurations.create("forbiddenApisCliJar")
+        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
             forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
         }
@@ -95,6 +96,7 @@ class PrecommitTasks {
                         spec.executable = "${project.runtimeJavaHome}/bin/java"
                     }
                     inputs.files(
+                            forbiddenApisConfiguration,
                             sourceSet.compileClasspath,
                             sourceSet.runtimeClasspath
                     )

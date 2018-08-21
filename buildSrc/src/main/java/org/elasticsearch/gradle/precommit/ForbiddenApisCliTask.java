@@ -120,7 +120,7 @@ public class ForbiddenApisCliTask extends DefaultTask {
     }
 
     @TaskAction
-    public void writeMarker() throws IOException {
+    public void runForbiddenApisAndWriteMarker() throws IOException {
         getProject().javaexec((JavaExecSpec spec) -> {
             execAction.execute(spec);
             spec.setMain(CliMain.class.getName());

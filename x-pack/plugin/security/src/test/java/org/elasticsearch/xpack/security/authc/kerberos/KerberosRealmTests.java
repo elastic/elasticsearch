@@ -116,14 +116,14 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String keytabPath = dir.resolve(dirName).toString();
         final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] is a directory";
 
-        assertKerberosRealmConstrutorFails(keytabPath, expectedErrorMessage);
+        assertKerberosRealmConstructorFails(keytabPath, expectedErrorMessage);
     }
 
     public void testKerberosRealmThrowsErrorWhenKeytabFileDoesNotExist() throws IOException {
         final String keytabPath = dir.resolve(randomAlphaOfLength(5) + ".keytab").toString();
         final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] does not exist";
 
-        assertKerberosRealmConstrutorFails(keytabPath, expectedErrorMessage);
+        assertKerberosRealmConstructorFails(keytabPath, expectedErrorMessage);
     }
 
     public void testKerberosRealmThrowsErrorWhenKeytabFileHasNoReadPermissions() throws IOException {
@@ -147,10 +147,10 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         }
         final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";
 
-        assertKerberosRealmConstrutorFails(keytabPath.toString(), expectedErrorMessage);
+        assertKerberosRealmConstructorFails(keytabPath.toString(), expectedErrorMessage);
     }
 
-    private void assertKerberosRealmConstrutorFails(final String keytabPath, final String expectedErrorMessage) {
+    private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
         settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
         config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));

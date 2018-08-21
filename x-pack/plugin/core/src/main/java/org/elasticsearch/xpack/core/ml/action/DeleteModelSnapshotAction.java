@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Response> {
+public class DeleteModelSnapshotAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
@@ -29,8 +29,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
     }
 
     @Override
-    public DeleteModelSnapshotAction.Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends ActionRequest {
@@ -74,16 +74,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteModelSnapshotAction action) {
             super(client, action, new Request());

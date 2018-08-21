@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
@@ -47,7 +48,7 @@ public final class PainlessLookup {
     public boolean isValidCanonicalClassName(String canonicalClassName) {
         Objects.requireNonNull(canonicalClassName);
 
-        return canonicalClassNamesToClasses.containsKey(canonicalClassName);
+        return DEF_CLASS_NAME.equals(canonicalClassName) || canonicalClassNamesToClasses.containsKey(canonicalClassName);
     }
 
     public Class<?> canonicalTypeNameToType(String canonicalTypeName) {

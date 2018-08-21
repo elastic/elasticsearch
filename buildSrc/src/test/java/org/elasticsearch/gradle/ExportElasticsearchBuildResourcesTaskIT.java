@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 
+
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
     public static final String PROJECT_NAME = "elasticsearch-build-resources";
@@ -59,6 +60,7 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("clean", "sampleCopyAll", "-s", "-i")
             .withPluginClasspath()
             .build();
+
         assertTaskSuccessfull(result, ":buildResources");
         assertTaskSuccessfull(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");

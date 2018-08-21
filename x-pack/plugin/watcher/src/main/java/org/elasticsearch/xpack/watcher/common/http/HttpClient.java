@@ -10,6 +10,8 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
@@ -42,8 +44,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
@@ -66,20 +67,20 @@ public class HttpClient extends AbstractComponent implements Closeable {
     // you are querying a remote Elasticsearch cluster
     private static final int MAX_CONNECTIONS = 500;
 
-    private final HttpAuthRegistry httpAuthRegistry;
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
+    private final CryptoService cryptoService;
 
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
+    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
         super(settings);
-        this.httpAuthRegistry = httpAuthRegistry;
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.settingsProxy = getProxyFromSettings();
+        this.cryptoService = cryptoService;
 
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
@@ -139,9 +140,10 @@ public class HttpClient extends AbstractComponent implements Closeable {
         HttpClientContext localContext = HttpClientContext.create();
         // auth
         if (request.auth() != null) {
-            ApplicableHttpAuth applicableAuth = httpAuthRegistry.createApplicable(request.auth);
             CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            applicableAuth.apply(credentialsProvider, new AuthScope(request.host, request.port));
+            Credentials credentials = new UsernamePasswordCredentials(request.auth().username,
+                new String(request.auth().password.text(cryptoService)));
+            credentialsProvider.setCredentials(new AuthScope(request.host, request.port), credentials);
             localContext.setCredentialsProvider(credentialsProvider);
 
             // preemptive auth, no need to wait for a 401 first

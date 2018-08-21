@@ -478,6 +478,7 @@ public class InternalEngine extends Engine {
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
             indexWriter.deleteUnusedFiles();
+            translog.trimUnreferencedReaders();
         }
     }
 
@@ -1736,6 +1737,8 @@ public class InternalEngine extends Engine {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
             ensureOpen();
+            // Here we don't have to trim translog because snapshotting an index commit
+            // does not lock translog or prevents unreferenced files from trimming.
             indexWriter.deleteUnusedFiles();
         }
     }

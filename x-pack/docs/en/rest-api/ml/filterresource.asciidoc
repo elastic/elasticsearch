@@ -13,4 +13,4 @@ A filter resource has the following properties:
 `items`::
   (array of strings) An array of strings which is the filter item list.
   
-For more information, see {stack-ov}/ml-rules.html[Machine learning rules and filters].
+For more information, see {stack-ov}/ml-rules.html[Machine learning custom rules].

@@ -19,7 +19,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
@@ -33,14 +32,20 @@ import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.junit.After;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32993")
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
+
+    @After
+    public void cleanUp() throws IOException {
+        new MlRestTestStateCleaner(logger, client()).clearMlMetadata();
+    }
 
     public void testPutJob() throws Exception {
         String jobId = randomValidJobId();

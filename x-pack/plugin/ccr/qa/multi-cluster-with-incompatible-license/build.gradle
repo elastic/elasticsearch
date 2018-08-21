@@ -14,7 +14,6 @@ task leaderClusterTest(type: RestIntegTestTask) {
 leaderClusterTestCluster {
     numNodes = 1
     clusterName = 'leader-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
 }
 
 leaderClusterTestRunner {
@@ -37,4 +36,4 @@ followClusterTestRunner {
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+test.enabled = false

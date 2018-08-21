@@ -12,20 +12,19 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
 
-public class LocalStateCcr extends LocalStateCompositeXPackPlugin {
+public class IncompatibleLicenseLocalStateCcr extends LocalStateCompositeXPackPlugin {
 
-    public LocalStateCcr(final Settings settings, final Path configPath) throws Exception {
+    public IncompatibleLicenseLocalStateCcr(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
 
-        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> true)) {
+        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> false)) {
 
             @Override
             protected XPackLicenseState getLicenseState() {
-                return LocalStateCcr.this.getLicenseState();
+                return IncompatibleLicenseLocalStateCcr.this.getLicenseState();
             }
 
         });
     }
 
 }
-

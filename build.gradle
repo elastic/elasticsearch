@@ -87,8 +87,15 @@ subprojects {
           }
         }
       }
+      repositories {
+        maven {
+          name = 'localTest'
+          url = "${rootProject.buildDir}/local-test-repo"
+        }
+      }
     }
   }
+
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
@@ -228,6 +235,7 @@ subprojects {
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
+    "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',

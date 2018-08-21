@@ -951,7 +951,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
@@ -977,7 +977,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
@@ -1044,7 +1044,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
@@ -1071,7 +1071,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of `ActionRequest`.
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,

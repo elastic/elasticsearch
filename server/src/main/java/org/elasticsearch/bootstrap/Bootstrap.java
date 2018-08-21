@@ -219,12 +219,7 @@ final class Bootstrap {
 
             @Override
             protected void registerDerivedNodeNameWithLogger(String nodeName) {
-                try {
-                    LogConfigurator.setNodeNameAfterLoggerInitialized(environment, nodeName);
-                } catch (IOException | UserException e) {
-                    // Neither of these exceptions are likely because we've already read the files ones
-                    throw new ElasticsearchException("failed to register the derived node name", e);
-                }
+                LogConfigurator.setNodeNameAfterLoggerInitialized(environment, nodeName);
             }
         };
     }

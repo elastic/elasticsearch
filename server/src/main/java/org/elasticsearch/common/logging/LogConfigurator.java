@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.AbstractConfiguration;
-import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.ConfigurationException;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -64,7 +63,6 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -141,8 +139,12 @@ public class LogConfigurator {
      * is only called if the node name is not in elasticsearcy.yml which is a
      * normal "first time" thing but not a normal "production" thing.
      */
-    public static void setNodeNameAfterLoggerInitialized(Environment environment, String nodeName) throws IOException, UserException {
+    public static void setNodeNameAfterLoggerInitialized(Environment environment, String nodeName) {
         NodeNamePatternConverter.setNodeName(nodeName);
+        /*
+         * Update loggers private configuration to make the write above visble.
+         * See the reasoning in NodeNamePatternConverter for more on this.
+         */
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         context.updateLoggers();
     }
@@ -181,6 +183,7 @@ public class LogConfigurator {
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         final Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
+        final List<AbstractConfiguration> configurations = new ArrayList<>();
         /*
          * Subclass the properties configurator to hack the new pattern in
          * place so users don't have to change log4j2.properties in
@@ -226,7 +229,6 @@ public class LogConfigurator {
                         .build();
             }
         };
-        final List<AbstractConfiguration> configurations = new ArrayList<>();
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
         Files.walkFileTree(configsPath, options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
             @Override
@@ -243,7 +245,9 @@ public class LogConfigurator {
                     ExitCodes.CONFIG,
                     "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
         }
+
         context.start(new CompositeConfiguration(configurations));
+
         configureLoggerLevels(settings);
 
         final String deprecatedLocationsString = String.join("\n  ", locationsWithDeprecatedPatterns);

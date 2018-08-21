@@ -404,6 +404,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testWithStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new MultiMatchQueryBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
             .analyzer("stop")

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
@@ -15,7 +16,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 public class IndexLifecycleRunner {
-    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
+    private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;

@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
-    private static final Logger logger = ESLoggerFactory.getLogger(OperationModeUpdateTask.class);
+    private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
     private final OperationMode mode;
 
     public OperationModeUpdateTask(OperationMode mode) {

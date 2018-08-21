@@ -24,7 +24,9 @@ package org.elasticsearch.client;
 public interface Validatable {
     ValidationException EMPTY_VALIDATION = new ValidationException() {
         @Override
-        public void addValidationError(String error) { }
+        public void addValidationError(String error) {
+            throw new UnsupportedOperationException("Validation messages should not be added to the empty validation");
+        }
     };
 
     /**

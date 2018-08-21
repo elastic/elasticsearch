@@ -1,4 +1,4 @@
-ilm_admin:
+ilm:
   cluster:
     - monitor
     - manage

@@ -33,7 +33,7 @@ integTestCluster {
   setupCommand 'setupIlmUser',
           'bin/elasticsearch-users',
           'useradd', "test_ilm",
-          '-p', 'x-pack-test-password', '-r', "ilm_admin"
+          '-p', 'x-pack-test-password', '-r', "ilm"
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users',
                'useradd', clusterCredentials.username,

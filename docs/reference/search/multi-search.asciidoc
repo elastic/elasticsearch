@@ -91,10 +91,10 @@ maximum number of concurrent shard requests the each sub search request will exe
 This parameter should be used to protect a single request from overloading a cluster
 (e.g., a default request will hit all indices in a cluster which could cause shard request rejections
 if the number of shards per node is high). This default is based on the number of
-data nodes in the cluster but at most `256`. In certain scenarios parallelism isn't achieved
-through concurrent request such that this protection will result in poor performance. For
-instance in an environment where a cluster is formed by a single node holding a large amount of
-shards queried at the same time. In such a scenario it makes sense to increase the number to a high value.
+data nodes in the cluster but at most `256`.In certain scenarios parallelism isn't achieved through
+concurrent request such that this protection will result in poor performance. For
+instance in an environment where only a very low number of concurrent search requests are expected
+it might help to increase this value to a higher number.
 
 [float]
 [[msearch-security]]

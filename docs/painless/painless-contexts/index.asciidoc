@@ -30,8 +30,6 @@ include::painless-metric-agg-reduce-context.asciidoc[]
 
 include::painless-bucket-agg-context.asciidoc[]
 
-include::painless-ingest-processor-context.asciidoc[]
-
 include::painless-analysis-predicate-context.asciidoc[]
 
 include::painless-watcher-condition-context.asciidoc[]

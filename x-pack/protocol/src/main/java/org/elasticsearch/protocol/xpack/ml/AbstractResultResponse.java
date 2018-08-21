@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,12 +37,14 @@ public abstract class AbstractResultResponse<T extends ToXContent> extends Actio
     public static final ParseField COUNT = new ParseField("count");
 
     private final ParseField resultsField;
-    protected List<T> results;
-    protected long count;
+    protected final List<T> results;
+    protected final long count;
 
-    AbstractResultResponse(ParseField resultsField) {
+    AbstractResultResponse(ParseField resultsField, List<T> results, long count) {
         this.resultsField = Objects.requireNonNull(resultsField,
             "[results_field] must not be null");
+        this.results = Collections.unmodifiableList(results);
+        this.count = count;
     }
 
     @Override
@@ -55,9 +58,5 @@ public abstract class AbstractResultResponse<T extends ToXContent> extends Actio
 
     public long count() {
         return count;
-    }
-
-    void setCount(long count) {
-        this.count = count;
     }
 }

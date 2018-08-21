@@ -20,7 +20,7 @@ package org.elasticsearch.protocol.xpack.ml;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
@@ -29,21 +29,27 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 /**
  * Contains a {@link List} of the found {@link Job} objects and the total count found
  */
 public class GetJobResponse extends AbstractResultResponse<Job> {
 
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
-    public static final ObjectParser<GetJobResponse, Void> PARSER = new ObjectParser<>("jobs_response", true, GetJobResponse::new);
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<GetJobResponse, Void> PARSER =
+        new ConstructingObjectParser<>("jobs_response", true,
+            a -> new GetJobResponse((List<Job.Builder>) a[0], (long) a[1]));
 
     static {
-        PARSER.declareObjectArray(GetJobResponse::setJobs, Job.PARSER, RESULTS_FIELD);
-        PARSER.declareLong(GetJobResponse::setCount, AbstractResultResponse.COUNT);
+        PARSER.declareObjectArray(constructorArg(), Job.PARSER, RESULTS_FIELD);
+        PARSER.declareLong(constructorArg(), AbstractResultResponse.COUNT);
     }
 
-    GetJobResponse() {
-        super(RESULTS_FIELD);
+    GetJobResponse(List<Job.Builder> jobBuilders, long count) {
+        super(RESULTS_FIELD, jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList()), count);
     }
 
     /**
@@ -55,10 +61,6 @@ public class GetJobResponse extends AbstractResultResponse<Job> {
 
     public static GetJobResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    void setJobs(List<Job.Builder> jobs) {
-        this.results = jobs.stream().map(Job.Builder::build).collect(Collectors.toList());
     }
 
     @Override

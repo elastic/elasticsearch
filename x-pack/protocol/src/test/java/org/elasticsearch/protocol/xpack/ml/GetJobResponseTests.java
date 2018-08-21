@@ -38,10 +38,7 @@ public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse
             results.add(JobTests.createRandomizedJobBuilder());
         }
 
-        GetJobResponse response = new GetJobResponse();
-        response.setCount(count);
-        response.setJobs(results);
-        return response;
+        return new GetJobResponse(results, count);
     }
 
     @Override

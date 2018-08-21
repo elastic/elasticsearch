@@ -135,6 +135,12 @@ The following describes the structure of an application privileges entry:
 For details about the validation rules for these fields, see the
 {ref}/security-api-put-privileges.html[add application privileges API].
 
+A role may refer to application privileges that do not exist - that is, they
+have not yet been defined through the add application privileges API (or they
+were defined, but have since been deleted). In this case, the privilege has
+not effect, and will not grant any actions in the
+{ref}/security-api-has-privileges.html[has privileges API].
+
 ==== Example
 
 The following snippet shows an example definition of a `clicks_admin` role:

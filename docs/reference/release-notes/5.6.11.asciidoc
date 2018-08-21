@@ -4,3 +4,39 @@
 Also see <<breaking-changes-5.6>>.
 
 coming[5.6.11]
+
+[[enhancement-5.6.11]]
+[float]
+=== Enhancements
+
+REST API::
+* Add ability to parse Content-Type from content type contains charset {pull}27301[#27301] (issue: {issue}27065[#27065])
+
+[float]
+[[bug-5.6.11]]
+=== Bug fixes
+
+Core::
+* Fix content type detection with leading whitespace {pull}32632[#32632] (issue: {issue}32357[#32357])
+
+Index APIs::
+* Propagate mapping.single_type setting on shrinked index {pull}31811[#31811] (issue: {issue}31787[#31787])
+
+Ingest::
+* Ingest Attachment: Upgrade Tika to 1.18 {pull}31252[#31252]
+
+Network::
+* Ensure we don't use a remote profile if cluster name matches {pull}31331[#31331] (issue: {issue}29321[#29321])
+
+Packaging::
+* Do not run `sysctl` for `vm.max_map_count` when its already set {pull}31285[#31285]
+
+Search::
+* Fix race in clear scroll {pull}31259[#31259]
+
+[float]
+[[upgrade-5.6.11]]
+=== Upgrades
+
+Logging::
+* LOGGING: Upgrade to Log4J 2.11.1 {pull}32675[#32675], {pull}32616[#32616] (issues: {issue}27300[#27300], {issue}32537[#32537])

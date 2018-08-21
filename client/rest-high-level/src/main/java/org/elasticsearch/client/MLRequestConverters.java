@@ -59,11 +59,11 @@ final class MLRequestConverters {
                 .addPathPartAsIs("_open")
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setJsonEntity(openJobRequest.toString());
+        request.setEntity(createEntity(openJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
-    static Request closeJob(CloseJobRequest closeJobRequest) {
+    static Request closeJob(CloseJobRequest closeJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
@@ -72,8 +72,7 @@ final class MLRequestConverters {
             .addPathPartAsIs("_close")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        request.setJsonEntity(closeJobRequest.toString());
+        request.setEntity(createEntity(closeJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

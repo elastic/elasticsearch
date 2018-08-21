@@ -187,7 +187,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test waits for the monitoring service to collect monitoring documents and then checks that all expected documents
      * have been indexed with the expected information.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4150")
     @SuppressWarnings("unchecked")
     public void testMonitoringService() throws Exception {
         final boolean createAPMIndex = randomBoolean();

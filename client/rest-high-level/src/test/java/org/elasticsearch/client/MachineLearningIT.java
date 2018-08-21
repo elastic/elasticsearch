@@ -19,7 +19,10 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
+import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -36,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32993")
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testPutJob() throws Exception {
@@ -73,6 +77,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         OpenJobResponse response = execute(new OpenJobRequest(jobId), machineLearningClient::openJob, machineLearningClient::openJobAsync);
 
         assertTrue(response.isOpened());
+    }
+
+    public void testCloseJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        CloseJobResponse response = execute(new CloseJobRequest(jobId),
+            machineLearningClient::closeJob,
+            machineLearningClient::closeJobAsync);
+        assertTrue(response.isClosed());
     }
 
     public static String randomValidJobId() {

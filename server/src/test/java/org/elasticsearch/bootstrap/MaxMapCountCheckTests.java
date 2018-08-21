@@ -74,7 +74,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
 
     public void testMaxMapCountCheckBelowLimitAndMemoryMapAllowed() {
         /*
-         * There are three ways that memory maps are allowed:
+         * There are two ways that memory maps are allowed:
          *  - by default
          *  - mmapfs is explicitly allowed
          * We want to test that if mmapfs is allowed then the max map count check is enforced.

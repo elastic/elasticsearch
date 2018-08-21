@@ -777,8 +777,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
             Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
-        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
-        assertEquals(3L, topDocs.totalHits);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
+        assertEquals(3L, topDocs.totalHits.value);
         assertEquals(3, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
@@ -810,8 +810,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
             Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
-        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
-        assertEquals(2L, topDocs.totalHits);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
+        assertEquals(2L, topDocs.totalHits.value);
         assertEquals(2, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(2, topDocs.scoreDocs[1].doc);
@@ -951,7 +951,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field", "value1 value2 value3", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
-        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(2L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
@@ -985,15 +985,15 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field", "value1 value4 value5", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
-        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
-        assertEquals(1L, topDocs.totalHits);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
+        assertEquals(1L, topDocs.totalHits.value);
         assertEquals(0, topDocs.scoreDocs[0].doc);
 
         memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "value1 value2", new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
         query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
-        topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
         assertEquals(1L, topDocs.totalHits);
         assertEquals(0, topDocs.scoreDocs[0].doc);
 
@@ -1001,8 +1001,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         memoryIndex.addField("field", "value3", new WhitespaceAnalyzer());
         percolateSearcher = memoryIndex.createSearcher();
         query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
-        topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
-        assertEquals(1L, topDocs.totalHits);
+        topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
+        assertEquals(1L, topDocs.totalHits.value);
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
@@ -1036,8 +1036,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
-        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
-        assertEquals(1L, topDocs.totalHits);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
+        assertEquals(1L, topDocs.totalHits.value);
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
@@ -1205,8 +1205,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             try {
                                 Query query = leaf.apply(doc);
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
-                                if (topDocs.totalHits > 0) {
-                                    if (needsScores) {
+                                if (topDocs.totalHits.value > 0) {
+                                    if (scoreMode.needsScores()) {
                                         _score[0] = topDocs.scoreDocs[0].score;
                                     }
                                     return true;
@@ -1232,6 +1232,11 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
                         @Override
                         public float score() throws IOException {
+                            return _score[0];
+                        }
+
+                        @Override
+                        public float getMaxScore(int upTo) throws IOException {
                             return _score[0];
                         }
                     };

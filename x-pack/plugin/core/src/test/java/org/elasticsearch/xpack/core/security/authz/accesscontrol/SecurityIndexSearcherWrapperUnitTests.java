@@ -232,7 +232,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
-        assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
+        assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
         bitsetFilterCache.close();
     }
 
@@ -270,8 +270,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
-        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")),
-                org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
+        Weight weight = searcher.createWeight(new TermQuery(new Term("field2", "value1")),
+                org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 

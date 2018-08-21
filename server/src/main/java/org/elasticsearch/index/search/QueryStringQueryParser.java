@@ -347,6 +347,9 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             queryBuilder.setPhraseSlop(slop);
             Query query = queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, fields, queryText, null);
+            if (query == null) {
+                return null;
+            }
             return applySlop(query, slop);
         } catch (IOException e) {
             throw new ParseException(e.getMessage());

@@ -107,7 +107,7 @@ public class JoinHelper extends AbstractComponent {
         return joinRequestAccumulator.size();
     }
 
-    public void clearAndFailJoins(String reason) {
+    public void clearAndFailPendingJoins(String reason) {
         joinRequestAccumulator.values().forEach(
             joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
         joinRequestAccumulator.clear();

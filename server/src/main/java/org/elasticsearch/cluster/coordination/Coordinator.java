@@ -127,7 +127,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinHelper.clearAndFailJoins("following another master : " + leaderNode);
+            joinHelper.clearAndFailPendingJoins("following another master : " + leaderNode);
         }
 
         lastKnownLeader = Optional.of(leaderNode);

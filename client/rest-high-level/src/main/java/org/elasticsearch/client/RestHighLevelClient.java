@@ -209,6 +209,7 @@ public class RestHighLevelClient implements Closeable {
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
+    private final GraphClient graphClient = new GraphClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
@@ -324,6 +325,16 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public WatcherClient watcher() { return watcherClient; }
+    
+    /**
+     * Provides methods for accessing the Elastic Licensed Graph explore API that
+     * is shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
+     * Graph API on elastic.co</a> for more information.
+     */
+    public GraphClient graph() { return graphClient; }    
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that

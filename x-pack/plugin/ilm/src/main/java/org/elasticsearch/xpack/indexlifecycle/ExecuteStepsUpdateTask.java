@@ -50,7 +50,6 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         return startStep;
     }
 
-
     /**
      * {@link Step}s for the current index and policy are executed in succession until the next step to be
      * executed is not a {@link ClusterStateActionStep}, or not a {@link ClusterStateWaitStep}, or does not
@@ -64,6 +63,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
         Step currentStep = startStep;
+        logger.trace("[{}] executing steps update task for ({}) {}",
+            index.getName(), currentStep.getClass().getSimpleName(), currentStep);
         IndexMetaData indexMetaData = currentState.metaData().index(index);
         if (indexMetaData == null) {
             // This index doesn't exist any more, there's nothing to execute currently

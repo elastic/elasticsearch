@@ -14,9 +14,12 @@ import org.elasticsearch.common.unit.TimeValue;
 public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
-    public static final String LIFECYCLE_PHASE = "index.lifecycle.phase";
-    public static final String LIFECYCLE_ACTION = "index.lifecycle.action";
-    public static final String LIFECYCLE_STEP = "index.lifecycle.step";
+    public static final String LIFECYCLE_NEXT_PHASE = "index.lifecycle.next_phase";
+    public static final String LIFECYCLE_NEXT_ACTION = "index.lifecycle.next_action";
+    public static final String LIFECYCLE_NEXT_STEP = "index.lifecycle.next_step";
+    public static final String LIFECYCLE_CURRENT_PHASE = "index.lifecycle.current_phase";
+    public static final String LIFECYCLE_CURRENT_ACTION = "index.lifecycle.current_action";
+    public static final String LIFECYCLE_CURRENT_STEP = "index.lifecycle.current_step";
     public static final String LIFECYCLE_INDEX_CREATION_DATE = "index.lifecycle.date";
     public static final String LIFECYCLE_PHASE_TIME = "index.lifecycle.phase_time";
     public static final String LIFECYCLE_ACTION_TIME = "index.lifecycle.action_time";
@@ -24,16 +27,23 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_FAILED_STEP = "index.lifecycle.failed_step";
     public static final String LIFECYCLE_STEP_INFO = "index.lifecycle.step_info";
     public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
+    public static final String LIFECYCLE_FORCED_PHASE = "index.lifecycle.forced_phase";
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
         Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
-    public static final Setting<String> LIFECYCLE_PHASE_SETTING = Setting.simpleString(LIFECYCLE_PHASE,
+    public static final Setting<String> LIFECYCLE_NEXT_PHASE_SETTING = Setting.simpleString(LIFECYCLE_NEXT_PHASE,
         Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
-    public static final Setting<String> LIFECYCLE_ACTION_SETTING = Setting.simpleString(LIFECYCLE_ACTION,
-            Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
-    public static final Setting<String> LIFECYCLE_STEP_SETTING = Setting.simpleString(LIFECYCLE_STEP,
+    public static final Setting<String> LIFECYCLE_NEXT_ACTION_SETTING = Setting.simpleString(LIFECYCLE_NEXT_ACTION,
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+    public static final Setting<String> LIFECYCLE_NEXT_STEP_SETTING = Setting.simpleString(LIFECYCLE_NEXT_STEP,
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+    public static final Setting<String> LIFECYCLE_CURRENT_PHASE_SETTING = Setting.simpleString(LIFECYCLE_CURRENT_PHASE,
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+    public static final Setting<String> LIFECYCLE_CURRENT_ACTION_SETTING = Setting.simpleString(LIFECYCLE_CURRENT_ACTION,
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+    public static final Setting<String> LIFECYCLE_CURRENT_STEP_SETTING = Setting.simpleString(LIFECYCLE_CURRENT_STEP,
         Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
     public static final Setting<String> LIFECYCLE_FAILED_STEP_SETTING = Setting.simpleString(LIFECYCLE_FAILED_STEP,
             Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
@@ -49,4 +59,6 @@ public class LifecycleSettings {
             Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize, Setting.Property.InternalIndex);
     public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(LIFECYCLE_SKIP, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> LIFECYCLE_FORCED_PHASE_SETTING = Setting.simpleString(LIFECYCLE_FORCED_PHASE,
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
 }

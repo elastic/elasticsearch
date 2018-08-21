@@ -109,9 +109,9 @@ teardown:
   - is_true: indices.my_index.managed
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.phase: "warm" }
+  - match: { indices.my_index.action: "readonly" }
+  - match: { indices.my_index.step: "readonly" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
@@ -130,18 +130,18 @@ teardown:
   - is_true: indices.my_index.managed
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.phase: "warm" }
+  - match: { indices.my_index.action: "readonly" }
+  - match: { indices.my_index.step: "readonly" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
   - is_true: indices.my_index2.managed
   - match: { indices.my_index2.index: "my_index2" }
   - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index2.phase: "new" }
-  - match: { indices.my_index2.action: "after" }
-  - match: { indices.my_index2.step: "after" }
+  - match: { indices.my_index2.phase: "warm" }
+  - match: { indices.my_index2.action: "readonly" }
+  - match: { indices.my_index2.step: "readonly" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
 
@@ -160,27 +160,27 @@ teardown:
   - is_true: indices.my_index.managed
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.phase: "warm" }
+  - match: { indices.my_index.action: "readonly" }
+  - match: { indices.my_index.step: "readonly" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
   - is_true: indices.my_index2.managed
   - match: { indices.my_index2.index: "my_index2" }
   - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.my_index2.phase: "new" }
-  - match: { indices.my_index2.action: "after" }
-  - match: { indices.my_index2.step: "after" }
+  - match: { indices.my_index2.phase: "warm" }
+  - match: { indices.my_index2.action: "readonly" }
+  - match: { indices.my_index2.step: "readonly" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   
   - is_true: indices.another_index.managed
   - match: { indices.another_index.index: "another_index" }
   - match: { indices.another_index.policy: "my_moveable_timeseries_lifecycle" }
-  - match: { indices.another_index.phase: "new" }
-  - match: { indices.another_index.action: "after" }
-  - match: { indices.another_index.step: "after" }
+  - match: { indices.another_index.phase: "warm" }
+  - match: { indices.another_index.action: "readonly" }
+  - match: { indices.another_index.step: "readonly" }
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   
@@ -212,3 +212,56 @@ teardown:
   - is_false: indices.my_index
   - is_false: indices.my_index2
   - is_false: indices.another_index
+
+---
+"Test correct phase and phase transition time":
+
+  - do:
+      acknowlege: true
+      ilm.put_lifecycle:
+        lifecycle: "quick_warm_slow_cold"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "after": "0s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 1
+                     }
+                   }
+                 },
+                 "cold": {
+                   "after": "6000s",
+                   "actions": {
+                     "allocate": {
+                       "number_of_replicas": 1
+                     }
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            index.lifecycle.name: "quick_warm_slow_cold"
+
+  - do:
+      acknowledge: true
+      ilm.explain_lifecycle:
+        index: "foo"
+
+  - is_true: indices.foo.managed
+  - match: { indices.foo.index: "foo" }
+  - match: { indices.foo.policy: "quick_warm_slow_cold" }
+  - match: { indices.foo.phase: "warm" }
+  - match: { indices.foo.action: "readonly" }
+  - match: { indices.foo.step: "readonly" }
+  - is_true: indices.foo.phase_time
+  - is_false: indices.foo.failed_step
+  - is_false: indices.foo.step_info

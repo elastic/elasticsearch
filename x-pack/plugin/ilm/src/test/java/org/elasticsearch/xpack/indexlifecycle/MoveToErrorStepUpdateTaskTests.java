@@ -62,7 +62,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
         assertThat(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newState.metaData().index(index).getSettings()),
                 equalTo(currentStepKey.getName()));
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
 
@@ -124,8 +124,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState)
             .metaData(MetaData.builder(clusterState.metaData())
                 .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, stepKey.getPhase())
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, stepKey.getAction())
-                    .put(LifecycleSettings.LIFECYCLE_STEP, stepKey.getName()).build(), index.getName())).build();
+                    .put(LifecycleSettings.LIFECYCLE_NEXT_PHASE, stepKey.getPhase())
+                    .put(LifecycleSettings.LIFECYCLE_NEXT_ACTION, stepKey.getAction())
+                    .put(LifecycleSettings.LIFECYCLE_NEXT_STEP, stepKey.getName()).build(), index.getName())).build();
     }
 }

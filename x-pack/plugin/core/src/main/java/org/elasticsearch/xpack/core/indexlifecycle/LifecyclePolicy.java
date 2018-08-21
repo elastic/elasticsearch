@@ -28,7 +28,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -165,10 +164,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
-     * @param nowSupplier The supplier of the current time for {@link PhaseAfterStep} steps.
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client, LongSupplier nowSupplier) {
+    public List<Step> toSteps(Client client) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -182,16 +180,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         while (phaseIterator.hasPrevious()) {
 
             Phase previousPhase = phaseIterator.previous();
-
-            // add `after` step for phase before next
-            if (phase != null) {
-                // after step should have the name of the previous phase since the index is still in the
-                // previous phase until the after condition is reached
-                Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-                Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
-                steps.add(phaseAfterStep);
-                lastStepKey = phaseAfterStep.getKey();
-            }
 
             phase = previousPhase;
             List<LifecycleAction> orderedActions = type.getOrderedActions(phase);
@@ -207,14 +195,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                     lastStepKey = step.getKey();
                 }
             }
-        }
-
-        if (phase != null) {
-            // The very first after step is in a phase before the hot phase so call this "new"
-            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-            Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
-            steps.add(phaseAfterStep);
-            lastStepKey = phaseAfterStep.getKey();
         }
 
         // init step so that policy is guaranteed to have
@@ -240,10 +220,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                 return action.isSafeAction();
             } else {
                 throw new IllegalArgumentException("Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
-                        + "]  does not exist in policy [" + name + "]");
+                        + "] does not exist in policy [" + name + "]");
             }
         } else {
-            throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+            throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "] does not exist in policy [" + name + "]");
         }
     }
 
@@ -256,9 +236,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public StepKey getNextValidStep(StepKey stepKey) {
         Phase phase = phases.get(stepKey.getPhase());
         if (phase == null) {
-            // Phase doesn't exist so find the after step for the previous
-            // available phase
-            return getAfterStepBeforePhase(stepKey.getPhase());
+            throw new IllegalArgumentException("unable to find next valid step after " + stepKey + " for policy " + name);
         } else {
             // Phase exists so check if the action exists
             LifecycleAction action = phase.getActions().get(stepKey.getAction());
@@ -281,41 +259,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
     }
 
-    private StepKey getNextAfterStep(String currentPhaseName) {
-        String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
-        if (nextPhaseName == null) {
-            // We don't have a next phase after this one so there is no after
-            // step to move to. Instead we need to go to the terminal step as
-            // there are no more steps we should execute
-            return TerminalPolicyStep.KEY;
-        } else {
-            return new StepKey(currentPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-        }
-    }
-
-    private StepKey getAfterStepBeforePhase(String currentPhaseName) {
-        String nextPhaseName = type.getNextPhaseName(currentPhaseName, phases);
-        if (nextPhaseName == null) {
-            // We don't have a next phase after this one so the next step is the
-            // TerminalPolicyStep
-            return TerminalPolicyStep.KEY;
-        } else {
-            String prevPhaseName = type.getPreviousPhaseName(currentPhaseName, phases);
-            if (prevPhaseName == null) {
-                // no previous phase available so go to the
-                // InitializePolicyContextStep
-                return InitializePolicyContextStep.KEY;
-            }
-            return new StepKey(prevPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-        }
-    }
-
     private StepKey getFirstStepInNextAction(String currentActionName, Phase phase) {
         String nextActionName = type.getNextActionName(currentActionName, phase);
         if (nextActionName == null) {
-            // The current action is the last in this phase so we need to find
-            // the next after step
-            return getNextAfterStep(phase.getName());
+            return TerminalPolicyStep.KEY;
         } else {
             LifecycleAction nextAction = phase.getActions().get(nextActionName);
             // Return the first stepKey for nextAction

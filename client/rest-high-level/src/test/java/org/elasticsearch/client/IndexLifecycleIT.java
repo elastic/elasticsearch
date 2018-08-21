@@ -257,8 +257,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
             assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
             assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.next_phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.next_phase"), equalTo("hot"));
         });
 
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();

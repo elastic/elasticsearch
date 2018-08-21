@@ -138,7 +138,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            String step = settingsResponse.getSetting("test", LifecycleSettings.LIFECYCLE_NEXT_STEP);
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
@@ -171,7 +171,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         });
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            String step = settingsResponse.getSetting("test", LifecycleSettings.LIFECYCLE_NEXT_STEP);
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }
@@ -211,7 +211,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         // check step in progress in lifecycle
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            String step = settingsResponse.getSetting("test", LifecycleSettings.LIFECYCLE_NEXT_STEP);
             assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
         });
 
@@ -223,7 +223,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         // check that index lifecycle picked back up where it
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            String step = settingsResponse.getSetting("test", LifecycleSettings.LIFECYCLE_NEXT_STEP);
             assertThat(step, equalTo(ObservableClusterStateWaitStep.NAME));
         });
 
@@ -233,7 +233,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            String step = settingsResponse.getSetting("test", "index.lifecycle.step");
+            String step = settingsResponse.getSetting("test", LifecycleSettings.LIFECYCLE_NEXT_STEP);
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
     }

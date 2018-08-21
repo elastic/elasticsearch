@@ -30,9 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -170,11 +170,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public void testFirstAndLastSteps() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
-        List<Step> steps = policy.toSteps(client, nowSupplier);
+        List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
@@ -184,7 +183,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public void testToStepsWithOneStep() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         MockStep mockStep = new MockStep(
             new Step.StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
 
@@ -196,28 +194,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
-        StepKey secondStepKey = new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-        List<Step> steps = policy.toSteps(client, nowSupplier);
-        assertThat(steps.size(), equalTo(4));
+        List<Step> steps = policy.toSteps(client);
+        assertThat(steps.size(), equalTo(3));
         assertSame(steps.get(0).getKey(), firstStepKey);
-        assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
-        assertThat(steps.get(1).getKey(), equalTo(secondStepKey));
-        assertThat(steps.get(1).getNextStepKey(), equalTo(mockStep.getKey()));
-        assertThat(steps.get(2).getKey(), equalTo(mockStep.getKey()));
-        assertThat(steps.get(2).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
-        assertSame(steps.get(3), TerminalPolicyStep.INSTANCE);
+        assertThat(steps.get(0).getNextStepKey(), equalTo(mockStep.getKey()));
+        assertThat(steps.get(1).getKey(), equalTo(mockStep.getKey()));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
+        assertSame(steps.get(2), TerminalPolicyStep.INSTANCE);
     }
 
     public void testToStepsWithTwoPhases() {
         Client client = mock(Client.class);
-        LongSupplier nowSupplier = () -> 0L;
         MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"), TerminalPolicyStep.KEY);
-        MockStep secondAfter = new MockStep(new StepKey("first_phase", PhaseAfterStep.NAME, PhaseAfterStep.NAME),
-                secondActionStep.getKey());
-        MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
+        MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondActionStep.getKey());
         MockStep firstActionStep = new MockStep(new StepKey("first_phase", "test", "foo"), firstActionAnotherStep.getKey());
-        MockStep firstAfter = new MockStep(new StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME), firstActionStep.getKey());
-        MockStep init = new MockStep(InitializePolicyContextStep.KEY, firstAfter.getKey());
+        MockStep init = new MockStep(InitializePolicyContextStep.KEY, firstActionStep.getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
@@ -231,21 +222,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         phases.put(secondPhase.getName(), secondPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
 
-        List<Step> steps = policy.toSteps(client, nowSupplier);
-        assertThat(steps.size(), equalTo(7));
+        List<Step> steps = policy.toSteps(client);
+        assertThat(steps.size(), equalTo(5));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
         assertThat(steps.get(0).getNextStepKey(), equalTo(init.getNextStepKey()));
-        assertThat(steps.get(1).getClass(), equalTo(PhaseAfterStep.class));
-        assertThat(steps.get(1).getKey(), equalTo(firstAfter.getKey()));
-        assertThat(steps.get(1).getNextStepKey(), equalTo(firstAfter.getNextStepKey()));
-        assertThat(steps.get(2), equalTo(firstActionStep));
-        assertThat(steps.get(3), equalTo(firstActionAnotherStep));
-        assertThat(steps.get(4).getClass(), equalTo(PhaseAfterStep.class));
-        assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
-        assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
-        assertThat(steps.get(5), equalTo(secondActionStep));
-        assertSame(steps.get(6), TerminalPolicyStep.INSTANCE);
+        assertThat(steps.get(1), equalTo(firstActionStep));
+        assertThat(steps.get(2), equalTo(firstActionAnotherStep));
+        assertThat(steps.get(3), equalTo(secondActionStep));
+        assertSame(steps.get(4), TerminalPolicyStep.INSTANCE);
     }
 
     public void testIsActionSafe() {
@@ -266,11 +251,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> policy.isActionSafe(new StepKey("non_existant_phase", MockAction.NAME, randomAlphaOfLength(10))));
-        assertEquals("Phase [non_existant_phase]  does not exist in policy [" + policy.getName() + "]", exception.getMessage());
+        assertEquals("Phase [non_existant_phase] does not exist in policy [" + policy.getName() + "]", exception.getMessage());
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
-        assertEquals("Action [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
+        assertEquals("Action [non_existant_action] in phase [first_phase] does not exist in policy [" + policy.getName() + "]",
                 exception.getMessage());
 
         assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));
@@ -318,7 +303,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             Phase phase = new Phase(phaseName, TimeValue.ZERO, actions);
             phases.put(phase.getName(), phase);
         }
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
+        final LifecyclePolicy policy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
 
         // step still exists
         StepKey currentStep = new StepKey(randomFrom("phase_1", "phase_2", "phase_4"), randomFrom("action_1", "action_3"),
@@ -337,7 +322,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         currentStep = new StepKey("phase_1", "action_3", "step_missing");
         nextStep = policy.getNextValidStep(currentStep);
         assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        assertEquals(TerminalPolicyStep.KEY, nextStep);
 
         // current action exists but step does not and action is last in the
         // last phase
@@ -356,7 +341,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         currentStep = new StepKey("phase_1", "action_4", "step_2");
         nextStep = policy.getNextValidStep(currentStep);
         assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_1", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        assertEquals(TerminalPolicyStep.KEY, nextStep);
 
         // current action no longer exists and action was last in the last phase
         currentStep = new StepKey("phase_4", "action_4", "step_2");
@@ -365,16 +350,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertEquals(TerminalPolicyStep.KEY, nextStep);
 
         // current phase no longer exists
-        currentStep = new StepKey("phase_3", "action_2", "step_2");
-        nextStep = policy.getNextValidStep(currentStep);
-        assertNotNull(nextStep);
-        assertEquals(new StepKey("phase_2", PhaseAfterStep.NAME, PhaseAfterStep.NAME), nextStep);
+        final StepKey badStep = new StepKey("phase_3", "action_2", "step_2");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> { policy.getNextValidStep(badStep); });
+        assertThat(e.getMessage(),
+            containsString("unable to find next valid step after " +
+                "{\"phase\":\"phase_3\",\"action\":\"action_2\",\"name\":\"step_2\"} for policy null"));
 
         // current phase no longer exists and was last phase
-        currentStep = new StepKey("phase_5", "action_2", "step_2");
-        nextStep = policy.getNextValidStep(currentStep);
-        assertNotNull(nextStep);
-        assertEquals(TerminalPolicyStep.KEY, nextStep);
+        final StepKey badStep2 = new StepKey("phase_5", "action_2", "step_2");
+        e = expectThrows(IllegalArgumentException.class, () -> { policy.getNextValidStep(badStep2); });
+        assertThat(e.getMessage(),
+            containsString("unable to find next valid step after " +
+                "{\"phase\":\"phase_5\",\"action\":\"action_2\",\"name\":\"step_2\"} for policy null"));
 
         // create a new policy where only phase 2 exists and within it has
         // actions 1 and 3 which both contain steps 1, 2, and 3.
@@ -398,13 +385,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
         Phase phase = new Phase(phaseName, TimeValue.ZERO, actions);
         phases.put(phase.getName(), phase);
-        policy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
+        final LifecyclePolicy newPolicy = new LifecyclePolicy(lifecycleType, lifecycleName, phases);
 
         // current phase no longer exists and was first phase
-        currentStep = new StepKey("phase_1", "action_2", "step_2");
-        nextStep = policy.getNextValidStep(currentStep);
-        assertNotNull(nextStep);
-        assertEquals(InitializePolicyContextStep.KEY, nextStep);
+        final StepKey badStep3 = new StepKey("phase_1", "action_2", "step_2");
+        e = expectThrows(IllegalArgumentException.class, () -> { newPolicy.getNextValidStep(badStep3); });
+        assertThat(e.getMessage(),
+            containsString("unable to find next valid step after " +
+                "{\"phase\":\"phase_1\",\"action\":\"action_2\",\"name\":\"step_2\"} for policy null"));
 
     }
 

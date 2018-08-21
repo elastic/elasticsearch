@@ -128,7 +128,7 @@ public class IndexLifecycleService extends AbstractComponent
             }
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
                 // update policy steps registry
-                policyRegistry.update(event.state(), client, nowSupplier);
+                policyRegistry.update(event.state(), client);
             }
         }
     }

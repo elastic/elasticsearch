@@ -75,9 +75,9 @@ teardown:
         index: "my_index"
         body:
           current_step:
-            phase: "new"
-            action: "after"
-            name: "after"
+            phase: "warm"
+            action: "readonly"
+            name: "readonly"
           next_step:
             phase: "warm"
             action: "forcemerge"
@@ -88,9 +88,9 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "forcemerge" }
-  - match: { my_index.settings.index.lifecycle.action: "forcemerge" }
-  - match: { my_index.settings.index.lifecycle.phase: "warm" }
+  - match: { my_index.settings.index.lifecycle.next_step: "forcemerge" }
+  - match: { my_index.settings.index.lifecycle.next_action: "forcemerge" }
+  - match: { my_index.settings.index.lifecycle.next_phase: "warm" }
 
 ---
 "Test Invalid Move To Step With Incorrect Current Step":
@@ -116,9 +116,9 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
-  - match: { my_index.settings.index.lifecycle.phase: "new" }
+  - match: { my_index.settings.index.lifecycle.next_step: "readonly" }
+  - match: { my_index.settings.index.lifecycle.next_action: "readonly" }
+  - match: { my_index.settings.index.lifecycle.next_phase: "warm" }
 
 ---
 "Test Invalid Move To Step With Invalid Next Step":
@@ -129,9 +129,9 @@ teardown:
         index: "my_index"
         body:
           current_step:
-            phase: "new"
-            action: "after"
-            name: "after"
+            phase: "warm"
+            action: "readonly"
+            name: "readonly"
           next_step:
             phase: "invalid"
             action: "invalid"
@@ -144,9 +144,9 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
-  - match: { my_index.settings.index.lifecycle.phase: "new" }
+  - match: { my_index.settings.index.lifecycle.next_step: "readonly" }
+  - match: { my_index.settings.index.lifecycle.next_action: "readonly" }
+  - match: { my_index.settings.index.lifecycle.next_phase: "warm" }
 
 ---
 "Test Invalid Move To Step With Invalid Policy":

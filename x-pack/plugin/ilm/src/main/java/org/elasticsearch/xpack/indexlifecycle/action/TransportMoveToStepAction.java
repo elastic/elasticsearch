@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Response;
@@ -58,8 +60,21 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), request.getCurrentStepKey(),
-                        request.getNextStepKey());
+                    final ClusterState movedState = indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(),
+                        request.getCurrentStepKey(), request.getNextStepKey());
+                    final IndexMetaData indexMeta = movedState.metaData().index(request.getIndex());
+                    final IndexMetaData newIndexMeta = IndexMetaData.builder(indexMeta)
+                        .settings(Settings.builder()
+                            .put(indexMeta.getSettings())
+                            // Indicate that we have forced the index into this phase, therefore it
+                            // should not have to wait until the phase's "after" time
+                            .put(LifecycleSettings.LIFECYCLE_FORCED_PHASE, request.getNextStepKey().getPhase()))
+                        .build();
+                    final ClusterState finalState = ClusterState.builder(movedState)
+                        .metaData(MetaData.builder(movedState.metaData())
+                            .put(newIndexMeta, true))
+                        .build();
+                    return finalState;
                 }
 
                 @Override

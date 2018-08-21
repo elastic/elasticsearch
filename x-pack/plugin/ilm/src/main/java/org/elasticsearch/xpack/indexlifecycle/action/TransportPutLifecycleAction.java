@@ -60,6 +60,10 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+        // headers from the thread context stored by the AuthenticationService to be shared between the
+        // REST layer and the Transport layer here must be accessed within this thread and not in the
+        // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
+        // same context, and therefore does not have access to the appropriate security headers.
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

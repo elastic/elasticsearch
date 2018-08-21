@@ -77,6 +77,13 @@ public class PermissionsIT extends ESRestTestCase {
         createNewSingletonPolicy(deletePolicy,"delete", new DeleteAction());
     }
 
+    /**
+     * Tests that a policy that simply deletes an index after 0s succeeds when an index
+     * with user `test_admin` is created referencing a policy created by `test_ilm` when both
+     * users have read/write permissions on the the index. The goal is to verify that one
+     * does not need to be the same user who created both the policy and the index to have the
+     * index be properly managed by ILM.
+     */
     public void testCanManageIndexAndPolicyDifferentUsers() throws Exception {
         String index = "ilm-00001";
         createIndexAsAdmin(index, indexSettingsWithPolicy, "");

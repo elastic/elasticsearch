@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -143,7 +144,7 @@ public final class QueryParserHelper {
                 } catch (QueryShardException |UnsupportedOperationException e) {
                     // field type is never searchable with term queries (eg. geo point): ignore
                     continue;
-                } catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException |ElasticsearchParseException e) {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }

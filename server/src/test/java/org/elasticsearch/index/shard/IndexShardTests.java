@@ -2614,8 +2614,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         Files.walkFileTree(indexPath, corruptedVisitor);
 
-        assertThat("store is clean",
-            corruptedMarkerCount.get(), equalTo(0));
+        assertThat("store is clean", corruptedMarkerCount.get(), equalTo(0));
 
         IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
             null, null, indexShard.engineFactory,
@@ -2625,8 +2624,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // check that corrupt marker is there
         Files.walkFileTree(indexPath, corruptedVisitor);
-        assertThat("store has to be marked as corrupted",
-            corruptedMarkerCount.get(), equalTo(1));
+        assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
         try {
             closeShards(corruptedShard);
@@ -2650,25 +2648,25 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
             RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
         );
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
-            .settings(Settings.builder()
-                .put(indexShard.indexSettings.getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
-            .build();
+        final IndexMetaData indexMetaData = indexShard.indexSettings().getIndexMetaData();
 
-        final Path indexPath = corruptIndexFile(shardPath);
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+
+        // create corrupted marker
+        final String corruptionMessage = "fake ioexception";
+        try(final Store store = createStore(indexShard.indexSettings(), shardPath)){
+            store.markStoreCorrupted(new IOException(corruptionMessage));
+        }
 
         // try to start shard on corrupted files
         final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
             null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-        try {
-            closeShards(corruptedShard);
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
-        }
+        final IndexShardRecoveryException exception1 = expectThrows(IndexShardRecoveryException.class,
+            () -> newStartedShard(p -> corruptedShard, true));
+        assertThat(exception1.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        closeShards(corruptedShard);
 
         // check that corrupt marker is there
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
@@ -2682,26 +2680,22 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
         Files.walkFileTree(indexPath, corruptedVisitor);
-        assertThat("store has to be marked as corrupted",
-            corruptedMarkerCount.get(), equalTo(1));
+        assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
         // try to start another time shard on corrupted files
         final IndexShard corruptedShard2 = newShard(shardRouting, shardPath, indexMetaData,
             null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard2, true));
-        try {
-            closeShards(corruptedShard2);
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
-        }
+        final IndexShardRecoveryException exception2 = expectThrows(IndexShardRecoveryException.class,
+            () -> newStartedShard(p -> corruptedShard2, true));
+        assertThat(exception2.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        closeShards(corruptedShard2);
 
         // check that corrupt marker is there
         corruptedMarkerCount.set(0);
         Files.walkFileTree(indexPath, corruptedVisitor);
-        assertThat("store still has a single corrupt marker",
-            corruptedMarkerCount.get(), equalTo(1));
+        assertThat("store still has a single corrupt marker", corruptedMarkerCount.get(), equalTo(1));
     }
 
     private Path corruptIndexFile(ShardPath shardPath) throws IOException {

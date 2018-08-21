@@ -1936,7 +1936,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return;
                 }
                 logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                throw new IllegalStateException("index check failure");
+                throw new IOException("index check failure");
             }
         }
 

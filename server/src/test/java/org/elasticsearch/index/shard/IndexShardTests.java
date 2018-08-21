@@ -28,7 +28,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -55,7 +54,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -96,7 +94,6 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -2567,10 +2564,8 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testIndexCheckChecksum() throws Exception {
-        final boolean primary = true;
-
-        IndexShard indexShard = newStartedShard(primary);
+    public void testIndexCheckOnStartup() throws Exception {
+        final IndexShard indexShard = newStartedShard(true);
 
         final long numDocs = between(10, 100);
         for (long i = 0; i < numDocs; i++) {
@@ -2580,31 +2575,18 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         // start shard with checksum - it has to pass successfully
-
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            primary ? RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
         );
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
             .settings(Settings.builder()
                 .put(indexShard.indexSettings.getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
             .build();
 
         final ShardPath shardPath = indexShard.shardPath();
 
-        final IndexShard newShard = newShard(shardRouting, shardPath, indexMetaData,
-            null, null, indexShard.engineFactory,
-            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
-
-        closeShards(newStartedShard(p -> newShard, primary));
-
-        // corrupt files
-        final Path indexPath = shardPath.getDataPath().resolve("index");
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> Files.isRegularFile(p) && IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString()) == false)
-                .toArray(Path[]::new);
-        CorruptionUtils.corruptFile(random(), filesToCorrupt);
+        final Path indexPath = corruptIndexFile(shardPath);
 
         // check that corrupt marker is *NOT* there
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
@@ -2622,47 +2604,106 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("store is clean",
             corruptedMarkerCount.get(), equalTo(0));
 
-        // storeProvider that does not perform check index on close - it is corrupted
-        final CheckedFunction<IndexSettings, Store, IOException> storeProvider = indexSettings -> {
-            final ShardId shardId = shardPath.getShardId();
-            final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-                @Override
-                public Directory newDirectory() throws IOException {
-                    final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
-                    // index is corrupted - don't even try to check index on close - it fails
-                    baseDirectoryWrapper.setCheckIndexOnClose(false);
-                    return baseDirectoryWrapper;
-                }
-            };
-            return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
-        };
-
-        // try to start shard on corrupted files
-        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            storeProvider, null, indexShard.engineFactory,
+        IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
+            null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, primary));
-        closeShards(corruptedShard);
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
 
         // check that corrupt marker is there
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store has to be marked as corrupted",
             corruptedMarkerCount.get(), equalTo(1));
 
-        // try to start another time shard on corrupted files
-        final IndexShard corruptedShard2 = newShard(shardRouting, shardPath, indexMetaData,
-            storeProvider, null, indexShard.engineFactory,
+        try {
+            closeShards(corruptedShard);
+        } catch (RuntimeException e) {
+            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
+        }
+    }
+
+    public void testShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {
+        final IndexShard indexShard = newStartedShard(true);
+
+        final long numDocs = between(10, 100);
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "_doc", Long.toString(i), "{}");
+        }
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final ShardPath shardPath = indexShard.shardPath();
+
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
+        );
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings.getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
+            .build();
+
+        final Path indexPath = corruptIndexFile(shardPath);
+
+        // try to start shard on corrupted files
+        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
+            null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard2, primary));
-        closeShards(corruptedShard2);
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+        try {
+            closeShards(corruptedShard);
+        } catch (RuntimeException e) {
+            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
+        }
+
+        // check that corrupt marker is there
+        final AtomicInteger corruptedMarkerCount = new AtomicInteger();
+        final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (Files.isRegularFile(file) && file.getFileName().toString().startsWith(Store.CORRUPTED)) {
+                    corruptedMarkerCount.incrementAndGet();
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        };
+        Files.walkFileTree(indexPath, corruptedVisitor);
+        assertThat("store has to be marked as corrupted",
+            corruptedMarkerCount.get(), equalTo(1));
+
+        // try to start another time shard on corrupted files
+        final IndexShard corruptedShard2 = newShard(shardRouting, shardPath, indexMetaData,
+            null, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard2, true));
+        try {
+            closeShards(corruptedShard2);
+        } catch (RuntimeException e) {
+            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
+        }
 
         // check that corrupt marker is there
         corruptedMarkerCount.set(0);
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store still has a single corrupt marker",
             corruptedMarkerCount.get(), equalTo(1));
+    }
+
+    private Path corruptIndexFile(ShardPath shardPath) throws IOException {
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        final Path[] filesToCorrupt =
+            Files.walk(indexPath)
+                .filter(p -> {
+                    final String name = p.getFileName().toString();
+                    return Files.isRegularFile(p)
+                        && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+                        && name.startsWith("segments_") == false && name.endsWith(".si") == false;
+                })
+                .toArray(Path[]::new);
+        CorruptionUtils.corruptFile(random(), filesToCorrupt);
+        return indexPath;
     }
 
     /**

@@ -75,24 +75,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         // Test getting specific jobs
         GetJobResponse response = execute(request, machineLearningClient::getJob, machineLearningClient::getJobAsync);
 
-        assertEquals(2, response.getCount());
-        assertThat(response.getJobs(), hasSize(2));
-        assertThat(response.getJobs().stream().map(Job::getId).collect(Collectors.toList()), containsInAnyOrder(jobId1, jobId2));
+        assertEquals(2, response.count());
+        assertThat(response.jobs(), hasSize(2));
+        assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), containsInAnyOrder(jobId1, jobId2));
 
         // Test getting all jobs explicitly
         request = GetJobRequest.getAllJobsRequest();
         response = execute(request, machineLearningClient::getJob, machineLearningClient::getJobAsync);
 
-        assertTrue(response.getCount() >= 2L);
-        assertTrue(response.getJobs().size() >= 2L);
-        assertThat(response.getJobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.jobs().size() >= 2L);
+        assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test getting all jobs implicitly
         response = execute(new GetJobRequest(), machineLearningClient::getJob, machineLearningClient::getJobAsync);
 
-        assertTrue(response.getCount() >= 2L);
-        assertTrue(response.getJobs().size() >= 2L);
-        assertThat(response.getJobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.jobs().size() >= 2L);
+        assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
     }
 
     public void testDeleteJob() throws Exception {

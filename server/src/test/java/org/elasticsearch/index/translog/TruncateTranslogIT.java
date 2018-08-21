@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,6 +45,9 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -85,10 +87,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class TruncateTranslogIT extends ESIntegTestCase {
@@ -161,18 +160,17 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         // Restart the single node
         logger.info("--> restarting node");
         internalCluster().restartRandomDataNode();
-        ensureStableCluster(1);
 
         // all shards should be failed due to a corrupted translog
-        final SearchPhaseExecutionException searchPhaseExecutionException = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(indexName).setQuery(matchAllQuery()).get());
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
 
-        // Good, all shards should be failed because there is only a
-        // single shard and its translog is corrupt
-        assertThat(searchPhaseExecutionException.getMessage(), equalTo("all shards failed"));
-
-        logger.info("--> closing '{}' index", indexName);
-        client().admin().indices().prepareClose(indexName).get();
+            final UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+            assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+        });
 
         // have to shut down primary node - otherwise node lock is present
         final InternalTestCluster.RestartCallback callback =
@@ -209,10 +207,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         };
         internalCluster().restartNode(primaryNode, callback);
 
-        ensureStableCluster(1);
-        logger.info("--> opening '{}' index", indexName);
-        client().admin().indices().prepareOpen(indexName).get();
-
         String primaryNodeId = null;
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
@@ -228,26 +222,32 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         assertThat(t.getOutput(), containsString("allocate_stale_primary"));
         assertThat(t.getOutput(), containsString("\"node\" : \"" + primaryNodeId + "\""));
 
-
-        final ClusterAllocationExplanation explanation =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(0).setPrimary(true)
-                .get().getExplanation();
         // there is only _stale_ primary (due to new allocation id)
-        assertThat(explanation.getCurrentNode(), is(nullValue()));
-        assertThat(explanation.getShardState(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
+
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        });
 
         client().admin().cluster().prepareReroute()
             .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
             .get();
 
-        final ClusterAllocationExplanation explanation2 =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(0).setPrimary(true)
-                .get().getExplanation();
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
 
-        assertThat(explanation2.getCurrentNode(), notNullValue());
-        assertThat(explanation2.getShardState(), isOneOf(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED));
+            assertThat(explanation.getCurrentNode(), notNullValue());
+            assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
+        });
 
         ensureYellow(indexName);
 

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplan
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,6 +35,8 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -71,10 +72,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
@@ -149,12 +147,18 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
             }
         });
 
-        ensureStableCluster(1);
-
         // shard should be failed due to a corrupted index
-        final SearchPhaseExecutionException searchPhaseExecutionException = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(indexName).setQuery(matchAllQuery()).get());
-        assertThat(searchPhaseExecutionException.getMessage(), equalTo("all shards failed"));
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
+
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        });
 
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
@@ -170,7 +174,8 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
             }
         });
 
-        ensureStableCluster(1);
+        waitNoPendingTasksOnAll();
+
         String nodeId = null;
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
@@ -186,25 +191,32 @@ public class RemoveCorruptedSegmentsCommandIT extends ESIntegTestCase {
         assertThat(t.getOutput(), containsString("allocate_stale_primary"));
         assertThat(t.getOutput(), containsString("\"node\" : \"" + nodeId + "\""));
 
-        final ClusterAllocationExplanation explanation =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(0).setPrimary(true)
-                .get().getExplanation();
         // there is only _stale_ primary (due to new allocation id)
-        assertThat(explanation.getCurrentNode(), is(nullValue()));
-        assertThat(explanation.getShardState(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
+
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+        });
 
         client().admin().cluster().prepareReroute()
             .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true))
             .get();
 
-        final ClusterAllocationExplanation explanation2 =
-            client().admin().cluster().prepareAllocationExplain()
-                .setIndex(indexName).setShard(0).setPrimary(true)
-                .get().getExplanation();
+        assertBusy(() -> {
+            final ClusterAllocationExplanation explanation =
+                client().admin().cluster().prepareAllocationExplain()
+                    .setIndex(indexName).setShard(0).setPrimary(true)
+                    .get().getExplanation();
 
-        assertThat(explanation2.getCurrentNode(), notNullValue());
-        assertThat(explanation2.getShardState(), isOneOf(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED));
+            assertThat(explanation.getCurrentNode(), notNullValue());
+            assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
+        });
 
         final Pattern pattern = Pattern.compile("Corrupted segments found -\\s+(?<docs>\\d+) documents will be lost.");
         final Matcher matcher = pattern.matcher(t.getOutput());

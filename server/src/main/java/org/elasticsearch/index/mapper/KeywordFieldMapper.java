@@ -373,7 +373,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
 
-            if (!fieldType().hasDocValues() && fieldType().omitNorms()) {
+            if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {
                 createFieldNamesField(context, fields);
             }
         }

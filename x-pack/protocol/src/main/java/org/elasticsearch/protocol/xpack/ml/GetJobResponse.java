@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.protocol.xpack.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
@@ -35,24 +32,25 @@ import java.util.stream.Collectors;
 /**
  * Contains a {@link List} of the found {@link Job} objects and the total count found
  */
-public class GetJobResponse extends ActionResponse implements ToXContentObject {
+public class GetJobResponse extends AbstractResultResponse<Job> {
 
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
     public static final ObjectParser<GetJobResponse, Void> PARSER = new ObjectParser<>("jobs_response", true, GetJobResponse::new);
 
     static {
         PARSER.declareObjectArray(GetJobResponse::setJobs, Job.PARSER, RESULTS_FIELD);
-        PARSER.declareLong(GetJobResponse::setCount, QueryPage.COUNT);
+        PARSER.declareLong(GetJobResponse::setCount, AbstractResultResponse.COUNT);
     }
-
-    private QueryPage<Job> jobs;
 
     GetJobResponse() {
-        jobs = new QueryPage<>(RESULTS_FIELD);
+        super(RESULTS_FIELD);
     }
 
-    public List<Job> getJobs() {
-        return jobs.results();
+    /**
+     * The collection of {@link Job} objects found in the query
+     */
+    public List<Job> jobs() {
+        return results;
     }
 
     public static GetJobResponse fromXContent(XContentParser parser) throws IOException {
@@ -60,37 +58,26 @@ public class GetJobResponse extends ActionResponse implements ToXContentObject {
     }
 
     void setJobs(List<Job.Builder> jobs) {
-        this.jobs.setResults(jobs.stream().map(Job.Builder::build).collect(Collectors.toList()));
-    }
-
-    void setCount(long count) {
-        this.jobs.setCount(count);
-    }
-
-    public long getCount() {
-        return this.jobs.count();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return jobs.toXContent(builder, params);
+        this.results = jobs.stream().map(Job.Builder::build).collect(Collectors.toList());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs);
+        return Objects.hash(results, count);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
+
         GetJobResponse other = (GetJobResponse) obj;
-        return Objects.equals(jobs, other.jobs);
+        return Objects.equals(results, other.results) && count == other.count;
     }
 
     @Override

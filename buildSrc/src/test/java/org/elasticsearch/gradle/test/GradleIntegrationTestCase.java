@@ -70,7 +70,8 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     protected void assertTaskSuccessfull(BuildResult result, String taskName) {
         BuildTask task = result.task(taskName);
         if (task == null) {
-            fail("Expected task `" + taskName + "` to be successful, but it did not run");
+            fail("Expected task `" + taskName + "` to be successful, but it did not run" +
+                "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
             "Expected task to be successful but it was: " + task.getOutcome() +

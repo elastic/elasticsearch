@@ -3,7 +3,6 @@ package org.elasticsearch.gradle.precommit;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.gradle.testkit.runner.TaskOutcome;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -25,15 +24,28 @@ import org.gradle.testkit.runner.TaskOutcome;
  */
 public class JarHellTaskIT extends GradleIntegrationTestCase {
 
-    public void testDoesNotFailOnModuleInfo()
-    {
+    public void testDoesNotFailOnModuleInfo() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("jarHell"))
-            .withArguments("clean", "jarHell", "-s", "-Dlocal.repo.path="+getLocalTestRepoPath())
+            .withArguments("clean", "jarHellModuleInfo", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .withPluginClasspath()
             .build();
 
-        assertEquals(TaskOutcome.SUCCESS, result.task(":jarHell").getOutcome());
+        assertTaskSuccessfull(result, ":jarHellModuleInfo");
+    }
+
+    public void testJarHellDetected() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("jarHell"))
+            .withArguments("clean", "jarHell", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .withPluginClasspath()
+            .buildAndFail();
+
+        assertOutputContains(
+            result.getOutput(),
+            "Exception in thread \"main\" java.lang.IllegalStateException: jar hell!",
+            "class: org.apache.logging.log4j.Logger"
+        );
     }
 
 }

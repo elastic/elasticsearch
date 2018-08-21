@@ -143,7 +143,7 @@ public class LeaderCheckerTests extends ESTestCase {
             () -> assertTrue(leaderFailed.compareAndSet(false, true)));
 
         logger.info("--> creating first checker");
-        try (final Releasable ignored = leaderChecker.startLeaderChecker(leader1)) {
+        try (Releasable ignored = leaderChecker.startLeaderChecker(leader1)) {
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
@@ -157,7 +157,7 @@ public class LeaderCheckerTests extends ESTestCase {
         assertFalse(leaderFailed.get());
 
         logger.info("--> creating second checker");
-        try (final Releasable ignored = leaderChecker.startLeaderChecker(leader2)) {
+        try (Releasable ignored = leaderChecker.startLeaderChecker(leader2)) {
             checkCount.set(0);
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);

@@ -174,6 +174,8 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             String step = settingsResponse.getSetting("test", "index.lifecycle.step");
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
+
+        // add checks to see that the scheduler was started up
     }
 
     public void testMasterFailover() throws Exception {
@@ -236,6 +238,10 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             String step = settingsResponse.getSetting("test", "index.lifecycle.step");
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testPollIntervalUpdate() {
+        // TODO
     }
 
     private String getLocalNodeId(String name) {

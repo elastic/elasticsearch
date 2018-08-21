@@ -326,8 +326,9 @@ In this case, you must install the
 *Symptoms:*
 
 * User authentication fails due to either GSS negotiation failure 
-or a service login failure ( either on the server or in the {es} http client). 
-Some of the common exceptions are listed below with some tips to resolve them.
+or a service login failure (either on the server or in the {es} http client). 
+Some of the common exceptions are listed below with some tips to help resolve 
+them.
 
 *Resolution:*
 
@@ -367,10 +368,10 @@ the time on the machines within the domain is in sync.
 --
 
 As Kerberos logs are often cryptic in nature and many things can go wrong 
-as it depends on external services like DNS, time synchronization. You might 
+as it depends on external services like DNS and NTP. You might 
 have to enable additional debug logs to determine the root cause of the issue.
 
-{es} uses JAAS (Java Authentication and Authorization Service) Kerberos login 
+{es} uses a JAAS (Java Authentication and Authorization Service) Kerberos login 
 module to provide Kerberos support. To enable debug logs on {es} for the login 
 module use following Kerberos realm setting:
 [source,yaml]
@@ -381,7 +382,7 @@ xpack.security.authc.realms.<realm-name>.krb.debug: true
 For detailed information, see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].
 
 Sometimes you may need to go deeper to understand the problem during SPNEGO 
-gss context negotiation or look at the Kerberos message exchange. To enable 
+GSS context negotiation or look at the Kerberos message exchange. To enable 
 Kerberos/SPNEGO debug logging on JVM, add following JVM system properties:
 
 `-Dsun.security.krb5.debug=true`

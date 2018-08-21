@@ -104,18 +104,61 @@ Suggesters::
 * Deprecates indexing and querying a context completion field without context {pull}30712[#30712] (issue: {issue}29222[#29222])
 
 [float]
+[[feature-6.4.0]]
 === New Features
 
-The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
-got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
-option. ({pull}30140[#29658])
+Aggregations::
+* Add WeightedAvg metric aggregation {pull}31037[#31037] (issue: {issue}15731[#15731])
+* Add a MovingFunction pipeline aggregation, deprecate MovingAvg agg {pull}29594[#29594]
+* Add missing_bucket option in the composite agg {pull}29465[#29465] (issue: {issue}29380[#29380])
 
-A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
-analysis module.  ({pull}30397[#30397])
+Analysis::
+* Expose lucene's RemoveDuplicatesTokenFilter {pull}31275[#31275]
+* Multiplexing token filter {pull}31208[#31208]
+* Adds a new analysis plugin called `analysis_nori` that exposes the Lucene Korean
+analysis module. ({pull}30397[#30397])
+* Adding a char_group tokenizer {pull}24186[#24186]
 
-Rollup::
-* A new API allows getting the rollup capabilities of specific rollup indices,
-rather than by the target pattern ({pull}30401[#30401])
+Authentication::
+* Add Kerberos authentication support {pull}32263[#32263] (issue: {issue}30243[#30243])
+
+Authorization::
+* Introduce Application Privileges with support for Kibana RBAC {pull}32309[#32309]
+
+Java High Level REST Client::
+* Add analyze API to high-level rest client {pull}31577[#31577] (issue: {issue}27205[#27205])
+* Add support for search templates to the high-level REST client. {pull}30473[#30473]
+* Rest High Level client: Add List Tasks {pull}29546[#29546] (issue: {issue}27205[#27205])
+
+Machine learning::
+* Implement new rules design {pull}31110[#31110], {pull}31294[#31294] (issue: {issue}31110[#31110])
+* Reverse engineer Grok patterns from categorization results {pull}30125[#30125]
+
+Mapping::
+* Add support for field aliases. {pull}32172[#32172] (issues: {issue}23714[#23714], {issue}31372[#31372])
+* Add an option to split keyword field on whitespace at query time {pull}30691[#30691] (issue: {issue}30393[#30393])
+* The new <<mapping-ignored-field,`_ignored`>> field enables you to know which 
+fields got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
+option. ({pull}29658[#29658]) (issue: {issue}29494[#29494])
+
+Network::
+* Introduce client feature tracking {pull}31020[#31020] (issue: {issue}30731[#30731])
+
+Plugins::
+* Reload secure settings for plugins - backport (#31383) {pull}31481[#31481] (issue: {issue}29135[#29135])
+
+SQL::
+* SQL: Support for escape sequences {pull}31884[#31884] (issue: {issue}31883[#31883])
+
+Scripting::
+* Add more contexts to painless execute api {pull}30511[#30511]
+
+Search::
+* Index phrases {pull}30450[#30450]
+* Add a `format` option to `docvalue_fields`. {pull}29639[#29639] (issue: {issue}27740[#27740])
+
+Watcher::
+* Make watcher settings reloadable {pull}31746[#31746]
 
 [float]
 === Enhancements
@@ -178,75 +221,6 @@ Search::
 * Upgrade to Lucene 7.4.0. {pull}31529[#31529]
 
 ////
-:issue: https://github.com/elastic/elasticsearch/issues/
-:pull:  https://github.com/elastic/elasticsearch/pull/
-
-[[release-notes-6.4.0]]
-== 6.4.0 Release Notes
-
-coming[6.4.0]
-
-Also see <<breaking-changes-6.4>>.
-
-
-[[feature-6.4.0]]
-[float]
-=== New features
-
-Aggregations::
-* Add WeightedAvg metric aggregation {pull}31037[#31037] (issue: {issue}15731[#15731])
-* Add a MovingFunction pipeline aggregation, deprecate MovingAvg agg {pull}29594[#29594] (issue: {issue}25137[#25137])
-* Add missing_bucket option in the composite agg {pull}29465[#29465] (issue: {issue}29380[#29380])
-
-Analysis::
-* Expose lucene's RemoveDuplicatesTokenFilter {pull}31275[#31275]
-* Multiplexing token filter {pull}31208[#31208]
-* Expose the Lucene Korean analyzer module in a plugin {pull}30397[#30397]
-* [Feature] Adding a char_group tokenizer {pull}24186[#24186]
-
-Authentication::
-* [Kerberos] Add Kerberos authentication support {pull}32263[#32263] (issue: {issue}30243[#30243])
-* Kerberos Support {pull}30922[#30922]
-
-Authorization::
-* Introduce Application Privileges with support for Kibana RBAC {pull}32309[#32309]
-* [LookupRealm] Support for lookup realm {pull}31434[#31434] (issue: {issue}31267[#31267])
-
-Java High Level REST Client::
-* Add analyze API to high-level rest client {pull}31577[#31577] (issue: {issue}27205[#27205])
-* Add support for search templates to the high-level REST client. {pull}30473[#30473]
-* Rest High Level client: Add List Tasks {pull}29546[#29546] (issue: {issue}27205[#27205])
-
-Mapping::
-* Add support for field aliases. {pull}32172[#32172] (issues: {issue}23714[#23714], {issue}31372[#31372])
-* Add an option to split keyword field on whitespace at query time {pull}30691[#30691] (issue: {issue}30393[#30393])
-* Add a new `_ignored` meta field. {pull}29658[#29658] (issue: {issue}29494[#29494])
-
-NOT CLASSIFIED::
-* [ML] Implement new rules design (#31110) {pull}31294[#31294] (issue: {issue}31110[#31110])
-* [ML] Implement new rules design {pull}31110[#31110]
-* [ML] Reverse engineer Grok patterns from categorization results {pull}30125[#30125]
-
-Network::
-* Introduce client feature tracking {pull}31020[#31020] (issue: {issue}30731[#30731])
-
-Plugins::
-* Reload secure settings for plugins - backport (#31383) {pull}31481[#31481] (issue: {issue}29135[#29135])
-
-SQL::
-* SQL: Support for escape sequences {pull}31884[#31884] (issue: {issue}31883[#31883])
-
-Scripting::
-* Add more contexts to painless execute api {pull}30511[#30511]
-* Handle missing and multiple values in script {pull}30257[#30257] (issue: {issue}29286[#29286])
-
-Search::
-* Add a maximum search request size. [OPEN] {pull}26423[#26423]
-* Index phrases {pull}30450[#30450]
-* Add a `format` option to `docvalue_fields`. {pull}29639[#29639] (issue: {issue}27740[#27740])
-
-Watcher::
-* Make watcher settings reloadable {pull}31746[#31746]
 
 
 
@@ -442,7 +416,9 @@ Rollup::
 * Allow terms query in _rollup_search {pull}30973[#30973]
 * Allow rollup job creation only if cluster is x-pack ready {pull}30963[#30963] (issue: {issue}30743[#30743])
 * [Rollup] Disallow index patterns that match rollup indices {pull}30491[#30491]
-* [Rollup] Add new capabilities endpoint based on concrete rollup indices {pull}30401[#30401]
+Rollup::
+* A new API allows getting the rollup capabilities of specific rollup indices,
+rather than by the target pattern ({pull}30401[#30401])
 * [Rollup] Specialize validation exception for easier management {pull}30339[#30339]
 * [Rollup] Validate timezone in range queries {pull}30338[#30338]
 

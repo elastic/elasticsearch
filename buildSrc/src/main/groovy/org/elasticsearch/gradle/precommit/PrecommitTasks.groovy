@@ -39,7 +39,7 @@ class PrecommitTasks {
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
-            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+            configureThirdPartyAudit(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -73,6 +73,14 @@ class PrecommitTasks {
             dependsOn: precommitTasks
         ]
         return project.tasks.create(precommitOptions)
+    }
+
+    private static Task configureThirdPartyAudit(Project project) {
+        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        thirdPartyAuditTask.dependsOn(buildResources)
+        thirdPartyAuditTask.signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+        return thirdPartyAuditTask
     }
 
     private static Task configureForbiddenApisCli(Project project) {

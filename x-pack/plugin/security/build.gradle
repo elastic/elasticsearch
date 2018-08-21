@@ -241,7 +241,7 @@ thirdPartyAudit.excludes = [
         'javax.persistence.EntityManagerFactory',
         'javax.persistence.EntityTransaction',
         'javax.persistence.LockModeType',
-        'javax/persistence/Query',
+        'javax.persistence.Query',
         // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
         'net.spy.memcached.CASResponse',
         'net.spy.memcached.CASValue',

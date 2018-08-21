@@ -73,7 +73,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        request.setJsonEntity(closeJobRequest.getRequestBody().toString());
+        request.setJsonEntity(closeJobRequest.toString());
         return request;
     }
 

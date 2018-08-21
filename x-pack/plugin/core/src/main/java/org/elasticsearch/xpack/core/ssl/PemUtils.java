@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 
 import java.io.BufferedReader;
 import java.io.IOException;

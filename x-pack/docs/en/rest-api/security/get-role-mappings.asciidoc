@@ -1,0 +1,74 @@
+[role="xpack"]
+[[security-api-get-role-mapping]]
+=== Get role mappings API
+
+Retrieves role mappings.
+
+==== Request
+
+`GET /_xpack/security/role_mapping` +
+
+`GET /_xpack/security/role_mapping/<name>` 
+
+==== Description
+
+Role mappings define which roles are assigned to each user. For more information, 
+see {stack-ov}/mapping-roles.html[Mapping users and groups to roles]. 
+
+==== Path Parameters
+
+`name`::
+ (string) The distinct name that identifies the role mapping. The name is
+  used solely as an identifier to facilitate interaction via the API; it does
+  not affect the behavior of the mapping in any way. You can specify multiple 
+  mapping names as a comma-separated list. If you do not specify this
+  parameter, the API returns information about all role mappings. 
+
+//==== Request Body
+
+==== Results
+
+A successful call retrieves an object, where the keys are the
+names of the request mappings, and the values are the JSON representation of 
+those mappings. For more information, see 
+<<role-mapping-resources>>.
+
+If there is no mapping with the requested name, the
+response will have status code `404`.
+
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+The following example retrieves information about the `mapping1` role mapping:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/role_mapping/mapping1
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:role_mapping]
+
+
+[source,js]
+--------------------------------------------------
+{
+  "mapping1": {
+    "enabled": true,
+    "roles": [
+      "user"
+    ],
+    "rules": {
+      "field": {
+        "username": "*"
+      }
+    },
+    "metadata": {}
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

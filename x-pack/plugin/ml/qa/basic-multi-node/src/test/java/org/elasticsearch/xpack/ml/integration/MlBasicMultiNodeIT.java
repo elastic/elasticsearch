@@ -216,7 +216,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         assertEquals(200, response.getStatusLine().getStatusCode());
-        
+
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open",
                 Collections.singletonMap("timeout", "20s"));
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -242,11 +242,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(0, responseBody.get("missing_field_count"));
         assertEquals(0, responseBody.get("out_of_order_timestamp_count"));
         assertEquals(1000, responseBody.get("bucket_count"));
-        
+
         // unintuitive: should return the earliest record timestamp of this feed???
         assertEquals(null, responseBody.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, responseBody.get("latest_record_timestamp"));
-        
+
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
                 Collections.singletonMap("timeout", "20s"));
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -255,7 +255,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         // counts should be summed up
         response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         assertEquals(200, response.getStatusLine().getStatusCode());
-        
+
         @SuppressWarnings("unchecked")
         Map<String, Object> dataCountsDoc = (Map<String, Object>)
                 ((Map)((List) responseEntityToMap(response).get("jobs")).get(0)).get("data_counts");

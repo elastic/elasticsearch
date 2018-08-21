@@ -52,4 +52,3 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
         return new String[]{"ml_user", "x-pack-test-password"};
     }
 }
-

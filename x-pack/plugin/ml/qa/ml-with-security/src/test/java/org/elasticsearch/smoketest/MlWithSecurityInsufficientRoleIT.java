@@ -45,4 +45,3 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
         return new String[]{"no_ml", "x-pack-test-password"};
     }
 }
-

@@ -104,20 +104,14 @@ public class IndexLifecycleService extends AbstractComponent
         maybeScheduleJob();
     }
 
+    // pkg-private for testing
     SchedulerEngine getScheduler() {
         return scheduler.get();
     }
 
+    // pkg-private for testing
     SchedulerEngine.Job getScheduledJob() {
         return scheduledJob;
-    }
-
-    public LongSupplier getNowSupplier() {
-        return nowSupplier;
-    }
-
-    public PolicyStepsRegistry getPolicyRegistry() {
-        return policyRegistry;
     }
 
     private void maybeScheduleJob() {

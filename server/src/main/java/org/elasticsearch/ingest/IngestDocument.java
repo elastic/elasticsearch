@@ -19,6 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -54,6 +57,9 @@ public final class IngestDocument {
 
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
+
+    // Contains all pipelines that have been executed for this document
+    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public IngestDocument(String index, String type, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
@@ -630,6 +636,21 @@ public final class IngestDocument {
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
+    }
+
+    /**
+     * Executes the given pipeline with for this document unless the pipeline has already been executed
+     * for this document.
+     * @param pipeline Pipeline to execute
+     * @return true if pipeline was executed, false if it could not be executed because it was already executed for this document
+     * @throws Exception On exception in pipeline execution
+     */
+    public boolean executePipeline(Pipeline pipeline) throws Exception {
+        if (this.executedPipelines.add(pipeline) == false) {
+            return false;
+        }
+        pipeline.execute(this);
+        return true;
     }
 
     @Override

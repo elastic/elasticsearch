@@ -46,7 +46,7 @@ setup:
 
   - do:
       ilm.get_status: {}
-  - match: { operation_mode: "STOPPING" }
+  - match: { operation_mode: /STOPP(ED|ING)/ }
 
   - do:
       acknowledge: true

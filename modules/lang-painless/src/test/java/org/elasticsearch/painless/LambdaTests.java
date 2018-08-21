@@ -184,7 +184,7 @@ public class LambdaTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def y = Optional.empty(); return y.orElseGet(x -> x);");
         });
-        assertTrue(expected.getMessage(), expected.getMessage().contains("Incorrect number of parameters"));
+        assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
 
     public void testWrongArityNotEnough() {
@@ -200,7 +200,7 @@ public class LambdaTests extends ScriptTestCase {
             exec("def l = new ArrayList(); l.add(1); l.add(1); "
                + "return l.stream().mapToInt(() -> 5).sum();");
         });
-        assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
+        assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
 
     public void testLambdaInFunction() {

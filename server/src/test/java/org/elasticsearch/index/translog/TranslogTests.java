@@ -33,6 +33,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -108,6 +109,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -748,7 +750,9 @@ public class TranslogTests extends ESTestCase {
 
     }
 
-    public void testTranslogChecksums() throws Exception {
+    public void testTranslogCorruption() throws Exception {
+        TranslogConfig config = translog.getConfig();
+        String uuid = translog.getTranslogUUID();
         List<Translog.Location> locations = new ArrayList<>();
 
         int translogOperations = randomIntBetween(10, 100);
@@ -756,23 +760,23 @@ public class TranslogTests extends ESTestCase {
             String ascii = randomAlphaOfLengthBetween(1, 50);
             locations.add(translog.add(new Translog.Index("test", "" + op, op, primaryTerm.get(), ascii.getBytes("UTF-8"))));
         }
-        translog.sync();
+        translog.close();
 
-        corruptTranslogs(translogDir);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, 0);
+        int corruptionsCaught = 0;
 
-        AtomicInteger corruptionsCaught = new AtomicInteger(0);
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            for (Translog.Location location : locations) {
-                try {
-                    Translog.Operation next = snapshot.next();
-                    assertNotNull(next);
-                } catch (TranslogCorruptedException e) {
-                    corruptionsCaught.incrementAndGet();
+        try (Translog translog = openTranslog(config, uuid)) {
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                for (Location loc : locations) {
+                    snapshot.next();
                 }
             }
-            expectThrows(TranslogCorruptedException.class, snapshot::next);
-            assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
+        } catch (TranslogCorruptedException e) {
+            assertThat(e.getMessage(), containsString(translogDir.toString()));
+            corruptionsCaught++;
         }
+
+        assertThat("corruption is caught", corruptionsCaught, greaterThanOrEqualTo(1));
     }
 
     public void testTruncatedTranslogs() throws Exception {
@@ -815,25 +819,6 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-
-    /**
-     * Randomly overwrite some bytes in the translog files
-     */
-    private void corruptTranslogs(Path directory) throws Exception {
-        Path[] files = FileSystemUtils.files(directory, "translog-*");
-        for (Path file : files) {
-            logger.info("--> corrupting {}...", file);
-            FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE);
-            int corruptions = scaledRandomIntBetween(10, 50);
-            for (int i = 0; i < corruptions; i++) {
-                // note: with the current logic, this will sometimes be a no-op
-                long pos = randomIntBetween(0, (int) f.size());
-                ByteBuffer junk = ByteBuffer.wrap(new byte[]{randomByte()});
-                f.write(junk, pos);
-            }
-            f.close();
-        }
-    }
 
     private Term newUid(ParsedDocument doc) {
         return new Term("_id", Uid.encodeId(doc.id()));
@@ -1505,7 +1490,8 @@ public class TranslogTests extends ESTestCase {
             ops.add(test);
         }
         Translog.writeOperations(out, ops);
-        final List<Translog.Operation> readOperations = Translog.readOperations(out.bytes().streamInput());
+        final List<Translog.Operation> readOperations = Translog.readOperations(
+                out.bytes().streamInput(), "testSnapshotFromStreamInput");
         assertEquals(ops.size(), readOperations.size());
         assertEquals(ops, readOperations);
     }
@@ -1671,7 +1657,7 @@ public class TranslogTests extends ESTestCase {
         }
 
         assertThat(expectedException, is(not(nullValue())));
-
+        assertThat(failableTLog.getTragicException(), equalTo(expectedException));
         assertThat(fileChannels, is(not(empty())));
         assertThat("all file channels have to be closed",
             fileChannels.stream().filter(f -> f.isOpen()).findFirst().isPresent(), is(false));
@@ -2521,11 +2507,13 @@ public class TranslogTests extends ESTestCase {
                     syncedDocs.addAll(unsynced);
                     unsynced.clear();
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    // fair enough
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } catch (RuntimeException ex) {
                     assertEquals(ex.getMessage(), "simulated");
+                    assertEquals(failableTLog.getTragicException(), ex);
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
@@ -2669,7 +2657,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Index eIndex = new Engine.Index(newUid(doc), doc, randomSeqNum, randomPrimaryTerm,
             1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
-        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -2680,7 +2668,7 @@ public class TranslogTests extends ESTestCase {
 
         Engine.Delete eDelete = new Engine.Delete(doc.type(), doc.id(), newUid(doc), randomSeqNum, randomPrimaryTerm,
             2, VersionType.INTERNAL, Origin.PRIMARY, 0);
-        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true);
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
@@ -2945,6 +2933,47 @@ public class TranslogTests extends ESTestCase {
             snapshot.close();
             snapshot.close();
         }
+    }
+
+    // close method should never be called directly from Translog (the only exception is closeOnTragicEvent)
+    public void testTranslogCloseInvariant() throws IOException {
+        assumeTrue("test only works with assertions enabled", Assertions.ENABLED);
+        class MisbehavingTranslog extends Translog {
+            MisbehavingTranslog(TranslogConfig config, String translogUUID, TranslogDeletionPolicy deletionPolicy, LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) throws IOException {
+                super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier);
+            }
+
+            void callCloseDirectly() throws IOException {
+                close();
+            }
+
+            void callCloseUsingIOUtilsWithExceptionHandling() {
+                IOUtils.closeWhileHandlingException(this);
+            }
+
+            void callCloseUsingIOUtils() throws IOException {
+                IOUtils.close(this);
+            }
+
+            void callCloseOnTragicEvent() {
+                Exception e = new Exception("test tragic exception");
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
+            }
+        }
+
+
+        globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Path path = createTempDir();
+        final TranslogConfig translogConfig = getTranslogConfig(path);
+        final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        MisbehavingTranslog misbehavingTranslog = new MisbehavingTranslog(translogConfig, translogUUID, deletionPolicy, () -> globalCheckpoint.get(), primaryTerm::get);
+
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseDirectly());
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtils());
+        expectThrows(AssertionError.class, () -> misbehavingTranslog.callCloseUsingIOUtilsWithExceptionHandling());
+        misbehavingTranslog.callCloseOnTragicEvent();
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

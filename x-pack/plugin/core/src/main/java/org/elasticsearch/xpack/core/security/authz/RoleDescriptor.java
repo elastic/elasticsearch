@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -163,7 +162,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
         sb.append("], runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
         sb.append("], metadata=[");
-        MetadataUtils.writeValue(sb, metadata);
+        sb.append(metadata);
         sb.append("]]");
         return sb.toString();
     }
@@ -253,7 +252,7 @@ public class RoleDescriptor implements ToXContentObject {
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
             conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         } else {
@@ -277,7 +276,7 @@ public class RoleDescriptor implements ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeMap(descriptor.transientMetadata);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
         }

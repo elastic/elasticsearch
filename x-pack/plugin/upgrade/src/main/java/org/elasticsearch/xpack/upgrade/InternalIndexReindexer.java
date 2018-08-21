@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -109,7 +109,7 @@ public class InternalIndexReindexer<T> {
     }
 
     private void removeReadOnlyBlock(ParentTaskAssigningClient parentAwareClient, String index,
-                                     ActionListener<UpdateSettingsResponse> listener) {
+                                     ActionListener<AcknowledgedResponse> listener) {
         Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), false).build();
         parentAwareClient.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute(listener);
     }

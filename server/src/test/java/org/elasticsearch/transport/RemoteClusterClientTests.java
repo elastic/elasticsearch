@@ -81,13 +81,15 @@ public class RemoteClusterClientTests extends ESTestCase {
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 Semaphore semaphore = new Semaphore(1);
                 service.start();
-                service.addConnectionListener(new TransportConnectionListener() {
-                    @Override
-                    public void onNodeDisconnected(DiscoveryNode node) {
-                        if (remoteNode.equals(node)) {
-                            semaphore.release();
+                service.getRemoteClusterService().getConnections().forEach(con -> {
+                    con.getConnectionManager().addListener(new TransportConnectionListener() {
+                        @Override
+                        public void onNodeDisconnected(DiscoveryNode node) {
+                            if (remoteNode.equals(node)) {
+                                semaphore.release();
+                            }
                         }
-                    }
+                    });
                 });
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
                 // the right calls in place in the RemoteAwareClient
@@ -95,7 +97,9 @@ public class RemoteClusterClientTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     semaphore.acquire();
                     try {
-                        service.disconnectFromNode(remoteNode);
+                        service.getRemoteClusterService().getConnections().forEach(con -> {
+                            con.getConnectionManager().disconnectFromNode(remoteNode);
+                        });
                         semaphore.acquire();
                         RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                         Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");

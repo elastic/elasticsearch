@@ -1,5 +1,5 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
@@ -51,6 +51,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*LCASE\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LENGTH\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LTRIM\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LEFT\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LOCATE\\s*\\|\\s*SCALAR\\s*"));
         assertEquals("", readLine());
     }
 

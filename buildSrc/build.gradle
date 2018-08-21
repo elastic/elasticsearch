@@ -162,11 +162,24 @@ if (project != rootProject) {
   // it's fine as we run them as part of :buildSrc
   test.enabled = false
   task integTest(type: Test) {
+    // integration test requires the local testing repo for example plugin builds
+    dependsOn project.rootProject.allprojects.collect {
+      it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
+    }
     exclude "**/*Tests.class"
     include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))
+    // tell BuildExamplePluginsIT where to find the example plugins
+    systemProperty (
+            'test.build-tools.plugin.examples',
+            files(
+                    project(':example-plugins').subprojects.collect { it.projectDir }
+            ).asPath,
+    )
+    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
   }
   check.dependsOn(integTest)
 

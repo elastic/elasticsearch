@@ -122,8 +122,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode,
-                                     Mapper.TypeParser.ParserContext parserContext) {
+    public static void parseNorms(FieldMapper.Builder builder, String fieldName, Object propNode) {
         builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, fieldName + ".norms") == false);
     }
 
@@ -140,7 +139,7 @@ public class TypeParsers {
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if ("norms".equals(propName)) {
-                parseNorms(builder, name, propNode, parserContext);
+                parseNorms(builder, name, propNode);
                 iterator.remove();
             }
         }

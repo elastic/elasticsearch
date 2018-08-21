@@ -167,7 +167,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 } else if (propName.equals("norms")) {
-                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, "norms") == false);
+                    TypeParsers.parseNorms(builder, name, propNode);
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
                     builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));

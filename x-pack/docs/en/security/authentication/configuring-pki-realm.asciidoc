@@ -126,7 +126,7 @@ The `certificate_authorities` option can be used as an alternative to the
 +
 --
 You map roles for PKI users through the 
-<<security-api-role-mapping,role-mapping API>> or by using a file stored on
+<<security-role-mapping-apis,role mapping APIs>> or by using a file stored on
 each node. When a user authenticates against a PKI realm, the privileges for
 that user are the union of all privileges defined by the roles to which the
 user is mapped.

@@ -279,6 +279,25 @@ public class NodeJoinTests extends ESTestCase {
         FutureUtils.get(fut);
     }
 
+    public void testJoinFollowerWithHigherTerm() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(false, node0, initialTerm, initialVersion,
+            new VotingConfiguration(Collections.singleton(node0.getId()))));
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        coordinator.coordinationState.get().handleStartJoin(new StartJoinRequest(node1, newTerm));
+        synchronized (coordinator.mutex) {
+            coordinator.becomeFollower("test", node1);
+        }
+        assertFalse(isLocalNodeElectedMaster());
+        long newerTerm = newTerm + randomLongBetween(1, 10);
+        joinNodeAndRun(new JoinRequest(node1,
+            Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+    }
+
     public void testJoinFollowerFails() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
@@ -293,8 +312,7 @@ public class NodeJoinTests extends ESTestCase {
         }
         assertFalse(isLocalNodeElectedMaster());
         assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> joinNodeAndRun(new JoinRequest(node1,
-                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))))).getMessage(),
+            () -> joinNodeAndRun(new JoinRequest(node1, Optional.empty()))).getMessage(),
             containsString("join target is a follower"));
         assertFalse(isLocalNodeElectedMaster());
     }

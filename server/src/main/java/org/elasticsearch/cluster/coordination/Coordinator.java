@@ -107,17 +107,23 @@ public class Coordinator extends AbstractLifecycleComponent {
             }
         }
 
-        if (prevElectionWon == false && coordState.electionWon()) {
-            joinHelper.addPendingJoin(joinRequest, joinCallback);
-            becomeLeader("handleJoin");
-            joinHelper.clearAndSubmitPendingJoins();
-        } else if (mode == Mode.LEADER) {
-            joinHelper.joinLeader(joinRequest, joinCallback);
-        } else if (mode == Mode.FOLLOWER) {
-            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
-        } else {
-            assert mode == Mode.CANDIDATE;
-            joinHelper.addPendingJoin(joinRequest, joinCallback);
+        switch (mode) {
+            case LEADER:
+                joinHelper.joinLeader(joinRequest, joinCallback);
+                break;
+            case FOLLOWER:
+                assert joinRequest.getOptionalJoin().isPresent() == false : "follower should not have solicited join " + joinRequest;
+                joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
+                break;
+            case CANDIDATE:
+                joinHelper.addPendingJoin(joinRequest, joinCallback);
+                if (prevElectionWon == false && coordState.electionWon()) {
+                    becomeLeader("handleJoin");
+                    joinHelper.clearAndSubmitPendingJoins();
+                }
+                break;
+            default:
+                throw new AssertionError("unexpected mode when handling join: " + mode);
         }
     }
 

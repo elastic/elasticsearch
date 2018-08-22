@@ -19,7 +19,10 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.output.NullOutputStream;
+import org.elasticsearch.gradle.JdkJarHellCheck;
+import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input;
@@ -33,12 +36,10 @@ import org.gradle.process.ExecResult;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
@@ -149,7 +150,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         ExecResult execResult = getProject().javaexec(spec -> {
-
             spec.setExecutable(javaHome + "/bin/java");
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
@@ -226,30 +226,37 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     private Set<String> getSheistyClasses() throws IOException {
-        // system.parent = extensions loader.
-        // note: for jigsaw, this evilness will need modifications (e.g. use jrt filesystem!)
-        ClassLoader ext = ClassLoader.getSystemClassLoader().getParent();
-        assert ext != null;
-
-        Set<String> sheistySet = new TreeSet<>();
-        Path root = getJarExpandDir().toPath();
-        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                String entry = root.relativize(file).toString().replace('\\', '/');
-                if (entry.endsWith(".class")) {
-                    if (ext.getResource(entry) != null) {
-                        sheistySet.add(
-                            entry
-                                .replace("/", ".")
-                                .replace(".class","")
-                        );
-                    }
-                }
-                return FileVisitResult.CONTINUE;
+        ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
+        ExecResult execResult = getProject().javaexec(spec -> {
+            URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location.getProtocol().equals("file") == false) {
+                throw new GradleException("Unexpected location for NamingConventionCheck class: " + location);
             }
+            try {
+                spec.classpath(
+                    location.toURI().getPath(),
+                    getRuntimeConfiguration(),
+                    getCompileOnlyConfiguration()
+                );
+            } catch (URISyntaxException e) {
+                throw new AssertionError(e);
+            }
+            spec.setMain(JdkJarHellCheck.class.getName());
+            spec.args(getJarExpandDir());
+            spec.setIgnoreExitValue(true);
+            spec.setExecutable(javaHome + "/bin/java");
+            spec.setStandardOutput(standardOut);
         });
-        return sheistySet;
+        if (execResult.getExitValue() == 0) {
+            return Collections.emptySet();
+        }
+        final String jdkJarHellCheckList;
+        try (ByteArrayOutputStream outputStream = standardOut) {
+            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+        return Collections.unmodifiableSet(
+            new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")))
+        );
     }
 
 

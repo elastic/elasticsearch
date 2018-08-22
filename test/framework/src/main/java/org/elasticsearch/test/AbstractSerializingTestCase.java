@@ -36,7 +36,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     public final void testFromXContent() throws IOException {
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
                 getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true, getToXContentParams());
+                this::assertEqualInstances, assertToXContentEquivalence(), getToXContentParams());
     }
 
     /**
@@ -72,4 +72,9 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     protected ToXContent.Params getToXContentParams() {
         return ToXContent.EMPTY_PARAMS;
     }
+
+    protected boolean assertToXContentEquivalence() {
+        return true;
+    }
+
 }

@@ -479,9 +479,9 @@ affect the rollup index despite the new IDs being used. ({pull}32558[#32558])
 * Metric config properly validates itself now ({pull}31159[#31159])
 
 ////
+new
+////
 Aggregations::
-* buckets_path cannot route through nested aggregation? [OPEN] [ISSUE] {pull}29287[#29287]
-* painless _score script with value_type double returns null or 0.0 [OPEN] [ISSUE] {pull}26294[#26294]
 * Fix profiling of ordered terms aggs {pull}31814[#31814] (issue: {issue}22123[#22123])
 * Ensure that ip_range aggregations always return bucket keys. {pull}30701[#30701] (issue: {issue}21045[#21045])
 * Fix class cast exception in BucketMetricsPipeline path traversal {pull}30632[#30632] (issue: {issue}30608[#30608])
@@ -491,8 +491,8 @@ Allocation::
 * A replica can be promoted and started in one cluster state update {pull}32042[#32042]
 * Ignore numeric shard count if waiting for ALL {pull}31265[#31265] (issue: {issue}31151[#31151])
 * Move allocation awareness attributes to list setting {pull}30626[#30626] (issue: {issue}30617[#30617])
-* Auto-expand replicas only after failing nodes {pull}30553[#30553] (issues: {issue}30423[#30423], {issue}30456[#30456])
 * Auto-expand replicas when adding or removing nodes {pull}30423[#30423] (issue: {issue}1873[#1873])
+* Auto-expand replicas only after failing nodes {pull}30553[#30553]
 
 Analysis::
 * Call setReferences() on custom referring tokenfilters in _analyze {pull}32157[#32157] (issue: {issue}32154[#32154])
@@ -502,24 +502,24 @@ Audit::
 
 Authentication::
 * [Kerberos] Add debug log statement for exceptions {pull}32663[#32663]
-* [Kerberos] Remove Kerberos bootstrap checks {pull}32451[#32451]
+* Remove Kerberos bootstrap checks {pull}32451[#32451]
 * Fix building AD URL from domain name {pull}31849[#31849]
-* resolveHasher defaults to NOOP {pull}31723[#31723] (issues: {issue}31234[#31234], {issue}31697[#31697])
-* [Security] Check auth scheme case insensitively {pull}31490[#31490] (issue: {issue}31486[#31486])
-* Security: fix joining cluster with production license {pull}31341[#31341] (issue: {issue}31332[#31332])
-* Security: fix token bwc with pre 6.0.0-beta2 {pull}31254[#31254] (issues: {issue}30743[#30743], {issue}31195[#31195])
+* resolveHasher defaults to NOOP {pull}31723[#31723] (issues: {issue}31697[#31697])
+* Check auth scheme case insensitively {pull}31490[#31490] (issue: {issue}31486[#31486])
+* Fix joining cluster with production license {pull}31341[#31341] (issue: {issue}31332[#31332])
+* Fix token backwards compatibility with pre 6.0.0-beta2 {pull}31254[#31254] (issues: {issue}31195[#31195])
 * Compliant SAML Response destination check {pull}31175[#31175]
-* Security: cleanup code in file stores {pull}30348[#30348]
-* Security: fix TokenMetaData equals and hashcode {pull}30347[#30347]
+* Clean up code in file stores {pull}30348[#30348]
+* Fix TokenMetaData equals and hashcode {pull}30347[#30347]
 
 Authorization::
 * Fix role query that can match nested documents {pull}32705[#32705]
-* Make get all app privs requires "*" permission {pull}32460[#32460]
-* Security: revert to old way of merging automata {pull}32254[#32254]
-* [PkiRealm] Invalidate cache on role mappings change {pull}31510[#31510]
-* Security: fix dynamic mapping updates with aliases {pull}30787[#30787] (issue: {issue}30597[#30597])
-* [Security] Include an empty json object in an json array when FLS filters out all fields {pull}30709[#30709] (issue: {issue}30624[#30624])
-* Security: reduce garbage during index resolution {pull}30180[#30180]
+* Make get all application privileges require "*" permission {pull}32460[#32460]
+* Revert to old way of merging automata {pull}32254[#32254]
+* [PKI Realm] Invalidate cache on role mappings change {pull}31510[#31510]
+* Fix dynamic mapping updates with aliases {pull}30787[#30787] (issue: {issue}30597[#30597])
+* Include an empty JSON object in a JSON array when FLS filters out all fields {pull}30709[#30709] (issue: {issue}30624[#30624])
+* Reduce garbage during index resolution {pull}30180[#30180]
 
 CRUD::
 * Bulk operation fail to replicate operations when a mapping update times out {pull}30244[#30244]
@@ -527,17 +527,16 @@ CRUD::
 Core::
 * Fix content type detection with leading whitespace {pull}32632[#32632] (issue: {issue}32357[#32357])
 * Disable C2 from using AVX-512 on JDK 10 {pull}32138[#32138] (issue: {issue}31425[#31425])
-* Create default ES_TMPDIR on Windows {pull}30325[#30325] (issues: {issue}27609[#27609], {issue}28217[#28217])
-* Core: Pick inner most parse exception as root cause {pull}30270[#30270] (issues: {issue}29373[#29373], {issue}30261[#30261])
+* Create default ES_TMPDIR on Windows {pull}30325[#30325]
+* Pick inner most parse exception as root cause {pull}30270[#30270] (issues: issue}30261[#30261])
 
 Distributed::
 * Fix race between replica reset and primary promotion {pull}32442[#32442] (issues: {issue}32118[#32118], {issue}32304[#32304], {issue}32431[#32431])
-* CCE when re-throwing "shard not available" exception in TransportShardMultiGetAction {pull}32185[#32185] (issue: {issue}32173[#32173])
+* ClassCastException when re-throwing "shard not available" exception in TransportShardMultiGetAction {pull}32185[#32185] (issue: {issue}32173[#32173])
 
 Engine::
 * Fail shard if IndexShard#storeStats runs into an IOException {pull}32241[#32241] (issue: {issue}29008[#29008])
-* IndexShard should not return null stats {pull}31528[#31528] (issue: {issue}30176[#30176])
-* Double-check local checkpoint for staleness {pull}29276[#29276]
+* IndexShard should not return null stats {pull}31528[#31528]
 
 Geo::
 * Fix handling of points_only with term strategy in geo_shape {pull}31766[#31766] (issue: {issue}31707[#31707])
@@ -549,24 +548,23 @@ Geo::
 
 Index APIs::
 * Copy missing segment attributes in getSegmentInfo {pull}32396[#32396]
-* add support for is_write_index in put-alias body parsing {pull}31674[#31674] (issue: {issue}30703[#30703])
-* fix writeIndex evaluation for aliases {pull}31562[#31562]
+* Add support for is_write_index in put-alias body parsing {pull}31674[#31674]
+* Fix writeIndex evaluation for aliases {pull}31562[#31562]
 * Fix IndexTemplateMetaData parsing from xContent {pull}30917[#30917]
 * Do not ignore request analysis/similarity on resize {pull}30216[#30216]
-* Do not return all indices if a specific alias is requested via get aliases api. {pull}29538[#29538] (issues: {issue}27763[#27763], {issue}28294[#28294])
-* Postpone aliases resolution until execution of alias update command {pull}28231[#28231] (issue: {issue}27689[#27689])
+* Do not return all indices if a specific alias is requested via get aliases api. {pull}29538[#29538] (issues: {issue}27763[#27763])
 
 Ingest::
 * Fix broken backport of #31578 by adjusting constructor {pull}31587[#31587] (issue: {issue}31578[#31578])
 * Ingest Attachment: Upgrade Tika to 1.18 {pull}31252[#31252]
-* [INGEST] Interrupt the current thread if evaluation grok expressions take too long {pull}31024[#31024] (issue: {issue}28731[#28731])
+* Interrupt the current thread if evaluation grok expressions take too long {pull}31024[#31024] (issue: {issue}28731[#28731])
 
 Java High Level REST Client::
-* HLRC: Ban LoggingDeprecationHandler {pull}32756[#32756] (issue: {issue}32151[#32151])
-* HLRC: Move commercial clients from XPackClient {pull}32596[#32596]
+* Ban LoggingDeprecationHandler {pull}32756[#32756] (issue: {issue}32151[#32151])
+* Move commercial clients from XPackClient {pull}32596[#32596]
 * Fix CreateSnapshotRequestTests Failure {pull}31630[#31630] (issue: {issue}31625[#31625])
 * Change bulk's retry condition to be based on RestStatus {pull}29329[#29329] (issues: {issue}28885[#28885], {issue}29254[#29254])
-
+////
 Java Low Level REST Client::
 * Avoid setting connection request timeout {pull}30384[#30384] (issue: {issue}24069[#24069])
 
@@ -751,7 +749,6 @@ Network::
 Search::
 * Upgrade to Lucene 7.4.0. {pull}31529[#31529]
 
-
 ////
 [[other-6.4.0]]
 [float]
@@ -760,8 +757,5 @@ Search::
 
 Ranking::
 * Register ERR metric with NamedXContentRegistry {pull}32320[#32320]
-
-Search::
-* Revise Default max concurrent search requests [ISSUE] {pull}31192[#31192]
 
 ////

@@ -211,9 +211,6 @@ public final class PainlessLookupBuilder {
     public PainlessLookupBuilder() {
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
-
-        canonicalClassNamesToClasses.put(DEF_CLASS_NAME, def.class);
-        classesToPainlessClassBuilders.put(def.class, new PainlessClassBuilder());
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -225,7 +222,7 @@ public final class PainlessLookupBuilder {
             type = type.getComponentType();
         }
 
-        return classesToPainlessClassBuilders.containsKey(type);
+        return type == def.class || classesToPainlessClassBuilders.containsKey(type);
     }
 
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importClassName) {
@@ -293,7 +290,7 @@ public final class PainlessLookupBuilder {
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
             if (importClassName == true) {
-                throw new IllegalArgumentException("must use only_fqn parameter on class [" + canonicalClassName + "] with no package");
+                throw new IllegalArgumentException("must use no_import parameter on class [" + canonicalClassName + "] with no package");
             }
         } else {
             Class<?> importedPainlessClass = canonicalClassNamesToClasses.get(importedCanonicalClassName);
@@ -301,7 +298,8 @@ public final class PainlessLookupBuilder {
             if (importedPainlessClass == null) {
                 if (importClassName) {
                     if (existingPainlessClassBuilder != null) {
-                        throw new IllegalArgumentException("inconsistent only_fqn parameters found for class [" + canonicalClassName + "]");
+                        throw new IllegalArgumentException(
+                                "inconsistent no_import parameters found for class [" + canonicalClassName + "]");
                     }
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName, clazz);
@@ -310,7 +308,7 @@ public final class PainlessLookupBuilder {
                 throw new IllegalArgumentException("imported class [" + importedCanonicalClassName + "] cannot represent multiple " +
                         "classes [" + canonicalClassName + "] and [" + typeToCanonicalTypeName(importedPainlessClass) + "]");
             } else if (importClassName == false) {
-                throw new IllegalArgumentException("inconsistent only_fqn parameters found for class [" + canonicalClassName + "]");
+                throw new IllegalArgumentException("inconsistent no_import parameters found for class [" + canonicalClassName + "]");
             }
         }
     }

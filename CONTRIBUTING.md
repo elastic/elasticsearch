@@ -325,21 +325,19 @@ common configurations in our build and how we use them:
 
 <dl>
 <dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime. If the [`shadow`][shadow-plugin] plugin is applied to the project then
-this code is bundled into the jar produced by the project.</dd>
+runtime.</dd>
 <dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
 on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
-<dt>`compileOnly`</dt><dd>Code that is on the classpath at comile time but that
+<dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`shadow`</dt><dd>Only available in projects with the shadow plugin. Code
-that is on the classpath at both compile and runtime but it *not* bundled into
-the jar produced by the project. If you depend on a project with the `shadow`
-plugin then you need to depend on this configuration because it will bring
-along all of the dependencies you need at runtime.</dd>
+<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
+dependencies with this configuration are bundled into the jar produced by the
+build. Since IDEs do not understand this configuration we rig them to treat
+dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>

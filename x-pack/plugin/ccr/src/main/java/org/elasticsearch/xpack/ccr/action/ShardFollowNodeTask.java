@@ -487,9 +487,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                     .stream()
                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
 
+        public static final String ENTRY_NAME = "shard-follow-node-task-status-fetch-errors-entry";
+
         static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> ENTRY_PARSER =
                 new ConstructingObjectParser<>(
-                        "",
+                        ENTRY_NAME,
                         args -> new AbstractMap.SimpleEntry<>((long) args[0], (ElasticsearchException) args[1]));
 
         static {

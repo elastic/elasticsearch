@@ -361,7 +361,7 @@ public class TranslogTests extends ESTestCase {
 
         markCurrentGenAsCommitted(translog);
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
-            new Translog.TranslogGeneration(translog.getTranslogUUID(), firstId + 1), Long.MAX_VALUE)) {
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), firstId + 1), randomNonNegativeLong())) {
             assertThat(snapshot, SnapshotMatchers.size(0));
             assertThat(snapshot.totalOperations(), equalTo(0));
         }
@@ -592,43 +592,6 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    public void testSnapshotFromMinGen() throws Exception {
-        Map<Long, List<Translog.Operation>> operationsPerGen = new HashMap<>();
-        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
-            new Translog.TranslogGeneration(translog.getTranslogUUID(), 1), randomNonNegativeLong())) {
-            assertThat(snapshot, SnapshotMatchers.size(0));
-        }
-        long maxGen = translog.currentFileGeneration() + between(0, 10);
-        for (long gen = translog.currentFileGeneration(); gen <= maxGen; gen++) {
-            operationsPerGen.putIfAbsent(gen, new ArrayList<>());
-            int numOps = between(0, 20);
-            for (int i = 0; i < numOps; i++) {
-                long seqNo = randomLongBetween(0, 1000);
-                addToTranslogAndList(translog, operationsPerGen.get(gen), new Translog.Index("test",
-                    Long.toString(seqNo), seqNo, primaryTerm.get(), new byte[]{1}));
-            }
-            long minGen = randomLongBetween(translog.getMinFileGeneration(), translog.currentFileGeneration());
-            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
-                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), Long.MAX_VALUE)) {
-                List<Translog.Operation> expectedOps = operationsPerGen.entrySet().stream()
-                    .filter(e -> e.getKey() >= minGen)
-                    .flatMap(e -> e.getValue().stream())
-                    .collect(Collectors.toList());
-                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
-            }
-            long upToSeqNo = randomLongBetween(1, 5000);
-            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
-                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), upToSeqNo)) {
-                List<Translog.Operation> expectedOps = operationsPerGen.entrySet().stream()
-                    .filter(e -> e.getKey() >= minGen)
-                    .flatMap(e -> e.getValue().stream().filter(op -> op.seqNo() <= upToSeqNo))
-                    .collect(Collectors.toList());
-                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
-            }
-            translog.rollGeneration();
-        }
-    }
-
     public void testReadLocation() throws IOException {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         ArrayList<Translog.Location> locs = new ArrayList<>();
@@ -680,6 +643,82 @@ public class TranslogTests extends ESTestCase {
             fail("translog is closed");
         } catch (AlreadyClosedException ex) {
             assertEquals(ex.getMessage(), "translog is already closed");
+        }
+    }
+
+    public void testSnapshotFromMinGen() throws Exception {
+        Map<Long, List<Translog.Operation>> operationsByGen = new HashMap<>();
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), 1), randomNonNegativeLong())) {
+            assertThat(snapshot, SnapshotMatchers.size(0));
+        }
+        int iters = between(1, 10);
+        for (int i = 0; i < iters; i++) {
+            long currentGeneration = translog.currentFileGeneration();
+            operationsByGen.putIfAbsent(currentGeneration, new ArrayList<>());
+            int numOps = between(0, 20);
+            for (int op = 0; op < numOps; op++) {
+                long seqNo = randomLongBetween(0, 1000);
+                addToTranslogAndList(translog, operationsByGen.get(currentGeneration), new Translog.Index("test",
+                    Long.toString(seqNo), seqNo, primaryTerm.get(), new byte[]{1}));
+            }
+            long minGen = randomLongBetween(translog.getMinFileGeneration(), translog.currentFileGeneration());
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), Long.MAX_VALUE)) {
+                List<Translog.Operation> expectedOps = operationsByGen.entrySet().stream()
+                    .filter(e -> e.getKey() >= minGen)
+                    .flatMap(e -> e.getValue().stream())
+                    .collect(Collectors.toList());
+                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
+            }
+            long upToSeqNo = randomLongBetween(0, 2000);
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                new Translog.TranslogGeneration(translog.getTranslogUUID(), minGen), upToSeqNo)) {
+                List<Translog.Operation> expectedOps = operationsByGen.entrySet().stream()
+                    .filter(e -> e.getKey() >= minGen)
+                    .flatMap(e -> e.getValue().stream().filter(op -> op.seqNo() <= upToSeqNo))
+                    .collect(Collectors.toList());
+                assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedOps));
+            }
+            translog.rollGeneration();
+        }
+    }
+
+    public void testSeqNoFilterSnapshot() throws Exception {
+        final int generations = between(2, 20);
+        for (int gen = 0; gen < generations; gen++) {
+            List<Long> batch = LongStream.rangeClosed(0, between(0, 100)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(batch);
+            for (long seqNo : batch) {
+                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[]{1});
+                translog.add(op);
+            }
+            translog.rollGeneration();
+        }
+        List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+            }
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
+            assertThat(filter, SnapshotMatchers.size(0));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            int fromSeqNo = between(-2, 500);
+            int toSeqNo = between(fromSeqNo, 500);
+            List<Translog.Operation> selectedOps = operations.stream()
+                .filter(op -> fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo).collect(Collectors.toList());
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+            assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
         }
     }
 
@@ -2595,7 +2634,8 @@ public class TranslogTests extends ESTestCase {
                 generationUUID = Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
             }
             try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
-                 Translog.Snapshot snapshot = translog.newSnapshotFromGen(new Translog.TranslogGeneration(generationUUID, minGenForRecovery), Long.MAX_VALUE)) {
+                 Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+                     new Translog.TranslogGeneration(generationUUID, minGenForRecovery), Long.MAX_VALUE)) {
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();

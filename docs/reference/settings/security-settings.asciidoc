@@ -46,11 +46,20 @@ settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
 omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
 sensitive nature of the information.
 
+`xpack.security.fips_mode.enabled`::
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+
 [float]
 [[password-security-settings]]
 ==== Default password security settings
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
+
+[[password-hashing-settings]]
+==== Password hashing settings
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage. 
+See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 
 [float]
 [[anonymous-access-settings]]
@@ -164,9 +173,8 @@ the standard {es} <<time-units,time units>>. Defaults to `20m`.
 cache at any given time. Defaults to 100,000.
 
 `cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see 
-{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
-`ssha256`.
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+Defaults to `ssha256`.
 
 
 [[ref-users-settings]]
@@ -190,8 +198,7 @@ Defaults to 100,000.
 
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
-user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
-all possible values. Defaults to `ssha256`.
+user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ldap-settings]]
 [float]
@@ -444,8 +451,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values. Defaults to `ssha256`.
+in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
@@ -684,7 +690,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
-the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 
@@ -854,6 +860,15 @@ provided by the SAML attributes. Defaults to `true`.
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
+
+`req_authn_context_class_ref`::
+A comma separated list of Authentication Context Class Reference values to be
+included in the Requested Authentication Context when requesting the IdP to
+authenticate the current user. The Authentication Context of the corresponding
+authentication response should contain at least one of the requested values.
++
+For more information, see
+{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
 
 [float]
 [[ref-saml-signing-settings]]
@@ -1121,7 +1136,12 @@ settings such as those for HTTP or Transport.
 `xpack.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`.
+`TLSv1`. 
++
+--
+NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
+or `SSLv3`. See <<fips-140-compliance>>.
+--
 
 `xpack.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
@@ -1220,6 +1240,9 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
+keystore files. See <<fips-140-compliance>>. 
+
 [float]
 ===== PKCS#12 files
 
@@ -1257,6 +1280,9 @@ Password to the truststore.
 
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
+
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
+keystore files. See <<fips-140-compliance>>. 
 
 [[pkcs12-truststore-note]]
 [NOTE]
@@ -1335,3 +1361,5 @@ List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 List of IP addresses to deny for this profile.
+
+include::security-hash-settings.asciidoc[]

@@ -581,48 +581,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public Snapshot newSnapshotFromGen(TranslogGeneration minGeneration, long upToSeqNo) throws IOException {
+    public Snapshot newSnapshotFromGen(TranslogGeneration fromGeneration, long upToSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            final long minTranslogFileGen = minGeneration.translogFileGeneration;
-            if (minTranslogFileGen < getMinFileGeneration()) {
-                throw new IllegalArgumentException("requested snapshot generation [" + minTranslogFileGen + "] is not available. " +
+            final long fromFileGen = fromGeneration.translogFileGeneration;
+            if (fromFileGen < getMinFileGeneration()) {
+                throw new IllegalArgumentException("requested snapshot generation [" + fromFileGen + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
-                .filter(reader -> reader.getGeneration() >= minTranslogFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
+                .filter(reader -> reader.getGeneration() >= fromFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            Snapshot snapshot = newMultiSnapshot(snapshots);
+            final Snapshot snapshot = newMultiSnapshot(snapshots);
             if (upToSeqNo == Long.MAX_VALUE) {
                 return snapshot;
+            } else {
+                return new SeqNoFilterSnapshot(snapshot, Long.MIN_VALUE, upToSeqNo);
             }
-            return new Snapshot() {
-                int skipped = 0;
-                @Override
-                public int totalOperations() {
-                    return snapshot.totalOperations();
-                }
-                @Override
-                public int skippedOperations() {
-                    return skipped + snapshot.skippedOperations();
-                }
-                @Override
-                public Operation next() throws IOException {
-                    Translog.Operation op;
-                    while ((op = snapshot.next()) != null) {
-                        if (op.seqNo() <= upToSeqNo) {
-                            return op;
-                        } else {
-                            skipped++;
-                        }
-                    }
-                    return null;
-                }
-                @Override
-                public void close() throws IOException {
-                    snapshot.close();
-                }
-            };
         }
     }
 
@@ -957,7 +932,59 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+    }
 
+    /**
+     * A filtered snapshot consisting of only operations whose sequence numbers are in the given range
+     * between {@code fromSeqNo} (inclusive) and {@code toSeqNo} (inclusive). This filtered snapshot
+     * shares the same underlying resources with the {@code delegate} snapshot, therefore we should not
+     * use the {@code delegate} after passing it to this filtered snapshot.
+     */
+    static final class SeqNoFilterSnapshot implements Snapshot {
+        private final Snapshot delegate;
+        private int filteredOpsCount;
+        private final long fromSeqNo; // inclusive
+        private final long toSeqNo;   // inclusive
+
+        SeqNoFilterSnapshot(Snapshot delegate, long fromSeqNo, long toSeqNo) {
+            assert fromSeqNo <= toSeqNo : "from_seq_no[" + fromSeqNo + "] > to_seq_no[" + toSeqNo + "]";
+            this.delegate = delegate;
+            this.fromSeqNo = fromSeqNo;
+            this.toSeqNo = toSeqNo;
+        }
+
+        @Override
+        public int totalOperations() {
+            return delegate.totalOperations();
+        }
+
+        @Override
+        public int skippedOperations() {
+            return filteredOpsCount + delegate.skippedOperations();
+        }
+
+        @Override
+        public int overriddenOperations() {
+            return delegate.overriddenOperations();
+        }
+
+        @Override
+        public Operation next() throws IOException {
+            Translog.Operation op;
+            while ((op = delegate.next()) != null) {
+                if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                    return op;
+                } else {
+                    filteredOpsCount++;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     /**

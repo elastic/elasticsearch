@@ -487,11 +487,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                     .stream()
                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
 
-        public static final String ENTRY_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
+        public static final String FETCH_EXCEPTIONS_ENTRY_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
-        static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> ENTRY_PARSER =
+        static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> FETCH_EXCEPTIONS_ENTRY_PARSER =
                 new ConstructingObjectParser<>(
-                        ENTRY_NAME,
+                        FETCH_EXCEPTIONS_ENTRY_NAME,
                         args -> new AbstractMap.SimpleEntry<>((long) args[0], (ElasticsearchException) args[1]));
 
         static {
@@ -514,17 +514,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ENTRY_PARSER, FETCH_EXCEPTIONS);
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_PARSER, FETCH_EXCEPTIONS);
         }
 
         static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
         static final ParseField FETCH_EXCEPTIONS_ENTRY_EXCEPTION = new ParseField("exception");
 
         static {
-            ENTRY_PARSER.declareLong(
-                    ConstructingObjectParser.constructorArg(),
-                    FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO);
-            ENTRY_PARSER.declareObject(
+            FETCH_EXCEPTIONS_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO);
+            FETCH_EXCEPTIONS_ENTRY_PARSER.declareObject(
                     ConstructingObjectParser.constructorArg(),
                     (p, c) -> ElasticsearchException.fromXContent(p),
                     FETCH_EXCEPTIONS_ENTRY_EXCEPTION);

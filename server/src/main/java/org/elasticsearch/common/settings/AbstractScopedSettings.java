@@ -242,6 +242,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
                 Map<String, Tuple<A, B>> map = new HashMap<>();
                 BiConsumer<String, A> aConsumer = (key, value) -> {
+                    assert map.containsKey(key) == false : "duplicate key: " + key;
                     map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
                 };
                 BiConsumer<String, B> bConsumer = (key, value) -> {
@@ -249,6 +250,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     if (abTuple != null) {
                         map.put(key, new Tuple<>(abTuple.v1(), value));
                     } else {
+                        assert settingA.getConcreteSettingForNamespace(key).get(current).equals(settingA.getConcreteSettingForNamespace
+                            (key).get(previous)) : "expected: " + settingA.getConcreteSettingForNamespace(key).get(current)
+                            + " but was " + settingA.getConcreteSettingForNamespace(key).get(previous);
                         map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
                     }
                 };

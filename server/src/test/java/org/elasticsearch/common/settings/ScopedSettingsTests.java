@@ -265,7 +265,6 @@ public class ScopedSettingsTests extends ESTestCase {
         );
         assertEquals("boom", iae.getMessage());
         assertEquals(0, results.size());
-
     }
 
     public void testAddConsumerAffix() {

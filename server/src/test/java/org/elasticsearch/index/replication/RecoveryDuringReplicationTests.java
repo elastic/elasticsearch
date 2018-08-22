@@ -629,7 +629,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRollbackOnPromotion() throws Exception {
-        int numberOfReplicas = between(2, 3);
+        final int numberOfReplicas = between(2, 3);
+        final AtomicBoolean isDone = new AtomicBoolean();
+        final List<Thread> threads = new ArrayList<>();
         try (ReplicationGroup shards = createGroup(numberOfReplicas)) {
             shards.startAll();
             IndexShard newPrimary = randomFrom(shards.getReplicas());
@@ -662,11 +664,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
             shards.refresh("test");
-            AtomicBoolean isDone = new AtomicBoolean();
-            Thread[] threads = new Thread[numberOfReplicas];
-            for (int i = 0; i < threads.length; i++) {
+            for (int i = 0; i < numberOfReplicas; i++) {
                 IndexShard replica = shards.getReplicas().get(i);
-                threads[i] = new Thread(() -> {
+                Thread thread = new Thread(() -> {
                     // should fail at most twice with two transitions: normal engine -> read-only engine -> resetting engine
                     long hitClosedExceptions = 0;
                     while (isDone.get() == false) {
@@ -682,12 +682,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     }
                     assertThat(hitClosedExceptions, lessThanOrEqualTo(2L));
                 });
-                threads[i].start();
+                threads.add(thread);
+                thread.start();
             }
             shards.promoteReplicaToPrimary(newPrimary).get();
             shards.assertAllEqual(initDocs + extraDocsOnNewPrimary);
             int moreDocs = shards.indexDocs(scaledRandomIntBetween(1, 10));
             shards.assertAllEqual(initDocs + extraDocsOnNewPrimary + moreDocs);
+            isDone.set(true); // stop before closing shards to have an accurate "AlreadyClosedException" count
+        } finally {
             isDone.set(true);
             for (Thread thread : threads) {
                 thread.join();

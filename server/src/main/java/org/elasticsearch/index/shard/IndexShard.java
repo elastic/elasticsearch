@@ -2645,7 +2645,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.Result applyResyncOperation(Translog.Operation operation) throws IOException {
-        return applyTranslogOperation(engineHolder.getEngineForResync(), operation, Engine.Operation.Origin.PEER_RECOVERY);
+        return applyTranslogOperation(engineHolder.getEngineForResync(), operation, Engine.Operation.Origin.REPLICA);
     }
 
     /**

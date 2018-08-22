@@ -127,7 +127,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
                     .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, "pre-phase")))
+                    .put(LifecycleSettings.LIFECYCLE_PHASE, "new")))
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();

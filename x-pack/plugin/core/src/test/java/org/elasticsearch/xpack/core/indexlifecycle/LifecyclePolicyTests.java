@@ -177,7 +177,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         List<Step> steps = policy.toSteps(client, nowSupplier);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
-        assertThat(steps.get(0).getKey(), equalTo(new StepKey("pre-phase", "pre-action", "init")));
+        assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
         assertThat(steps.get(0).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
         assertSame(steps.get(1), TerminalPolicyStep.INSTANCE);
     }

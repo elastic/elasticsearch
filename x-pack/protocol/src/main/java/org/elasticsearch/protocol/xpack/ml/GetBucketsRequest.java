@@ -62,8 +62,8 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     private String jobId;
     private String timestamp;
-    private Boolean expand = false;
-    private Boolean excludeInterim = false;
+    private Boolean expand;
+    private Boolean excludeInterim;
     private String start;
     private String end;
     private PageParams pageParams;

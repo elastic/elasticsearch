@@ -108,8 +108,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         IndexMetaData indexMetadata = IndexMetaData.builder(indexName)
             .settings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, "pre-phase")
-                .put(LifecycleSettings.LIFECYCLE_ACTION, "pre-action")
+                .put(LifecycleSettings.LIFECYCLE_PHASE, "new")
+                .put(LifecycleSettings.LIFECYCLE_ACTION, "init")
                 .put(LifecycleSettings.LIFECYCLE_STEP, "init"))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         index = indexMetadata.getIndex();
@@ -133,6 +133,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         setupIndexPolicy(allClusterPolicyName);
 
         Step startStep = policyStepsRegistry.getFirstStep(allClusterPolicyName);
+        Step afterStep = policyStepsRegistry.getStep(index, startStep.getNextStepKey());
         long now = randomNonNegativeLong();
         // test execute start till end of phase `new`
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, startStep, policyStepsRegistry, () -> now);
@@ -140,16 +141,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
         // Update the registry so the next phase's steps are loaded
         policyStepsRegistry.update(newState, client, () -> now);
-        Step afterStep = policyStepsRegistry.getStep(index, startStep.getNextStepKey());
 
+        // verify that both the `new` phase was executed and the next phase is to begin
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
-        assertThat(currentStepKey, equalTo(afterStep.getKey()));
-        // test execute phase-after until firstStep
-        task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, afterStep, policyStepsRegistry, () -> now);
-        newState = task.execute(newState);
-        policyStepsRegistry.update(newState, client, () -> now);
-
-        currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
         assertThat(currentStepKey, equalTo(firstStep.getKey()));
         // test execute all actions in same phase
         task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, firstStep, policyStepsRegistry, () -> now);

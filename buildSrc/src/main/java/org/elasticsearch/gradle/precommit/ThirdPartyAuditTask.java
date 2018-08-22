@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
@@ -29,6 +29,7 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.JavaExecSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -63,6 +64,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
+    private Action<JavaExecSpec> execAction;
+
     @InputFile
     public File getSignatureFile() {
         return signatureFile;
@@ -79,6 +82,14 @@ public class ThirdPartyAuditTask extends DefaultTask {
             return getProject().getConfigurations().getByName("testCompile");
         }
         return runtime;
+    }
+
+    public Action<JavaExecSpec> getExecAction() {
+        return execAction;
+    }
+
+    public void setExecAction(Action<JavaExecSpec> execAction) {
+        this.execAction = execAction;
     }
 
     @InputFiles
@@ -133,12 +144,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         getProject().javaexec(spec -> {
+            execAction.execute(spec);
             spec.classpath(
-                getProject().getConfigurations().getByName("forbiddenApisCliJar"),
                 getRuntimeConfiguration(),
                 getCompileOnlyConfiguration()
             );
-            spec.setMain(CliMain.class.getName());
+            spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args(
                 "-f", getSignatureFile().getAbsolutePath(),
                 "-d", getJarExpandDir(),
@@ -190,7 +201,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
             );
         }
 
-        // TODO: This either no longer works, or we have no such classes
         sheistyClasses.removeAll(excludes);
         if (sheistyClasses.isEmpty() == false) {
             throw new IllegalStateException("Jar Hell with the JDK:" + formatClassList(sheistyClasses));

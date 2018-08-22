@@ -78,8 +78,14 @@ class PrecommitTasks {
     private static Task configureThirdPartyAudit(Project project) {
         ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-        thirdPartyAuditTask.dependsOn(buildResources)
-        thirdPartyAuditTask.signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+        thirdPartyAuditTask.configure {
+            dependsOn(buildResources)
+            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            execAction = { spec ->
+                spec.classpath(project.configurations.forbiddenApisCliJar)
+                spec.executable = "${project.runtimeJavaHome}/bin/java"
+            }
+        }
         return thirdPartyAuditTask
     }
 

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
@@ -123,7 +122,7 @@ public class ForbiddenApisCliTask extends DefaultTask {
     public void runForbiddenApisAndWriteMarker() throws IOException {
         getProject().javaexec((JavaExecSpec spec) -> {
             execAction.execute(spec);
-            spec.setMain(CliMain.class.getName());
+            spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             // build the command line
             getSignaturesFiles().forEach(file -> spec.args("-f", file.getAbsolutePath()));
             getSuppressAnnotations().forEach(annotation -> spec.args("--suppressannotation", annotation));

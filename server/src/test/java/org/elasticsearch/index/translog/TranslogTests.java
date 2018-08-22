@@ -684,6 +684,44 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testSeqNoFilterSnapshot() throws Exception {
+        final int generations = between(2, 20);
+        for (int gen = 0; gen < generations; gen++) {
+            List<Long> batch = LongStream.rangeClosed(0, between(0, 100)).boxed().collect(Collectors.toList());
+            Randomness.shuffle(batch);
+            for (long seqNo : batch) {
+                Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, primaryTerm.get(), new byte[]{1});
+                translog.add(op);
+            }
+            translog.rollGeneration();
+        }
+        List<Translog.Operation> operations = new ArrayList<>();
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                operations.add(op);
+            }
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
+            assertThat(filter, SnapshotMatchers.size(0));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
+        }
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            int fromSeqNo = between(-2, 500);
+            int toSeqNo = between(fromSeqNo, 500);
+            List<Translog.Operation> selectedOps = operations.stream()
+                .filter(op -> fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo).collect(Collectors.toList());
+            Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+            assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
+            assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
+            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
+            assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
+        }
+    }
+
     public void assertFileIsPresent(Translog translog, long id) {
         if (Files.exists(translog.location().resolve(Translog.getFilename(id)))) {
             return;

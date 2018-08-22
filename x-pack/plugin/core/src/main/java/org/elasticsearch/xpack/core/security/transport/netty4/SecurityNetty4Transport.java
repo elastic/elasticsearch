@@ -12,6 +12,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
@@ -106,8 +107,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getClientChannelInitializer() {
-        return new SecurityClientChannelInitializer();
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
+        return new SecurityClientChannelInitializer(node);
     }
 
     @Override
@@ -167,8 +168,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
 
         private final boolean hostnameVerificationEnabled;
+        private final String sniServerName;
 
-        SecurityClientChannelInitializer() {
+        SecurityClientChannelInitializer(DiscoveryNode node) {
+            this.sniServerName = node.getAttributes().get("sni_server_name");
             this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         }
 

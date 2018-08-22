@@ -106,7 +106,7 @@ public class JoinHelper extends AbstractComponent {
             }));
     }
 
-    void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
+    private void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
         transportService.connectToNode(joinRequest.getSourceNode());
 
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
@@ -133,12 +133,6 @@ public class JoinHelper extends AbstractComponent {
         synchronized (mutex) {
             joinAccumulator.failPendingJoins("started following " + leaderNode);
             joinAccumulator = new FollowerJoinAccumulator();
-        }
-    }
-
-    public int getNumberOfPendingJoins() {
-        synchronized (mutex) {
-            return joinAccumulator.getNumberOfPendingJoins();
         }
     }
 
@@ -181,10 +175,6 @@ public class JoinHelper extends AbstractComponent {
         }
 
         default void submitPendingJoins() {
-        }
-
-        default int getNumberOfPendingJoins() {
-            return 0;
         }
     }
 

@@ -38,10 +38,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +63,10 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
@@ -69,6 +77,7 @@ public class NodeJoinTests extends ESTestCase {
     private MasterService masterService;
     private Coordinator coordinator;
     private DeterministicTaskQueue deterministicTaskQueue;
+    private TransportRequestHandler<JoinRequest> transportRequestHandler;
 
     @BeforeClass
     public static void beforeClass() {
@@ -126,11 +135,17 @@ public class NodeJoinTests extends ESTestCase {
         this.masterService = masterService;
         TransportService transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(initialState.nodes().getLocalNode());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<TransportRequestHandler<JoinRequest>> joinRequestHandler = ArgumentCaptor.forClass(
+            (Class) TransportRequestHandler.class);
         coordinator = new Coordinator(Settings.EMPTY,
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState));
+        verify(transportService).registerRequestHandler(eq(JoinHelper.JOIN_ACTION_NAME), eq(ThreadPool.Names.GENERIC), eq(false), eq(false),
+            anyObject(), joinRequestHandler.capture());
+        transportRequestHandler = joinRequestHandler.getValue();
         coordinator.start();
         coordinator.startInitialJoin();
     }
@@ -174,19 +189,39 @@ public class NodeJoinTests extends ESTestCase {
         logger.debug("starting {}", future);
         // clone the node before submitting to simulate an incoming join, which is guaranteed to have a new
         // disco node object serialized off the network
-        coordinator.handleJoinRequest(joinRequest, new JoinHelper.JoinCallback() {
-            @Override
-            public void onSuccess() {
-                logger.debug("{} completed", future);
-                future.markAsDone();
-            }
+        try {
+            transportRequestHandler.messageReceived(joinRequest, new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return "dummy";
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
-                future.markAsFailed(e);
-            }
-        });
+                @Override
+                public String getChannelType() {
+                    return "dummy";
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    logger.debug("{} completed", future);
+                    future.markAsDone();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response, TransportResponseOptions options) {
+                    sendResponse(response);
+                }
+
+                @Override
+                public void sendResponse(Exception e) {
+                    logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+                    future.markAsFailed(e);
+                }
+            }, null);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
+            future.markAsFailed(e);
+        }
         return future;
     }
 

@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.coordination.JoinHelper.JoinCallback;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -185,16 +184,10 @@ public class Coordinator extends AbstractLifecycleComponent {
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
-                assert joinHelper.getNumberOfPendingJoins() == 0;
             } else {
                 assert mode == Mode.CANDIDATE;
             }
         }
-    }
-
-    // this is just used because the test doesn't simulate sending the join requests through the transport service - TODO remove it
-    public void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
-        joinHelper.handleJoinRequest(joinRequest, joinCallback);
     }
 
     public enum Mode {

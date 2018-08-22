@@ -81,21 +81,17 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.openJob(openJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        request.getEntity().writeTo(bos);
-        assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+        assertEquals(requestEntityToString(request), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
     }
 
-    public void testCloseJob() {
+    public void testCloseJob() throws Exception {
         String jobId = "somejobid";
         CloseJobRequest closeJobRequest = new CloseJobRequest(jobId);
 
         Request request = MLRequestConverters.closeJob(closeJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_close", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("force"));
-        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
-        assertFalse(request.getParameters().containsKey("timeout"));
+        assertEquals("{\"job_id\":\"somejobid\"}", requestEntityToString(request));
 
         closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
         closeJobRequest.setForce(true);
@@ -104,9 +100,8 @@ public class MLRequestConvertersTests extends ESTestCase {
         request = MLRequestConverters.closeJob(closeJobRequest);
 
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
-        assertEquals(Boolean.toString(false), request.getParameters().get("allow_no_jobs"));
-        assertEquals("10m", request.getParameters().get("timeout"));
+        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
+            requestEntityToString(request));
     }
 
     public void testDeleteJob() {
@@ -129,5 +124,11 @@ public class MLRequestConvertersTests extends ESTestCase {
         Job.Builder jobBuilder = Job.builder(jobId);
         jobBuilder.setAnalysisConfig(analysisConfig);
         return jobBuilder.build();
+    }
+
+    private static String requestEntityToString(Request request) throws Exception {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        return bos.toString("UTF-8");
     }
 }

@@ -51,6 +51,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -149,20 +150,22 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
             final SimpleFileVisitor<Path> visitor = new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    final IndexMetaData indexMetaData =
-                        IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
-                    if (indexMetaData != null) {
-                        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                        final Index index = indexMetaData.getIndex();
-                        if (indexName.equals(index.getName())) {
-                            final ShardId shardId = new ShardId(index, id);
+                    if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                        final IndexMetaData indexMetaData =
+                            IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
+                        if (indexMetaData != null) {
+                            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                            final Index index = indexMetaData.getIndex();
+                            if (indexName.equals(index.getName())) {
+                                final ShardId shardId = new ShardId(index, id);
 
-                            final Path shardPathLocation = nodePath.resolve(shardId);
-                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings,
-                                new Path[]{shardPathLocation},
-                                nodeLockId, nodePath.path);
-                            if (shardPath != null) {
-                                shardPaths.add(shardPath);
+                                final Path shardPathLocation = nodePath.resolve(shardId);
+                                final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings,
+                                    new Path[]{shardPathLocation},
+                                    nodeLockId, nodePath.path);
+                                if (shardPath != null) {
+                                    shardPaths.add(shardPath);
+                                }
                             }
                         }
                     }

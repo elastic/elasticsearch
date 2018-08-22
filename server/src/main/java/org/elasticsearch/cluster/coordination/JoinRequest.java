@@ -33,6 +33,7 @@ public class JoinRequest extends TransportRequest {
     private final Optional<Join> optionalJoin;
 
     public JoinRequest(DiscoveryNode sourceNode, Optional<Join> optionalJoin) {
+        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.optionalJoin = optionalJoin;
     }

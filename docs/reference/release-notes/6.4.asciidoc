@@ -51,9 +51,6 @@ Plugins::
 Search::
 * Reject regex search if regex string is too long (#28344) {pull}28542[#28542] (issue: {issue}28344[#28344])
 
-Snapshot/Restore::
-* Include size of snapshot in snapshot metadata {pull}29602[#29602] (issue:{issue}18543[#18543])
-
 Task Management::
 * Remove metadata customs that can break serialization {pull}30945[#30945] (issues: {issue}30731[#30731])
 
@@ -377,6 +374,7 @@ Machine learning::
  * SQL: Teach the CLI to ignore empty commands {pull}30265[#30265] (issue: {issue}30000[#30000])
  * SQL: a more compact way of translating the queries that have `AND` statements [ISSUE] {pull}30019[#30019]
  * SQL: correctness of SYS TABLES/COLUMNS results [ISSUE] {pull}29862[#29862]
+ * JDBC driver prepared statement set* methods  {pull}31494[#31494] (issue: {issue}31493[#31493])
 
  Scripting::
  * Painless - Request for native String split function [OPEN] [ISSUE] {pull}20952[#20952]
@@ -780,9 +778,6 @@ Search::
 
 Ranking::
 * Register ERR metric with NamedXContentRegistry {pull}32320[#32320]
-
-SQL::
-* JDBC driver prepared statement set* methods  {pull}31494[#31494] (issue: {issue}31493[#31493])
 
 Search::
 * Revise Default max concurrent search requests [ISSUE] {pull}31192[#31192]

@@ -44,6 +44,9 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private static final String JOB_ID = "get-results-it-job";
 
+    // 2018-08-01T00:00:00Z
+    private static final long START_TIME_EPOCH_MS = 1533081600000L;
+
     private BucketStats bucketStats = new BucketStats();
 
     @Before
@@ -55,7 +58,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        long time = 1533081600000L; // 2018-08-01T00:00:00Z
+        long time = START_TIME_EPOCH_MS;
         long endTime = time + 3600000L * 24 * 10; // 10 days of hourly buckets
         while (time < endTime) {
             addBucketIndexRequest(time, false, bulkRequest);
@@ -113,7 +116,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
             assertThat(response.count(), equalTo(241L));
             assertThat(response.buckets().size(), equalTo(100));
-            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(1533081600000L));
+            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS));
         }
         {
             GetBucketsRequest request = new GetBucketsRequest(JOB_ID);
@@ -123,7 +126,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
             assertThat(response.count(), equalTo(1L));
             assertThat(response.buckets().size(), equalTo(1));
-            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(1533081600000L));
+            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS));
         }
         {
             GetBucketsRequest request = new GetBucketsRequest(JOB_ID);
@@ -151,9 +154,9 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetBucketsResponse response = execute(request, machineLearningClient::getBuckets, machineLearningClient::getBucketsAsync);
 
             assertThat(response.count(), equalTo(3L));
-            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(1533081600000L));
-            assertThat(response.buckets().get(1).getTimestamp().getTime(), equalTo(1533081600000L + 3600000L));
-            assertThat(response.buckets().get(2).getTimestamp().getTime(), equalTo(1533081600000L + 2 * + 3600000L));
+            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS));
+            assertThat(response.buckets().get(1).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 3600000L));
+            assertThat(response.buckets().get(2).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 2 * + 3600000L));
         }
         {
             GetBucketsRequest request = new GetBucketsRequest(JOB_ID);
@@ -162,9 +165,9 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetBucketsResponse response = execute(request, machineLearningClient::getBuckets, machineLearningClient::getBucketsAsync);
 
             assertThat(response.buckets().size(), equalTo(3));
-            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(1533081600000L + 3 * 3600000L));
-            assertThat(response.buckets().get(1).getTimestamp().getTime(), equalTo(1533081600000L + 4 * 3600000L));
-            assertThat(response.buckets().get(2).getTimestamp().getTime(), equalTo(1533081600000L + 5 * + 3600000L));
+            assertThat(response.buckets().get(0).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 3 * 3600000L));
+            assertThat(response.buckets().get(1).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 4 * 3600000L));
+            assertThat(response.buckets().get(2).getTimestamp().getTime(), equalTo(START_TIME_EPOCH_MS + 5 * 3600000L));
         }
         {
             GetBucketsRequest request = new GetBucketsRequest(JOB_ID);

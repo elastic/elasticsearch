@@ -49,8 +49,8 @@ public class PageParams implements ToXContentObject {
 
     /**
      * Constructs paging parameters
-     * @param from skips the specified number of buckets. When {@code null} the default value will be used.
-     * @param size specifies the maximum number of buckets to obtain. When {@code null} the default value will be used.
+     * @param from skips the specified number of items. When {@code null} the default value will be used.
+     * @param size specifies the maximum number of items to obtain. When {@code null} the default value will be used.
      */
     public PageParams(@Nullable Integer from, @Nullable Integer size) {
         this.from = from;

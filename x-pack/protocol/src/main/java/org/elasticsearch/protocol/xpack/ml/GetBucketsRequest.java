@@ -115,9 +115,9 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
     }
 
     /**
-     * Sets the value of "excude_interim".
+     * Sets the value of "exclude_interim".
      * When {@code true}, interim buckets will be filtered out.
-     * @param excludeInterim value of "excude_interim" to be set
+     * @param excludeInterim value of "exclude_interim" to be set
      */
     public void setExcludeInterim(boolean excludeInterim) {
         this.excludeInterim = excludeInterim;

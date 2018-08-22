@@ -54,7 +54,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  */
 public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
-    private static final String NAME = "date_histogram";
+    static final String NAME = "date_histogram";
     private static final String INTERVAL = "interval";
     private static final String FIELD = "field";
     public static final String TIME_ZONE = "time_zone";

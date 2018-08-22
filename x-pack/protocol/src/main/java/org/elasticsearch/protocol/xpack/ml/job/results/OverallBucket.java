@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
@@ -158,7 +159,7 @@ public class OverallBucket implements ToXContentObject {
             new ConstructingObjectParser<>("job_info", true, a -> new JobInfo((String) a[0], (double) a[1]));
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), Result.JOB_ID);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
             PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MAX_ANOMALY_SCORE);
         }
 
@@ -181,7 +182,7 @@ public class OverallBucket implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Result.JOB_ID.getPreferredName(), jobId);
+            builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(MAX_ANOMALY_SCORE.getPreferredName(), maxAnomalyScore);
             builder.endObject();
             return builder;

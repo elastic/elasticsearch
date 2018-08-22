@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
@@ -57,7 +58,7 @@ public class Influencer implements ToXContentObject {
             a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Result.JOB_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
@@ -98,7 +99,7 @@ public class Influencer implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Result.JOB_ID.getPreferredName(), jobId);
+        builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(INFLUENCER_FIELD_NAME.getPreferredName(), influenceField);
         builder.field(INFLUENCER_FIELD_VALUE.getPreferredName(), influenceValue);

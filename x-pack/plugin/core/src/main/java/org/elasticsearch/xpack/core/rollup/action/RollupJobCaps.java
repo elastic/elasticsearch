@@ -42,8 +42,8 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         jobID = job.getId();
         rollupIndex = job.getRollupIndex();
         indexPattern = job.getIndexPattern();
-        Map<String, Object> dateHistoAggCap = job.getGroupConfig().getDateHisto().toAggCap();
-        String dateField = job.getGroupConfig().getDateHisto().getField();
+        Map<String, Object> dateHistoAggCap = job.getGroupConfig().getDateHistogram().toAggCap();
+        String dateField = job.getGroupConfig().getDateHistogram().getField();
         RollupFieldCaps fieldCaps = fieldCapLookup.get(dateField);
         if (fieldCaps == null) {
             fieldCaps = new RollupFieldCaps();
@@ -51,9 +51,9 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         fieldCaps.addAgg(dateHistoAggCap);
         fieldCapLookup.put(dateField, fieldCaps);
 
-        if (job.getGroupConfig().getHisto() != null) {
-            Map<String, Object> histoAggCap = job.getGroupConfig().getHisto().toAggCap();
-            Arrays.stream(job.getGroupConfig().getHisto().getFields()).forEach(field -> {
+        if (job.getGroupConfig().getHistogram() != null) {
+            Map<String, Object> histoAggCap = job.getGroupConfig().getHistogram().toAggCap();
+            Arrays.stream(job.getGroupConfig().getHistogram().getFields()).forEach(field -> {
                 RollupFieldCaps caps = fieldCapLookup.get(field);
                 if (caps == null) {
                     caps = new RollupFieldCaps();

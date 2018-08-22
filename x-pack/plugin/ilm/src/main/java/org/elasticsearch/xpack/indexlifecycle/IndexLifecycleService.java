@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
@@ -40,7 +40,7 @@ import java.util.function.LongSupplier;
  */
 public class IndexLifecycleService extends AbstractComponent
         implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable {
-    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleService.class);
+    private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();

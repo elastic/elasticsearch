@@ -6,12 +6,12 @@
 
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
-    private static final Logger logger = ESLoggerFactory.getLogger(ExecuteStepsUpdateTask.class);
+    private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
     private final Index index;
     private final Step startStep;

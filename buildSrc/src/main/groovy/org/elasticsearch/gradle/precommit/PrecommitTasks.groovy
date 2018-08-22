@@ -81,10 +81,7 @@ class PrecommitTasks {
         thirdPartyAuditTask.configure {
             dependsOn(buildResources)
             signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
-            execAction = { spec ->
-                spec.classpath(project.configurations.forbiddenApisCliJar)
-                spec.executable = "${project.runtimeJavaHome}/bin/java"
-            }
+            javaHome = project.runtimeJavaHome
         }
         return thirdPartyAuditTask
     }
@@ -103,7 +100,7 @@ class PrecommitTasks {
                     dependsOn(buildResources)
                     execAction = { spec ->
                         spec.classpath = project.files(
-                                project.configurations.forbiddenApisCliJar,
+                                forbiddenApisConfiguration,
                                 sourceSet.compileClasspath,
                                 sourceSet.runtimeClasspath
                         )

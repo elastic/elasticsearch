@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.output.NullOutputStream;
-import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
@@ -29,7 +28,7 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.process.JavaExecSpec;
+import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -64,7 +63,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
-    private Action<JavaExecSpec> execAction;
+    private String javaHome;
+
+    @Input
+    public Configuration getForbiddenAPIsConfiguration() {
+        return getProject().getConfigurations().getByName("forbiddenApisCliJar");
+    }
 
     @InputFile
     public File getSignatureFile() {
@@ -84,12 +88,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return runtime;
     }
 
-    public Action<JavaExecSpec> getExecAction() {
-        return execAction;
+    @Input
+    public String getJavaHome() {
+        return javaHome;
     }
 
-    public void setExecAction(Action<JavaExecSpec> execAction) {
-        this.execAction = execAction;
+    public void setJavaHome(String javaHome) {
+        this.javaHome = javaHome;
     }
 
     @InputFiles
@@ -143,9 +148,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
         );
 
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        getProject().javaexec(spec -> {
-            execAction.execute(spec);
+        ExecResult execResult = getProject().javaexec(spec -> {
+
+            spec.setExecutable(javaHome + "/bin/java");
             spec.classpath(
+                getForbiddenAPIsConfiguration(),
                 getRuntimeConfiguration(),
                 getCompileOnlyConfiguration()
             );
@@ -156,15 +163,20 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 "--allowmissingclasses"
             );
             spec.setErrorOutput(errorOut);
-            spec.setStandardOutput(new NullOutputStream());
+            if (getLogger().isInfoEnabled() == false) {
+                spec.setStandardOutput(new NullOutputStream());
+            }
             spec.setIgnoreExitValue(true);
         });
-        final Set<String> missingClasses = new TreeSet<>();
-        final Set<String> violationsClasses = new TreeSet<>();
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
         }
+        if (getLogger().isInfoEnabled()) {
+            getLogger().info(forbiddenApisOutput);
+        }
+        final Set<String> missingClasses = new TreeSet<>();
+        final Set<String> violationsClasses = new TreeSet<>();
         Matcher missingMatcher = MISSING_CLASS_PATTERN.matcher(forbiddenApisOutput);
         while (missingMatcher.find()) {
             missingClasses.add(missingMatcher.group(1));

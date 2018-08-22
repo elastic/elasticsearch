@@ -3,8 +3,6 @@
 
 Also see <<breaking-changes-5.6>>.
 
-coming[5.6.11]
-
 [[enhancement-5.6.11]]
 [float]
 === Enhancements

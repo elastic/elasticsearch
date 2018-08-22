@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -101,7 +102,7 @@ public class JoinHelper extends AbstractComponent {
             }));
     }
 
-    public void addPendingJoin(JoinRequest joinRequest, JoinCallback joinCallback) {
+    private void addPendingJoin(JoinRequest joinRequest, JoinCallback joinCallback) {
         JoinCallback prev = joinRequestAccumulator.put(joinRequest.getSourceNode(), joinCallback);
         if (prev != null) {
             prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + joinRequest.getSourceNode()));
@@ -118,7 +119,7 @@ public class JoinHelper extends AbstractComponent {
         joinRequestAccumulator.clear();
     }
 
-    public void clearAndSubmitPendingJoins() {
+    private void clearAndSubmitPendingJoins() {
         final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
         joinRequestAccumulator.forEach((key, value) -> {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
@@ -132,11 +133,28 @@ public class JoinHelper extends AbstractComponent {
         masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
     }
 
-    public void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
+    private void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
         // submit as cluster state update task
         final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader");
         masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
             joinTaskExecutor, new JoinTaskListener(task, joinCallback));
+    }
+
+    public void join(Mode mode, JoinRequest joinRequest, JoinCallback joinCallback, boolean justBecameLeader) {
+        if (mode == Mode.LEADER && justBecameLeader == false) {
+            joinLeader(joinRequest, joinCallback);
+        } else if (mode == Mode.FOLLOWER) {
+            assert joinRequest.getOptionalJoin().isPresent() == false : "follower should not have solicited join " + joinRequest;
+            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
+        } else {
+            addPendingJoin(joinRequest, joinCallback);
+            if (justBecameLeader) {
+                assert mode == Mode.LEADER;
+                clearAndSubmitPendingJoins();
+            } else {
+                assert mode == Mode.CANDIDATE;
+            }
+        }
     }
 
     public interface JoinCallback {

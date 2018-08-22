@@ -107,24 +107,11 @@ public class Coordinator extends AbstractLifecycleComponent {
             }
         }
 
-        switch (mode) {
-            case LEADER:
-                joinHelper.joinLeader(joinRequest, joinCallback);
-                break;
-            case FOLLOWER:
-                assert joinRequest.getOptionalJoin().isPresent() == false : "follower should not have solicited join " + joinRequest;
-                joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
-                break;
-            case CANDIDATE:
-                joinHelper.addPendingJoin(joinRequest, joinCallback);
-                if (prevElectionWon == false && coordState.electionWon()) {
-                    becomeLeader("handleJoin");
-                    joinHelper.clearAndSubmitPendingJoins();
-                }
-                break;
-            default:
-                throw new AssertionError("unexpected mode when handling join: " + mode);
+        final boolean justBecameLeader = prevElectionWon == false && coordState.electionWon();
+        if (justBecameLeader) {
+            becomeLeader("handleJoin");
         }
+        joinHelper.join(mode, joinRequest, joinCallback, justBecameLeader);
     }
 
     void becomeCandidate(String method) {

@@ -30,6 +30,8 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -46,8 +48,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -129,6 +134,63 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-put-job-execute-async
             client.machineLearning().putJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-put-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "get-machine-learning-job1";
+
+        Job job = MachineLearningIT.buildJob("get-machine-learning-job1");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("get-machine-learning-job2");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-get-job-request
+            GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*"); //<1>
+            request.setAllowNoJobs(true); //<2>
+            //end::x-pack-ml-get-job-request
+
+            //tag::x-pack-ml-get-job-execute
+            GetJobResponse response = client.machineLearning().getJob(request, RequestOptions.DEFAULT);
+            long numberOfJobs = response.count(); //<1>
+            List<Job> jobs = response.jobs(); //<2>
+            //end::x-pack-ml-get-job-execute
+
+            assertEquals(2, response.count());
+            assertThat(response.jobs(), hasSize(2));
+            assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()),
+                containsInAnyOrder(job.getId(), secondJob.getId()));
+        }
+        {
+            GetJobRequest request = new GetJobRequest("get-machine-learning-job1", "get-machine-learning-job*");
+
+            // tag::x-pack-ml-get-job-listener
+            ActionListener<GetJobResponse> listener = new ActionListener<GetJobResponse>() {
+                @Override
+                public void onResponse(GetJobResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-get-job-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-job-execute-async
+            client.machineLearning().getJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-job-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

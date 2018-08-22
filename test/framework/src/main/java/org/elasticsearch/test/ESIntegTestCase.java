@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -133,6 +134,8 @@ import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -2129,6 +2132,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return nodes;
     }
 
+    /**
+     * Asserts that all shards with the same shardId should have document Ids.
+     */
+    public void assertSameDocIdsOnShards() throws Exception {
+        final Map<ShardId, Set<String>> docIdsPerShard = new HashMap<>();
+        final String[] nodeNames = internalCluster().getNodeNames();
+        for (String nodeName : nodeNames) {
+            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, nodeName);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard shard : indexService) {
+                    try {
+                        final Set<String> docIds = IndexShardTestCase.getShardDocUIDs(shard, true);
+                        if (docIdsPerShard.containsKey(shard.shardId())) {
+                            assertThat(docIds, equalTo(docIdsPerShard.get(shard.shardId())));
+                        } else {
+                            docIdsPerShard.put(shard.shardId(), docIds);
+                        }
+                    } catch (AlreadyClosedException e) {
+
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Asserts that all segments are sorted with the provided {@link Sort}.

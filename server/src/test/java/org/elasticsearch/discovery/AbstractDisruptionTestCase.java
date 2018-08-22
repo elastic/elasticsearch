@@ -45,6 +45,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -91,6 +92,11 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         disableBeforeIndexDeletion = false;
+    }
+
+    @After
+    public void assertSameDocIds() throws Exception {
+        assertSameDocIdsOnShards();
     }
 
     @Override

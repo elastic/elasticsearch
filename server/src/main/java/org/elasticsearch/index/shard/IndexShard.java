@@ -2285,13 +2285,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 }
                                 if (isEngineResetting()) {
                                     engineHolder.closePendingEngine();
+                                    logger.info("detected new primary with primary term [{}], global checkpoint [{}]; " +
+                                        "resetting pending engine", opPrimaryTerm, getLocalCheckpoint());
                                 } else {
                                     sync();
                                     getEngine().flush(true, true); // force=true to make sure that we roll a translog generation
+                                    logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
+                                        opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
                                     getEngine().resetLocalCheckpoint(localCheckpoint);
                                 }
-                                logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                    opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
                                 final Engine pendingEngine = maybeResetEngineToSafeCommit();
                                 if (pendingEngine != null) {
                                     pendingEngine.recoverFromTranslog(localCheckpoint);
@@ -2693,18 +2695,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void completePendingEngineWithLocalHistory() throws IOException {
-        final Engine pendingEngine;
-        synchronized (mutex) {
-            assert isEngineResetting() : "engine is not being reset";
-            engineHolder.closePendingEngine();
-            pendingEngine = maybeResetEngineToSafeCommit();
-        }
-        if (pendingEngine != null) {
-            pendingEngine.recoverFromTranslog(Long.MAX_VALUE);
-            engineHolder.adjustMinRequiredCheckpoint(-1);
-            engineHolder.maybeActivatePendingEngine();
-        }
-        assert isEngineResetting() == false : "engine was reset with local history";
+        assert isEngineResetting() : "engine is not being reset";
+        engineHolder.closePendingEngine();
+        final Engine pendingEngine = maybeResetEngineToSafeCommit();
+        assert pendingEngine != null : "pending engine is not reset";
+        pendingEngine.recoverFromTranslog(Long.MAX_VALUE);
+        engineHolder.adjustMinRequiredCheckpoint(-1);
+        engineHolder.maybeActivatePendingEngine();
+        assert isEngineResetting() == false : "engine was not reset with local history";
     }
 
     /**

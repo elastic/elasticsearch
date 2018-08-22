@@ -574,11 +574,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return result;
     }
 
-    protected Set<String> getShardDocUIDs(final IndexShard shard, boolean refresh) throws IOException {
+    public static Set<String> getShardDocUIDs(final IndexShard shard, boolean refresh) throws IOException {
         return EngineTestCase.getDocIds(shard.getEngine(), refresh);
     }
 
-    protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
+    public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
         return getShardDocUIDs(shard, true);
     }
 

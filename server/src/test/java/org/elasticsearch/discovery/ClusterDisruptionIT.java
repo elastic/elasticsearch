@@ -211,6 +211,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                         }
                     }
+                    assertSameDocIdsOnShards();
                 }, 30, TimeUnit.SECONDS);
 
                 logger.info("done validating (iteration [{}])", iter);

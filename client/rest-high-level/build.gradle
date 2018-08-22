@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.internal.provider.Providers
 
@@ -47,13 +45,13 @@ dependencies {
    * Everything in the "shadow" configuration is *not* copied into the
    * shadowJar.
    */
-  shadow "org.elasticsearch:elasticsearch:${version}"
-  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  shadow "org.elasticsearch.plugin:parent-join-client:${version}"
-  shadow "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  shadow "org.elasticsearch.plugin:rank-eval-client:${version}"
-  shadow "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  compile project(':x-pack:protocol')
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
+  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  bundle project(':x-pack:protocol')
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
@@ -75,8 +73,8 @@ dependencyLicenses {
 forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
-  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
-  signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+  addSignatureFiles 'http-signatures'
+  signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
 
 integTestCluster {

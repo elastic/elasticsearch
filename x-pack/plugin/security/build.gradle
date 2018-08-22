@@ -12,7 +12,8 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -157,8 +158,7 @@ forbiddenPatterns {
 }
 
 forbiddenApisMain {
-    signaturesURLs += file('forbidden/ldap-signatures.txt').toURI().toURL()
-    signaturesURLs += file('forbidden/xml-signatures.txt').toURI().toURL()
+    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

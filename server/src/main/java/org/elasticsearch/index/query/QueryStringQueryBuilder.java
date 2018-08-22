@@ -328,8 +328,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */
-    public void type(MultiMatchQueryBuilder.Type type) {
+    public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
+        return this;
     }
 
     /**
@@ -388,7 +389,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         this.analyzer = analyzer;
         return this;
     }
-    
+
     /**
      * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
      * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
@@ -899,9 +900,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(lenient, other.lenient) &&
                 Objects.equals(
-                        timeZone == null ? null : timeZone.getID(), 
+                        timeZone == null ? null : timeZone.getID(),
                         other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&

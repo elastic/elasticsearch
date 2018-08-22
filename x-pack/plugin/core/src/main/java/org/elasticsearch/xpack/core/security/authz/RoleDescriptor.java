@@ -252,7 +252,7 @@ public class RoleDescriptor implements ToXContentObject {
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
             conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         } else {
@@ -276,7 +276,7 @@ public class RoleDescriptor implements ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeMap(descriptor.transientMetadata);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
         }

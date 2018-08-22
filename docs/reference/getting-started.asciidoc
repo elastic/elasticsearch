@@ -23,7 +23,7 @@ There are a few concepts that are core to Elasticsearch. Understanding these con
 [float]
 === Near Realtime (NRT)
 
-Elasticsearch is a near real time search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
+Elasticsearch is a near-realtime search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
 
 [float]
 === Cluster
@@ -59,7 +59,7 @@ In a single cluster, you can define as many indexes as you want.
 
 deprecated[6.0.0,See <<removal-of-types>>]
 
-A type used to be a logical category/partition of your index to allow you to store different types of documents in the same index, eg one type for users, another type for blog posts.  It is no longer possible to create multiple types in an index, and the whole concept of types will be removed in a later version.  See <<removal-of-types>> for more.
+A type used to be a logical category/partition of your index to allow you to store different types of documents in the same index, e.g. one type for users, another type for blog posts.  It is no longer possible to create multiple types in an index, and the whole concept of types will be removed in a later version.  See <<removal-of-types>> for more.
 
 [float]
 === Document
@@ -1066,7 +1066,7 @@ In the previous section, we skipped over a little detail called the document sco
 
 But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
 
-The {ref}/query-dsl-bool-query.html[`bool` query] that we introduced in the previous section also supports `filter` clauses which allow to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the {ref}/query-dsl-range-query.html[`range` query], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
+The {ref}/query-dsl-bool-query.html[`bool` query] that we introduced in the previous section also supports `filter` clauses which allow us to use a query to restrict the documents that will be matched by other clauses, without changing how scores are computed. As an example, let's introduce the {ref}/query-dsl-range-query.html[`range` query], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 
 This example uses a bool query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 

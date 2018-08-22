@@ -84,6 +84,7 @@ if (isEclipse) {
   // for server-src and server-tests
   projects << 'server-tests'
   projects << 'libs:core-tests'
+  projects << 'libs:dissect-tests'
   projects << 'libs:nio-tests'
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
@@ -103,6 +104,10 @@ if (isEclipse) {
   project(":libs:core").buildFileName = 'eclipse-build.gradle'
   project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
   project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
+  project(":libs:dissect").buildFileName = 'eclipse-build.gradle'
+  project(":libs:dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
+  project(":libs:dissect-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
   project(":libs:nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')

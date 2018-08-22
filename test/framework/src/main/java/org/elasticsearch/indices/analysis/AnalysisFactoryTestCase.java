@@ -67,7 +67,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
         StringBuffer sb = new StringBuffer();
         while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase());
+            m.appendReplacement(sb, m.group(1).toUpperCase(Locale.ROOT));
         }
         m.appendTail(sb);
         sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));

@@ -58,7 +58,8 @@ final class TypeConverter {
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
     private static final Map<Class<?>, JDBCType> javaToJDBC;
-    
+
+
     static {
         Map<Class<?>, JDBCType> aMap = Arrays.stream(DataType.values())
                 .filter(dataType -> dataType.javaClass() != null
@@ -119,7 +120,8 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-    
+
+
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
             return value;
@@ -142,7 +144,8 @@ final class TypeConverter {
         if (type == null) {
             return (T) convert(val, columnType);
         }
-        
+
+
         // converting a Long to a Timestamp shouldn't be possible according to the spec,
         // it feels a little brittle to check this scenario here and I don't particularly like it
         // TODO: can we do any better or should we go over the spec and allow getLong(date) to be valid?
@@ -153,7 +156,8 @@ final class TypeConverter {
                 throw new SQLDataException("Unable to convert " + val.getClass().getName() + " to " + columnType, cce);
             }
         }
-        
+
+
         if (type == String.class) {
             return (T) asString(convert(val, columnType));
         }
@@ -279,8 +283,8 @@ final class TypeConverter {
         }
         return dataType.isSigned();
     }
-    
-    
+
+
     static JDBCType fromJavaToJDBC(Class<?> clazz) throws SQLException {
         for (Entry<Class<?>, JDBCType> e : javaToJDBC.entrySet()) {
             // java.util.Calendar from {@code javaToJDBC} is an abstract class and this method can be used with concrete classes as well
@@ -288,7 +292,7 @@ final class TypeConverter {
                 return e.getValue();
             }
         }
-        
+
         throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
     }
 
@@ -464,7 +468,8 @@ final class TypeConverter {
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return new Float(((Number) val).doubleValue());
+
+                return Float.valueOf((((float) ((Number) val).doubleValue())));
             case VARCHAR:
                 try {
                     return Float.valueOf((String) val);
@@ -489,7 +494,8 @@ final class TypeConverter {
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return new Double(((Number) val).doubleValue());
+
+                return Double.valueOf(((Number) val).doubleValue());
             case VARCHAR:
                 try {
                     return Double.valueOf((String) val);

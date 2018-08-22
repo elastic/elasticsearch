@@ -27,8 +27,8 @@ live?
 ==== Path Parameters
 
 `index`::
-  (string) Index, indices or index-pattern to return rollup capabilities for.  If omitted (or `_all` is used) all available
-  rollup job capabilities will be returned
+  (string) Index, indices or index-pattern to return rollup capabilities for.  `_all` may be used to fetch
+  rollup capabilities from all jobs
 
 
 ==== Request Body

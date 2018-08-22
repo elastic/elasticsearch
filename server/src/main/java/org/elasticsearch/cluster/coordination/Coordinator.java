@@ -47,7 +47,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         super(settings);
         this.transportService = transportService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService, this::getCurrentTerm,
-            this::handleJoinRequest);
+            this::handleJoin);
         this.persistedStateSupplier = persistedStateSupplier;
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
@@ -72,31 +72,21 @@ public class Coordinator extends AbstractLifecycleComponent {
         return join;
     }
 
-    public void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
+    private boolean handleJoin(final Join join) {
         assert Thread.holdsLock(mutex) == false;
-        transportService.connectToNode(joinRequest.getSourceNode());
 
         synchronized (mutex) {
-            handleJoinRequestUnderLock(joinRequest, joinCallback);
-        }
-    }
+            logger.trace("handleJoin: as {}, handling {}", mode, join);
 
-    private void handleJoinRequestUnderLock(JoinRequest joinRequest, JoinCallback joinCallback) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        logger.trace("handleJoinRequestUnderLock: as {}, handling {}", mode, joinRequest);
+            final CoordinationState coordState = coordinationState.get();
+            final boolean prevElectionWon = coordState.electionWon();
 
-        final CoordinationState coordState = coordinationState.get();
-        final boolean prevElectionWon = coordState.electionWon();
-
-        if (joinRequest.getOptionalJoin().isPresent()) {
-            final Join join = joinRequest.getOptionalJoin().get();
             // if someone thinks we should be master, let's add our vote and try to become one
             // note that the following line should never throw an exception
             ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(coordState::handleJoin);
 
-            // if we have already won the election, then the actual join does not matter for election purposes
             if (coordState.electionWon()) {
-                // add join on a best-effort basis
+                // if we have already won the election then the actual join does not matter for election purposes, so swallow any exception
                 try {
                     coordState.handleJoin(join);
                 } catch (CoordinationStateRejectedException e) {
@@ -105,13 +95,14 @@ public class Coordinator extends AbstractLifecycleComponent {
             } else {
                 coordState.handleJoin(join); // this might fail and bubble up the exception
             }
+
+            if (prevElectionWon == false && coordState.electionWon()) {
+                becomeLeader("handleJoin");
+                return true;
+            }
         }
 
-        final boolean justBecameLeader = prevElectionWon == false && coordState.electionWon();
-        if (justBecameLeader) {
-            becomeLeader("handleJoin");
-        }
-        joinHelper.join(mode, joinRequest, joinCallback, justBecameLeader);
+        return false;
     }
 
     void becomeCandidate(String method) {
@@ -120,6 +111,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
+            joinHelper.becomeCandidate();
         }
     }
 
@@ -138,7 +130,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinHelper.clearAndFailPendingJoins("following another master : " + leaderNode);
+            joinHelper.becomeFollower(leaderNode);
         }
 
         lastKnownLeader = Optional.of(leaderNode);
@@ -190,7 +182,7 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
-                assert joinHelper.getNumberOfPendingJoins() == 0;
+                // assert joinHelper.getNumberOfPendingJoins() == 0; // not true any more, may not have submitted to the master service yet
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
@@ -199,6 +191,11 @@ public class Coordinator extends AbstractLifecycleComponent {
                 assert mode == Mode.CANDIDATE;
             }
         }
+    }
+
+    // this is just used because the test doesn't simulate sending the join requests through the transport service - TODO remove it
+    public void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
+        joinHelper.handleJoinRequest(joinRequest, joinCallback);
     }
 
     public enum Mode {

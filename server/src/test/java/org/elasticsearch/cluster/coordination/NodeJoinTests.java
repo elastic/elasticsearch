@@ -335,7 +335,7 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> FutureUtils.get(fut)).getMessage(),
-            containsString("following another master"));
+            containsString("started following"));
         assertFalse(isLocalNodeElectedMaster());
     }
 

@@ -36,8 +36,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 public class JoinHelper extends AbstractComponent {
 
@@ -45,15 +48,18 @@ public class JoinHelper extends AbstractComponent {
 
     private final MasterService masterService;
     private final TransportService transportService;
+    private final Predicate<Join> joinHandler;
     private final JoinTaskExecutor joinTaskExecutor;
-    private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
+    private final Object mutex = new Object();
+    private JoinAccumulator joinAccumulator = new CandidateJoinAccumulator();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinRequestHandler) {
+                      Predicate<Join> joinHandler) {
         super(settings);
         this.masterService = masterService;
         this.transportService = transportService;
+        this.joinHandler = joinHandler;
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
 
             @Override
@@ -75,7 +81,8 @@ public class JoinHelper extends AbstractComponent {
         };
 
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> joinRequestHandler.accept(request, new JoinCallback() {
+            (request, channel, task) -> handleJoinRequest(request, new JoinCallback() {
+
                 @Override
                 public void onSuccess() {
                     try {
@@ -102,58 +109,39 @@ public class JoinHelper extends AbstractComponent {
             }));
     }
 
-    private void addPendingJoin(JoinRequest joinRequest, JoinCallback joinCallback) {
-        JoinCallback prev = joinRequestAccumulator.put(joinRequest.getSourceNode(), joinCallback);
-        if (prev != null) {
-            prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + joinRequest.getSourceNode()));
+    void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
+        transportService.connectToNode(joinRequest.getSourceNode());
+
+        final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
+        final boolean justBecameLeader = optionalJoin.isPresent() && joinHandler.test(optionalJoin.get());
+
+        synchronized (mutex) {
+            joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);
+
+            if (justBecameLeader) {
+                joinAccumulator.clearAndSubmitPendingJoins();
+                joinAccumulator = new LeaderJoinAccumulator();
+            }
+        }
+    }
+
+    void becomeCandidate() {
+        synchronized (mutex) {
+            joinAccumulator.clearAndFailPendingJoins("becoming candidate");
+            joinAccumulator = new CandidateJoinAccumulator();
+        }
+    }
+
+    void becomeFollower(DiscoveryNode leaderNode) {
+        synchronized (mutex) {
+            joinAccumulator.clearAndFailPendingJoins("started following " + leaderNode);
+            joinAccumulator = new FollowerJoinAccumulator();
         }
     }
 
     public int getNumberOfPendingJoins() {
-        return joinRequestAccumulator.size();
-    }
-
-    public void clearAndFailPendingJoins(String reason) {
-        joinRequestAccumulator.values().forEach(
-            joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
-        joinRequestAccumulator.clear();
-    }
-
-    private void clearAndSubmitPendingJoins() {
-        final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
-        joinRequestAccumulator.forEach((key, value) -> {
-            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
-            pendingAsTasks.put(task, new JoinTaskListener(task, value));
-        });
-        joinRequestAccumulator.clear();
-
-        pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {});
-        pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {});
-        final String source = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
-        masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
-    }
-
-    private void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
-        // submit as cluster state update task
-        final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader");
-        masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
-            joinTaskExecutor, new JoinTaskListener(task, joinCallback));
-    }
-
-    public void join(Mode mode, JoinRequest joinRequest, JoinCallback joinCallback, boolean justBecameLeader) {
-        if (mode == Mode.LEADER && justBecameLeader == false) {
-            joinLeader(joinRequest, joinCallback);
-        } else if (mode == Mode.FOLLOWER) {
-            assert joinRequest.getOptionalJoin().isPresent() == false : "follower should not have solicited join " + joinRequest;
-            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
-        } else {
-            addPendingJoin(joinRequest, joinCallback);
-            if (justBecameLeader) {
-                assert mode == Mode.LEADER;
-                clearAndSubmitPendingJoins();
-            } else {
-                assert mode == Mode.CANDIDATE;
-            }
+        synchronized (mutex) {
+            return joinAccumulator.getNumberOfPendingJoins();
         }
     }
 
@@ -188,4 +176,80 @@ public class JoinHelper extends AbstractComponent {
         }
     }
 
+
+    private interface JoinAccumulator {
+        void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
+
+        default void clearAndFailPendingJoins(String reason) {
+        }
+
+        default void clearAndSubmitPendingJoins() {
+        }
+
+        default int getNumberOfPendingJoins() {
+            return 0;
+        }
+    }
+
+    private class LeaderJoinAccumulator implements JoinAccumulator {
+        @Override
+        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
+            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
+                joinTaskExecutor, new JoinTaskListener(task, joinCallback));
+        }
+
+        @Override
+        public String toString() {
+            return "LeaderJoinAccumulator";
+        }
+    }
+
+    private static class FollowerJoinAccumulator implements JoinAccumulator {
+        @Override
+        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
+        }
+
+        @Override
+        public String toString() {
+            return "FollowerJoinAccumulator";
+        }
+    }
+
+    private class CandidateJoinAccumulator implements JoinAccumulator {
+
+        private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
+
+        @Override
+        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+            JoinCallback prev = joinRequestAccumulator.put(sender, joinCallback);
+            if (prev != null) {
+                prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
+            }
+        }
+
+        @Override
+        public void clearAndFailPendingJoins(String reason) {
+            joinRequestAccumulator.values().forEach(
+                joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
+            joinRequestAccumulator.clear();
+        }
+
+        @Override
+        public void clearAndSubmitPendingJoins() {
+            final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
+            joinRequestAccumulator.forEach((key, value) -> {
+                final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
+                pendingAsTasks.put(task, new JoinTaskListener(task, value));
+            });
+
+            pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {
+            });
+            pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {
+            });
+            final String source = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
+            masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+        }
+    }
 }

@@ -182,7 +182,6 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
-                // assert joinHelper.getNumberOfPendingJoins() == 0; // not true any more, may not have submitted to the master service yet
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);

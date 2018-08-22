@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -178,6 +179,93 @@ public class ScopedSettingsTests extends ESTestCase {
             .build(), true);
 
         service.validate(Settings.builder().put("foo.test.bar", 7).build(), false);
+    }
+
+    public void testTupleAffixUpdateConsumer() {
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, Tuple<List<Integer>, Integer>> results = new HashMap<>();
+
+        BiConsumer<String, Tuple<List<Integer>, Integer>> listConsumer = results::put;
+
+        service.addAffixUpdateConsumer(listSetting, intSetting, listConsumer, (s, k) -> {
+            if (k.v1().isEmpty() && k.v2() == 2) {
+                throw new IllegalArgumentException("boom");
+            }
+        });
+        assertEquals(0, results.size());
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test.list", "16", "17")
+            .putList("foo.test_1.list", "18", "19", "20")
+            .build());
+        assertEquals(2, results.get("test").v2().intValue());
+        assertEquals(7, results.get("test_1").v2().intValue());
+        assertEquals(Arrays.asList(16, 17), results.get("test").v1());
+        assertEquals(Arrays.asList(18, 19, 20), results.get("test_1").v1());
+        assertEquals(2, results.size());
+
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test.list", "16", "17")
+            .putNull("foo.test_1.list") // removed
+            .build());
+
+        assertNull("test wasn't changed", results.get("test"));
+        assertEquals(1, results.get("test_1").v1().size());
+        assertEquals(Arrays.asList(1), results.get("test_1").v1());
+        assertEquals(7, results.get("test_1").v2().intValue());
+        assertEquals(1, results.size());
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test.list", "16", "17")
+            .putList("foo.test_2.list", "5", "6") // added
+            .build());
+        assertNull("test wasn't changed", results.get("test"));
+        assertNull("test_1 wasn't changed", results.get("test_1"));
+
+        assertEquals(2, results.get("test_2").v1().size());
+        assertEquals(Arrays.asList(5, 6), results.get("test_2").v1());
+        assertEquals(1, results.get("test_2").v2().intValue());
+        assertEquals(1, results.size());
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 4) // modified
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test.list", "16", "17")
+            .putList("foo.test_2.list", "5", "6")
+            .build());
+        assertNull("test_1 wasn't changed", results.get("test_1"));
+        assertNull("test_2 wasn't changed", results.get("test_2"));
+
+        assertEquals(2, results.get("test").v1().size());
+        assertEquals(Arrays.asList(16, 17), results.get("test").v1());
+        assertEquals(4, results.get("test").v2().intValue());
+        assertEquals(1, results.size());
+        results.clear();
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+            service.applySettings(Settings.builder()
+                .put("foo.test.bar", 2) // modified to trip validator
+                .put("foo.test_1.bar", 7)
+                .putList("foo.test.list") // modified to trip validator
+                .putList("foo.test_2.list", "5", "6")
+                .build())
+        );
+        assertEquals("boom", iae.getMessage());
+        assertEquals(0, results.size());
+
     }
 
     public void testAddConsumerAffix() {
@@ -893,7 +981,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
     public void testInternalIndexSettingsSkipValidation() {
         final Setting<String> internalIndexSetting = Setting.simpleString("index.internal", Property.InternalIndex, Property.IndexScope);
-        final IndexScopedSettings indexScopedSettings = 
+        final IndexScopedSettings indexScopedSettings =
                 new IndexScopedSettings(Settings.EMPTY, Collections.singleton(internalIndexSetting));
         // nothing should happen, validation should not throw an exception
         final Settings settings = Settings.builder().put("index.internal", "internal").build();

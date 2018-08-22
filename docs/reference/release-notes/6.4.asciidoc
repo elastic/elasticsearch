@@ -128,7 +128,9 @@ Java High Level REST Client::
 * Rest High Level client: Add List Tasks {pull}29546[#29546] (issue: {issue}27205[#27205])
 
 Machine learning::
-* Implement new rules design {pull}31110[#31110], {pull}31294[#31294] (issue: {issue}31110[#31110])
+* Detectors now support {stack-ov}/ml-rules.html[custom rules] that enable the 
+user to improve machine learning results by providing some domain-specific 
+knowledge in the form of rule. {ml-pull}119[#119], {pull}31110[#31110], {pull}31294[#31294] (issue: {issue}31110[#31110])
 * Reverse engineer Grok patterns from categorization results {pull}30125[#30125]
 
 Mapping::
@@ -160,24 +162,6 @@ Watcher::
 [float]
  [[enhancement-6.4.0]]
 === Enhancements
-
-{ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
-
-Geo::
-* Add validation that geohashes are not empty and don't contain unsupported characters ({pull}30376[#30376])
-
-Rollup::
-* Validate timezone in range queries to ensure they match the selected job when
-searching ({pull}30338[#30338])
-* Rollup now indexes `null` values, meaning a single "unified" job for heterogeneous data is now the recommended pattern ({pull}31402[#31402])
-* Rollup Search endpoint now supports the `terms` query  ({pull}30973[#30973])
-* Rollups no longer allow patterns that match it's `rollup_index`, which can lead to strange errors ({pull}30491[#30491])
-* Validation errors thrown while creating a rollup job are now a specialization of the previous `ActionRequestValidationException`,
- making it easier to catch.  The new exception is `RollupActionRequestValidationException` ({pull}30339[#30339])
- 
-////
-new
-////
 
 Aggregations::
 * Fix wrong NaN check in MovingFunctions#stdDev() {pull}31888[#31888]
@@ -230,7 +214,7 @@ Aggregations::
  Index APIs::
  * Add Index UUID to `/_stats` Response {pull}31871[#31871] (issue: {issue}31791[#31791])
  * add support for write index resolution when creating/updating documents {pull}31520[#31520]
- * Allow copying source settings on resize operation {pull}30255[#30255] (issue: {issue}28347[#28347])
+ * {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] {pull}30255[#30255] (issue: {issue}28347[#28347])
 
  Ingest::
  * Extend KV Processor (#31789) {pull}32232[#32232] (issue: {issue}31786[#31786])
@@ -300,18 +284,46 @@ Aggregations::
 
  Logging::
  * Add x-opaque-id to search slow logs {pull}31539[#31539] (issue: {issue}31521[#31521])
-////
+
 Machine learning::
- * [ML] Use default request durability for .ml-state index {pull}32233[#32233]
- * [ML] Return statistics about forecasts as part of the jobsstats and usage API {pull}31647[#31647] (issue: {issue}31395[#31395])
- * [ML] Add description to ML filters {pull}31330[#31330]
- * [ML] Check licence when datafeeds use cross cluster search  {pull}31247[#31247]
- * [ML] Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
- * [ML] Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
- * [ML] provide tmp storage for forecasting and possibly any ml native jobs {pull}30399[#30399]
- 
+* If a {ml} datafeed is configured to use cross cluster search to retrieve data, 
+the remote clusters must have {xpack} installed and a valid licence for {ml}. 
+If the licence requirements are not met, datafeeds using cross cluster search 
+will not start. {pull}31247[#31247]
+ * Use default request durability for .ml-state index {pull}32233[#32233]
+ * Return statistics about forecasts as part of the job stats and usage API {pull}31647[#31647] (issue: {issue}31395[#31395])
+ * Add description to ML filters {pull}31330[#31330]
+ * Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
+ * Hide internal job update options from the REST API {pull}30537[#30537]
+ * Provide tmp storage for forecasting and possibly any {ml} native jobs {pull}30399[#30399]
+* Improves and uses periodic boundary condition for seasonal component modeling ({ml-pull}84[#84])
+* Improves robustness with respect to outliers in detection and initialization of seasonal components ({ml-pull}90[#90] (issue: {ml-issue}87[#87]))
+* Improves behavior when there are abrupt changes in the seasonal components present in a time series ({ml-pull}91[#91] (issue: {ml-issue}6[#6]))
+* Adds explicit change point detection and modeling ({ml-pull}92[#92])
+* Improves partition analysis memory usage ({ml-pull}97[#97])
+* Reduces model memory by storing state for periodicity testing in a compressed format ({ml-pull}104[#104],{ml-pull}100[#100])
+* Improves the accuracy of model memory control
+({ml-pull}125[#125], {ml-issue}122[#122])
+* Improves adaption of the modeling of cyclic components to very localized features
+({ml-pull}138[#138], {ml-pull}134[#134])
+* Reduces the memory consumed by distribution models ({ml-pull}162[#162], {ml-pull}146[#146])
+* Forecasting of large machine learning jobs is now supported by temporarily storing
+model state on disk ({ml-pull}89[#89])
+* Secures the machine learning processes by preventing system calls such as fork 
+and exec. The Linux implementation uses Seccomp BPF (secure computing with 
+Berkeley Packet Filters) to intercept system calls and is available in kernels 
+since 3.5. On Windows, Job Objects prevent new processes being created and macOS 
+uses the sandbox functionality ({ml-pull}106[#106], {ml-pull}98[#98])
+* Fixes a bug that caused underestimation of the memory used by shared pointers. 
+Also reduces the memory consumed by unnecessary reference counting ({ml-pull}121[#121], {ml-pull}108, {ml-pull}115[#115])
+* Reduces model memory by storing the state for testing predictive calendar 
+features in a compressed format ({ml-pull}137[#137], {ml-pull}127[#127])
+* Always combine duplicate samples when updating population models ({ml-pull}74[#74])
+* Speeds up trend model component prediction ({ml-pull}73[#73])
+* Encodes distribution model weight style by offset in a fixed size weight array
+({ml-pull}54[#54])
+
  Mapping::
- * Disallow disabling `_field_names` [OPEN] [ISSUE] {pull}27239[#27239]
  * Remove RestGetAllMappingsAction {pull}31129[#31129]
  * Add a doc value format to binary fields. {pull}30860[#30860] (issue: {issue}30831[#30831])
 
@@ -319,21 +331,15 @@ Machine learning::
  * _cluster/state should always return cluster_uuid {pull}30143[#30143]
 
  Network::
- * Backport SSL context names (#30953) to 6.x {pull}32223[#32223]
+ * Backport SSL context names {pull}32223[#32223], {pull}30953[#30953)
  * Remove client connections from TcpTransport {pull}31886[#31886] (issue: {issue}31835[#31835])
  * Support multiple system store types {pull}31650[#31650]
- * Only connect to new nodes on new cluster state {pull}31547[#31547] (issue: {issue}29025[#29025])
- * Introduce CONNECT threadpool {pull}31546[#31546] (issue: {issue}29023[#29023])
  * Use remote client in TransportFieldCapsAction {pull}30838[#30838]
  * Replace custom reloadable Key/TrustManager {pull}30509[#30509]
  * Derive max composite buffers from max content len {pull}29448[#29448]
 
  Packaging::
- * Test sysctl vm.max_map_count before failing init script [OPEN] [ISSUE] {pull}27236[#27236]
- * Packaging: Set elasticsearch user to have non-existent homedir {pull}29007[#29007] (issue: {issue}14453[#14453])
-
- Percolator::
- * Add support for selecting percolator query candidate matches containing geo_point based queries [OPEN] {pull}26040[#26040]
+ * Set elasticsearch user to have non-existent homedir {pull}29007[#29007] (issue: {issue}14453[#14453])
 
  Plugins::
  * Verify signatures on official plugins {pull}30800[#30800]
@@ -343,62 +349,51 @@ Machine learning::
  * Rename ranking evaluation response `unknown_docs` section {pull}32166[#32166]
  * Add Expected Reciprocal Rank metric {pull}31891[#31891] (issue: {issue}29653[#29653])
  * Add details section for dcg ranking metric {pull}31177[#31177]
- * [Tests] Move templated `_rank_eval` tests {pull}30679[#30679] (issue: {issue}30628[#30628])
+ * Move templated `_rank_eval` tests {pull}30679[#30679] (issue: {issue}30628[#30628])
  * Forbid expensive query parts in ranking evaluation {pull}30151[#30151] (issue: {issue}29674[#29674])
 
- Recovery::
- * Reduce connection timeout for intra-cluster connections [OPEN] [ISSUE] {pull}29022[#29022]
-
  Rollup::
- * [Rollup] Only allow aggregating on multiples of configured interval [OPEN] {pull}32052[#32052]
- * Copy normalisers for keyword fields to rollup indexes [OPEN] [ISSUE] {pull}30996[#30996]
- * [Rollup] Use composite's missing_bucket {pull}31402[#31402]
- * Allow terms query in _rollup_search {pull}30973[#30973]
- * Allow rollup job creation only if cluster is x-pack ready {pull}30963[#30963] (issue: {issue}30743[#30743])
- * [Rollup] Disallow index patterns that match rollup indices {pull}30491[#30491]
- Rollup::
+ * Rollup now indexes `null` values, meaning a single "unified" job for heterogeneous data is now the recommended pattern. {pull}31402[#31402]
+ * Rollup Search endpoint now supports the `terms` query. {pull}30973[#30973])
+ * Allow rollup job creation only if cluster is X-Pack ready. {pull}30963[#30963]
+ * Rollups no longer allow patterns that match its `rollup_index`, which can lead to strange errors. {pull}30491[#30491]
  * A new API allows getting the rollup capabilities of specific rollup indices,
- rather than by the target pattern ({pull}30401[#30401])
- * [Rollup] Specialize validation exception for easier management {pull}30339[#30339]
- * [Rollup] Validate timezone in range queries {pull}30338[#30338]
+ rather than by the target pattern. {pull}30401[#30401]
+ * Validation errors thrown while creating a rollup job are now a specialization of the previous `ActionRequestValidationException`, which makes it easier to catch. 
+ The new exception is `RollupActionRequestValidationException`. {pull}30339[#30339]
+ * Validate timezone in range queries to ensure they match the selected job when
+ searching. {pull}30338[#30338]
 
  SQL::
- * SQL: allow LEFT and RIGHT as function names {pull}32066[#32066] (issue: {issue}32046[#32046])
- * SQL: Add support for single parameter text manipulating functions {pull}31874[#31874] (issue: {issue}31604[#31604])
- * SQL: Remove restriction for single column grouping {pull}31818[#31818] (issue: {issue}31793[#31793])
- * SQL: Make a single JDBC driver jar {pull}31012[#31012] (issue: {issue}29856[#29856])
- * SQL: Remove the last remaining server dependencies from jdbc {pull}30771[#30771] (issue: {issue}29856[#29856])
- * SQL: Whitelist SQL utility class for better scripting {pull}30681[#30681] (issue: {issue}29832[#29832])
- * SQL: Improve compatibility with MS query {pull}30516[#30516] (issue: {issue}30398[#30398])
- * SQL: Reduce number of ranges generated for comparisons {pull}30267[#30267] (issue: {issue}30017[#30017])
- * SQL: Teach the CLI to ignore empty commands {pull}30265[#30265] (issue: {issue}30000[#30000])
- * SQL: a more compact way of translating the queries that have `AND` statements [ISSUE] {pull}30019[#30019]
- * SQL: correctness of SYS TABLES/COLUMNS results [ISSUE] {pull}29862[#29862]
- * JDBC driver prepared statement set* methods  {pull}31494[#31494] (issue: {issue}31493[#31493])
+ * Allow LEFT and RIGHT as function names {pull}32066[#32066] (issue: {issue}32046[#32046])
+ * Add support for single parameter text manipulating functions {pull}31874[#31874] (issue: {issue}31604[#31604])
+ * Remove restriction for single column grouping {pull}31818[#31818] (issue: {issue}31793[#31793])
+ * Make a single JDBC driver jar {pull}31012[#31012] (issue: {issue}29856[#29856])
+ * Remove the last remaining server dependencies from JDBC {pull}30771[#30771] (issue: {issue}29856[#29856])
+ * Whitelist SQL utility class for better scripting {pull}30681[#30681] (issue: {issue}29832[#29832])
+ * Improve compatibility with MS query {pull}30516[#30516] (issue: {issue}30398[#30398])
+ * Reduce number of ranges generated for comparisons {pull}30267[#30267] (issue: {issue}30017[#30017])
+ * Teach the CLI to ignore empty commands {pull}30265[#30265] (issue: {issue}30000[#30000])
+ * JDBC driver prepared statement set* methods {pull}31494[#31494] (issue: {issue}31493[#31493])
 
  Scripting::
- * Painless - Request for native String split function [OPEN] [ISSUE] {pull}20952[#20952]
- * Handle missing values in painless (#30975) {pull}31903[#31903] (issue: {issue}29286[#29286])
- * Handle missing values in painless {pull}30975[#30975] (issue: {issue}29286[#29286])
+ * Handle missing values in painless {pull}[#30975], {pull}31903[#31903] (issue: {issue}29286[#29286])
 
  Search::
- * Avoid BytesRef's copying in ScriptDocValues's Strings [OPEN] {pull}29581[#29581] (issue: {issue}29567[#29567])
  * Force execution of fetch tasks {pull}31974[#31974] (issue: {issue}29442[#29442])
  * Add second level of field collapsing {pull}31808[#31808] (issue: {issue}24855[#24855])
  * Remove QueryCachingPolicy#ALWAYS_CACHE {pull}31451[#31451]
- * CCS: don't proxy requests for already connected node {pull}31273[#31273]
+ * Cross cluster search: don't proxy requests for already connected node {pull}31273[#31273]
  * Reject long regex in query_string {pull}31136[#31136] (issue: {issue}28344[#28344])
- * Cross Cluster Search: do not use dedicated masters as gateways {pull}30926[#30926] (issue: {issue}30687[#30687])
+ * Cross cluster search: do not use dedicated masters as gateways {pull}30926[#30926] (issue: {issue}30687[#30687])
  * Added max_expansion param to span_multi {pull}30913[#30913] (issue: {issue}27432[#27432])
  * Increase the maximum number of filters that may be in the cache. {pull}30655[#30655]
  * Improve explanation in rescore {pull}30629[#30629] (issue: {issue}28725[#28725])
 
  Security::
- * Introduce fips_mode setting and associated checks (#32326) {pull}32344[#32344]
- * Introduce fips_mode setting and associated checks {pull}32326[#32326]
+ * Introduce fips_mode setting and associated checks {pull}32326[#32326], {pull}32344[#32344]
  * Tribe: Add error with secure settings copied to tribe {pull}32298[#32298] (issue: {issue}32117[#32117])
- * Only auto-update license signature if all nodes ready {pull}30859[#30859] (issues: {issue}30251[#30251], {issue}30731[#30731])
- * Use readFully() to read bytes from CipherInputStream (#28515) {pull}30640[#30640]
+ * Only auto-update license signature if all nodes ready {pull}30859[#30859] (issues: {issue}30731[#30731])
  * Limit the scope of BouncyCastle dependency {pull}30358[#30358]
  * Make licensing FIPS-140 compliant {pull}30251[#30251]
 
@@ -409,35 +404,28 @@ Machine learning::
  * Fold RestGetAllSettingsAction in RestGetSettingsAction {pull}30561[#30561]
 
  Snapshot/Restore::
- * Update AWS SDK to 1.11.340  in repository-s3 [OPEN] {pull}30723[#30723] (issues: {issue}22758[#22758], {issue}25552[#25552], {issue}30474[#30474])
- * WIP: S3 client encryption [OPEN] {pull}30513[#30513] (issues: {issue}11128[#11128], {issue}16843[#16843])
- * Update aws java sdk to support ecs task roles [OPEN] {pull}25552[#25552] (issue: {issue}23039[#23039])
- * ECS Task IAM profile credentials ignored in repository-s3 plugin {pull}31864[#31864] (issues: {issue}26913[#26913], {issue}31918[#31918])
+ * ECS Task IAM profile credentials ignored in repository-s3 plugin {pull}31864[#31864] (issues: {issue}26913[#26913])
  * Add write*Blob option to replace existing blob {pull}31729[#31729]
  * Fixture for Minio testing {pull}31688[#31688]
  * Do not check for object existence when deleting repository index files {pull}31680[#31680]
- * Remove extra check for object existence in repository-gcs read object {pull}31661[#31661]
- * Do not check for Azure container existence everytime an Azure object is accessed or modified {pull}31617[#31617]
- * lazy snapshot repository initialization {pull}31606[#31606]
- * Do not check for S3 blob to exist before writing {pull}31128[#31128] (issue: {issue}19749[#19749])
+ * Remove extra check for object existence in repository-gcs read object {pull}31661[#31661] time an Azure object is accessed or modified {pull}31617[#31617]
+ * Lazy snapshot repository initialization {pull}31606[#31606]
+ * Do not check for S3 blob to exist before writing {pull}31128[#31128]
  * Remove extra checks from HdfsBlobContainer {pull}31126[#31126]
- * Allow date math for naming newly-created snapshots (#7939) {pull}30479[#30479]
- * Use simpler write-once semantics for HDFS repository {pull}30439[#30439] (issue: {issue}19749[#19749])
- * User proper write-once semantics for GCS repository {pull}30438[#30438] (issue: {issue}19749[#19749])
- * Use stronger write-once semantics for Azure repository {pull}30437[#30437] (issue: {issue}19749[#19749])
- * Use simpler write-once semantics for FS repository {pull}30435[#30435] (issue: {issue}19749[#19749])
- * BlobContainer.move() should fail if source does not exist or target already exists {pull}30421[#30421]
+ * Allow date math for naming newly-created snapshots {pull}30479[#30479] (issue: {issue}7939[#7939] )
+ * Use simpler write-once semantics for HDFS repository {pull}30439[#30439]
+ * User proper write-once semantics for GCS repository {pull}30438[#30438]
+ * Use stronger write-once semantics for Azure repository {pull}30437[#30437]
+ * Use simpler write-once semantics for FS repository {pull}30435[#30435] 
  * Do not fail snapshot when deleting a missing snapshotted file {pull}30332[#30332] (issue: {issue}28322[#28322])
  * Repository GCS plugin new client library {pull}30168[#30168] (issue: {issue}29259[#29259])
- * Fail snapshot operations early on repository corruption {pull}30140[#30140] (issues: {issue}24477[#24477], {issue}29649[#29649])
- * index name added to snapshot restore exception {pull}29604[#29604] (issue: {issue}27601[#27601])
+ * Fail snapshot operations early on repository corruption {pull}30140[#30140] (issues: {issue}29649[#29649])
+ * Index name added to snapshot restore exception {pull}29604[#29604] (issue: {issue}27601[#27601])
  * Do not load global state when deleting a snapshot {pull}29278[#29278] (issue: {issue}28934[#28934])
  * Don't load global state when only restoring indices {pull}29239[#29239] (issue: {issue}28934[#28934])
- * Automatic snapshot naming [ISSUE] {pull}7939[#7939]
 
  Stats::
  * Add `_coordinating_only` for nodes resolving in nodes API {pull}30313[#30313] (issue: {issue}28831[#28831])
- * Handle repeated mount point in FsInfo.  {pull}27975[#27975] (issue: {issue}27174[#27174])
 
  Store::
  * Move caching of the size of a directory to `StoreDirectory`. {pull}30581[#30581]
@@ -446,32 +434,28 @@ Machine learning::
  * Ignore empty completion input {pull}30713[#30713] (issue: {issue}23121[#23121])
 
  Task Management::
- * Make Persistent Tasks implementations version and feature aware {pull}31045[#31045] (issues: {issue}30731[#30731], {issue}31020[#31020])
+ * Make Persistent Tasks implementations version and feature aware {pull}31045[#31045] (issues: {issue}30731[#30731])
 
  Transport API::
  * Implemented XContent serialisation for GetIndexResponse {pull}31675[#31675]
  * Send client headers from TransportClient {pull}30803[#30803]
- * Modify state of VerifyRepositoryResponse for bwc {pull}30762[#30762]
+ * Modify state of VerifyRepositoryResponse for backwards compatibility {pull}30762[#30762]
 
  Watcher::
- * Watcher: cleanup ensureWatchExists use {pull}31926[#31926]
- * Watcher: Store username on watch execution {pull}31873[#31873] (issue: {issue}31772[#31772])
- * Watcher: Consolidate setting update registration {pull}31762[#31762]
+ * Clean up ensureWatchExists use {pull}31926[#31926]
+ * Store username on watch execution {pull}31873[#31873] (issue: {issue}31772[#31772])
+ * Consolidate setting update registration {pull}31762[#31762]
  * Add secure setting for watcher email password {pull}31620[#31620]
  * Slack message empty text {pull}31596[#31596] (issue: {issue}30071[#30071])
- * Allow null message in SlackMessage {pull}31288[#31288] (issue: {issue}30071[#30071])
  * Move watcher-history version setting to _meta field {pull}30832[#30832] (issue: {issue}30731[#30731])
- * Only allow x-pack metadata if all nodes are ready {pull}30743[#30743] (issues: {issue}30728[#30728], {issue}30731[#30731])
- * Watcher: Configure HttpClient parallel sent requests {pull}30130[#30130]
+ * Only allow x-pack metadata if all nodes are ready {pull}30743[#30743] (issues: {issue}30731[#30731])
+ * Configure HttpClient parallel sent requests {pull}30130[#30130]
  * Watcher: Make start/stop cycle more predictable and synchronous {pull}30118[#30118]
 
  ZenDiscovery::
- * Preserve response headers on cluster update task {pull}31421[#31421] (issues: {issue}23950[#23950], {issue}25961[#25961], {issue}31241[#31241], {issue}31408[#31408])
+ * Preserve response headers on cluster update task {pull}31421[#31421] (issues:  {issue}31408[#31408])
  * Treat ack timeout more like a publish timeout {pull}31303[#31303]
  * Use system context for cluster state update tasks {pull}31241[#31241] (issue: {issue}30603[#30603])
- * Add support for skippable named writeables {pull}30948[#30948]
-
-////
 
 [float]
 [[bug-6.4.0]]
@@ -561,7 +545,7 @@ Geo::
 * Improve robustness of geo shape parser for malformed shapes {pull}31449[#31449] (issue: {issue}31428[#31428])
 * Fix defaults in GeoShapeFieldMapper output {pull}31302[#31302] (issue: {issue}23206[#23206])
 * Add support for indexed shape routing in geo_shape query {pull}30760[#30760] (issue: {issue}7663[#7663])
-* Add stricter geohash parsing {pull}30376[#30376] (issue: {issue}23579[#23579])
+* Add validation that geohashes are not empty and don't contain unsupported characters {pull}30376[#30376] (issue: {issue}23579[#23579])
 
 Index APIs::
 * Copy missing segment attributes in getSegmentInfo {pull}32396[#32396]

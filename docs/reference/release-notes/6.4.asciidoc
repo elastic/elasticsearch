@@ -160,7 +160,7 @@ Watcher::
 * Make watcher settings reloadable {pull}31746[#31746]
 
 [float]
- [[enhancement-6.4.0]]
+[[enhancement-6.4.0]]
 === Enhancements
 
 Aggregations::
@@ -365,7 +365,7 @@ Rollup::
  * Validate timezone in range queries to ensure they match the selected job when
  searching. {pull}30338[#30338]
 
- SQL::
+SQL::
  * Allow LEFT and RIGHT as function names {pull}32066[#32066] (issue: {issue}32046[#32046])
  * Add support for single parameter text manipulating functions {pull}31874[#31874] (issue: {issue}31604[#31604])
  * Remove restriction for single column grouping {pull}31818[#31818] (issue: {issue}31793[#31793])
@@ -377,10 +377,10 @@ Rollup::
  * Teach the CLI to ignore empty commands {pull}30265[#30265] (issue: {issue}30000[#30000])
  * JDBC driver prepared statement set* methods {pull}31494[#31494] (issue: {issue}31493[#31493])
 
- Scripting::
+Scripting::
  * Handle missing values in painless {pull}[#30975], {pull}31903[#31903] (issue: {issue}29286[#29286])
 
- Search::
+Search::
  * Force execution of fetch tasks {pull}31974[#31974] (issue: {issue}29442[#29442])
  * Add second level of field collapsing {pull}31808[#31808] (issue: {issue}24855[#24855])
  * Remove QueryCachingPolicy#ALWAYS_CACHE {pull}31451[#31451]
@@ -391,20 +391,20 @@ Rollup::
  * Increase the maximum number of filters that may be in the cache. {pull}30655[#30655]
  * Improve explanation in rescore {pull}30629[#30629] (issue: {issue}28725[#28725])
 
- Security::
+Security::
  * Introduce fips_mode setting and associated checks {pull}32326[#32326], {pull}32344[#32344]
  * Tribe: Add error with secure settings copied to tribe {pull}32298[#32298] (issue: {issue}32117[#32117])
  * Only auto-update license signature if all nodes ready {pull}30859[#30859] (issues: {issue}30731[#30731])
  * Limit the scope of BouncyCastle dependency {pull}30358[#30358]
  * Make licensing FIPS-140 compliant {pull}30251[#30251]
 
- Settings::
+Settings::
  * Add notion of internal index settings {pull}31286[#31286] (issue: {issue}29823[#29823])
  * Move RestGetSettingsAction to RestToXContentListener {pull}31101[#31101]
  * Harmonize include_defaults tests {pull}30700[#30700]
  * Fold RestGetAllSettingsAction in RestGetSettingsAction {pull}30561[#30561]
 
- Snapshot/Restore::
+Snapshot/Restore::
  * ECS Task IAM profile credentials ignored in repository-s3 plugin {pull}31864[#31864] (issues: {issue}26913[#26913])
  * Add write*Blob option to replace existing blob {pull}31729[#31729]
  * Fixture for Minio testing {pull}31688[#31688]
@@ -425,24 +425,24 @@ Rollup::
  * Do not load global state when deleting a snapshot {pull}29278[#29278] (issue: {issue}28934[#28934])
  * Don't load global state when only restoring indices {pull}29239[#29239] (issue: {issue}28934[#28934])
 
- Stats::
+Stats::
  * Add `_coordinating_only` for nodes resolving in nodes API {pull}30313[#30313] (issue: {issue}28831[#28831])
 
- Store::
+Store::
  * Move caching of the size of a directory to `StoreDirectory`. {pull}30581[#30581]
 
- Suggesters::
+Suggesters::
  * Ignore empty completion input {pull}30713[#30713] (issue: {issue}23121[#23121])
 
- Task Management::
+Task Management::
  * Make Persistent Tasks implementations version and feature aware {pull}31045[#31045] (issues: {issue}30731[#30731])
 
- Transport API::
+Transport API::
  * Implemented XContent serialisation for GetIndexResponse {pull}31675[#31675]
  * Send client headers from TransportClient {pull}30803[#30803]
  * Modify state of VerifyRepositoryResponse for backwards compatibility {pull}30762[#30762]
 
- Watcher::
+Watcher::
  * Clean up ensureWatchExists use {pull}31926[#31926]
  * Store username on watch execution {pull}31873[#31873] (issue: {issue}31772[#31772])
  * Consolidate setting update registration {pull}31762[#31762]
@@ -453,7 +453,7 @@ Rollup::
  * Configure HttpClient parallel sent requests {pull}30130[#30130]
  * Watcher: Make start/stop cycle more predictable and synchronous {pull}30118[#30118]
 
- ZenDiscovery::
+ZenDiscovery::
  * Preserve response headers on cluster update task {pull}31421[#31421] (issues:  {issue}31408[#31408])
  * Treat ack timeout more like a publish timeout {pull}31303[#31303]
  * Use system context for cluster state update tasks {pull}31241[#31241] (issue: {issue}30603[#30603])

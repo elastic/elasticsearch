@@ -531,12 +531,16 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
             // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
             // just make a copy.
-            generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-${project.version}.pom"
+            generatePOMTask.ext.pomFileName = null
             doLast {
                 project.copy {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
-                    rename { generatePOMTask.ext.pomFileName }
+                    rename {
+                        generatePOMTask.ext.pomFileName == null ? 
+                            "${project.archivesBaseName}-${project.version}.pom" : 
+                            generatePOMTask.ext.pomFileName 
+                    }
                 }
             }
             // build poms with assemble (if the assemble task exists)

@@ -4768,15 +4768,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    static void trimUnsafeCommits(EngineConfig config) throws IOException {
-        final Store store = config.getStore();
-        final TranslogConfig translogConfig = config.getTranslogConfig();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
-    }
-
     void assertLuceneOperations(InternalEngine engine, long expectedAppends, long expectedUpdates, long expectedDeletes) {
         String message = "Lucene operations mismatched;" +
             " appends [actual:" + engine.getNumDocAppends() + ", expected:" + expectedAppends + "]," +

@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -50,65 +54,52 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForByteValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_byte, test_null_byte, test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT test_byte, test_null_byte, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getByte(1));
-                    assertEquals(random1, results.getByte("test_byte"));
-                    assertEquals(random1, (byte) results.getObject("test_byte", Byte.class));
-                    assertTrue(results.getObject(1) instanceof Byte);
-                    
-                    assertEquals(0, results.getByte(2));
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_byte"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getByte(1));
-                    assertEquals(random2, results.getByte("test_byte"));
-                    assertTrue(results.getObject(1) instanceof Byte);
-                    assertEquals(random3, results.getByte("test_keyword"));
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getByte(1));
+            assertEquals(random1, results.getByte("test_byte"));
+            assertEquals(random1, (byte) results.getObject("test_byte", Byte.class));
+            assertTrue(results.getObject(1) instanceof Byte);
+            
+            assertEquals(0, results.getByte(2));
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_byte"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getByte(1));
+            assertEquals(random2, results.getByte("test_byte"));
+            assertTrue(results.getObject(1) instanceof Byte);
+            assertEquals(random3, results.getByte("test_keyword"));
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidByteWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomByte());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        if (entry.getValue() instanceof Double) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), results.getByte(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), (byte) results.getObject(entry.getKey(), Byte.class));
-                        } else if (entry.getValue() instanceof Float) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), results.getByte(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), (byte) results.getObject(entry.getKey(), Byte.class));
-                        } else {
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().byteValue(), results.getByte(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().byteValue(), (byte) results.getObject(entry.getKey(), Byte.class));
-                        }
-                    }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                byte actual = results.getObject(e.getKey(), Byte.class);
+                if (e.getValue() instanceof Double) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getByte(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                } else if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), results.getByte(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), actual);
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().byteValue(), results.getByte(e.getKey()));
+                    assertEquals("For field " + e.getKey(), e.getValue().byteValue(), actual);
                 }
             }
-        }
+        });
     }
 
     public void testGettingInvalidByte() throws Exception {
@@ -139,48 +130,44 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getByte("test_integer"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotByte), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_integer", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotByte), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_short"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_short", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_long"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_double"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_float"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Byte.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getByte("test_integer"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotByte), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_integer", Byte.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotByte), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_short"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_short", Byte.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_long"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Byte.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_double"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Byte.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_float"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Byte.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Byte.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
+        });
     }
     
     // Short values testing
@@ -191,65 +178,53 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForShortValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_short, test_null_short, test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT test_short, test_null_short, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getShort(1));
-                    assertEquals(random1, results.getShort("test_short"));
-                    assertEquals(random1, results.getObject("test_short"));
-                    assertTrue(results.getObject(1) instanceof Short);
-                    
-                    assertEquals(0, results.getShort(2));
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_short"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getShort(1));
-                    assertEquals(random2, results.getShort("test_short"));
-                    assertTrue(results.getObject(1) instanceof Short);
-                    assertEquals(random3, results.getShort("test_keyword"));
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getShort(1));
+            assertEquals(random1, results.getShort("test_short"));
+            assertEquals(random1, results.getObject("test_short"));
+            assertTrue(results.getObject(1) instanceof Short);
+            
+            assertEquals(0, results.getShort(2));
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_short"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getShort(1));
+            assertEquals(random2, results.getShort("test_short"));
+            assertTrue(results.getObject(1) instanceof Short);
+            assertEquals(random3, results.getShort("test_keyword"));
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidShortWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomShort());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        if (entry.getValue() instanceof Double) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), results.getShort(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), (short) results.getObject(entry.getKey(), Short.class));
-                        } else if (entry.getValue() instanceof Float) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), results.getShort(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), (short) results.getObject(entry.getKey(), Short.class));
-                        } else {
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().shortValue(), results.getShort(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().shortValue(), (short) results.getObject(entry.getKey(), Short.class));
-                        }
-                    }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                short actual = (short) results.getObject(e.getKey(), Short.class);
+                if (e.getValue() instanceof Double) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getShort(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                } else if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), results.getShort(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), actual);
+                } else {
+                    assertEquals("For field " + e.getKey(),
+                            e.getValue().shortValue(), results.getShort(e.getKey()));
+                    assertEquals("For field " + e.getKey(), e.getValue().shortValue(), actual);
                 }
             }
-        }
+        });
     }
 
     public void testGettingInvalidShort() throws Exception {
@@ -278,43 +253,39 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getShort("test_integer"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotShort), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_integer", Short.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotShort), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getShort("test_long"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotShort)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Short.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotShort)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getShort("test_double"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Short.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getShort("test_float"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Short.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getShort("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Short.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getShort("test_integer"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotShort), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_integer", Short.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", intNotShort), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_long"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotShort)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Short.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotShort)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_double"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Short.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_float"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Short.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Short.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
+        });
     }
     
     // Integer values testing
@@ -325,66 +296,52 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForIntegerValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection
-                    .prepareStatement("SELECT test_integer,test_null_integer,test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT test_integer,test_null_integer,test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getInt(1));
-                    assertEquals(random1, results.getInt("test_integer"));
-                    assertEquals(random1, (int) results.getObject("test_integer", Integer.class));
-                    assertTrue(results.getObject(1) instanceof Integer);
-                    
-                    assertEquals(0, results.getInt(2));
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_integer"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getInt(1));
-                    assertEquals(random2, results.getInt("test_integer"));
-                    assertTrue(results.getObject(1) instanceof Integer);
-                    assertEquals(random3, results.getInt("test_keyword"));
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getInt(1));
+            assertEquals(random1, results.getInt("test_integer"));
+            assertEquals(random1, (int) results.getObject("test_integer", Integer.class));
+            assertTrue(results.getObject(1) instanceof Integer);
+            
+            assertEquals(0, results.getInt(2));
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_integer"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getInt(1));
+            assertEquals(random2, results.getInt("test_integer"));
+            assertTrue(results.getObject(1) instanceof Integer);
+            assertEquals(random3, results.getInt("test_keyword"));
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidIntegerWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomInt());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        if (entry.getValue() instanceof Double) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), results.getInt(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(), Math.round(entry.getValue().doubleValue()), 
-                                    (int) results.getObject(entry.getKey(), Integer.class));
-                        } else if (entry.getValue() instanceof Float) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), results.getInt(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().floatValue()), (int) results.getObject(entry.getKey(), Integer.class));
-                        } else {
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().intValue(), results.getInt(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().intValue(), (int) results.getObject(entry.getKey(), Integer.class));
-                        }
-                    }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                int actual = results.getObject(e.getKey(), Integer.class);
+                if (e.getValue() instanceof Double) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getInt(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                } else if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), results.getInt(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), actual);
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().intValue(), results.getInt(e.getKey()));
+                    assertEquals("For field " + e.getKey(), e.getValue().intValue(), actual);
                 }
             }
-        }
+        });
     }
 
     public void testGettingInvalidInteger() throws Exception {
@@ -411,38 +368,34 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getInt("test_long"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Integer.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getInt("test_double"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Integer.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getInt("test_float"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Integer.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getInt("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Integer.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getInt("test_long"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Integer.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getInt("test_double"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Integer.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getInt("test_float"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Integer.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getInt("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Integer.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
+        });
     }
     
     // Long values testing
@@ -453,60 +406,49 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForLongValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_long, test_null_long, test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT test_long, test_null_long, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getLong(1));
-                    assertEquals(random1, results.getLong("test_long"));
-                    assertEquals(random1, (long) results.getObject("test_long", Long.class));
-                    assertTrue(results.getObject(1) instanceof Long);
-                    
-                    assertEquals(0, results.getLong(2));
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_long"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getLong(1));
-                    assertEquals(random2, results.getLong("test_long"));
-                    assertTrue(results.getObject(1) instanceof Long);
-                    assertEquals(random3, results.getLong("test_keyword"));
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getLong(1));
+            assertEquals(random1, results.getLong("test_long"));
+            assertEquals(random1, (long) results.getObject("test_long", Long.class));
+            assertTrue(results.getObject(1) instanceof Long);
+            
+            assertEquals(0, results.getLong(2));
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_long"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getLong(1));
+            assertEquals(random2, results.getLong("test_long"));
+            assertTrue(results.getObject(1) instanceof Long);
+            assertEquals(random3, results.getLong("test_keyword"));
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidLongWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomLong());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        if (entry.getValue() instanceof Double || entry.getValue() instanceof Float) {
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), results.getLong(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    Math.round(entry.getValue().doubleValue()), (long) results.getObject(entry.getKey(), Long.class));
-                        } else {
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().longValue(), results.getLong(entry.getKey()));
-                            assertEquals("For field " + entry.getKey(),
-                                    entry.getValue().longValue(), (long) results.getObject(entry.getKey(), Long.class));
-                        }
-                    }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                long actual = results.getObject(e.getKey(), Long.class);
+                if (e.getValue() instanceof Double || e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getLong(e.getKey()));
+                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().longValue(), results.getLong(e.getKey()));
+                    assertEquals("For field " + e.getKey(), e.getValue().longValue(), actual);
                 }
             }
-        }
+        });
     }
 
     public void testGettingInvalidLong() throws Exception {
@@ -528,33 +470,29 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getLong("test_double"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Long.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getLong("test_float"));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Long.class));
-                    assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getLong("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Long.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getLong("test_double"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Long.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getLong("test_float"));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Long.class));
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getLong("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Long.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
+        });
     }
     
     // Double values testing
@@ -565,54 +503,44 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForDoubleValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection
-                    .prepareStatement("SELECT test_double, test_null_double, test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT test_double, test_null_double, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getDouble(1), 0.0d);
-                    assertEquals(random1, results.getDouble("test_double"), 0.0d);
-                    assertEquals(random1, results.getObject("test_double", Double.class), 0.0d);
-                    assertTrue(results.getObject(1) instanceof Double);
-                    
-                    assertEquals(0, results.getDouble(2), 0.0d);
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_double"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getDouble(1), 0.0d);
-                    assertEquals(random2, results.getDouble("test_double"), 0.0d);
-                    assertTrue(results.getObject(1) instanceof Double);
-                    assertEquals(random3, results.getDouble("test_keyword"), 0.0d);
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getDouble(1), 0.0d);
+            assertEquals(random1, results.getDouble("test_double"), 0.0d);
+            assertEquals(random1, results.getObject("test_double", Double.class), 0.0d);
+            assertTrue(results.getObject(1) instanceof Double);
+            
+            assertEquals(0, results.getDouble(2), 0.0d);
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_double"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getDouble(1), 0.0d);
+            assertEquals(random2, results.getDouble("test_double"), 0.0d);
+            assertTrue(results.getObject(1) instanceof Double);
+            assertEquals(random3, results.getDouble("test_keyword"), 0.0d);
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidDoubleWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomDouble());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        assertEquals("For field " + entry.getKey(),
-                                entry.getValue().doubleValue(), results.getDouble(entry.getKey()), 0.0d);
-                        assertEquals("For field " + entry.getKey(),
-                                entry.getValue().doubleValue(), results.getObject(entry.getKey(), Double.class), 0.0d);
-                    }
-                }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
+                assertEquals("For field " + e.getKey(), 
+                        e.getValue().doubleValue(), results.getObject(e.getKey(), Double.class), 0.0d);
             }
-        }
+        });
     }
 
     public void testGettingInvalidDouble() throws Exception {
@@ -630,23 +558,19 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getDouble("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Double.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getDouble("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Double.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
+        });
     }
     
     // Float values testing
@@ -657,53 +581,44 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         createTestDataForFloatValueTests(random1, random2, random3);
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_float, test_null_float, test_keyword FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
-
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(Types.REAL, resultSetMetaData.getColumnType(1));
-                    assertEquals(Types.REAL, resultSetMetaData.getColumnType(2));
-                    assertEquals(random1, results.getFloat(1), 0.0f);
-                    assertEquals(random1, results.getFloat("test_float"), 0.0f);
-                    assertEquals(random1, results.getObject("test_float", Float.class), 0.0f);
-                    assertTrue(results.getObject(1) instanceof Float);
-                    
-                    assertEquals(0, results.getFloat(2), 0.0d);
-                    assertTrue(results.wasNull());
-                    assertEquals(null, results.getObject("test_null_float"));
-                    assertTrue(results.wasNull());
-                    
-                    assertTrue(results.next());
-                    assertEquals(random2, results.getFloat(1), 0.0d);
-                    assertEquals(random2, results.getFloat("test_float"), 0.0d);
-                    assertTrue(results.getObject(1) instanceof Float);
-                    assertEquals(random3, results.getFloat("test_keyword"), 0.0d);
-                    
-                    assertFalse(results.next());
-                }
-            }
-        }
+        doWithQuery("SELECT test_float, test_null_float, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
+    
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.REAL, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.REAL, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getFloat(1), 0.0f);
+            assertEquals(random1, results.getFloat("test_float"), 0.0f);
+            assertEquals(random1, results.getObject("test_float", Float.class), 0.0f);
+            assertTrue(results.getObject(1) instanceof Float);
+            
+            assertEquals(0, results.getFloat(2), 0.0d);
+            assertTrue(results.wasNull());
+            assertEquals(null, results.getObject("test_null_float"));
+            assertTrue(results.wasNull());
+            
+            assertTrue(results.next());
+            assertEquals(random2, results.getFloat(1), 0.0d);
+            assertEquals(random2, results.getFloat("test_float"), 0.0d);
+            assertTrue(results.getObject(1) instanceof Float);
+            assertEquals(random3, results.getFloat("test_keyword"), 0.0d);
+            
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingValidFloatWithCasting() throws Exception {
         Map<String,Number> map = createTestDataForNumericValueTypes(() -> randomFloat());
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    for(Entry<String, Number> entry : map.entrySet()) {
-                        assertEquals("For field " + entry.getKey(),
-                                entry.getValue().floatValue(), results.getFloat(entry.getKey()), 0.0f);
-                        assertEquals("For field " + entry.getKey(),
-                                entry.getValue().floatValue(), results.getObject(entry.getKey(), Float.class), 0.0f);
-                    }
-                }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            for(Entry<String, Number> e : map.entrySet()) {
+                assertEquals("For field " + e.getKey(), e.getValue().floatValue(), results.getFloat(e.getKey()), 0.0f);
+                assertEquals("For field " + e.getKey(), 
+                        e.getValue().floatValue(), results.getObject(e.getKey(), Float.class), 0.0f);
             }
-        }
+        });
     }
 
     public void testGettingInvalidFloat() throws Exception {
@@ -721,23 +636,19 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_date", randomLong());
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
 
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getFloat("test_keyword"));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Float.class));
-                    assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
-                }
-            }
-        }
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getFloat("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Float.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
+        });
     }
     
     public void testGettingBooleanValues() throws Exception {
@@ -749,17 +660,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         });
         
         // true values
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLong());
-        });
+        indexSimpleDocumentWithTrueValues(randomLong());
         
         // false values
         index("test", "2", builder -> {
@@ -776,12 +677,15 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         
         // other (non 0 = true) values
         index("test", "3", builder -> {
-            builder.field("test_byte", 12);
-            builder.field("test_integer", 123);
-            builder.field("test_long", 23L);
-            builder.field("test_short", 51);
-            builder.field("test_double", 34.5d);
-            builder.field("test_float", 22.3f);
+            builder.field("test_byte", randomValueOtherThan((byte) 0, () -> randomByte()));
+            builder.field("test_integer", randomValueOtherThan(0, () -> randomInt()));
+            builder.field("test_long", randomValueOtherThan(0L, () -> randomLong()));
+            builder.field("test_short", randomValueOtherThan((short) 0, () -> randomShort()));
+            builder.field("test_double", randomValueOtherThanMany(i -> i < 1.0d && i > -1.0d && i < Double.MAX_VALUE 
+                    && i > Double.MIN_VALUE,
+                    () -> randomDouble() * randomInt()));
+            builder.field("test_float", randomValueOtherThanMany(i -> i < 1.0f && i > -1.0f && i < Float.MAX_VALUE && i > Float.MIN_VALUE,
+                    () -> randomFloat() * randomInt()));
             builder.field("test_keyword", "1");
         });
         
@@ -790,43 +694,39 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_keyword", "0");
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    assertEquals(true, results.getBoolean("test_boolean"));
-                    for(String fld : fieldsNames) {
-                        assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getBoolean(fld));
-                        assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
-                    }
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
-                    
-                    results.next();
-                    assertEquals(false, results.getBoolean("test_boolean"));
-                    for(String fld : fieldsNames) {
-                        assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getBoolean(fld));
-                        assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
-                    }
-                    sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
-                    
-                    sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
-                    assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
-                    
-                    results.next();
-                    for(String fld : fieldsNames.stream()
-                            .filter((f) -> !f.equals("test_keyword")).collect(Collectors.toCollection(HashSet::new))) {
-                        assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getBoolean(fld));
-                        assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
-                    }
-                    
-                    results.next();
-                    assertEquals(false, results.getBoolean("test_keyword"));
-                    assertEquals(false, results.getObject("test_keyword", Boolean.class));
-                }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            assertEquals(true, results.getBoolean("test_boolean"));
+            for(String fld : fieldsNames) {
+                assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getBoolean(fld));
+                assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
-        }
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            
+            results.next();
+            assertEquals(false, results.getBoolean("test_boolean"));
+            for(String fld : fieldsNames) {
+                assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getBoolean(fld));
+                assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
+            }
+            sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
+            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
+            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            
+            results.next();
+            for(String fld : fieldsNames.stream()
+                    .filter((f) -> !f.equals("test_keyword")).collect(Collectors.toCollection(HashSet::new))) {
+                assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getBoolean(fld));
+                assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
+            }
+            
+            results.next();
+            assertEquals(false, results.getBoolean("test_keyword"));
+            assertEquals(false, results.getObject("test_keyword", Boolean.class));
+        });
     }
     
     public void testGettingDateWithoutCalendar() throws Exception {
@@ -836,59 +736,30 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        
         Long randomLongDate = randomLong();
-        Date randomDate = new Date(randomLongDate);
+        indexSimpleDocumentWithTrueValues(randomLongDate);
+        
         String timeZoneId = randomKnownTimeZone();
         Calendar connCalendar = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLongDate);
-        });
         
-        try (Connection connection = esJdbc(timeZoneId)) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_boolean, test_byte, test_integer,"
-                    + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    connCalendar.setTimeInMillis(randomDate.getTime());
-                    connCalendar.set(HOUR_OF_DAY, 0);
-                    connCalendar.set(MINUTE, 0);
-                    connCalendar.set(SECOND, 0);
-                    connCalendar.set(MILLISECOND, 0);
-                    
-                    assertEquals(results.getDate("test_date"), new java.sql.Date(connCalendar.getTimeInMillis()));
-                    assertEquals(results.getDate(9), new java.sql.Date(connCalendar.getTimeInMillis()));
-                    assertEquals(results.getObject("test_date", java.sql.Date.class), 
-                            new java.sql.Date(randomDate.getTime() - (randomDate.getTime() % 86400000L)));
-                    assertEquals(results.getObject(9, java.sql.Date.class), 
-                            new java.sql.Date(randomDate.getTime() - (randomDate.getTime() % 86400000L)));
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getDate("test_boolean"));
-                    assertEquals("unable to convert column 1 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_byte"));
-                    assertEquals("unable to convert column 2 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_integer"));
-                    assertEquals("unable to convert column 3 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_long"));
-                    assertEquals("unable to convert column 4 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_short"));
-                    assertEquals("unable to convert column 5 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_double"));
-                    assertEquals("unable to convert column 6 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_float"));
-                    assertEquals("unable to convert column 7 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_keyword"));
-                    assertEquals("unable to convert column 8 to a long", sqle.getMessage());
-                }
-            }
-        }
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+            results.next();
+            connCalendar.setTimeInMillis(randomLongDate);
+            connCalendar.set(HOUR_OF_DAY, 0);
+            connCalendar.set(MINUTE, 0);
+            connCalendar.set(SECOND, 0);
+            connCalendar.set(MILLISECOND, 0);
+            
+            assertEquals(results.getDate("test_date"), new java.sql.Date(connCalendar.getTimeInMillis()));
+            assertEquals(results.getDate(9), new java.sql.Date(connCalendar.getTimeInMillis()));
+            assertEquals(results.getObject("test_date", java.sql.Date.class), 
+                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
+            assertEquals(results.getObject(9, java.sql.Date.class), 
+                    new java.sql.Date(randomLongDate - (randomLongDate % 86400000L)));
+
+            // bulk validation for all fields which are not of type date
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getDate);
+        });
     }
     
     public void testGettingDateWithCalendar() throws Exception {
@@ -898,63 +769,33 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        
         Long randomLongDate = randomLong();
-        Date randomDate = new Date(randomLongDate);
-        String timeZoneId = randomKnownTimeZone();
-        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLongDate);
-        });
+        indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
         });
         
-        try (Connection connection = esJdbc(timeZoneId)) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_boolean, test_byte, test_integer,"
-                    + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    c.setTimeInMillis(randomDate.getTime());
-                    c.set(HOUR_OF_DAY, 0);
-                    c.set(MINUTE, 0);
-                    c.set(SECOND, 0);
-                    c.set(MILLISECOND, 0);
-                    
-                    assertEquals(results.getDate("test_date", c), new java.sql.Date(c.getTimeInMillis()));
-                    assertEquals(results.getDate(9, c), new java.sql.Date(c.getTimeInMillis()));
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getDate("test_boolean", c));
-                    assertEquals("unable to convert column 1 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_byte", c));
-                    assertEquals("unable to convert column 2 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_integer", c));
-                    assertEquals("unable to convert column 3 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_long", c));
-                    assertEquals("unable to convert column 4 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_short", c));
-                    assertEquals("unable to convert column 5 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_double", c));
-                    assertEquals("unable to convert column 6 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_float", c));
-                    assertEquals("unable to convert column 7 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getDate("test_keyword", c));
-                    assertEquals("unable to convert column 8 to a long", sqle.getMessage());
-                    
-                    results.next();
-                    assertNull(results.getDate("test_date"));
-                }
-            }
-        }
+        String timeZoneId = randomKnownTimeZone();
+        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+        
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+            results.next();
+            c.setTimeInMillis(randomLongDate);
+            c.set(HOUR_OF_DAY, 0);
+            c.set(MINUTE, 0);
+            c.set(SECOND, 0);
+            c.set(MILLISECOND, 0);
+
+            assertEquals(results.getDate("test_date", c), new java.sql.Date(c.getTimeInMillis()));
+            assertEquals(results.getDate(9, c), new java.sql.Date(c.getTimeInMillis()));
+            
+            // bulk validation for all fields which are not of type date
+            validateErrorsForDateTimeTestsWithCalendar(c, results::getDate);
+            
+            results.next();
+            assertNull(results.getDate("test_date"));
+        });
     }
     
     public void testGettingTimeWithoutCalendar() throws Exception {
@@ -964,59 +805,29 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        
         Long randomLongDate = randomLong();
-        Date randomDate = new Date(randomLongDate);
+        indexSimpleDocumentWithTrueValues(randomLongDate);
+        
         String timeZoneId = randomKnownTimeZone();
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLongDate);
-        });
         
-        try (Connection connection = esJdbc(timeZoneId)) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_boolean, test_byte, test_integer,"
-                    + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    c.setTimeInMillis(randomDate.getTime());
-                    c.set(ERA, GregorianCalendar.AD);
-                    c.set(YEAR, 1970);
-                    c.set(MONTH, 0);
-                    c.set(DAY_OF_MONTH, 1);
-                    
-                    assertEquals(results.getTime("test_date"), new java.sql.Time(c.getTimeInMillis()));
-                    assertEquals(results.getTime(9), new java.sql.Time(c.getTimeInMillis()));
-                    assertEquals(results.getObject("test_date", java.sql.Time.class), 
-                            new java.sql.Time(randomDate.getTime() % 86400000L));
-                    assertEquals(results.getObject(9, java.sql.Time.class), 
-                            new java.sql.Time(randomDate.getTime() % 86400000L));
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getTime("test_boolean"));
-                    assertEquals("unable to convert column 1 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_byte"));
-                    assertEquals("unable to convert column 2 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_integer"));
-                    assertEquals("unable to convert column 3 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_long"));
-                    assertEquals("unable to convert column 4 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_short"));
-                    assertEquals("unable to convert column 5 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_double"));
-                    assertEquals("unable to convert column 6 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_float"));
-                    assertEquals("unable to convert column 7 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_keyword"));
-                    assertEquals("unable to convert column 8 to a long", sqle.getMessage());
-                }
-            }
-        }
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+            results.next();
+            c.setTimeInMillis(randomLongDate);
+            c.set(ERA, GregorianCalendar.AD);
+            c.set(YEAR, 1970);
+            c.set(MONTH, 0);
+            c.set(DAY_OF_MONTH, 1);
+            
+            assertEquals(results.getTime("test_date"), new java.sql.Time(c.getTimeInMillis()));
+            assertEquals(results.getTime(9), new java.sql.Time(c.getTimeInMillis()));
+            assertEquals(results.getObject("test_date", java.sql.Time.class), 
+                    new java.sql.Time(randomLongDate % 86400000L));
+            assertEquals(results.getObject(9, java.sql.Time.class), 
+                    new java.sql.Time(randomLongDate % 86400000L));
+            
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getTime);
+        });
     }
     
     public void testGettingTimeWithCalendar() throws Exception {
@@ -1026,63 +837,32 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        
         Long randomLongDate = randomLong();
-        Date randomDate = new Date(randomLongDate);
-        String timeZoneId = randomKnownTimeZone();
-        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLongDate);
-        });
+        indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
         });
         
-        try (Connection connection = esJdbc(timeZoneId)) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_boolean, test_byte, test_integer,"
-                    + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    c.setTimeInMillis(randomDate.getTime());
-                    c.set(ERA, GregorianCalendar.AD);
-                    c.set(YEAR, 1970);
-                    c.set(MONTH, 0);
-                    c.set(DAY_OF_MONTH, 1);
-                    
-                    assertEquals(results.getTime("test_date", c), new java.sql.Time(c.getTimeInMillis()));
-                    assertEquals(results.getTime(9, c), new java.sql.Time(c.getTimeInMillis()));
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getTime("test_boolean", c));
-                    assertEquals("unable to convert column 1 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_byte", c));
-                    assertEquals("unable to convert column 2 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_integer", c));
-                    assertEquals("unable to convert column 3 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_long", c));
-                    assertEquals("unable to convert column 4 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_short", c));
-                    assertEquals("unable to convert column 5 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_double", c));
-                    assertEquals("unable to convert column 6 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_float", c));
-                    assertEquals("unable to convert column 7 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTime("test_keyword", c));
-                    assertEquals("unable to convert column 8 to a long", sqle.getMessage());
-                    
-                    results.next();
-                    assertNull(results.getTime("test_date"));
-                }
-            }
-        }
+        String timeZoneId = randomKnownTimeZone();
+        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+        
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+            results.next();
+            c.setTimeInMillis(randomLongDate);
+            c.set(ERA, GregorianCalendar.AD);
+            c.set(YEAR, 1970);
+            c.set(MONTH, 0);
+            c.set(DAY_OF_MONTH, 1);
+            
+            assertEquals(results.getTime("test_date", c), new java.sql.Time(c.getTimeInMillis()));
+            assertEquals(results.getTime(9, c), new java.sql.Time(c.getTimeInMillis()));
+            
+            validateErrorsForDateTimeTestsWithCalendar(c, results::getTime);
+            
+            results.next();
+            assertNull(results.getTime("test_date"));
+        });
     }
     
     public void testGettingTimestampWithoutCalendar() throws Exception {
@@ -1106,29 +886,25 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("republish_date", 599616000000L);
         });
 
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT name, release_date, republish_date FROM library")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+        doWithQuery("SELECT name, release_date, republish_date FROM library", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
-                    results.next();
-                    assertEquals(3, resultSetMetaData.getColumnCount());
-                    assertEquals(randomMillis, results.getTimestamp("release_date").getTime());
-                    assertEquals(randomMillis, results.getTimestamp(2).getTime());
-                    assertTrue(results.getObject(2) instanceof Timestamp);
-                    assertEquals(randomMillis, ((Timestamp) results.getObject("release_date")).getTime());
-                    
-                    assertNull(results.getTimestamp(3));
-                    assertNull(results.getObject("republish_date"));
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(randomMillis, results.getTimestamp("release_date").getTime());
+            assertEquals(randomMillis, results.getTimestamp(2).getTime());
+            assertTrue(results.getObject(2) instanceof Timestamp);
+            assertEquals(randomMillis, ((Timestamp) results.getObject("release_date")).getTime());
+            
+            assertNull(results.getTimestamp(3));
+            assertNull(results.getObject("republish_date"));
 
-                    assertTrue(results.next());
-                    assertEquals(599616000000L, results.getTimestamp("republish_date").getTime());
-                    assertEquals(-649036800000L, ((Timestamp) results.getObject(2)).getTime());
+            assertTrue(results.next());
+            assertEquals(599616000000L, results.getTimestamp("republish_date").getTime());
+            assertEquals(-649036800000L, ((Timestamp) results.getObject(2)).getTime());
 
-                    assertFalse(results.next());
-                }
-            }
-        }
+            assertFalse(results.next());
+        });
     }
     
     public void testGettingTimestampWithCalendar() throws Exception {
@@ -1138,59 +914,28 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        
         Long randomLongDate = randomLong();
-        Date randomDate = new Date(randomLongDate);
-        String timeZoneId = randomKnownTimeZone();
-        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        
-        index("test", "1", builder -> {
-            builder.field("test_boolean", true);
-            builder.field("test_byte", 1);
-            builder.field("test_integer", 1);
-            builder.field("test_long", 1L);
-            builder.field("test_short", 1);
-            builder.field("test_double", 1d);
-            builder.field("test_float", 1f);
-            builder.field("test_keyword", "true");
-            builder.field("test_date", randomLongDate);
-        });
+        indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
         });
         
-        try (Connection connection = esJdbc(timeZoneId)) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT test_boolean, test_byte, test_integer,"
-                    + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    c.setTimeInMillis(randomDate.getTime());
-                    
-                    assertEquals(results.getTimestamp("test_date", c), new java.sql.Timestamp(c.getTimeInMillis()));
-                    assertEquals(results.getTimestamp(9, c), new java.sql.Timestamp(c.getTimeInMillis()));
-                    SQLException sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_boolean", c));
-                    assertEquals("unable to convert column 1 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_byte", c));
-                    assertEquals("unable to convert column 2 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_integer", c));
-                    assertEquals("unable to convert column 3 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_long", c));
-                    assertEquals("unable to convert column 4 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_short", c));
-                    assertEquals("unable to convert column 5 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_double", c));
-                    assertEquals("unable to convert column 6 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_float", c));
-                    assertEquals("unable to convert column 7 to a long", sqle.getMessage());
-                    sqle = expectThrows(SQLException.class, () -> results.getTimestamp("test_keyword", c));
-                    assertEquals("unable to convert column 8 to a long", sqle.getMessage());
+        String timeZoneId = randomKnownTimeZone();
+        String anotherTZId = randomValueOtherThan(timeZoneId, () -> randomKnownTimeZone());
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+        
+        doWithQueryAndTimezone(SELECT_ALL_FIELDS, timeZoneId, (results) -> {
+            results.next();
+            c.setTimeInMillis(randomLongDate);
+            
+            assertEquals(results.getTimestamp("test_date", c), new java.sql.Timestamp(c.getTimeInMillis()));
+            assertEquals(results.getTimestamp(9, c), new java.sql.Timestamp(c.getTimeInMillis()));
+            
+            validateErrorsForDateTimeTestsWithCalendar(c, results::getTimestamp);
 
-                    results.next();
-                    assertNull(results.getTimestamp("test_date"));
-                }
-            }
-        }
+            results.next();
+            assertNull(results.getTimestamp("test_date"));
+        });
     }
     
     public void testValidGetObjectCalls() throws Exception {
@@ -1223,40 +968,36 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_boolean", randomBool);
         });
         
-        try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement("SELECT * FROM test")) {
-                try (ResultSet results = statement.executeQuery()) {
-                    results.next();
-                    
-                    assertEquals(b, results.getObject("test_byte"));
-                    assertTrue(results.getObject("test_byte") instanceof Byte);
-                    
-                    assertEquals(i, results.getObject("test_integer"));
-                    assertTrue(results.getObject("test_integer") instanceof Integer);
-                    
-                    assertEquals(l, results.getObject("test_long"));
-                    assertTrue(results.getObject("test_long") instanceof Long);
-                    
-                    assertEquals(s, results.getObject("test_short"));
-                    assertTrue(results.getObject("test_short") instanceof Short);
-                    
-                    assertEquals(d, results.getObject("test_double"));
-                    assertTrue(results.getObject("test_double") instanceof Double);
-                    
-                    assertEquals(f, results.getObject("test_float"));
-                    assertTrue(results.getObject("test_float") instanceof Float);
-                    
-                    assertEquals(randomString, results.getObject("test_keyword"));
-                    assertTrue(results.getObject("test_keyword") instanceof String);
-                    
-                    assertEquals(new Date(randomLongDate), results.getObject("test_date"));
-                    assertTrue(results.getObject("test_date") instanceof Timestamp);
-                    
-                    assertEquals(randomBool, results.getObject("test_boolean"));
-                    assertTrue(results.getObject("test_boolean") instanceof Boolean);
-                }
-            }
-        }
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+            
+            assertEquals(b, results.getObject("test_byte"));
+            assertTrue(results.getObject("test_byte") instanceof Byte);
+            
+            assertEquals(i, results.getObject("test_integer"));
+            assertTrue(results.getObject("test_integer") instanceof Integer);
+            
+            assertEquals(l, results.getObject("test_long"));
+            assertTrue(results.getObject("test_long") instanceof Long);
+            
+            assertEquals(s, results.getObject("test_short"));
+            assertTrue(results.getObject("test_short") instanceof Short);
+            
+            assertEquals(d, results.getObject("test_double"));
+            assertTrue(results.getObject("test_double") instanceof Double);
+            
+            assertEquals(f, results.getObject("test_float"));
+            assertTrue(results.getObject("test_float") instanceof Float);
+            
+            assertEquals(randomString, results.getObject("test_keyword"));
+            assertTrue(results.getObject("test_keyword") instanceof String);
+            
+            assertEquals(new Date(randomLongDate), results.getObject("test_date"));
+            assertTrue(results.getObject("test_date") instanceof Timestamp);
+            
+            assertEquals(randomBool, results.getObject("test_boolean"));
+            assertTrue(results.getObject("test_boolean") instanceof Boolean);
+        });
     }
 
     /*
@@ -1430,6 +1171,43 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowUpdated());
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowInserted());
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
+    }
+    
+    
+    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+        SQLException sqle;
+        for(String field : dateTimeTestingFields) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field));
+            assertEquals("unable to convert column " + (dateTimeTestingFields.indexOf(field) + 1) + " to a long", sqle.getMessage());
+        }
+    }
+    
+    private void validateErrorsForDateTimeTestsWithCalendar(Calendar c, CheckedBiFunction<String,Calendar,Object,SQLException> method) {
+        SQLException sqle;
+        for(String field : dateTimeTestingFields) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field, c));
+            assertEquals("unable to convert column " + (dateTimeTestingFields.indexOf(field) + 1) + " to a long", sqle.getMessage());
+        }
+    }
+    
+    private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
+                try (ResultSet results = statement.executeQuery()) {
+                    consumer.accept(results);
+                }
+            }
+        }
+    }
+    
+    private void doWithQueryAndTimezone(String query, String tz, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
+        try (Connection connection = esJdbc(tz)) {
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
+                try (ResultSet results = statement.executeQuery()) {
+                    consumer.accept(results);
+                }
+            }
+        }
     }
     
     protected void assertThrowsUnsupportedAndExpectErrorMessage(ThrowingRunnable runnable, String message) {

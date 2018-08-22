@@ -18,8 +18,10 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -32,6 +34,11 @@ abstract class ResultSetBaseTestCase extends JdbcIntegrationTestCase {
     static final Set<String> fieldsNames = Stream.of("test_byte", "test_integer", "test_long", "test_short", "test_double",
             "test_float", "test_keyword")
             .collect(Collectors.toCollection(HashSet::new));
+    static final List<String> dateTimeTestingFields = Stream.of("test_boolean", "test_byte", "test_integer", "test_long",
+            "test_short", "test_double", "test_float", "test_keyword").collect(Collectors.toCollection(ArrayList::new));
+    static final String SELECT_ALL_FIELDS = "SELECT test_boolean, test_byte, test_integer,"
+            + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test";
+    static final String SELECT_WILDCARD = "SELECT * FROM test";
 
     protected void createIndex(String index) throws Exception {
         Request request = new Request("PUT", "/" + index);
@@ -177,6 +184,20 @@ abstract class ResultSetBaseTestCase extends JdbcIntegrationTestCase {
             builder.field("test_keyword", random3);
         });
     }
+    
+    protected void indexSimpleDocumentWithTrueValues(Long randomLongDate) throws IOException {
+        index("test", "1", builder -> {
+            builder.field("test_boolean", true);
+            builder.field("test_byte", 1);
+            builder.field("test_integer", 1);
+            builder.field("test_long", 1L);
+            builder.field("test_short", 1);
+            builder.field("test_double", 1d);
+            builder.field("test_float", 1f);
+            builder.field("test_keyword", "true");
+            builder.field("test_date", randomLongDate);
+        });
+    }
 
     /**
      * Creates test data for all numeric get* methods. All values random and different from the other numeric fields already generated.
@@ -227,11 +248,6 @@ abstract class ResultSetBaseTestCase extends JdbcIntegrationTestCase {
                 builder.startObject(field).field("type", field.substring(5)).endObject();
             }
         });
-    }
-
-    protected long randomMillisSinceEpoch() {
-        // random between Jan 1st, 1970 and Jan 1st, 2050
-        return randomLongBetween(0, 2524608000000L);
     }
 
     protected float randomFloatBetween(float start, float end) {

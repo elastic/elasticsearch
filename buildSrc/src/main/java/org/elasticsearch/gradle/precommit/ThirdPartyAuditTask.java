@@ -65,7 +65,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String javaHome;
 
-    @Input
+    @InputFiles
     public Configuration getForbiddenAPIsConfiguration() {
         return getProject().getConfigurations().getByName("forbiddenApisCliJar");
     }

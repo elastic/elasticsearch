@@ -31,6 +31,11 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
+        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
+        project.dependencies {
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+        }
+
         List<Task> precommitTasks = [
             configureCheckstyle(project),
             configureForbiddenApisCli(project),
@@ -87,31 +92,14 @@ class PrecommitTasks {
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
-        project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
-        }
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
                     dependsOn(buildResources)
-                    execAction = { spec ->
-                        spec.classpath = project.files(
-                                forbiddenApisConfiguration,
-                                sourceSet.compileClasspath,
-                                sourceSet.runtimeClasspath
-                        )
-                        spec.executable = "${project.runtimeJavaHome}/bin/java"
-                    }
-                    inputs.files(
-                            forbiddenApisConfiguration,
-                            sourceSet.compileClasspath,
-                            sourceSet.runtimeClasspath
-                    )
-
+                    it.sourceSet = sourceSet
+                    javaHome = project.runtimeJavaHome
                     targetCompatibility = project.compilerJavaVersion
                     bundledSignatures = [
                        "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

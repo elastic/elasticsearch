@@ -720,7 +720,7 @@ ZenDiscovery::
 * Only ack cluster state updates successfully applied on all nodes {pull}30672[#30672]
 
 ////
-////
+
 [float]
 [[regression-6.4.0]]
 === Regressions
@@ -730,8 +730,6 @@ Engine::
 
 Snapshot/Restore::
 * S3 repo plugin populate SettingsFilter {pull}30652[#30652]
-
-////
 
 //[float]
 //=== Known Issues

@@ -21,7 +21,9 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -37,6 +41,22 @@ public class Netty4UtilsTests extends ESTestCase {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
+    private ByteBuf unpooledBuffer;
+    private ByteBuf pooledBuffer;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        pooledBuffer = PooledByteBufAllocator.DEFAULT.buffer(1);
+        unpooledBuffer = UnpooledByteBufAllocator.DEFAULT.buffer(1);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        pooledBuffer.release();
+        unpooledBuffer.release();
+        super.tearDown();
+    }
 
     public void testToChannelBufferWithEmptyRef() throws IOException {
         ByteBuf buffer = Netty4Utils.toByteBuf(getRandomizedBytesReference(0));
@@ -95,4 +115,8 @@ public class Netty4UtilsTests extends ESTestCase {
         }
     }
 
+    public void testClassifiesBuffersAsPooledOrUnpooled() {
+        assertTrue(Netty4Utils.isUnpooled(unpooledBuffer));
+        assertFalse(Netty4Utils.isUnpooled(pooledBuffer));
+    }
 }

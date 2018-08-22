@@ -122,9 +122,31 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     @SuppressWarnings("unchecked")
     private void handleRequest(Object msg) {
         final HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = (HttpPipelinedRequest<FullHttpRequest>) msg;
-        FullHttpRequest request = pipelinedRequest.getRequest();
+        final FullHttpRequest request = httpRequest(pipelinedRequest);
+        final NioHttpRequest httpRequest = new NioHttpRequest(request, pipelinedRequest.getSequence());
 
-        try {
+        if (request.decoderResult().isFailure()) {
+            Throwable cause = request.decoderResult().cause();
+            if (cause instanceof Error) {
+                ExceptionsHelper.dieOnError(cause);
+                transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
+            } else {
+                transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
+            }
+        } else {
+            transport.incomingRequest(httpRequest, nioHttpChannel);
+        }
+    }
+
+    // package private for unit-testing
+    static FullHttpRequest httpRequest(HttpPipelinedRequest<FullHttpRequest> pipelinedRequest) {
+        FullHttpRequest request = pipelinedRequest.getRequest();
+        if (ByteBufUtils.isUnpooled(request.content())) {
+            assert ByteBufUtils.isBufferHierarchyUnpooled(request.content()) : "request body contains unpooled and pooled buffers";
+            // if the buffer is unpooled its lifecycle is managed by the garbage collector instead of Netty's internal
+            // memory pool. Thus we we can avoiding copying the request content buffer and use the original request instead.
+            return request;
+        } else {
             final FullHttpRequest copiedRequest =
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),
@@ -133,23 +155,10 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
                     Unpooled.copiedBuffer(request.content()),
                     request.headers(),
                     request.trailingHeaders());
-
-            NioHttpRequest httpRequest = new NioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
-
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.dieOnError(cause);
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
-                } else {
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
-                }
-            } else {
-                transport.incomingRequest(httpRequest, nioHttpChannel);
-            }
-        } finally {
             // As we have copied the buffer, we can release the request
             request.release();
+            return copiedRequest;
         }
     }
+
 }

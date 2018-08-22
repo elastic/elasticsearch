@@ -41,9 +41,31 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
-        FullHttpRequest request = msg.getRequest();
+        final FullHttpRequest request = httpRequest(msg);
+        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, msg.getSequence());
 
-        try {
+        if (request.decoderResult().isFailure()) {
+            Throwable cause = request.decoderResult().cause();
+            if (cause instanceof Error) {
+                ExceptionsHelper.dieOnError(cause);
+                serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
+            } else {
+                serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
+            }
+        } else {
+            serverTransport.incomingRequest(httpRequest, channel);
+        }
+    }
+
+    // package private for unit-testing
+    static FullHttpRequest httpRequest(HttpPipelinedRequest<FullHttpRequest> msg) {
+        FullHttpRequest request = msg.getRequest();
+        if (Netty4Utils.isUnpooled(request.content())) {
+            assert Netty4Utils.isBufferHierarchyUnpooled(request.content()) : "request body contains unpooled and pooled buffers";
+            // if the buffer is unpooled its lifecycle is managed by the garbage collector instead of Netty's internal
+            // memory pool. Thus we we can avoiding copying the request content buffer and use the original request instead.
+            return request;
+        } else {
             final FullHttpRequest copiedRequest =
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),
@@ -52,23 +74,9 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
                     Unpooled.copiedBuffer(request.content()),
                     request.headers(),
                     request.trailingHeaders());
-
-            Netty4HttpRequest httpRequest = new Netty4HttpRequest(copiedRequest, msg.getSequence());
-
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.dieOnError(cause);
-                    serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
-                } else {
-                    serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
-                }
-            } else {
-                serverTransport.incomingRequest(httpRequest, channel);
-            }
-        } finally {
             // As we have copied the buffer, we can release the request
             request.release();
+            return copiedRequest;
         }
     }
 

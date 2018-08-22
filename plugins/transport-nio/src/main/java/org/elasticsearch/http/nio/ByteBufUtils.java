@@ -21,6 +21,7 @@ package org.elasticsearch.http.nio;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -60,6 +61,38 @@ class ByteBufUtils {
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }
+        }
+    }
+
+    /**
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer has been allocated outside of Netty's buffer pool.
+     */
+    static boolean isUnpooled(final ByteBuf buffer) {
+        return buffer.alloc() instanceof UnpooledByteBufAllocator;
+    }
+
+    /**
+     * Contrary to {@link #isUnpooled(ByteBuf)} which assumes that the top-level buffer's allocator is used for any associated buffers,
+     * this implementation does a more thorough check by inspecting all components of a <code>CompositeByteBuf</code>.
+     *
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer and all its components have been allocated outside of Netty's buffer pool.
+     */
+    static boolean isBufferHierarchyUnpooled(final ByteBuf buffer) {
+        if (isUnpooled(buffer)) {
+            if (buffer instanceof CompositeByteBuf) {
+                CompositeByteBuf compositeBuffer = (CompositeByteBuf) buffer;
+                for(int i = 0; i < compositeBuffer.numComponents(); i++) {
+                    // access the internal component to avoid duplicating the buffer (see CompositeByteBuf#component(int))
+                    if (isBufferHierarchyUnpooled(compositeBuffer.internalComponent(i)) == false) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } else {
+            return false;
         }
     }
 

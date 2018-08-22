@@ -20,10 +20,15 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
@@ -39,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -215,6 +221,29 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         } finally {
             response.release();
         }
+    }
+
+    public void testExtractHttpRequestWithUnpooledContent() {
+        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = createPipelinedRequest(false);
+        FullHttpRequest extractedRequest = HttpReadWriteHandler.httpRequest(pipelinedRequest);
+        assertSame(extractedRequest, pipelinedRequest.getRequest());
+    }
+
+    public void testExtractHttpRequestWithPooledContent() {
+        HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = createPipelinedRequest(true);
+        assertEquals(1, pipelinedRequest.getRequest().refCnt());
+        FullHttpRequest extractedRequest = HttpReadWriteHandler.httpRequest(pipelinedRequest);
+        assertNotSame(extractedRequest, pipelinedRequest.getRequest());
+        assertEquals(0, pipelinedRequest.getRequest().refCnt());
+    }
+
+    private HttpPipelinedRequest<FullHttpRequest> createPipelinedRequest(boolean usePooledAllocator) {
+        ByteBufAllocator alloc = usePooledAllocator ? PooledByteBufAllocator.DEFAULT : UnpooledByteBufAllocator.DEFAULT;
+        ByteBuf content = alloc.buffer(5);
+        ByteBufUtil.writeAscii(content, randomAlphaOfLength(content.capacity()));
+        final FullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", content);
+        HttpUtil.setContentLength(nettyRequest, content.capacity());
+        return new HttpPipelinedRequest<>(0, nettyRequest);
     }
 
     public void testCorsEnabledWithoutAllowOrigins() throws IOException {

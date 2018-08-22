@@ -50,16 +50,16 @@ public final class SearchOnlyEngine extends Engine {
     private final TranslogStats translogStats;
     private final SearcherManager searcherManager;
 
-    public SearchOnlyEngine(EngineConfig config, SeqNoStats seqNoStats) {
+    public SearchOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats) {
         super(config);
         this.seqNoStats = seqNoStats;
+        this.translogStats = translogStats;
         try {
             store.incRef();
             ElasticsearchDirectoryReader reader = null;
             boolean success = false;
             try {
                 this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                this.translogStats = new TranslogStats(0, 0, 0, 0, 0);
                 reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), config.getShardId());
                 this.searcherManager = new SearcherManager(reader, new RamAccountingSearcherFactory(config.getCircuitBreakerService()));
                 success = true;
@@ -84,6 +84,12 @@ public final class SearchOnlyEngine extends Engine {
                 closedLatch.countDown();
             }
         }
+    }
+
+    @Override
+    public void flushAndClose() throws IOException {
+        // make a flush as a noop so that callers can close (and flush) this engine without worrying the engine type.
+        close();
     }
 
     @Override

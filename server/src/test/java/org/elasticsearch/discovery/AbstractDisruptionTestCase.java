@@ -45,7 +45,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -94,11 +93,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         disableBeforeIndexDeletion = false;
     }
 
-    @After
-    public void assertSameDocIds() throws Exception {
-        assertSameDocIdsOnShards();
-    }
-
     @Override
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         if (scheme instanceof NetworkDisruption &&
@@ -115,6 +109,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     protected void beforeIndexDeletion() throws Exception {
         if (disableBeforeIndexDeletion == false) {
             super.beforeIndexDeletion();
+            // TODO: enable this assertion after fixing NPE in assertSeqNos();
+            assertSameDocIdsOnShards();
         }
     }
 

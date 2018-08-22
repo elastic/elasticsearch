@@ -58,7 +58,8 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 }
                 engine.syncTranslog();
                 engine.flush();
-                searchOnlyEngine = new SearchOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()));
+                searchOnlyEngine = new SearchOnlyEngine(engine.engineConfig,
+                    engine.getSeqNoStats(globalCheckpoint.get()), engine.getTranslogStats());
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
                 assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));

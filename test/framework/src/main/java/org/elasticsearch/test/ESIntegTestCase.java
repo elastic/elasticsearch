@@ -20,6 +20,8 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -135,7 +137,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -2136,25 +2137,40 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Asserts that all shards with the same shardId should have document Ids.
      */
     public void assertSameDocIdsOnShards() throws Exception {
-        final Map<ShardId, Set<String>> docIdsPerShard = new HashMap<>();
-        final String[] nodeNames = internalCluster().getNodeNames();
-        for (String nodeName : nodeNames) {
-            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, nodeName);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard shard : indexService) {
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                    if (primaryShardRouting == null) {
+                        continue;
+                    }
+                    String primaryNode = state.nodes().get(primaryShardRouting.currentNodeId()).getName();
+                    IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNode)
+                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
+                    final Set<String> docsOnPrimary;
                     try {
-                        final Set<String> docIds = IndexShardTestCase.getShardDocUIDs(shard, true);
-                        if (docIdsPerShard.containsKey(shard.shardId())) {
-                            assertThat(docIds, equalTo(docIdsPerShard.get(shard.shardId())));
-                        } else {
-                            docIdsPerShard.put(shard.shardId(), docIds);
+                        docsOnPrimary = IndexShardTestCase.getShardDocUIDs(primaryShard, true);
+                    } catch (AlreadyClosedException ex) {
+                        continue;
+                    }
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                        String replicaNode = state.nodes().get(replicaShardRouting.currentNodeId()).getName();
+                        IndexShard replicaShard = internalCluster().getInstance(IndicesService.class, replicaNode)
+                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
+                        final Set<String> docsOnReplica;
+                        try {
+                            docsOnReplica = IndexShardTestCase.getShardDocUIDs(replicaShard, true);
+                        } catch (AlreadyClosedException ex) {
+                            continue;
                         }
-                    } catch (AlreadyClosedException e) {
-
+                        assertThat("out of sync shards: primary=[" + primaryShardRouting + "] num_docs_on_primary=[" + docsOnPrimary.size()
+                                + "] vs replica=[" + replicaShardRouting + "] num_docs_on_replica=[" + docsOnReplica.size() + "]",
+                            docsOnReplica, equalTo(docsOnPrimary));
                     }
                 }
             }
-        }
+        });
     }
 
     /**

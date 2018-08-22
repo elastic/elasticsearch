@@ -1001,8 +1001,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testDoNoResetEngineOnOldVersions() throws Exception {
-        Version oldVersion = randomValueOtherThanMany(v -> v.onOrAfter(Version.V_6_4_0),
-            () -> randomFrom(Version.getDeclaredVersions(Version.class)));
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_6_4_0));
         IndexShard shard = newStartedShard(false, oldVersion);
         assertThat(shard.canResetEngine(), equalTo(false));
         indexOnReplicaWithGaps(shard, between(5, 50), Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));

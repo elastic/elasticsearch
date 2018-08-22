@@ -103,6 +103,7 @@ public class RelocationIT extends ESIntegTestCase {
     protected void beforeIndexDeletion() throws Exception {
         super.beforeIndexDeletion();
         assertSeqNos();
+        assertSameDocIdsOnShards();
     }
 
     public void testSimpleRelocationNoIndexing() {

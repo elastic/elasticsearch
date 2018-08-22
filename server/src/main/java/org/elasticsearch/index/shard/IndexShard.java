@@ -1194,7 +1194,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 final Engine engine = getEngineOrNull();
                 try {
-                    if (engine != null && flushEngine && isEngineResetting() == false) {
+                    if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
                 } finally {
@@ -2140,9 +2140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine createNewEngine(EngineConfig config) throws IOException {
         assert Thread.holdsLock(mutex);
-        if (state == IndexShardState.CLOSED) {
-            throw new IndexShardClosedException(shardId, "can't create engine - shard is closed");
-        }
+        verifyNotClosed();
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
@@ -2730,8 +2728,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (this) {
                 if ((this.activeEngine instanceof SearchOnlyEngine) == false) {
                     final SeqNoStats seqNoStats = this.activeEngine.getSeqNoStats(activeEngine.getLastSyncedGlobalCheckpoint());
+                    final TranslogStats translogStats = this.activeEngine.getTranslogStats();
                     closing = this.activeEngine;
-                    this.activeEngine = new SearchOnlyEngine(this.activeEngine.config(), seqNoStats);
+                    this.activeEngine = new SearchOnlyEngine(this.activeEngine.config(), seqNoStats, translogStats);
                 }
             }
             IOUtils.close(closing);

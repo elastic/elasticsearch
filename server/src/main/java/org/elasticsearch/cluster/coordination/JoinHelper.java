@@ -93,6 +93,11 @@ public class JoinHelper extends AbstractComponent {
                         logger.warn("failed to send back failure on join request", inner);
                     }
                 }
+
+                @Override
+                public String toString() {
+                    return "JoinCallback{request=" + request + "}";
+                }
             }));
     }
 
@@ -115,8 +120,10 @@ public class JoinHelper extends AbstractComponent {
 
     public void clearAndSubmitPendingJoins() {
         final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
-        joinRequestAccumulator.forEach((key, value) -> pendingAsTasks.put(new JoinTaskExecutor.Task(key, "elect leader"),
-            new JoinTaskListener(value)));
+        joinRequestAccumulator.forEach((key, value) -> {
+            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
+            pendingAsTasks.put(task, new JoinTaskListener(task, value));
+        });
         joinRequestAccumulator.clear();
 
         pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {});
@@ -127,9 +134,9 @@ public class JoinHelper extends AbstractComponent {
 
     public void joinLeader(JoinRequest joinRequest, JoinCallback joinCallback) {
         // submit as cluster state update task
-        masterService.submitStateUpdateTask("node-join",
-            new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader"), ClusterStateTaskConfig.build(Priority.URGENT),
-            joinTaskExecutor, new JoinTaskListener(joinCallback));
+        final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(joinRequest.getSourceNode(), "join existing leader");
+        masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
+            joinTaskExecutor, new JoinTaskListener(task, joinCallback));
     }
 
     public interface JoinCallback {
@@ -139,9 +146,11 @@ public class JoinHelper extends AbstractComponent {
     }
 
     static class JoinTaskListener implements ClusterStateTaskListener {
+        private final JoinTaskExecutor.Task task;
         private final JoinCallback joinCallback;
 
-        JoinTaskListener(JoinCallback joinCallback) {
+        JoinTaskListener(JoinTaskExecutor.Task task, JoinCallback joinCallback) {
+            this.task = task;
             this.joinCallback = joinCallback;
         }
 
@@ -153,6 +162,11 @@ public class JoinHelper extends AbstractComponent {
         @Override
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             joinCallback.onSuccess();
+        }
+
+        @Override
+        public String toString() {
+            return "JoinTaskListener{task=" + task + "}";
         }
     }
 

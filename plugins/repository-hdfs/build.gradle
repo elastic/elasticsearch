@@ -582,6 +582,6 @@ thirdPartyAudit.excludes = [
   'com.squareup.okhttp.ResponseBody'
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
 }

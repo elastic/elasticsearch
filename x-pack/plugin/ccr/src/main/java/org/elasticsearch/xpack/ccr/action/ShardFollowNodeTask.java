@@ -458,7 +458,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD = new ParseField("number_of_successful_bulk_operations");
         static final ParseField NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD = new ParseField("number_of_failed_bulk_operations");
         static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
-        static final ParseField FETCH_ERRORS = new ParseField("fetch_errors");
+        static final ParseField FETCH_EXCEPTIONS = new ParseField("fetch_exceptions");
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -487,7 +487,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                     .stream()
                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
 
-        public static final String ENTRY_NAME = "shard-follow-node-task-status-fetch-errors-entry";
+        public static final String ENTRY_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
         static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> ENTRY_PARSER =
                 new ConstructingObjectParser<>(
@@ -514,7 +514,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ENTRY_PARSER, FETCH_ERRORS);
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), ENTRY_PARSER, FETCH_EXCEPTIONS);
         }
 
         static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -777,7 +777,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
                 builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
                 builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
-                builder.startArray(FETCH_ERRORS.getPreferredName());
+                builder.startArray(FETCH_EXCEPTIONS.getPreferredName());
                 {
                     for (final Map.Entry<Long, ElasticsearchException> entry : fetchExceptions.entrySet()) {
                         builder.startObject();

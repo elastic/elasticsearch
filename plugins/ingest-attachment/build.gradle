@@ -2106,6 +2106,26 @@ thirdPartyAudit.excludes = [
   'ucar.nc2.dataset.NetcdfDataset'
 ]
 
+if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+    thirdPartyAudit.excludes += [
+            // TODO: Why is this needed ?
+            'com.sun.javadoc.ClassDoc',
+            'com.sun.javadoc.Doc',
+            'com.sun.javadoc.Doclet',
+            'com.sun.javadoc.ExecutableMemberDoc',
+            'com.sun.javadoc.FieldDoc',
+            'com.sun.javadoc.MethodDoc',
+            'com.sun.javadoc.PackageDoc',
+            'com.sun.javadoc.Parameter',
+            'com.sun.javadoc.ProgramElementDoc',
+            'com.sun.javadoc.RootDoc',
+            'com.sun.javadoc.SourcePosition',
+            'com.sun.javadoc.Tag',
+            'com.sun.javadoc.Type',
+            'com.sun.tools.javadoc.Main'
+    ]
+}
+
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.activation.ActivationDataFlavor',

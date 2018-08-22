@@ -254,9 +254,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         try (ByteArrayOutputStream outputStream = standardOut) {
             jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
         }
-        return Collections.unmodifiableSet(
-            new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")))
-        );
+        return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
     }
 
 

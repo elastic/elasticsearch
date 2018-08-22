@@ -53,3 +53,12 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'java.io.ObjectInputFilter$Status'
   ]
 }
+
+if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += [
+     'java.lang.ProcessHandle',
+     'java.lang.StackWalker',
+     'java.lang.StackWalker$Option',
+     'java.lang.StackWalker$StackFrame'
+  ]
+}

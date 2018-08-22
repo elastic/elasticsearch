@@ -20,7 +20,6 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.index.translog.TruncateTranslogCommand;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
@@ -29,8 +28,7 @@ public class ShardToolCli extends LoggingAwareMultiCommand {
 
     private ShardToolCli() {
         super("A CLI tool to manage shard");
-        subcommands.put("truncate-translog", new TruncateTranslogCommand());
-        subcommands.put("remove-corrupted-segments", new RemoveCorruptedSegmentsCommand());
+        subcommands.put("resolve-corruption", new ResolveShardCorruptionCommand());
     }
 
     public static void main(String[] args) throws Exception {

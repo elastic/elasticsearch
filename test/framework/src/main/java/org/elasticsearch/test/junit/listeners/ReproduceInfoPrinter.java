@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -86,7 +87,12 @@ public class ReproduceInfoPrinter extends RunListener {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
-        System.err.println(b.toString());
+        printToErr(b.toString());
+    }
+
+    @SuppressForbidden(reason = "printing repro info")
+    private static void printToErr(String s) {
+        System.err.println(s);
     }
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {

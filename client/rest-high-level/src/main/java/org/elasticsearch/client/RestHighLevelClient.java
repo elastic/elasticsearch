@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -53,6 +52,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedConsumer;
@@ -209,6 +209,7 @@ public class RestHighLevelClient implements Closeable {
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
     private final WatcherClient watcherClient = new WatcherClient(this);
+    private final GraphClient graphClient = new GraphClient(this);
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
@@ -324,6 +325,16 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public WatcherClient watcher() { return watcherClient; }
+    
+    /**
+     * Provides methods for accessing the Elastic Licensed Graph explore API that
+     * is shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
+     * Graph API on elastic.co</a> for more information.
+     */
+    public GraphClient graph() { return graphClient; }    
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -916,9 +927,9 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteStoredScriptResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -930,9 +941,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                  ActionListener<DeleteStoredScriptResponse> listener) {
+                                  ActionListener<AcknowledgedResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

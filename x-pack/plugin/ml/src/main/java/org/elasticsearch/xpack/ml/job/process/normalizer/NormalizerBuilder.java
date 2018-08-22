@@ -29,15 +29,12 @@ public class NormalizerBuilder {
     private final String jobId;
     private final String quantilesState;
     private final Integer bucketSpan;
-    private final boolean perPartitionNormalization;
 
-    public NormalizerBuilder(Environment env, String jobId, String quantilesState, Integer bucketSpan,
-                             boolean perPartitionNormalization) {
+    public NormalizerBuilder(Environment env, String jobId, String quantilesState, Integer bucketSpan) {
         this.env = env;
         this.jobId = jobId;
         this.quantilesState = quantilesState;
         this.bucketSpan = bucketSpan;
-        this.perPartitionNormalization = perPartitionNormalization;
     }
 
     /**
@@ -49,9 +46,6 @@ public class NormalizerBuilder {
         command.add(NORMALIZE_PATH);
         addIfNotNull(bucketSpan, AutodetectBuilder.BUCKET_SPAN_ARG, command);
         command.add(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG);
-        if (perPartitionNormalization) {
-            command.add(AutodetectBuilder.PER_PARTITION_NORMALIZATION);
-        }
 
         if (quantilesState != null) {
             Path quantilesStateFilePath = AutodetectBuilder.writeNormalizerInitState(jobId, quantilesState, env);

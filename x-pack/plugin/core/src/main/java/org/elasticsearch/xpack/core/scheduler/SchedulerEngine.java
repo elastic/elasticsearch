@@ -194,8 +194,8 @@ public class SchedulerEngine {
                 /*
                  * Allowing the throwable to escape here will lead to be it being caught in FutureTask#run and set as the outcome of this
                  * task; however, we never inspect the the outcomes of these scheduled tasks and so allowing the throwable to escape
-                 * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeThrowErrorOnAnotherThread
-                 * to appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
+                 * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeDieOnAnotherThread to
+                 * appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
                  * not escape from SchedulerEngine#notifyListeners.
                  */
                 ExceptionsHelper.maybeDieOnAnotherThread(t);

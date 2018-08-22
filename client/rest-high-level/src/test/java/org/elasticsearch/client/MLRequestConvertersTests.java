@@ -20,12 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
@@ -52,6 +54,23 @@ public class MLRequestConvertersTests extends ESTestCase {
             Job parsedJob = Job.PARSER.apply(parser, null).build();
             assertThat(parsedJob, equalTo(job));
         }
+    }
+
+    public void testGetJob() {
+        GetJobRequest getJobRequest = new GetJobRequest();
+
+        Request request = MLRequestConverters.getJob(getJobRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+
+        getJobRequest = new GetJobRequest("job1", "jobs*");
+        getJobRequest.setAllowNoJobs(true);
+        request = MLRequestConverters.getJob(getJobRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/job1,jobs*", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
     }
 
     public void testOpenJob() throws Exception {

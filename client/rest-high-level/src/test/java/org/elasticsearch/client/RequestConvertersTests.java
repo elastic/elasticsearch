@@ -127,6 +127,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
@@ -2635,6 +2636,18 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(graphExploreRequest, request.getEntity());
     }    
 
+    public void testDeleteLifecycle() {
+        String lifecycleName = randomAlphaOfLengthBetween(2,20);
+        DeleteLifecycleRequest req = new DeleteLifecycleRequest(lifecycleName);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req, expectedParams);
+
+        Request request = RequestConverters.deleteLifecycle(req);
+        assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
+        assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
+        assertEquals(request.getParameters(), expectedParams);
+    }
+
     public void testSetIndexLifecyclePolicy() throws Exception {
         SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
         String policyName = randomAlphaOfLength(10);
@@ -2830,6 +2843,16 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String masterTimeout = randomTimeValue();
+            request.masterNodeTimeout(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout);
+        } else {
+            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomMasterTimeout(MasterTimeoutRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             request.masterNodeTimeout(masterTimeout);

@@ -108,6 +108,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -1171,6 +1172,17 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request deleteLifecycle(DeleteLifecycleRequest deleteLifecycleRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME,
+            new EndpointBuilder()
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs(deleteLifecycleRequest.getLifecycle())
+                .build());
+        Params params = new Params(request);
+        params.withMasterTimeout(deleteLifecycleRequest.masterNodeTimeout());
         return request;
     }
 

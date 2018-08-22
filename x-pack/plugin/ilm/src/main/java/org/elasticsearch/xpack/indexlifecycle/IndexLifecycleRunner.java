@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
@@ -15,7 +16,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 public class IndexLifecycleRunner {
-    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
+    private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
@@ -278,13 +278,30 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder;
     }
 
+    /**
+     * Conditionally updates cluster state with new step info. The new cluster state is only
+     * built if the step info has changed, otherwise the same old <code>clusterState</code> is
+     * returned
+     *
+     * @param index the index to modify
+     * @param clusterState the cluster state to modify
+     * @param stepInfo the new step info to update
+     * @return Updated cluster state with <code>stepInfo</code> if changed, otherwise the same cluster state
+     *         if no changes to step info exist
+     * @throws IOException if parsing step info fails
+     */
     static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) throws IOException {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
-        XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
-        stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
-        String stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+        final String stepInfoString;
+        try (XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder()) {
+            stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
+            stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
+        }
+        if (stepInfoString.equals(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxMeta.getSettings()))) {
+            return clusterState;
+        }
         Settings.Builder indexSettings = Settings.builder().put(idxMeta.getSettings())
-                .put(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.getKey(), stepInfoString);
+            .put(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.getKey(), stepInfoString);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }

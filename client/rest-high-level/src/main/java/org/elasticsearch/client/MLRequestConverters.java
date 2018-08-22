@@ -28,6 +28,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
@@ -122,6 +123,20 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getRecords(GetRecordsRequest getRecordsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(getRecordsRequest.getJobId())
+                .addPathPartAsIs("results")
+                .addPathPartAsIs("records")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getRecordsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

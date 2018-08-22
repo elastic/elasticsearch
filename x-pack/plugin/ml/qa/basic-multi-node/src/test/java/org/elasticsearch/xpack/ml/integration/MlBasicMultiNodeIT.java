@@ -237,11 +237,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(null, responseBody.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, responseBody.get("latest_record_timestamp"));
 
-        Request closeRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
-        closeRequest.addParameter("timeout", "20s");
-        Response closeResponse = client().performRequest(closeRequest);
-        assertEquals(200, closeResponse.getStatusLine().getStatusCode());
-        assertEquals(Collections.singletonMap("closed", true), entityAsMap(closeResponse));
+        assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         // counts should be summed up
         Response statsResponse = client().performRequest(

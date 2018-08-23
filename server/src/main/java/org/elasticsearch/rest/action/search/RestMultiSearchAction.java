@@ -86,6 +86,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
 
+        final Integer maxConcurrentShardRequests;
+        if (restRequest.hasParam("max_concurrent_shard_requests")) {
+            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+            // based on the number of nodes in the cluster
+            maxConcurrentShardRequests = restRequest.paramAsInt("max_concurrent_shard_requests", Integer.MIN_VALUE);
+        } else {
+            maxConcurrentShardRequests = null;
+        }
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
@@ -96,6 +104,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
             request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
+            if (maxConcurrentShardRequests != null) {
+                request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+            }
         }
         return multiRequest;
     }

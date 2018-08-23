@@ -300,8 +300,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * @param type Sets how multiple fields should be combined to build textual part queries.
      */
-    public void type(MultiMatchQueryBuilder.Type type) {
+    public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
         this.type = type;
+        return this;
     }
 
     /**

@@ -83,10 +83,11 @@ The response will tell you that the field and aggregation were not possible, bec
 Rollups are stored at a certain granularity, as defined by the `date_histogram` group in the configuration.  This means you
 can only search/aggregate the rollup data with an interval that is greater-than or equal to the configured rollup interval.
 
-For example, if data is rolled up at hourlyintervals, the <<rollup-search>> API can aggregate on any time interval
-hourly or greater.  Intervals that are less than an hour will throwan exception, since the data simply doesn't
+For example, if data is rolled up at hourly intervals, the <<rollup-search>> API can aggregate on any time interval
+hourly or greater.  Intervals that are less than an hour will throw an exception, since the data simply doesn't
 exist for finer granularities.
 
+[[rollup-search-limitations-intervals]]
 .Requests must be multiples of the config
 **********************************
 Perhaps not immediately apparent, but the interval specified in an aggregation request must be a whole

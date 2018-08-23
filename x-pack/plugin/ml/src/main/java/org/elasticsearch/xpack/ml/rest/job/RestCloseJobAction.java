@@ -12,10 +12,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -34,16 +34,21 @@ public class RestCloseJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request(restRequest.param(Job.ID.getPreferredName()));
-        if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
-            request.setCloseTimeout(TimeValue.parseTimeValue(
+        Request request;
+        if (restRequest.hasContentOrSourceParam()) {
+            request = Request.parseRequest(restRequest.param(Job.ID.getPreferredName()), restRequest.contentParser());
+        } else {
+            request = new Request(restRequest.param(Job.ID.getPreferredName()));
+            if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
+                request.setCloseTimeout(TimeValue.parseTimeValue(
                     restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName()));
-        }
-        if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
-            request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
-        }
-        if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
-            request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
+            }
+            if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
+                request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
+            }
+            if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
+                request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
+            }
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

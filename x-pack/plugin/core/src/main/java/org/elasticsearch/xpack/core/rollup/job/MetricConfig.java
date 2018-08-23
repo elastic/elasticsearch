@@ -60,7 +60,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
     private static final ParseField AVG = new ParseField("avg");
     private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final String NAME = "metrics";
+    static final String NAME = "metrics";
     private static final String FIELD = "field";
     private static final String METRICS = "metrics";
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;

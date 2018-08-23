@@ -18,47 +18,36 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class GetBucketsRequestTests extends AbstractXContentTestCase<GetBucketsRequest> {
+public class GetBucketsRequestTests extends AbstractXContentTestCase<GetOverallBucketsRequest> {
 
     @Override
-    protected GetBucketsRequest createTestInstance() {
-        GetBucketsRequest request = new GetBucketsRequest(randomAlphaOfLengthBetween(1, 20));
+    protected GetOverallBucketsRequest createTestInstance() {
+        GetOverallBucketsRequest request = new GetOverallBucketsRequest(randomAlphaOfLengthBetween(1, 20));
 
         if (randomBoolean()) {
-            request.setTimestamp(String.valueOf(randomLong()));
-        } else {
-            if (randomBoolean()) {
-                request.setStart(String.valueOf(randomLong()));
-            }
-            if (randomBoolean()) {
-                request.setEnd(String.valueOf(randomLong()));
-            }
-            if (randomBoolean()) {
-                request.setExcludeInterim(randomBoolean());
-            }
-            if (randomBoolean()) {
-                request.setAnomalyScore(randomDouble());
-            }
-            if (randomBoolean()) {
-                int from = randomInt(10000);
-                int size = randomInt(10000);
-                request.setPageParams(new PageParams(from, size));
-            }
-            if (randomBoolean()) {
-                request.setSort("anomaly_score");
-            }
-            if (randomBoolean()) {
-                request.setDescending(randomBoolean());
-            }
+            request.setTopN(randomIntBetween(1, 10));
+        }
+
+        if (randomBoolean()) {
+            request.setBucketSpan(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
-            request.setExpand(randomBoolean());
+            request.setStart(String.valueOf(randomLong()));
+        }
+        if (randomBoolean()) {
+            request.setEnd(String.valueOf(randomLong()));
+        }
+        if (randomBoolean()) {
+            request.setExcludeInterim(randomBoolean());
+        }
+        if (randomBoolean()) {
+            request.setOverallScore(randomDouble());
         }
         if (randomBoolean()) {
             request.setExcludeInterim(randomBoolean());
@@ -67,8 +56,8 @@ public class GetBucketsRequestTests extends AbstractXContentTestCase<GetBucketsR
     }
 
     @Override
-    protected GetBucketsRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetBucketsRequest.PARSER.apply(parser, null);
+    protected GetOverallBucketsRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetOverallBucketsRequest.PARSER.apply(parser, null);
     }
 
     @Override

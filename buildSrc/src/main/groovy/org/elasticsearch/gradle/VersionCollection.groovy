@@ -118,7 +118,7 @@ class VersionCollection {
             } else {
                 // caveat 3 - if our currentVersion is a X.0.0, we need to check X-1 minors to see if they are released
                 if (currentVersion.minor == 0) {
-                    for (Version version : getMinorTips(currentVersion.major - 1)) {
+                    for (Version version: getMinorTips(currentVersion.major - 1)) {
                         if (isReleased(version) == false) {
                             // caveat 1 - This should only ever contain 2 non released branches in flight. An example is 6.x is frozen,
                             // and 6.2 is cut but not yet released there is some simple logic to make sure that in the case of more than 2,
@@ -138,13 +138,8 @@ class VersionCollection {
                             break
                         }
                     }
-                    // caveat 0 - now dip back 2 versions to get the last supported snapshot version of the line
-                    Version highestMinor = getHighestPreviousMinor(currentVersion.major - 1)
-                    if (highestMinor == null) {
-                        maintenanceBugfixSnapshot = null
-                    } else {
-                        maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
-                    }
+                    // caveat 0 - the last supported snapshot of the line is on a version that we don't support (N-2)
+                    maintenanceBugfixSnapshot = null
                 } else {
                     // caveat 3 did not apply. version is not a X.0.0, so we are somewhere on a X.Y line
                     // only check till minor == 0 of the major
@@ -298,10 +293,7 @@ class VersionCollection {
      */
     private Version getHighestPreviousMinor(Integer nextMajorVersion) {
         SortedSet<Version> result = versionSet.headSet(Version.fromString("${nextMajorVersion}.0.0"))
-        if (result.isEmpty()) {
-            return null
-        }
-        return result.last()
+        return result.isEmpty() ? null : result.last()
     }
 
     /**

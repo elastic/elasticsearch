@@ -42,16 +42,18 @@ public class Coordinator extends AbstractLifecycleComponent {
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
     private Optional<Join> lastJoin;
+    private JoinHelper.JoinAccumulator joinAccumulator;
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
                        MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier) {
         super(settings);
         this.transportService = transportService;
-        this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService, this::getCurrentTerm,
-            this::handleJoin);
+        this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
+            this::getCurrentTerm, this::handleJoinRequest);
         this.persistedStateSupplier = persistedStateSupplier;
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
+        this.joinAccumulator = joinHelper.new CandidateJoinAccumulator();
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -73,37 +75,41 @@ public class Coordinator extends AbstractLifecycleComponent {
         return join;
     }
 
-    private boolean handleJoin(final Join join) {
+    private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
+        logger.trace("handleJoin: as {}, handling {}", mode, joinRequest);
+        transportService.connectToNode(joinRequest.getSourceNode());
 
+        final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
-            logger.trace("handleJoin: as {}, handling {}", mode, join);
-
             final CoordinationState coordState = coordinationState.get();
             final boolean prevElectionWon = coordState.electionWon();
 
-            // if someone thinks we should be master, let's add our vote and try to become one
-            // note that the following line should never throw an exception
-            ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(coordState::handleJoin);
+            if (optionalJoin.isPresent()) {
+                Join join = optionalJoin.get();
+                // if someone thinks we should be master, let's add our vote and try to become one
+                // note that the following line should never throw an exception
+                ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(coordState::handleJoin);
 
-            if (coordState.electionWon()) {
-                // if we have already won the election then the actual join does not matter for election purposes, so swallow any exception
-                try {
-                    coordState.handleJoin(join);
-                } catch (CoordinationStateRejectedException e) {
-                    logger.trace("failed to add join, ignoring", e);
+                if (coordState.electionWon()) {
+                    // if we have already won the election then the actual join does not matter for election purposes,
+                    // so swallow any exception
+                    try {
+                        coordState.handleJoin(join);
+                    } catch (CoordinationStateRejectedException e) {
+                        logger.trace("failed to add join, ignoring", e);
+                    }
+                } else {
+                    coordState.handleJoin(join); // this might fail and bubble up the exception
                 }
-            } else {
-                coordState.handleJoin(join); // this might fail and bubble up the exception
             }
+
+            joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);
 
             if (prevElectionWon == false && coordState.electionWon()) {
                 becomeLeader("handleJoin");
-                return true;
             }
         }
-
-        return false;
     }
 
     void becomeCandidate(String method) {
@@ -112,7 +118,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
-            joinHelper.becomeCandidate();
+            joinAccumulator.failPendingJoins("becoming candidate");
+            joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         }
     }
 
@@ -123,6 +130,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         mode = Mode.LEADER;
         lastKnownLeader = Optional.of(getLocalNode());
+        joinAccumulator.submitPendingJoins();
+        joinAccumulator = joinHelper.new LeaderJoinAccumulator();
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -131,7 +140,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinHelper.becomeFollower(leaderNode);
+            joinAccumulator.failPendingJoins("started following " + leaderNode);
+            joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
         }
 
         lastKnownLeader = Optional.of(leaderNode);

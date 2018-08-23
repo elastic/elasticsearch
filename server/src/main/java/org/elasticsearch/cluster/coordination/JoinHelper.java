@@ -35,9 +35,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 
 public class JoinHelper extends AbstractComponent {
 
@@ -45,18 +44,14 @@ public class JoinHelper extends AbstractComponent {
 
     private final MasterService masterService;
     private final TransportService transportService;
-    private final Predicate<Join> joinHandler;
     private final JoinTaskExecutor joinTaskExecutor;
-    private final Object mutex = new Object();
-    private JoinAccumulator joinAccumulator = new CandidateJoinAccumulator();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
-                      Predicate<Join> joinHandler) {
+                      BiConsumer<JoinRequest, JoinCallback> joinHandler) {
         super(settings);
         this.masterService = masterService;
         this.transportService = transportService;
-        this.joinHandler = joinHandler;
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
 
             @Override
@@ -78,7 +73,7 @@ public class JoinHelper extends AbstractComponent {
         };
 
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> handleJoinRequest(request, new JoinCallback() {
+            (request, channel, task) -> joinHandler.accept(request, new JoinCallback() {
 
                 @Override
                 public void onSuccess() {
@@ -104,46 +99,6 @@ public class JoinHelper extends AbstractComponent {
                     return "JoinCallback{request=" + request + "}";
                 }
             }));
-    }
-
-    private void handleJoinRequest(JoinRequest joinRequest, JoinCallback joinCallback) {
-        transportService.connectToNode(joinRequest.getSourceNode());
-
-        final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
-        final boolean justBecameLeader;
-        if (optionalJoin.isPresent()) {
-            try {
-                justBecameLeader = joinHandler.test(optionalJoin.get());
-            } catch (CoordinationStateRejectedException e) {
-                joinCallback.onFailure(e);
-                return;
-            }
-        } else {
-            justBecameLeader = false;
-        }
-
-        synchronized (mutex) {
-            joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);
-
-            if (justBecameLeader) {
-                joinAccumulator.submitPendingJoins();
-                joinAccumulator = new LeaderJoinAccumulator();
-            }
-        }
-    }
-
-    void becomeCandidate() {
-        synchronized (mutex) {
-            joinAccumulator.failPendingJoins("becoming candidate");
-            joinAccumulator = new CandidateJoinAccumulator();
-        }
-    }
-
-    void becomeFollower(DiscoveryNode leaderNode) {
-        synchronized (mutex) {
-            joinAccumulator.failPendingJoins("started following " + leaderNode);
-            joinAccumulator = new FollowerJoinAccumulator();
-        }
     }
 
     public interface JoinCallback {
@@ -177,8 +132,7 @@ public class JoinHelper extends AbstractComponent {
         }
     }
 
-
-    private interface JoinAccumulator {
+    interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
         default void failPendingJoins(String reason) {
@@ -188,7 +142,7 @@ public class JoinHelper extends AbstractComponent {
         }
     }
 
-    private class LeaderJoinAccumulator implements JoinAccumulator {
+    class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
@@ -202,7 +156,7 @@ public class JoinHelper extends AbstractComponent {
         }
     }
 
-    private static class FollowerJoinAccumulator implements JoinAccumulator {
+    static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
@@ -214,7 +168,7 @@ public class JoinHelper extends AbstractComponent {
         }
     }
 
-    private class CandidateJoinAccumulator implements JoinAccumulator {
+    class CandidateJoinAccumulator implements JoinAccumulator {
 
         private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
 

@@ -87,6 +87,11 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     protected boolean supportsUnknownFields() {
         return true;
     }
+    
+    @Override
+    protected String[] getShuffleFieldsExceptions() {
+        return new String[]{"vertices"};
+    }    
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");

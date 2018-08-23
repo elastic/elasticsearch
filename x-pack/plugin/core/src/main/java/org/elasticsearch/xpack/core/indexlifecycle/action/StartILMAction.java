@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.StartILMRequest;
 
 public class StartILMAction extends Action<StartILMRequest, AcknowledgedResponse, StartILMActionRequestBuilder> {
     public static final StartILMAction INSTANCE = new StartILMAction();

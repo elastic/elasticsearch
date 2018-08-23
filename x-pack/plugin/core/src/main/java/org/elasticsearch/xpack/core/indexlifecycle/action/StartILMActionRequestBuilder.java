@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.StartILMRequest;
 
 public class StartILMActionRequestBuilder
         extends ActionRequestBuilder<StartILMRequest, AcknowledgedResponse, StartILMActionRequestBuilder> {

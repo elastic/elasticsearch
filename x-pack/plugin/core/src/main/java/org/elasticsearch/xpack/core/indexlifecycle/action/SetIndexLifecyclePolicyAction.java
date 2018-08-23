@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
 
 public class SetIndexLifecyclePolicyAction
         extends Action<SetIndexLifecyclePolicyRequest, SetIndexLifecyclePolicyResponse, SetIndexLifecyclePolicyActionRequestBuilder> {

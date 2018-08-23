@@ -10,8 +10,9 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
+
 
 public class SetIndexLifecyclePolicyActionRequestBuilder
         extends ActionRequestBuilder<

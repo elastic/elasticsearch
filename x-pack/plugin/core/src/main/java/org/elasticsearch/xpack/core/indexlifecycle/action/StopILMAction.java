@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 
 public class StopILMAction extends Action<StopILMRequest, AcknowledgedResponse, StopILMActionRequestBuilder> {
     public static final StopILMAction INSTANCE = new StopILMAction();

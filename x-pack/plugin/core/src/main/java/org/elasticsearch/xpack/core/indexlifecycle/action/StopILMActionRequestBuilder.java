@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 
 public class StopILMActionRequestBuilder extends ActionRequestBuilder<StopILMRequest, AcknowledgedResponse, StopILMActionRequestBuilder> {
 

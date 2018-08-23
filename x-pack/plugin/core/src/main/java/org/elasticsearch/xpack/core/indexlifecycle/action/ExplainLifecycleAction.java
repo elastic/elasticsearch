@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 
 public class ExplainLifecycleAction
         extends Action<ExplainLifecycleRequest, ExplainLifecycleResponse, ExplainLifecycleActionRequestBuilder> {

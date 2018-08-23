@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -37,8 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -119,7 +116,7 @@ public class JoinHelper extends AbstractComponent {
             joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);
 
             if (justBecameLeader) {
-                joinAccumulator.clearAndSubmitPendingJoins();
+                joinAccumulator.submitPendingJoins();
                 joinAccumulator = new LeaderJoinAccumulator();
             }
         }
@@ -127,14 +124,14 @@ public class JoinHelper extends AbstractComponent {
 
     void becomeCandidate() {
         synchronized (mutex) {
-            joinAccumulator.clearAndFailPendingJoins("becoming candidate");
+            joinAccumulator.failPendingJoins("becoming candidate");
             joinAccumulator = new CandidateJoinAccumulator();
         }
     }
 
     void becomeFollower(DiscoveryNode leaderNode) {
         synchronized (mutex) {
-            joinAccumulator.clearAndFailPendingJoins("started following " + leaderNode);
+            joinAccumulator.failPendingJoins("started following " + leaderNode);
             joinAccumulator = new FollowerJoinAccumulator();
         }
     }
@@ -180,10 +177,10 @@ public class JoinHelper extends AbstractComponent {
     private interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
-        default void clearAndFailPendingJoins(String reason) {
+        default void failPendingJoins(String reason) {
         }
 
-        default void clearAndSubmitPendingJoins() {
+        default void submitPendingJoins() {
         }
 
         default int getNumberOfPendingJoins() {
@@ -230,14 +227,12 @@ public class JoinHelper extends AbstractComponent {
         }
 
         @Override
-        public void clearAndFailPendingJoins(String reason) {
-            joinRequestAccumulator.values().forEach(
-                joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
-            joinRequestAccumulator.clear();
+        public void failPendingJoins(String reason) {
+            joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
         }
 
         @Override
-        public void clearAndSubmitPendingJoins() {
+        public void submitPendingJoins() {
             final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
             joinRequestAccumulator.forEach((key, value) -> {
                 final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");

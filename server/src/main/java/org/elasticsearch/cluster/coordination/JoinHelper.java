@@ -239,12 +239,18 @@ public class JoinHelper extends AbstractComponent {
                 pendingAsTasks.put(task, new JoinTaskListener(task, value));
             });
 
+            final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
+
             pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {
             });
             pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {
             });
-            final String source = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
-            masterService.submitStateUpdateTasks(source, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+        }
+
+        @Override
+        public String toString() {
+            return "CandidateJoinAccumulator{" + joinRequestAccumulator.keySet() + '}';
         }
     }
 }

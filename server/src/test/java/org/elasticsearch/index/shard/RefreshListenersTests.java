@@ -132,7 +132,7 @@ public class RefreshListenersTests extends ESTestCase {
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
             (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm);
         engine = new InternalEngine(config);
-        engine.recoverFromTranslog();
+        engine.recoverFromTranslog(Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 

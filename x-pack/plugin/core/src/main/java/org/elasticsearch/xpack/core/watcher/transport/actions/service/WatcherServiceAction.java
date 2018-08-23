@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 
-public class WatcherServiceAction extends Action<WatcherServiceResponse> {
+public class WatcherServiceAction extends Action<AcknowledgedResponse> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
     public static final String NAME = "cluster:admin/xpack/watcher/service";
@@ -18,7 +19,7 @@ public class WatcherServiceAction extends Action<WatcherServiceResponse> {
     }
 
     @Override
-    public WatcherServiceResponse newResponse() {
-        return new WatcherServiceResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

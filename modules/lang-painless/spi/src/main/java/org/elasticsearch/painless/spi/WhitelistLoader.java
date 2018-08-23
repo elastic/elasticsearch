@@ -35,14 +35,14 @@ import java.util.List;
 public final class WhitelistLoader {
 
     /**
-     * Loads and creates a {@link Whitelist} from one to many text files.  The file paths are passed in as an array of
+     * Loads and creates a {@link Whitelist} from one to many text files. The file paths are passed in as an array of
      * {@link String}s with a single {@link Class} to be be used to load the resources where each {@link String}
-     * is the path of a single text file.  The {@link Class}'s {@link ClassLoader} will be used to lookup the Java
+     * is the path of a single text file. The {@link Class}'s {@link ClassLoader} will be used to lookup the Java
      * reflection objects for each individual {@link Class}, {@link Constructor}, {@link Method}, and {@link Field}
      * specified as part of the whitelist in the text file.
      *
      * A single pass is made through each file to collect all the information about each class, constructor, method,
-     * and field.  Most validation will be done at a later point after all whitelists have been gathered and their
+     * and field. Most validation will be done at a later point after all whitelists have been gathered and their
      * merging takes place.
      *
      * A painless type name is one of the following:
@@ -52,20 +52,20 @@ public final class WhitelistLoader {
      *     <li> fully-qualified Java type name - Any whitelisted Java class will have the equivalent name as
      *     a Painless type name with the exception that any dollar symbols used as part of inner classes will
      *     be replaced with dot symbols. </li>
-     *     <li> short Java type name - The text after the final dot symbol of any specified Java class.  A
-     *     short type Java name may be excluded by using the 'only_fqn' token during Painless class parsing
+     *     <li> short Java type name - The text after the final dot symbol of any specified Java class. A
+     *     short type Java name may be excluded by using the 'no_import' token during Painless class parsing
      *     as described later. </li>
      * </ul>
      *
      * The following can be parsed from each whitelist text file:
      * <ul>
      *   <li> Blank lines will be ignored by the parser. </li>
-     *   <li> Comments may be created starting with a pound '#' symbol and end with a newline.  These will
+     *   <li> Comments may be created starting with a pound '#' symbol and end with a newline. These will
      *   be ignored by the parser. </li>
      *   <li> Primitive types may be specified starting with 'class' and followed by the Java type name,
      *   an opening bracket, a newline, a closing bracket, and a final newline. </li>
      *   <li> Complex types may be specified starting with 'class' and followed the fully-qualified Java
-     *   class name, optionally followed by an 'only_fqn' token, an opening bracket, a newline,
+     *   class name, optionally followed by an 'no_import' token, an opening bracket, a newline,
      *   constructor/method/field specifications, a closing bracket, and a final newline. Within a complex
      *   type the following may be parsed:
      *   <ul>
@@ -93,10 +93,10 @@ public final class WhitelistLoader {
      *
      * Note there must be a one-to-one correspondence of Painless type names to Java type/class names.
      * If the same Painless type is defined across multiple files and the Java class is the same, all
-     * specified constructors, methods, and fields will be merged into a single Painless type.  The
+     * specified constructors, methods, and fields will be merged into a single Painless type. The
      * Painless dynamic type, 'def', used as part of constructor, method, and field definitions will
-     * be appropriately parsed and handled.  Painless complex types must be specified with the
-     * fully-qualified Java class name.  Method argument types, method return types, and field types
+     * be appropriately parsed and handled. Painless complex types must be specified with the
+     * fully-qualified Java class name. Method argument types, method return types, and field types
      * must be specified with Painless type names (def, fully-qualified, or short) as described earlier.
      *
      * The following example is used to create a single whitelist text file:
@@ -109,7 +109,7 @@ public final class WhitelistLoader {
      *
      * # complex types
      *
-     * class my.package.Example only_fqn {
+     * class my.package.Example no_import {
      *   # constructors
      *   ()
      *   (int)
@@ -132,7 +132,7 @@ public final class WhitelistLoader {
      * }
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
-        List<WhitelistClass> whitelistStructs = new ArrayList<>();
+        List<WhitelistClass> whitelistClasses = new ArrayList<>();
 
         // Execute a single pass through the whitelist text files.  This will gather all the
         // constructors, methods, augmented methods, and fields for each whitelisted class.
@@ -143,9 +143,9 @@ public final class WhitelistLoader {
             try (LineNumberReader reader = new LineNumberReader(
                 new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8))) {
 
-                String whitelistStructOrigin = null;
+                String whitelistClassOrigin = null;
                 String javaClassName = null;
-                boolean onlyFQNJavaClassName = false;
+                boolean noImport = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
                 List<WhitelistField> whitelistFields = null;
@@ -160,7 +160,7 @@ public final class WhitelistLoader {
                     }
 
                     // Handle a new class by resetting all the variables necessary to construct a new WhitelistClass for the whitelist.
-                    // Expects the following format: 'class' ID 'only_fqn'? '{' '\n'
+                    // Expects the following format: 'class' ID 'no_import'? '{' '\n'
                     if (line.startsWith("class ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
@@ -172,13 +172,13 @@ public final class WhitelistLoader {
                         String[] tokens = line.substring(5, line.length() - 1).trim().split("\\s+");
 
                         // Ensure the correct number of tokens.
-                        if (tokens.length == 2 && "only_fqn".equals(tokens[1])) {
-                            onlyFQNJavaClassName = true;
+                        if (tokens.length == 2 && "no_import".equals(tokens[1])) {
+                            noImport = true;
                         } else if (tokens.length != 1) {
                             throw new IllegalArgumentException("invalid class definition: failed to parse class name [" + line + "]");
                         }
 
-                        whitelistStructOrigin = "[" + filepath + "]:[" + number + "]";
+                        whitelistClassOrigin = "[" + filepath + "]:[" + number + "]";
                         javaClassName = tokens[0];
 
                         // Reset all the constructors, methods, and fields to support a new class.
@@ -194,13 +194,13 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid class definition: extraneous closing bracket");
                         }
 
-                        whitelistStructs.add(new WhitelistClass(whitelistStructOrigin, javaClassName, onlyFQNJavaClassName,
+                        whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
                             whitelistConstructors, whitelistMethods, whitelistFields));
 
                         // Set all the variables to null to ensure a new class definition is found before other parsable values.
-                        whitelistStructOrigin = null;
+                        whitelistClassOrigin = null;
                         javaClassName = null;
-                        onlyFQNJavaClassName = false;
+                        noImport = false;
                         whitelistConstructors = null;
                         whitelistMethods = null;
                         whitelistFields = null;
@@ -300,7 +300,7 @@ public final class WhitelistLoader {
         }
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistStructs);
+        return new Whitelist(loader, whitelistClasses);
     }
 
     private WhitelistLoader() {}

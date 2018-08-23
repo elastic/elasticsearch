@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -160,7 +161,7 @@ public class TermVectorsService  {
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
-    private static boolean isValidField(MappedFieldType fieldType) {
+    private static boolean isValidField(MappedFieldType fieldType, IndexShard indexShard) {
         // must be a string
         if (fieldType instanceof StringFieldType == false) {
             return false;
@@ -168,6 +169,16 @@ public class TermVectorsService  {
         // and must be indexed
         if (fieldType.indexOptions() == IndexOptions.NONE) {
             return false;
+        }
+        // and must not be under nested field
+        int dotIndex = fieldType.name().indexOf('.');
+        while (dotIndex > -1) {
+            String parentField = fieldType.name().substring(0, dotIndex);
+            ObjectMapper mapper = indexShard.mapperService().getObjectMapper(parentField);
+            if (mapper != null && mapper.nested().isNested()) {
+                return false;
+            }
+            dotIndex = fieldType.name().indexOf('.', dotIndex + 1);
         }
         return true;
     }
@@ -177,7 +188,7 @@ public class TermVectorsService  {
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
             MappedFieldType fieldType = indexShard.mapperService().fullName(field);
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType, indexShard) == false) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
@@ -284,7 +295,7 @@ public class TermVectorsService  {
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType, indexShard) == false) {
                 continue;
             }
             if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {

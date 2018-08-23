@@ -30,6 +30,10 @@ in similar way to the <<query-dsl-multi-match-query,multi match query>>
 [WARNING]
 Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
 
+[WARNING]
+Term Vectors API doesn't work on nested fields. `/_termvectors` on a nested
+field and any sub-fields of a nested field returns empty results.
+
 [float]
 === Return values
 

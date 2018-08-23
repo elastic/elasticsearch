@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
 
 public class SetIndexLifecyclePolicyAction extends Action<SetIndexLifecyclePolicyResponse> {
 

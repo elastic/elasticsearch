@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;

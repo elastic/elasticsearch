@@ -334,7 +334,7 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-not referenced in a 
+referenced in a
 {xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
 role mappings are not considered. Defaults to `false`.
 
@@ -479,7 +479,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the the `url` and `user_search_dn` 
+The domain name of Active Directory. If the `url` and the `user_search_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 

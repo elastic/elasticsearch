@@ -74,6 +74,11 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     }
     
 
+    @Override
+    protected String[] getShuffleFieldsExceptions() {
+        return new String[]{"vertices"};
+    }
+    
     private static   GraphExploreResponse createTestInstanceWithFailures() {
         return createInstance(randomIntBetween(1, 128));
     }

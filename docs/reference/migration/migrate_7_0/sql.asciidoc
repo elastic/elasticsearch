@@ -1,9 +1,0 @@
-[[breaking_70_sql_changes]]
-=== SQL plugin changes
-
-==== Grouping by columns with missing values will create an additional group 
-
-An additional group will be present in the result of requests containing a
-`GROUP BY` for a column that has missing values in the returned documents.
-The records with missing values in the grouped by column will be collectively
-considered a single bucket.

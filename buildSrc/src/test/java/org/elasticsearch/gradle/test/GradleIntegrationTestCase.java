@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected File getProjectDir(String name) {
@@ -109,4 +110,5 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             Files.exists(absPath)
         );
     }
+
 }

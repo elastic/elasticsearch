@@ -2142,11 +2142,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null) {
+                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
                         continue;
                     }
-                    String primaryNode = state.nodes().get(primaryShardRouting.currentNodeId()).getName();
-                    IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNode)
+                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
+                    IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNode.getName())
                         .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
                     final Set<String> docsOnPrimary;
                     try {
@@ -2155,8 +2155,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         continue;
                     }
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        String replicaNode = state.nodes().get(replicaShardRouting.currentNodeId()).getName();
-                        IndexShard replicaShard = internalCluster().getInstance(IndicesService.class, replicaNode)
+                        if (replicaShardRouting.assignedToNode() == false) {
+                            continue;
+                        }
+                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
+                        IndexShard replicaShard = internalCluster().getInstance(IndicesService.class, replicaNode.getName())
                             .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
                         final Set<String> docsOnReplica;
                         try {

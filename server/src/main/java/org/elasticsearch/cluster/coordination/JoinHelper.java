@@ -110,7 +110,17 @@ public class JoinHelper extends AbstractComponent {
         transportService.connectToNode(joinRequest.getSourceNode());
 
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
-        final boolean justBecameLeader = optionalJoin.isPresent() && joinHandler.test(optionalJoin.get());
+        final boolean justBecameLeader;
+        if (optionalJoin.isPresent()) {
+            try {
+                justBecameLeader = joinHandler.test(optionalJoin.get());
+            } catch (CoordinationStateRejectedException e) {
+                joinCallback.onFailure(e);
+                return;
+            }
+        } else {
+            justBecameLeader = false;
+        }
 
         synchronized (mutex) {
             joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);

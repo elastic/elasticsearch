@@ -164,7 +164,7 @@ public final class WhitelistLoader {
                     // Handle a new type (class or binding) by resetting all the variables necessary
                     // to construct a new WhitelistClass or WhitelistBinding for the whitelist.
                     // Expects the following format: ('class' | 'binding') ID 'no_import'? '{' '\n'
-                    if (line.startsWith("class ") || line.startsWith("binding ")) {
+                    if (line.startsWith("class ")) {
                         int tokensStartIndex;
 
                         if (line.startsWith("class ")) {

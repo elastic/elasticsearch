@@ -19,19 +19,35 @@
 
 package org.elasticsearch.painless.spi;
 
+import java.util.List;
 import java.util.Objects;
 
+/**
+ * A binding represents a static method call that stores state.  Each binding must have exactly
+ * one public constructor and one public method excluding those inherited directly from {@link Object}.
+ * The canonical type name parameters provided must match those of the constructor and method combined.
+ * The constructor for a binding will be called when the binding is called for the first time at which
+ * point state may be stored for the arguments passed into the constructor.  The method for a binding
+ * will be called each time the binding is called and may use the previously stored state.
+ */
 public class WhitelistBinding {
 
+    /** Information about where this constructor was whitelisted from. */
     public final String origin;
-    public final String targetClass;
-    public final WhitelistConstructor whitelistConstructor;
-    public final WhitelistMethod whitelistMethod;
 
-    public WhitelistBinding(String origin, String targetClass, WhitelistConstructor whitelistConstructor, WhitelistMethod whitelistMethod) {
+    /** The Java class name this binding represents. */
+    public final String targetJavaClassName;
+
+    /**
+     * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
+     * constructor which can be used to look up the Java constructor through reflection.
+     */
+    public final List<String> canonicalTypeNameParameters;
+
+    /** Standard constructor. All values must be not {@code null}. */
+    public WhitelistBinding(String origin, String targetJavaClassName, List<String> canonicalTypeNameParameters) {
         this.origin = Objects.requireNonNull(origin);
-        this.targetClass = Objects.requireNonNull(targetClass);
-        this.whitelistConstructor = Objects.requireNonNull(whitelistConstructor);
-        this.whitelistMethod = Objects.requireNonNull(whitelistMethod);
+        this.targetJavaClassName = Objects.requireNonNull(targetJavaClassName);
+        this.canonicalTypeNameParameters = Objects.requireNonNull(canonicalTypeNameParameters);
     }
 }

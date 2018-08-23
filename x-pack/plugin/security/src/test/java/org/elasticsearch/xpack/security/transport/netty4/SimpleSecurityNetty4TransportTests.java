@@ -231,7 +231,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     public void testTcpHandshake() throws IOException, InterruptedException {
     }
 
-    public void testHelloWorld2() throws Exception {
+    public void testSNI() throws Exception {
         try (MockTransportService serviceC = build(
             Settings.builder()
                 .put("name", "TS_TEST")
@@ -255,8 +255,8 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
 
                 @Override
                 public void messageReceived(TestRequest request, TransportChannel channel, Task task) throws Exception {
-                    int i = 0;
                     requestLatch.countDown();
+                    // TODO: Maybe add assertions.
                 }
             }
 
@@ -271,12 +271,10 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
                 TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TransportResponseHandler<TransportResponse>() {
                     @Override
                     public void handleResponse(TransportResponse response) {
-
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
-                        int i = 0;
                     }
 
                     @Override

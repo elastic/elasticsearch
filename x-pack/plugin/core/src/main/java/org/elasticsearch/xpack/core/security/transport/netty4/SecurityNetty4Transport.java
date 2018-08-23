@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLEngine;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -179,7 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled));
+                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, sniServerName));
             }
         }
     }
@@ -189,11 +190,14 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
         private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
+        private final String sniServerName;
 
-        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled) {
+        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled,
+                                            String sniServerName) {
             this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
+            this.sniServerName = sniServerName;
         }
 
         @Override
@@ -210,6 +214,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
 
             sslEngine.setUseClientMode(true);
+            if (sniServerName != null) {
+                sslEngine.getSSLParameters().setServerNames(Collections.singletonList(new SNIHostName(sniServerName)));
+            }
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }

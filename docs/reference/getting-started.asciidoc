@@ -192,20 +192,20 @@ After clicking the install button, Elasticsearch will be installed:
 [[getting-started-msi-installer-success]]
 image::images/msi_installer/msi_installer_success.png[]
 
-By default, Elasticsearch will be installed at `%PROGRAMFILES%\Elastic\Elasticsearch`. Navigate here and go into the bin directory as follows:
+By default, Elasticsearch will be installed at `%ES_HOME%`. Navigate here and go into the bin directory as follows:
 
 **with Command Prompt:**
 
 [source,sh]
 --------------------------------------------------
-cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
+cd %ES_HOME%\bin
 --------------------------------------------------
 
 **with PowerShell:**
 
 [source,powershell]
 --------------------------------------------------
-cd $env:PROGRAMFILES\Elastic\Elasticsearch\bin
+cd $env:ES_HOME\bin
 --------------------------------------------------
 
 And now we are ready to start our node and single cluster:

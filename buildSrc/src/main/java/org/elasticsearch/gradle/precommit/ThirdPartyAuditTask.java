@@ -128,18 +128,34 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
-        FileCollection jars = getRuntimeConfiguration()
-            .fileCollection(dep -> dep.getGroup().startsWith("org.elasticsearch") == false);
-        Configuration compileOnlyConfiguration = getCompileOnlyConfiguration();
-        // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
-        if (compileOnlyConfiguration != null) {
-            jars.minus(compileOnlyConfiguration);
-        }
-        if (jars.isEmpty()) {
-            throw new StopExecutionException("No jars to scan");
+        FileCollection jars = getJarsToScan();
+
+        extractJars(jars);
+
+        final String forbiddenApisOutput = runForbiddenAPIsCli();
+
+        final Set<String> missingClasses = new TreeSet<>();
+        Matcher missingMatcher = MISSING_CLASS_PATTERN.matcher(forbiddenApisOutput);
+        while (missingMatcher.find()) {
+            missingClasses.add(missingMatcher.group(1));
         }
 
-        // Stage all the jars
+        final Set<String> violationsClasses = new TreeSet<>();
+        Matcher violationMatcher = VIOLATION_PATTERN.matcher(forbiddenApisOutput);
+        while (violationMatcher.find()) {
+            violationsClasses.add(violationMatcher.group(1));
+        }
+
+        Set<String> jdkJarHellClasses = runJdkJarHellCheck();
+
+        assertNoPointlessExclusions(missingClasses, violationsClasses, jdkJarHellClasses);
+
+        assertNoMissingAndViolations(missingClasses, violationsClasses);
+
+        assertNoJarHell(jdkJarHellClasses);
+    }
+
+    private void extractJars(FileCollection jars) {
         File jarExpandDir = getJarExpandDir();
         jars.forEach(jar ->
             getProject().copy(spec -> {
@@ -147,9 +163,47 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 spec.into(jarExpandDir);
             })
         );
+    }
 
+    private void assertNoJarHell(Set<String> jdkJarHellClasses) {
+        jdkJarHellClasses.removeAll(excludes);
+        if (jdkJarHellClasses.isEmpty() == false) {
+            throw new IllegalStateException("Jar Hell with the JDK:" + formatClassList(jdkJarHellClasses));
+        }
+    }
+
+    private void assertNoMissingAndViolations(Set<String> missingClasses, Set<String> violationsClasses) {
+        missingClasses.removeAll(excludes);
+        violationsClasses.removeAll(excludes);
+        String missingText = formatClassList(missingClasses);
+        String violationsText = formatClassList(violationsClasses);
+        if (missingText.isEmpty() && violationsText.isEmpty()) {
+            getLogger().info("Third party audit passed successfully");
+        } else {
+            throw new IllegalStateException(
+                "Audit of third party dependencies failed:\n" +
+                    (missingText.isEmpty() ?  "" : "Missing classes:\n" + missingText) +
+                    (violationsText.isEmpty() ? "" : "Classes with violations:\n" + violationsText)
+            );
+        }
+    }
+
+    private void assertNoPointlessExclusions(Set<String> missingClasses, Set<String> violationsClasses, Set<String> jdkJarHellClasses) {
+        // keep our whitelist up to date
+        Set<String> bogusExclusions = new TreeSet<>(excludes);
+        bogusExclusions.removeAll(missingClasses);
+        bogusExclusions.removeAll(jdkJarHellClasses);
+        bogusExclusions.removeAll(violationsClasses);
+        if (bogusExclusions.isEmpty() == false) {
+            throw new IllegalStateException(
+                "Invalid exclusions, nothing is wrong with these classes: " + formatClassList(bogusExclusions)
+            );
+        }
+    }
+
+    private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        ExecResult execResult = getProject().javaexec(spec -> {
+        getProject().javaexec(spec -> {
             spec.setExecutable(javaHome + "/bin/java");
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
@@ -175,48 +229,21 @@ public class ThirdPartyAuditTask extends DefaultTask {
         if (getLogger().isInfoEnabled()) {
             getLogger().info(forbiddenApisOutput);
         }
-        final Set<String> missingClasses = new TreeSet<>();
-        final Set<String> violationsClasses = new TreeSet<>();
-        Matcher missingMatcher = MISSING_CLASS_PATTERN.matcher(forbiddenApisOutput);
-        while (missingMatcher.find()) {
-            missingClasses.add(missingMatcher.group(1));
-        }
-        Matcher violationMatcher = VIOLATION_PATTERN.matcher(forbiddenApisOutput);
-        while (violationMatcher.find()) {
-            violationsClasses.add(violationMatcher.group(1));
-        }
+        return forbiddenApisOutput;
+    }
 
-        Set<String> sheistyClasses = getSheistyClasses();
-
-        // keep our whitelist up to date
-        Set<String> bogusExclusions = new TreeSet<>(excludes);
-        bogusExclusions.removeAll(missingClasses);
-        bogusExclusions.removeAll(sheistyClasses);
-        bogusExclusions.removeAll(violationsClasses);
-        if (bogusExclusions.isEmpty() == false) {
-            throw new IllegalStateException(
-                "Invalid exclusions, nothing is wrong with these classes: " + formatClassList(bogusExclusions)
-            );
+    private FileCollection getJarsToScan() {
+        FileCollection jars = getRuntimeConfiguration()
+            .fileCollection(dep -> dep.getGroup().startsWith("org.elasticsearch") == false);
+        Configuration compileOnlyConfiguration = getCompileOnlyConfiguration();
+        // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
+        if (compileOnlyConfiguration != null) {
+            jars.minus(compileOnlyConfiguration);
         }
-
-        missingClasses.removeAll(excludes);
-        violationsClasses.removeAll(excludes);
-        String missingText = formatClassList(missingClasses);
-        String violationsText = formatClassList(violationsClasses);
-        if (missingText.isEmpty() && violationsText.isEmpty()) {
-            getLogger().info("Third party audit passed successfully");
-        } else {
-            throw new IllegalStateException(
-                "Audit of third party dependencies failed:\n" +
-                    (missingText.isEmpty() ?  "" : "Missing classes:\n" + missingText) +
-                    (violationsText.isEmpty() ? "" : "Classes with violations:\n" + violationsText)
-            );
+        if (jars.isEmpty()) {
+            throw new StopExecutionException("No jars to scan");
         }
-
-        sheistyClasses.removeAll(excludes);
-        if (sheistyClasses.isEmpty() == false) {
-            throw new IllegalStateException("Jar Hell with the JDK:" + formatClassList(sheistyClasses));
-        }
+        return jars;
     }
 
     private String formatClassList(Set<String> classList) {
@@ -225,7 +252,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             .collect(Collectors.joining("\n"));
     }
 
-    private Set<String> getSheistyClasses() throws IOException {
+    private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = getProject().javaexec(spec -> {
             URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();

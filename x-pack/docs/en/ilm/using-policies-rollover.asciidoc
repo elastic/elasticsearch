@@ -1,7 +1,121 @@
 [[using-policies-rollover]]
 == Using policies to manage index rollover
 
-Demonstrate Template Usage - letting `is_write_index` default to true
-Demonstrate alias swapping - rollover will set new index to the write index
-Discuss how the `after` param will now be relative to the rollover time
-Show how after/rollover-conditions interplay with one another
+The rollover action can be used to create a new index and move a write alias
+over to that index when the current index is considered "full". The action can
+be configured with the desired criteria for when the rollover should be performed.
+
+NOTE: It's recommended to use rollover when configuring an index lifecycle policy. 
+Using rollover you can automatically switch over to a new index when the 
+current index is "full" rather than at an arbitrary time (for example each
+day). This avoids the trap of creating many small indexes with very little data
+in each.
+
+The rollover action in {ilm} takes the following parameters:
+
+.`rollover` Action Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`max_size` |The maximum estimated size the index is allowed to grow 
+to |Optional | `null`
+|`max_docs` |The maximum number of document the index should 
+contain |Optional | `null`
+|`max_age`  |The maximum age of the index |Optional | `null`
+|===
+
+These parameters are used to determine when the index is considered "full" and
+a rollover should be performed. Where multiple criteria are defined the
+rollover operation will be performed once any of the criteria are met.
+
+Note: The rollover criteria is checked periodically so the index may increase
+slightly beyond the criteria above before the rollover is performed. The
+frequency of this check can be controlled using the
+`indices.lifecycle.poll_interval` cluster setting.
+
+Below is an example which defines a policy using the `rollover` action.
+
+[source,js]
+--------------------------------------------------
+POST /_ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "delete": {
+        "after": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+This policy will execute a rollover when the index reaches a size of 25GB. The
+index will then be deleted 30 days after the rollover.
+
+A side effect of the rollover operation is that the date used by {ilm} to
+evaluate when to move an index to the next phase (this criteria is specified by
+the `after` parameter on a Phase) will from the rollover operation onwards be
+relative to the timestamp of the rollover rather than the timestamp of index
+creation.
+
+To use the above policy an index template needs to be defined to associate 
+indexes matching the desired pattern with this policy.
+
+[source,js]
+-----------------------
+PUT _template/my_template
+{
+  "index_patterns": ["test-*"], <1>
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "index.lifecycle.name": "my_policy", <2>
+    "index.lifecycle.rollover_alias": "test-alias" <3>
+  }
+}
+-----------------------
+// CONSOLE
+<1> This template will be applied to all indexes which have a name starting
+with `test-`
+<2> The template will set the policy to be used to `my_policy`
+<3> Any rollover action applied to this index will rollover the alias
+`test-alias` to the newly created index
+
+Now all indexes with a name that matches `test-*` will use the policy 
+`my_policy` (including indexes created by the rollover action).
+
+To be able to start using the policy for these `test-*` indexes we need to
+bootstrap the process by creating the first index.
+
+[source,js]
+-----------------------
+PUT test-000001 <1>
+{
+  "aliases": {
+    "test-alias":{
+      "is_write_index": true <2>
+    }
+  }
+}
+-----------------------
+// CONSOLE
+<1> We name the first index `test-000001` and the rollover action will 
+increment the sufix number for each newly created index
+<2> Set this initial index to be the write index for this alias.
+
+This first index defines an alias `test-alias` which can then be used for
+indexing data. The initial `test-000001` index is set as the "write index" for
+this alias and as per the `index.lifecycle.rollover_alias` setting defined in
+the index template above the "write index" for this alias will be moved to the
+newly created index on each rollover to allow indexing to not be interrupted as
+indexes become "full" and are rolled over.

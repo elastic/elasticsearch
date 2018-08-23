@@ -1052,7 +1052,7 @@ public class TopHitsIT extends ESIntegTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());
                 assertThat(hit.getId(), nullValue());
-                assertThat(hit.getType(), nullValue());
+                assertThat(hit.getType(), equalTo("type"));
             }
         }
     }

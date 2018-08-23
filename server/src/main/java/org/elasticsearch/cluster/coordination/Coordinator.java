@@ -34,6 +34,8 @@ public class Coordinator extends AbstractLifecycleComponent {
     private final TransportService transportService;
     private final JoinHelper joinHelper;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
+    // TODO: the following two fields are package-private as some tests require access to them
+    // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
 

@@ -85,59 +85,66 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
     }
 
+    /**
+     * This validates the {@code token} while making sure there is only one inflight
+     * request to the authentication source. Only successful responses are cached
+     * and any subsequent requests, bearing the <b>same</b> password, will succeed
+     * without reaching to the authentication source. A different password in a
+     * subsequent request, however, will clear the cache and <b>try</b> to reach to
+     * the authentication source.
+     *
+     * @param token The authentication token
+     * @param listener to be called at completion
+     */
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         try {
-            final AtomicBoolean cachedAuthentication = new AtomicBoolean(true);
+            final AtomicBoolean authenticationInCache = new AtomicBoolean(true);
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(token.principal(), k -> {
+                authenticationInCache.set(false);
                 final ListenableFuture<UserWithHash> created = new ListenableFuture<>();
-                // forward a new authenticate request to the external system
+                // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
-                        // compute the hash of the successful authn request
+                        // compute the credential hash of this successful authentication request
                         final UserWithHash userWithHash = new UserWithHash(authResult.getUser(), token.credentials(), cacheHasher);
-                        // notify forestalled request listeners
+                        // notify any forestalled request listeners; they will not reach to the
+                        // authentication request and instead will use this hash for comparison
                         created.onResponse(userWithHash);
                     } else {
-                        // the inflight request has failed to authenticate
-                        // clear cache, the next request should be forwarded, not halted by a failed
-                        // authn attempt
-                        cache.invalidate(token.principal(), created);
-                        // notify forestalled request listeners
+                        // notify any forestalled request listeners; they will retry the request
                         created.onResponse(null);
                     }
-                    // notify the listener of the inflight authentication request
+                    // notify the listener of the inflight authentication request; this request is not retried
                     listener.onResponse(authResult);
                 }, e -> {
-                    // the next request should be forwarded, not halted by a failed authn attempt
-                    cache.invalidate(token.principal(), created);
-                    // notify staved off listeners
+                    // notify any staved off listeners; they will retry the request
                     created.onFailure(e);
-                    // notify the listener of the inflight authentication request
+                    // notify the listener of the inflight authentication request; this request is not retried
                     listener.onFailure(e);
                 }));
-                cachedAuthentication.set(false);
                 return created;
             });
-            if (cachedAuthentication.get()) {
+            if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
                 listenableCacheEntry.addListener(ActionListener.wrap(authenticatedUserWithHash -> {
-                    if (null == authenticatedUserWithHash) {
-                        // inflight request has failed, try again to reach for the external system
-                        authenticateWithCache(token, listener);
-                    } else if (authenticatedUserWithHash.verify(token.credentials())) {
-                        // cached hash matches the credentials for this forestalled request
+                    if (authenticatedUserWithHash != null && authenticatedUserWithHash.verify(token.credentials())) {
+                        // cached credential hash matches the credential hash for this forestalled request
                         final User user = authenticatedUserWithHash.user;
-                        logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
+                        logger.debug("realm [{}] authenticated user [{}], with roles [{}], from cache", name(), token.principal(),
+                                user.roles());
                         listener.onResponse(AuthenticationResult.success(user));
                     } else {
-                        // cached hash does not match the credentials for this forestalled request.
-                        // however, we should clear cache and try to reach the external system again
-                        // because password might have changed and the cached hash got stale
+                        // The inflight request has failed or its credential hash does not match the
+                        // hash of the credential for this forestalled request.
+                        // clear cache and try to reach the authentication source again because password
+                        // might have changed there and the local cached hash got stale
                         cache.invalidate(token.principal(), listenableCacheEntry);
                         authenticateWithCache(token, listener);
                     }
                 }, e -> {
-                    // try again, the inflight request failed
+                    // the inflight request failed, so try again, but first (always) make sure cache
+                    // is cleared of the failed authentication
+                    cache.invalidate(token.principal(), listenableCacheEntry);
                     authenticateWithCache(token, listener);
                 }), threadPool.executor(ThreadPool.Names.GENERIC));
             }
@@ -179,7 +186,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         try {
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(username, key -> {
                 final ListenableFuture<UserWithHash> created = new ListenableFuture<>();
-                // forward a new lookup request to the external system
+                // attempt authentication against authentication source
                 doLookupUser(username, ActionListener.wrap(user -> {
                     if (user != null) {
                         // user found

@@ -119,6 +119,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                     .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
                     .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
                     .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
+                    .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null)
                     .build()));
                 assertThat(request.getTargetIndexRequest().settings()
                         .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));

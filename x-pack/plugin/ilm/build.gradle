@@ -21,7 +21,7 @@ dependencies {
 check.dependsOn 'qa:with-security:integTestRunner'
 
 integTestCluster {
-    numNodes = 2
+    numNodes = 4
     clusterName = 'ilm'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'

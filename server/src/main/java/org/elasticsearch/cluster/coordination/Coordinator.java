@@ -193,11 +193,14 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
+                assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
+                assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
             } else {
                 assert mode == Mode.CANDIDATE;
+                assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
             }
         }
     }

@@ -170,9 +170,11 @@ public class JoinHelper extends AbstractComponent {
     class CandidateJoinAccumulator implements JoinAccumulator {
 
         private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
+        boolean closed;
 
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+            assert closed == false : "CandidateJoinAccumulator closed";
             JoinCallback prev = joinRequestAccumulator.put(sender, joinCallback);
             if (prev != null) {
                 prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
@@ -181,6 +183,8 @@ public class JoinHelper extends AbstractComponent {
 
         @Override
         public void close(Mode newMode) {
+            assert closed == false : "CandidateJoinAccumulator closed";
+            closed = true;
             if (newMode == Mode.LEADER) {
                 final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
                 joinRequestAccumulator.forEach((key, value) -> {
@@ -203,7 +207,6 @@ public class JoinHelper extends AbstractComponent {
                 assert newMode == Mode.CANDIDATE;
                 assert joinRequestAccumulator.isEmpty() : joinRequestAccumulator.keySet();
             }
-
         }
 
         @Override

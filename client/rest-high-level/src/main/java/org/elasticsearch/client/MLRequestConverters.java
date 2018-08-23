@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 
@@ -69,7 +70,7 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request openJob(OpenJobRequest openJobRequest) throws IOException {
+    static Request openJob(OpenJobRequest openJobRequest) {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
                 .addPathPartAsIs("ml")
@@ -107,6 +108,20 @@ final class MLRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
 
+        return request;
+    }
+
+    static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(getBucketsRequest.getJobId())
+                .addPathPartAsIs("results")
+                .addPathPartAsIs("buckets")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

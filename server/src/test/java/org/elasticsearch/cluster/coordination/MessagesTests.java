@@ -168,6 +168,30 @@ public class MessagesTests extends ESTestCase {
             });
     }
 
+    public void testJoinRequestEqualsHashCodeSerialization() {
+        Join initialJoin = new Join(createNode(randomAlphaOfLength(10)), createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomNonNegativeLong());
+        JoinRequest initialJoinRequest = new JoinRequest(initialJoin.getSourceNode(),
+            randomBoolean() ? Optional.empty() : Optional.of(initialJoin));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialJoinRequest,
+            joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
+            joinRequest -> {
+                if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
+                    return new JoinRequest(createNode(randomAlphaOfLength(20)), joinRequest.getOptionalJoin());
+                } else {
+                    // change OptionalJoin
+                    final Optional<Join> newOptionalJoin;
+                    if (joinRequest.getOptionalJoin().isPresent() && randomBoolean()) {
+                        newOptionalJoin = Optional.empty();
+                    } else {
+                        newOptionalJoin = Optional.of(new Join(joinRequest.getSourceNode(), createNode(randomAlphaOfLength(10)),
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
+                    }
+                    return new JoinRequest(joinRequest.getSourceNode(), newOptionalJoin);
+                }
+            });
+    }
+
     public ClusterState randomClusterState() {
         return CoordinationStateTests.clusterState(randomNonNegativeLong(), randomNonNegativeLong(), createNode(randomAlphaOfLength(10)),
             new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),

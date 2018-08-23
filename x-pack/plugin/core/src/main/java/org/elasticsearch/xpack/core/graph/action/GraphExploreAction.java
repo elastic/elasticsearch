@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.graph.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 
 public class GraphExploreAction extends Action<GraphExploreRequest, GraphExploreResponse, 
     GraphExploreRequestBuilder> {

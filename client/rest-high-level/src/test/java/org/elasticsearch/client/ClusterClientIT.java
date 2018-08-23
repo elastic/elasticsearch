@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 
@@ -178,6 +180,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level(ClusterHealthRequest.Level.CLUSTER);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
@@ -190,6 +194,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
+        logger.info("Shard stats\n{}", EntityUtils.toString(
+                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(2));
         for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {

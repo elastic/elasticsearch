@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 
-public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
+public class WatcherServiceAction extends Action<WatcherServiceRequest, AcknowledgedResponse, WatcherServiceRequestBuilder> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
     public static final String NAME = "cluster:admin/xpack/watcher/service";
@@ -19,8 +20,8 @@ public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherS
     }
 
     @Override
-    public WatcherServiceResponse newResponse() {
-        return new WatcherServiceResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override

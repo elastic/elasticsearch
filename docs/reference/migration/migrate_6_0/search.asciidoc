@@ -17,7 +17,7 @@
 * The `mlt` query (a synonym for the `more_like_this` query) has been removed.
 
 * The deprecated `like_text`, `ids` and `docs` parameters (all synonyms for `like`) of the `more_like_this` query have
-been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length`) and `max_word_len` 
+been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length`) and `max_word_len`
 (a synonym for `max_word_length`) have been removed.
 
 * The `fuzzy_match` and `match_fuzzy` query (synonyma for the `match` query) have been removed
@@ -215,12 +215,10 @@ The ability to query and index context enabled suggestions without contexts
 has been deprecated. Context enabled suggestion queries without contexts have
 to visit every suggestion, which degrades the search performance considerably.
 
-==== Limiting the length of regex that can be used in a Regexp Query request
-
-Regexp Query with long string made of many operators may run into a stack overflow.
-To safeguard against this, the maximum length of regex that can be used in a
-Regexp Query request has been limited to 1000. This default maximum can be changed
-for a particular index with the index setting `index.max_regex_length`.
+For geo context the value of the `path` parameter is now validated against the mapping,
+and if `path` points to a non `geo_point` field or the field doesn't exist a deprecation
+warning will be issued. In 7.0 it will be required for the `path` to point to a correct
+`geo_point` field.
 
 ==== Limiting the max number of expansion of span_multi queries
 
@@ -230,4 +228,3 @@ can set the <<query-dsl-multi-term-rewrite, rewrite method>> of the multi term q
 rewrite. Or, if you use `span_multi` on `prefix` query only, you can activate the
 <<index-prefix-config,`index_prefixes`>> field option of the `text` field instead. This will
 rewrite any prefix query on the field to a a single term query that matches the indexed prefix.
-

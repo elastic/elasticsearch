@@ -28,10 +28,10 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collections;
 
@@ -173,7 +173,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Netty4Utils.maybeDie(cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
         serverTransport.exceptionCaught(ctx, cause);
     }
 

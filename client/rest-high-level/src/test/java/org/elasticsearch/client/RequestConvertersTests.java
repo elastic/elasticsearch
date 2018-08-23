@@ -119,6 +119,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -127,7 +128,10 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -2586,6 +2590,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
     }
 
+    public void testGetMigrationAssistance() {
+        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
+        String expectedEndpoint = "/_xpack/migration/assistance";
+        if (randomBoolean()) {
+            String[] indices = randomIndicesNames(1, 5);
+            upgradeInfoRequest.indices(indices);
+            expectedEndpoint += "/" + String.join(",", indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
     public void testXPackPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2614,6 +2635,35 @@ public class RequestConvertersTests extends ESTestCase {
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
     }
+    
+    public void testGraphExplore() throws Exception {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
+        graphExploreRequest.sampleDiversityField("diversity");
+        graphExploreRequest.indices("index1", "index2");
+        graphExploreRequest.types("type1", "type2");
+        int timeout = randomIntBetween(10000, 20000);
+        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
+        for (int i = 0; i < numHops; i++) {
+            int hopNumber = i + 1;
+            QueryBuilder guidingQuery = null;
+            if (randomBoolean()) {
+                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
+            }
+            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
+            hop.addVertexRequest("field" + hopNumber);
+            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
+        }
+        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertToXContentBody(graphExploreRequest, request.getEntity());
+    }    
 
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();

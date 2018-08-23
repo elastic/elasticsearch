@@ -67,7 +67,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
-    public static final int DEFAULT_MIN_CHILDREN = 0;
+    public static final int DEFAULT_MIN_CHILDREN = 1;
 
     /**
      * The default value for ignore_unmapped.
@@ -142,8 +142,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
-        if (minChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        if (minChildren < 1) {
+            throw new IllegalArgumentException("[" + NAME + "] requires non-negative, non-zero 'min_children' field");
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");

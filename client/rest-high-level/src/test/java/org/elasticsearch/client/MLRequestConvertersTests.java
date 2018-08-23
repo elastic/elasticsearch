@@ -20,11 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
@@ -53,6 +56,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testGetJob() {
+        GetJobRequest getJobRequest = new GetJobRequest();
+
+        Request request = MLRequestConverters.getJob(getJobRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+
+        getJobRequest = new GetJobRequest("job1", "jobs*");
+        getJobRequest.setAllowNoJobs(true);
+        request = MLRequestConverters.getJob(getJobRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/job1,jobs*", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+    }
+
     public void testOpenJob() throws Exception {
         String jobId = "some-job-id";
         OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
@@ -61,9 +81,27 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.openJob(openJobRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        request.getEntity().writeTo(bos);
-        assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+        assertEquals(requestEntityToString(request), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
+    }
+
+    public void testCloseJob() throws Exception {
+        String jobId = "somejobid";
+        CloseJobRequest closeJobRequest = new CloseJobRequest(jobId);
+
+        Request request = MLRequestConverters.closeJob(closeJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_close", request.getEndpoint());
+        assertEquals("{\"job_id\":\"somejobid\"}", requestEntityToString(request));
+
+        closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
+        closeJobRequest.setForce(true);
+        closeJobRequest.setAllowNoJobs(false);
+        closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
+        request = MLRequestConverters.closeJob(closeJobRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
+        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
+            requestEntityToString(request));
     }
 
     public void testDeleteJob() {
@@ -86,5 +124,11 @@ public class MLRequestConvertersTests extends ESTestCase {
         Job.Builder jobBuilder = Job.builder(jobId);
         jobBuilder.setAnalysisConfig(analysisConfig);
         return jobBuilder.build();
+    }
+
+    private static String requestEntityToString(Request request) throws Exception {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        return bos.toString("UTF-8");
     }
 }

@@ -1,0 +1,9 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+}
+
+test {
+    systemProperty 'tests.security.manager', 'false'
+}

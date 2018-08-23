@@ -38,6 +38,14 @@ public class WhitelistBinding {
     /** The Java class name this binding represents. */
     public final String targetJavaClassName;
 
+    /** The method name for this binding. */
+    public final String methodName;
+
+    /**
+     * The canonical type name for the return type.
+     */
+    public final String returnCanonicalTypeName;
+
     /**
      * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
      * constructor which can be used to look up the Java constructor through reflection.
@@ -45,9 +53,14 @@ public class WhitelistBinding {
     public final List<String> canonicalTypeNameParameters;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistBinding(String origin, String targetJavaClassName, List<String> canonicalTypeNameParameters) {
+    public WhitelistBinding(String origin, String targetJavaClassName,
+            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+
         this.origin = Objects.requireNonNull(origin);
         this.targetJavaClassName = Objects.requireNonNull(targetJavaClassName);
+
+        this.methodName = Objects.requireNonNull(methodName);
+        this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Objects.requireNonNull(canonicalTypeNameParameters);
     }
 }

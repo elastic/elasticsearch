@@ -176,7 +176,6 @@ class org.elasticsearch.painless.FeatureTest no_import {
 }
 
 # for testing
-binding org.elasticsearch.painless.BindingTest {
-  (int, int)
-  int testAddWithState(int)
+static {
+  int testAddWithState(int, int, int) bound_to org.elasticsearch.painless.BindingTest
 }

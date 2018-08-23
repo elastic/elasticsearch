@@ -26,19 +26,16 @@ import java.util.List;
 public class PainlessBinding {
 
     public final Constructor<?> javaConstructor;
-    public final List<Class<?>> constructorTypeParameters;
-
     public final Method javaMethod;
+
     public final Class<?> returnType;
-    public final List<Class<?>> methodTypeParameters;
+    public final List<Class<?>> typeParameters;
 
-    PainlessBinding(Constructor<?> javaConstructor, List<Class<?>> constructorTypeParameters,
-            Method javaMethod, Class<?> returnType, List<Class<?>> methodTypeParameters) {
+    PainlessBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
         this.javaConstructor = javaConstructor;
-        this.constructorTypeParameters = constructorTypeParameters;
-
         this.javaMethod = javaMethod;
+
         this.returnType = returnType;
-        this.methodTypeParameters = methodTypeParameters;
+        this.typeParameters = typeParameters;
     }
 }

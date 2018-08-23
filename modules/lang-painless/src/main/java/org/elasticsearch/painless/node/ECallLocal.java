@@ -74,14 +74,7 @@ public final class ECallLocal extends AExpression {
             }
         }
 
-        List<Class<?>> typeParameters = new ArrayList<>();
-
-        if (method == null) {
-            typeParameters.addAll(binding.constructorTypeParameters);
-            typeParameters.addAll(binding.methodTypeParameters);
-        } else {
-            typeParameters.addAll(method.typeParameters);
-        }
+        List<Class<?>> typeParameters = new ArrayList<>(method == null ? binding.typeParameters : method.typeParameters);
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -103,6 +96,7 @@ public final class ECallLocal extends AExpression {
         if (method == null) {
             String name = globals.addBinding(binding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(binding.javaConstructor.getDeclaringClass());
+            int javaConstructorParameterCount = binding.javaConstructor.getParameterCount();
 
             Label nonNull = new Label();
 
@@ -113,7 +107,7 @@ public final class ECallLocal extends AExpression {
             writer.newInstance(type);
             writer.dup();
 
-            for (int argument = 0; argument < binding.constructorTypeParameters.size(); ++argument) {
+            for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
                 arguments.get(argument).write(writer, globals);
             }
 
@@ -124,8 +118,8 @@ public final class ECallLocal extends AExpression {
             writer.loadThis();
             writer.getField(CLASS_TYPE, name, type);
 
-            for (int argument = 0; argument < binding.methodTypeParameters.size(); ++argument) {
-                arguments.get(argument + binding.constructorTypeParameters.size()).write(writer, globals);
+            for (int argument = 0; argument < binding.javaMethod.getParameterCount(); ++argument) {
+                arguments.get(argument + javaConstructorParameterCount).write(writer, globals);
             }
 
             writer.invokeVirtual(type, Method.getMethod(binding.javaMethod));

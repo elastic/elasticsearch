@@ -121,14 +121,16 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (Translog.Operation operation : request.getOperations()) {
-            final Engine.Result operationResult = replica.applyResyncOperation(operation);
+            final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
             if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(replica.shardId(),
                     "Mappings are not available on the replica yet, triggered update: " + operationResult.getRequiredMappingUpdate());
             }
             location = syncOperationResultOrThrow(operationResult, location);
         }
-        replica.afterApplyResyncOperationsBulk(request.getTrimAboveSeqNo());
+        if (request.getTrimAboveSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            replica.trimOperationOfPreviousPrimaryTerms(request.getTrimAboveSeqNo());
+        }
         return location;
     }
 

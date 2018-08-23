@@ -66,7 +66,7 @@ The `cron` parameter controls when and how often the job activates.  When a roll
 from where it left off after the last activation.  So if you configure the cron to run every 30 seconds, the job will process the last 30
 seconds worth of data that was indexed into the `sensor-*` indices.
 
-If instead the cron was configured to run once a day at midnight, the job would process the last 24hours worth of data.  The choice is largely
+If instead the cron was configured to run once a day at midnight, the job would process the last 24 hours worth of data.  The choice is largely
 preference, based on how "realtime" you want the rollups, and if you wish to process continuously or move it to off-peak hours.
 
 Next, we define a set of `groups` and `metrics`.  The metrics are fairly straightforward: we want to save the min/max/sum of the `temperature`
@@ -190,7 +190,7 @@ GET /sensor_rollup/_rollup_search
         "timeline": {
             "date_histogram": {
                 "field": "timestamp",
-                "interval": "1w"
+                "interval": "7d"
             },
             "aggs": {
                 "nodes": {
@@ -317,7 +317,7 @@ Which returns a corresponding response:
 // TESTRESPONSE[s/"_shards" : \.\.\. /"_shards" : $body.$_path/]
 
 In addition to being more complicated (date histogram and a terms aggregation, plus an additional average metric), you'll notice
-the date_histogram uses a `1w` interval instead of `1h`.
+the date_histogram uses a `7d` interval instead of `60m`.
 
 [float]
 === Conclusion

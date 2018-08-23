@@ -70,7 +70,7 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request openJob(OpenJobRequest openJobRequest) {
+    static Request openJob(OpenJobRequest openJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
                 .addPathPartAsIs("ml")

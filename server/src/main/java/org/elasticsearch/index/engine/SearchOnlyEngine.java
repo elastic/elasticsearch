@@ -142,17 +142,17 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public DeleteResult delete(Delete delete) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -167,22 +167,22 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void syncTranslog() {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public Closeable acquireTranslogRetentionLock() {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -192,7 +192,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -202,12 +202,12 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void waitForOpsToComplete(long seqNo) {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void resetLocalCheckpoint(long newCheckpoint) {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -232,7 +232,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -247,33 +247,33 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public CommitId flush() throws EngineException {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments) {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -286,7 +286,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void trimUnreferencedTranslogFiles() {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -296,35 +296,40 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void restoreLocalCheckpointFromTranslog() {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public Engine recoverFromTranslog(long recoverUpToSeqNo) {
-        throw new UnsupportedOperationException();
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void skipTranslogRecovery() {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
-        throw new UnsupportedOperationException();
+        ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
     public void maybePruneDeletes() {
+    }
+
+    private <T> T ensureUnsupportedMethodNeverCalled() {
+        assert false : "invoking an unsupported method in a search-only engine";
+        throw new UnsupportedOperationException();
     }
 }

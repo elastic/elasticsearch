@@ -56,6 +56,8 @@ public class ShrinkStep extends AsyncActionStep {
             .put(LifecycleSettings.LIFECYCLE_PHASE, phase)
             .put(LifecycleSettings.LIFECYCLE_ACTION, action)
             .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME) // skip source-index steps
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null) // need to remove the single shard 
+                                                                                             // allocation so replicas can be allocated
             .build();
         String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());

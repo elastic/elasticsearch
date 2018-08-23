@@ -1,0 +1,71 @@
+plugins {
+    id 'elasticsearch.testclusters'
+}
+
+
+testClusters {
+    myTestCluster
+}
+
+repositories {
+    maven {
+        url "https://artifacts.elastic.co/maven"
+    }
+    maven {
+        url "https://snapshots.elastic.co/maven"
+    }
+}
+
+
+task user1 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}
+
+task user2 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}
+
+task upToDate1 {
+    useCluster testClusters.myTestCluster
+}
+
+task upToDate2 {
+    useCluster testClusters.myTestCluster
+}
+
+task skipped1 {
+    enabled = false
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}
+
+task skipped2 {
+    enabled = false
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+}
+
+task itAlwaysFails {
+    doFirst {
+        println "Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+    }
+    doLast {
+        throw new GradleException("Task 1 failed!")
+    }
+    useCluster testClusters.myTestCluster
+}
+
+task dependsOnFailed {
+    dependsOn itAlwaysFails
+    useCluster testClusters.myTestCluster
+}

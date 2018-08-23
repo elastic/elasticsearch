@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
@@ -43,25 +43,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ClusterformationPlugin implements Plugin<Project> {
+public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listElasticSearchClusters";
-    private static final String NODE_EXTENSION_NAME = "elasticsearchNodes";
+    private static final String NODE_EXTENSION_NAME = "testClusters";
 
     private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
 
-    private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
+    private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     // Have to make this static to be able to maintain a single set of listeners
-    private static final Map<Task, List<ElasticsearchConfigurationInternal>> taskToCluster = new ConcurrentHashMap<>();
+    private static final Map<Task, List<ElasticsearchNode>> taskToCluster = new ConcurrentHashMap<>();
 
     @Override
     public void apply(Project project) {
         Project rootProject = project.getRootProject();
 
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<? extends ElasticsearchConfigurationInternal> container = project.container(
+        NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
             ElasticsearchNode.class,
             name -> new ElasticsearchNode(
                 name,
@@ -77,7 +77,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
         listTask.doLast((Task task) ->
-            container.forEach((ElasticsearchConfiguration cluster) ->
+            container.forEach(cluster ->
                 logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
             )
         );
@@ -89,10 +89,8 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 .set(
                     "useCluster",
                     new Closure<Void>(this, task) {
-                        public void doCall(ElasticsearchConfiguration conf) {
-                            taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(
-                                (ElasticsearchConfigurationInternal) conf
-                            );
+                        public void doCall(ElasticsearchNode conf) {
+                            taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(conf);
                             Object thisObject = this.getThisObject();
                             if (thisObject instanceof Task == false) {
                                 throw new AssertionError("Expected " + thisObject + " to be an instance of " +
@@ -137,7 +135,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
             project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
                 taskExecutionGraph.getAllTasks()
                     .forEach(task ->
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfigurationInternal::claim)
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::claim)
                     )
             );
             project.getGradle().addListener(
@@ -145,7 +143,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
                     @Override
                     public void beforeActions(Task task) {
                         // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfigurationInternal::start);
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::start);
                     }
                     @Override
                     public void afterActions(Task task) {}
@@ -163,11 +161,11 @@ public class ClusterformationPlugin implements Plugin<Project> {
                             // The downside is that with multi project builds if that other  task is in a different
                             // project and executing right now, we may terminate the cluster while it's running it.
                             taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                                ElasticsearchConfigurationInternal::forceStop
+                                ElasticsearchNode::forceStop
                             );
                         } else {
                             taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                                ElasticsearchConfigurationInternal::unClaimAndStop
+                                ElasticsearchNode::unClaimAndStop
                             );
                         }
                     }
@@ -179,7 +177,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
     }
 
     private static File getArtifactsDir(Project project) {
-        return new File(project.getRootProject().getBuildDir(), "clusterformation-artifacts");
+        return new File(project.getRootProject().getBuildDir(), "testclusters-artifacts");
     }
 
     static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
@@ -187,8 +185,8 @@ public class ClusterformationPlugin implements Plugin<Project> {
     }
 
     @SuppressWarnings("unchecked")
-    public static NamedDomainObjectContainer<ElasticsearchConfiguration> getNodeExtension(Project project) {
-        return (NamedDomainObjectContainer<ElasticsearchConfiguration>)
+    public static NamedDomainObjectContainer<ElasticsearchNode> getNodeExtension(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchNode>)
             project.getExtensions().getByName(NODE_EXTENSION_NAME);
     }
 

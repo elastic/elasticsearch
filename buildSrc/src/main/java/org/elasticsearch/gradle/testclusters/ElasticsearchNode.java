@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.clusterformation;
+package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -47,7 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.gradle.internal.os.OperatingSystem.current;
 
-class ElasticsearchNode implements ElasticsearchConfigurationInternal, ElasticsearchConfiguration {
+public class ElasticsearchNode {
 
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
@@ -62,8 +63,8 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal, Elasticse
     private final File syncDir;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private Distribution distribution;
-    private Version version;
+    private Distribution distribution = Distribution.ZIP;
+    private Version version = VersionProperties.getElasticsearch();
     private File javaHome;
 
     private volatile Process esProcess;
@@ -114,36 +115,30 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal, Elasticse
         return new File(getLogsDir(), "transport.ports");
     }
 
-    @Override
     public String getName() {
         return name;
     }
 
-    @Override
     public Version getVersion() {
         return version;
     }
 
-    @Override
     public void setVersion(Version version) {
         Objects.requireNonNull(version, "Can't configure a null version");
         checkNotRunning();
         this.version = version;
     }
 
-    @Override
     public Distribution getDistribution() {
         return distribution;
     }
 
-    @Override
     public void setDistribution(Distribution distribution) {
         Objects.requireNonNull(distribution, "Can't configure a null distribution");
         checkNotRunning();
         this.distribution = distribution;
     }
 
-    @Override
     public void setJavaHome(File javaHome) {
         Objects.requireNonNull(javaHome, "null javaHome passed to cluster formation");
         checkNotRunning();
@@ -153,46 +148,49 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal, Elasticse
         this.javaHome = javaHome;
     }
 
-    @Override
     public File getJavaHome() {
         return javaHome;
     }
 
-    @Override
     public String getHttpSocketURI() {
         waitForClusterHealthYellow();
         return getHttpPortInternal().get(0);
     }
 
-    @Override
     public String getTransportPortURI() {
         waitForClusterHealthYellow();
         return getTransportPortInternal().get(0);
     }
 
-    @Override
     public File getConfDir() {
         // TODO return a copy
         return getConfigFile().getParentFile();
     }
 
-    @Override
-    public void claim() {
+    void assertValid() {
+        if (getDistribution() == null) {
+            throw new ClusterFormationException("Missing distribution for cluster `" + getName() + "`");
+        }
+        if (getVersion() == null) {
+            throw new ClusterFormationException("Missing version for cluster `" + getName() + "`");
+        }
+    }
+
+    void claim() {
         noOfClaims.incrementAndGet();
     }
 
     /**
      * Start the cluster if not running. Does nothing if the cluster is already running.
      */
-    @Override
-    public void start() {
+    void start() {
         if (started.getAndSet(true)) {
             logger.info("Already started `{}`", name);
             return;
         } else {
             logger.lifecycle("Starting `{}`", name);
         }
-        File artifact = ClusterformationPlugin.getArtifact(sharedArtifactsDir, getDistribution(), getVersion());
+        File artifact = TestClustersPlugin.getArtifact(sharedArtifactsDir, getDistribution(), getVersion());
         if (artifact.exists() == false) {
             throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }
@@ -432,8 +430,7 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal, Elasticse
     /**
      * Stops a running cluster if it's not claimed. Does nothing otherwise.
      */
-    @Override
-    public void unClaimAndStop() {
+    void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
             logger.lifecycle("Not stopping `{}`, since node still has {} claim(s)", name, decrementedClaims);
@@ -454,8 +451,7 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal, Elasticse
         esProcess = null;
     }
 
-    @Override
-    public void forceStop() {
+    void forceStop() {
         if (checkIfCanStopAndMarkStopped() == false) {
             return;
         }

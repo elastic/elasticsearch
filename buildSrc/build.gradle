@@ -26,8 +26,8 @@ plugins {
 gradlePlugin {
   plugins {
     simplePlugin {
-      id = 'elasticsearch.clusterformation'
-      implementationClass = 'org.elasticsearch.gradle.clusterformation.ClusterformationPlugin'
+      id = 'elasticsearch.testclusters'
+      implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
     }
   }
 }

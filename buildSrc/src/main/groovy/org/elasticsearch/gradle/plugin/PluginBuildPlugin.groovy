@@ -25,10 +25,10 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.Distribution
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.clusterformation.ClusterformationPlugin
-import org.elasticsearch.gradle.clusterformation.ElasticsearchConfiguration
+import org.elasticsearch.gradle.testclusters.ElasticsearchNode
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Project
 import org.gradle.api.publish.maven.MavenPublication
@@ -48,10 +48,10 @@ public class PluginBuildPlugin extends BuildPlugin {
     @Override
     public void apply(Project project) {
         super.apply(project)
-        project.pluginManager.apply(ClusterformationPlugin.class)
-        NamedDomainObjectContainer<? extends ElasticsearchConfiguration> nodeExtension =
-                ClusterformationPlugin.getNodeExtension(project)
-        ElasticsearchConfiguration esNode = nodeExtension.create("${project.getPath()}##node") {
+        project.pluginManager.apply(TestClustersPlugin.class)
+        NamedDomainObjectContainer<ElasticsearchNode> nodeExtension =
+                TestClustersPlugin.getNodeExtension(project)
+        ElasticsearchNode esNode = nodeExtension.create("${project.getPath()}##node") {
             it.distribution = Distribution.ZIP
             it.version = VersionProperties.elasticsearch
         }
@@ -138,9 +138,9 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project, ElasticsearchConfiguration esNode) {
-        final RestIntegTestTask integTest;
-        if (System.getProperty('clusterformation', "old").equals("new")) {
+    private static void createIntegTestTask(Project project, ElasticsearchNode esNode) {
+        final RestIntegTestTask integTest
+        if (System.hasProperty('enableTestClusters')) {
             // emulate external cluster
             System.properties.put("tests.rest.cluster", "future")
             System.properties.put("tests.cluster", "future")

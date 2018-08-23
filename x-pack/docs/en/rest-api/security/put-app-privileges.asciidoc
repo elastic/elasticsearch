@@ -1,8 +1,8 @@
 [role="xpack"]
 [[security-api-put-privileges]]
-=== Add application privileges API
+=== Create or update application privileges API
 
-Creates or updates 
+Adds or updates 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].
 
 ==== Request

@@ -298,20 +298,29 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinAccumulation() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
+        DiscoveryNode node2 = newNode(2, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(false, node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node1.getId()))));
+            new VotingConfiguration(Collections.singleton(node2.getId()))));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
-        SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, Optional.of(
+            new Join(node0, node0, newTerm, initialTerm, initialVersion))));
         deterministicTaskQueue.runAllTasks(random());
-        assertFalse(fut.isDone());
+        assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
-        joinNodeAndRun(new JoinRequest(node1, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        SimpleFuture futNode1 = joinNodeAsync(new JoinRequest(node1, Optional.of(
+            new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        deterministicTaskQueue.runAllTasks(random());
+        assertFalse(futNode1.isDone());
+        assertFalse(isLocalNodeElectedMaster());
+        joinNodeAndRun(new JoinRequest(node2, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))));
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
-        FutureUtils.get(fut);
+        assertTrue(clusterStateHasNode(node2));
+        FutureUtils.get(futNode0);
+        FutureUtils.get(futNode1);
     }
 
     public void testJoinFollowerWithHigherTerm() {

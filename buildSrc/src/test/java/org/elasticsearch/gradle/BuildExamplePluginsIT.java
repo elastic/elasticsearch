@@ -158,7 +158,8 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
         File file = new File(property);
         assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
-        return file.getAbsolutePath();
+        // Use / on Windows too
+        return file.getAbsolutePath().replace("\\", "/");
     }
 
 }

@@ -22,6 +22,7 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.Distribution
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.clusterformation.ClusterformationPlugin
 import org.elasticsearch.gradle.clusterformation.ElasticsearchConfiguration
@@ -153,7 +154,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             integTest = project.tasks.create('integTest', RestIntegTestTask.class)
             RandomizedTestingTask runner = project.tasks.getByName('integTestRunner')
             runner.configure {
-                clusterFormation.use esNode
+                useCluster esNode
                 systemProperty('tests.rest.cluster', {-> esNode.getHttpSocketURI()})
                 systemProperty('tests.config.dir', {-> esNode.getConfDir()})
                 systemProperty('tests.cluster', {-> esNode.getTransportPortURI()})

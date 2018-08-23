@@ -201,17 +201,6 @@ if (project != rootProject) {
   targetCompatibility = "1.9"
   sourceCompatibility = "1.9"
 
-  // tests can't  be run with randomized test runner: IllegalArgumentExceptio
-  test.enabled = false
-  task integTest(type: Test) {
-    exclude "**/*Tests.class"
-    include "**/*IT.class"
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    inputs.dir(file("src.testKit"))
-  }
-  check.dependsOn(integTest)
-
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
 

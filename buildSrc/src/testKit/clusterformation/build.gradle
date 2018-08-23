@@ -2,6 +2,7 @@ plugins {
     id 'elasticsearch.clusterformation'
 }
 
+
 elasticsearchNodes {
     myTestCluster {
         distribution = 'ZIP'
@@ -20,30 +21,30 @@ repositories {
 
 
 task user1 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
 }
 
 task user2 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
 }
 
 task upToDate1 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
 }
 
 task upToDate2 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
 }
 
 task skipped1 {
     enabled = false
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
@@ -51,7 +52,7 @@ task skipped1 {
 
 task skipped2 {
     enabled = false
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
@@ -64,10 +65,10 @@ task itAlwaysFails {
     doLast {
         throw new GradleException("Task 1 failed!")
     }
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
 }
 
 task dependsOnFailed {
     dependsOn itAlwaysFails
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
 }

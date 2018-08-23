@@ -21,14 +21,14 @@ elasticsearchNodes {
 }
 
 task user1 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
 }
 
 task user2 {
-    clusterFormation.use elasticsearchNodes.myTestCluster
+    useCluster elasticsearchNodes.myTestCluster
     doLast {
         println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }

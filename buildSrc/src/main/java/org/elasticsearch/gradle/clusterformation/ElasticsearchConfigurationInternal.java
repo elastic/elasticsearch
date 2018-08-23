@@ -32,7 +32,6 @@ interface ElasticsearchConfigurationInternal extends ElasticsearchConfiguration 
      * Signals that a task will use this cluster.
      *
      * This is called once for every task in the task graph that is configured to
-     * {@link ClusterFormationTaskExtension#use(ElasticsearchConfigurationInternal)} elasticsearch.
      */
     void claim();
 

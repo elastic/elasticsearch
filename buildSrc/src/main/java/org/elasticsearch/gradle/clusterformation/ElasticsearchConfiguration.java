@@ -45,6 +45,7 @@ public interface ElasticsearchConfiguration {
      *
      * @param version the version to parse
      */
+
     default void setVersion(String version) {
         setVersion(Version.fromString(version));
     }

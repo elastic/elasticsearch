@@ -18,29 +18,35 @@
  */
 package org.elasticsearch.gradle.clusterformation;
 
+import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
-import org.elasticsearch.model.Distribution;
-import org.elasticsearch.model.Version;
+import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.execution.TaskActionListener;
+import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskState;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ClusterformationPlugin implements Plugin<Project> {
 
-    private static final String LIST_TASK_NAME = "listElasticsearch";
+    private static final String LIST_TASK_NAME = "listElasticSearchClusters";
     private static final String NODE_EXTENSION_NAME = "elasticsearchNodes";
-    private static final String TASK_EXTENSION_NAME = "clusterFormation";
 
     private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
@@ -52,22 +58,16 @@ public class ClusterformationPlugin implements Plugin<Project> {
         Project rootProject = project.getRootProject();
 
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
+        NamedDomainObjectContainer<? extends ElasticsearchConfigurationInternal> container = project.container(
             ElasticsearchNode.class,
             name -> new ElasticsearchNode(
                 name,
                 GradleServicesAdapter.getInstance(project),
                 getArtifactsDir(project),
-                new File(project.getBuildDir(), TASK_EXTENSION_NAME)
+                new File(project.getBuildDir(), NODE_EXTENSION_NAME)
             )
         );
         project.getExtensions().add(NODE_EXTENSION_NAME, container);
-
-        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
-        // specific cluster.
-        project.getTasks().all((Task task) ->
-            task.getExtensions().create(TASK_EXTENSION_NAME, ClusterFormationTaskExtension.class, task)
-        );
 
         // Utility task to list all clusters defined
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
@@ -77,6 +77,29 @@ public class ClusterformationPlugin implements Plugin<Project> {
             container.forEach((ElasticsearchConfiguration cluster) ->
                 logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
             )
+        );
+
+        Map<Task, List<ElasticsearchConfigurationInternal>> taskToCluster = new HashMap<>();
+
+        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
+        // specific cluster.
+        project.getTasks().all((Task task) ->
+            task.getExtensions().findByType(ExtraPropertiesExtension.class)
+                .set(
+                    "useCluster",
+                    new Closure<Void>(this, task) {
+                        public void doCall(ElasticsearchConfiguration conf) {
+                            taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(
+                                (ElasticsearchConfigurationInternal) conf
+                            );
+                            Object thisObject = this.getThisObject();
+                            if (thisObject instanceof Task == false) {
+                                throw new AssertionError("Expected " + thisObject + " to be an instance of " +
+                                    "Task, but got: " + thisObject.getClass());
+                            }
+                            ((Task) thisObject).dependsOn(rootProject.getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME));
+                        }
+                    })
         );
 
         // When the project evaluated we know of all tasks that use clusters.
@@ -96,11 +119,6 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 logger.info("Cluster {} depends on {}", esConfig.getName(), dependency);
                 rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
             });
-            ip.getTasks().forEach( task -> {
-                if (getClaimedClusters(task).isEmpty() == false) {
-                    task.dependsOn(rootProject.getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME));
-                }
-            });
         });
 
         // Have a single common location to set up the required artifacts
@@ -115,18 +133,47 @@ public class ClusterformationPlugin implements Plugin<Project> {
             syncTask.from(helperConfiguration);
             syncTask.into(getArtifactsDir(rootProject));
 
-            // Make sure we only claim the clusters for the tasks that will actually execute
-            // since there's a single task Graph, we only need to do this once even in multi project builds
-            project.getRootProject().getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
-                taskExecutionGraph.getAllTasks().forEach(task -> {
-                    getClaimedClusters(task).forEach(ElasticsearchConfigurationInternal::claim);
-                })
+            project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
+                taskExecutionGraph.getAllTasks()
+                    .forEach(task ->
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfigurationInternal::claim)
+                    )
             );
-
-            // create the listener to start the clusters on-demand and terminate as soon as  no longer claimed.
-            // we need to use a task execution listener, as well as an action listener, so we don't start the task that
-            // claimed it is up to date.
-            project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
+            project.getGradle().addListener(
+                new TaskActionListener() {
+                    @Override
+                    public void beforeActions(Task task) {
+                        // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfigurationInternal::start);
+                    }
+                    @Override
+                    public void afterActions(Task task) {}
+                }
+            );
+            project.getGradle().addListener(
+                new TaskExecutionListener() {
+                    @Override
+                    public void afterExecute(Task task, TaskState state) {
+                        // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
+                        // and caused the cluster to start.
+                        if (state.getFailure() != null) {
+                            // If the task fails, and other tasks use this cluster, the other task will likely never be
+                            // executed at all, so we will never get to un-claim and terminate it.
+                            // The downside is that with multi project builds if that other  task is in a different
+                            // project and executing right now, we may terminate the cluster while it's running it.
+                            taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
+                                ElasticsearchConfigurationInternal::forceStop
+                            );
+                        } else {
+                            taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
+                                ElasticsearchConfigurationInternal::unClaimAndStop
+                            );
+                        }
+                    }
+                    @Override
+                    public void beforeExecute(Task task) {}
+                }
+            );
         }
     }
 
@@ -136,15 +183,6 @@ public class ClusterformationPlugin implements Plugin<Project> {
 
     static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
         return new File(sharedArtifactsDir, distro.getFileName() + "-" + version + "." + distro.getExtension());
-    }
-
-    @Nullable
-    static List<ElasticsearchConfigurationInternal> getClaimedClusters(Task task) {
-        ClusterFormationTaskExtension extension = task.getExtensions().findByType(ClusterFormationTaskExtension.class);
-        if (extension == null) {
-            return Collections.emptyList();
-        }
-        return extension.getClaimedClusters();
     }
 
     @SuppressWarnings("unchecked")

@@ -29,15 +29,13 @@ import java.io.File;
 /**
  * Facilitate access to Gradle services without a direct dependency on Project.
  *
- * In a future release Gradle will offer service injection, this adapter plays that role until that time.
+ * In a future release Gradle will offer service injection, this is a temporary measure until that that time.
  * It exposes the service methods that are part of the public API as the classes implementing them are not.
  * Today service injection is <a href="https://github.com/gradle/gradle/issues/2363">not available</a> for
- * extensions.
+ * plugins.
  *
- * Everything exposed here must be thread safe. That is the very reason why project is not passed in directly.
  */
 public class GradleServicesAdapter {
-
     private final Project project;
 
     private GradleServicesAdapter(Project project) {
@@ -48,16 +46,16 @@ public class GradleServicesAdapter {
         return new GradleServicesAdapter(project);
     }
 
+    public WorkResult copy(Action<? super CopySpec> action) {
+        return project.copy(action);
+    }
+
     public WorkResult sync(Action<? super CopySpec> action) {
         return project.sync(action);
     }
 
     public FileTree zipTree(File zipPath) {
         return project.zipTree(zipPath);
-    }
-
-    public boolean delete(File path) {
-        return project.delete(path);
     }
 
 }

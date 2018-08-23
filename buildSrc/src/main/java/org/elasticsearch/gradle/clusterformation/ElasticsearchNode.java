@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.gradle.internal.os.OperatingSystem.current;
 
-class ElasticsearchNode implements ElasticsearchConfigurationInternal {
+class ElasticsearchNode implements ElasticsearchConfigurationInternal, ElasticsearchConfiguration {
 
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
@@ -312,7 +312,8 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         if (started.get() == false) {
             throw new ClusterFormationException(
                 "`" + name + "` is not started. " +
-                    "Elasticsearch is started at execution time automatically when `clusterFormation.use` is used."
+                    "Elasticsearch is started at execution time automatically when the task calls `useCluster` at " +
+                    "configuration time."
             );
         }
         try {

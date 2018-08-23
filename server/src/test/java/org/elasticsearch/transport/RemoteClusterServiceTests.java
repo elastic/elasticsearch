@@ -283,6 +283,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteNodeConnected("cluster_2", c2N1Node));
                     assertTrue(service.isRemoteNodeConnected("cluster_2", c2N2Node));
+                    assertEquals(0, transportService.getConnectionManager().size());
                 }
             }
         }
@@ -347,6 +348,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteNodeConnected("cluster_2", c2N1Node));
                     assertTrue(service.isRemoteNodeConnected("cluster_2", c2N2Node));
+                    assertEquals(0, transportService.getConnectionManager().size());
                 }
             }
         }
@@ -579,14 +581,16 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
 
                     CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-                    service.addConnectionListener(new TransportConnectionListener() {
-                        @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
-                            if (disconnectedNodes.remove(node)) {
-                                disconnectedLatch.countDown();
+                    for (RemoteClusterConnection connection : remoteClusterService.getConnections()) {
+                        connection.getConnectionManager().addListener(new TransportConnectionListener() {
+                            @Override
+                            public void onNodeDisconnected(DiscoveryNode node) {
+                                if (disconnectedNodes.remove(node)) {
+                                    disconnectedLatch.countDown();
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     for (DiscoveryNode disconnectedNode : disconnectedNodes) {
                         service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
@@ -664,6 +668,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             assertTrue(shardsResponse != ClusterSearchShardsResponse.EMPTY);
                         }
                     }
+                    assertEquals(0, service.getConnectionManager().size());
                 }
             }
         } finally {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import java.util.Collection;
 import java.util.function.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -139,7 +140,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
-                    remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, numRemoteConnections,
+                    remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService,
+                        new ConnectionManager(settings, transportService.transport, transportService.threadPool), numRemoteConnections,
                         getNodePredicate(settings));
                     remoteClusters.put(entry.getKey(), remote);
                 }
@@ -410,5 +412,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
+    }
+
+    Collection<RemoteClusterConnection> getConnections() {
+        return remoteClusters.values();
     }
 }

@@ -39,9 +39,9 @@ import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ClusterformationPlugin implements Plugin<Project> {
 
@@ -52,6 +52,9 @@ public class ClusterformationPlugin implements Plugin<Project> {
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
 
     private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
+
+    // Have to make this static to be able to maintain a single set of listeners
+    private static final Map<Task, List<ElasticsearchConfigurationInternal>> taskToCluster = new ConcurrentHashMap<>();
 
     @Override
     public void apply(Project project) {
@@ -78,8 +81,6 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
             )
         );
-
-        Map<Task, List<ElasticsearchConfigurationInternal>> taskToCluster = new HashMap<>();
 
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.

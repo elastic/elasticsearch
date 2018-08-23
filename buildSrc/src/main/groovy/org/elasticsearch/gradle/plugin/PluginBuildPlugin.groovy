@@ -24,6 +24,7 @@ import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.Distribution
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.clusterformation.ClusterformationPlugin
 import org.elasticsearch.gradle.clusterformation.ElasticsearchConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -52,15 +53,18 @@ public class PluginBuildPlugin extends BuildPlugin {
                 ClusterformationPlugin.getNodeExtension(project)
         ElasticsearchConfiguration esNode = nodeExtension.create("${project.getPath()}##node") {
             it.distribution = Distribution.ZIP
-            it.version = project.version
+            it.version = VersionProperties.elasticsearch
         }
 
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
+        createIntegTestTask(project, esNode)
+        createBundleTask(project)
+        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
+        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
         project.afterEvaluate {
-            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+            boolean isModule = project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
@@ -69,27 +73,20 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             configurePublishing(project)
 
-            if (project.tasks.findByName('integTestCluster') != null) {
-                project.integTestCluster.dependsOn(project.bundlePlugin)
-            }
-
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
-                if (project.tasks.findByName('integTestCluster') != null) {
-                    project.integTestCluster.module(project)
-                }
                 project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
                         'run.distribution', 'integ-test-zip'
                 )
             } else {
-                if (project.tasks.findByName('integTestCluster') != null) {
+                //if (project.tasks.findByName('integTestCluster') != null) {
                     project.integTestCluster.plugin(project.path)
-                }
+                //}
                 project.tasks.run.clusterConfig.plugin(project.path)
             }
 
-            if (isModule == false || isXPackModule) {
+            if (isModule == false || project.path.startsWith(':x-pack:plugin')) {
                 addNoticeGeneration(project)
             }
 
@@ -98,10 +95,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                 skipIntegTestInDisguise = true
             }
         }
-        createIntegTestTask(project, esNode)
-        createBundleTask(project)
-        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
-        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
     private void configurePublishing(Project project) {
@@ -162,6 +155,14 @@ public class PluginBuildPlugin extends BuildPlugin {
         } else {
             integTest = project.tasks.create('integTest', RestIntegTestTask.class)
             project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
+            project.afterEvaluate {
+                project.integTestCluster.dependsOn(project.bundlePlugin)
+                if (project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')) {
+                    project.integTestCluster.module(project)
+                } else {
+                    project.integTestCluster.plugin(project.path)
+                }
+            }
         }
         integTest.mustRunAfter(project.precommit, project.test)
         project.check.dependsOn(integTest)

@@ -12,7 +12,7 @@ retrieved using the `usage()` method:
 include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute]
 --------------------------------------------------
 
-[[java-rest-high-x-pack-info-response]]
+[[java-rest-high-x-pack-usage-response]]
 ==== Response
 
 The returned `XPackUsageResponse` contains a `Map` keyed by feature name.

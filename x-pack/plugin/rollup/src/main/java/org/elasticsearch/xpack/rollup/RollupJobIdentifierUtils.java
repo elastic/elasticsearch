@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
@@ -121,7 +121,7 @@ public class RollupJobIdentifierUtils {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
-                        String thisTimezone  = (String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName());
+                        String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
                         String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
 
                         // Ensure we are working on the same timezone

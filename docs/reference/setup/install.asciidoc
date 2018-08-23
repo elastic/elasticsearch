@@ -3,10 +3,12 @@
 
 [float]
 === Hosted Elasticsearch
-Elasticsearch can be run on your own hardware or using our hosted
-Elasticsearch Service on https://www.elastic.co/cloud[Elastic Cloud], which is
-available on AWS and GCP. You can
-https://www.elastic.co/cloud/elasticsearch-service/signup[try out the hosted service] for free.
+
+You can run Elasticsearch on your own hardware, or use our
+https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
+on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
+https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+Elasticsearch Service for free].
 
 [float]
 === Installing Elasticsearch Yourself
@@ -39,6 +41,8 @@ Elasticsearch website or from our RPM repository.
 
 `msi`::
 
+beta[]
++
 The `msi` package is suitable for installation on Windows 64-bit systems with at least
 .NET 4.5 framework installed, and is the easiest choice for getting started with
 Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.

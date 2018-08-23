@@ -76,6 +76,7 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
     }
 
     public void testTrialLicenseVerifyWithOlderVersion() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM. We can't generate old licenses since PBEWithSHA1AndDESede is not available", inFipsJvm());
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
                 .issuedTo("customer")

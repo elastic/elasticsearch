@@ -19,17 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a map initialization shortcut.
@@ -38,7 +42,7 @@ public final class EMapInit extends AExpression {
     private final List<AExpression> keys;
     private final List<AExpression> values;
 
-    private PainlessMethod constructor = null;
+    private PainlessConstructor constructor = null;
     private PainlessMethod method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
@@ -67,17 +71,17 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor =
-                locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(new PainlessMethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
 
         if (constructor == null) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+            throw createError(new IllegalArgumentException(
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods.get(new PainlessMethodKey("put", 2));
+        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", put/2] not found"));
         }
 
         if (keys.size() != values.size()) {
@@ -109,7 +113,8 @@ public final class EMapInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(
+                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);
@@ -118,7 +123,7 @@ public final class EMapInit extends AExpression {
             writer.dup();
             key.write(writer, globals);
             value.write(writer, globals);
-            method.write(writer);
+            writer.invokeMethodCall(method);
             writer.pop();
         }
     }

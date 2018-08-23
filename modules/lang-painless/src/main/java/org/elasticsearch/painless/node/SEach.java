@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.Objects;
 import java.util.Set;
@@ -68,11 +68,9 @@ public class SEach extends AStatement {
         expression.expected = expression.actual;
         expression = expression.cast(locals);
 
-        Class<?> clazz;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
@@ -84,8 +82,8 @@ public class SEach extends AStatement {
         } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
-            throw createError(
-                    new IllegalArgumentException("Illegal for each type [" + PainlessLookup.ClassToName(expression.actual) + "]."));
+            throw createError(new IllegalArgumentException("Illegal for each type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);

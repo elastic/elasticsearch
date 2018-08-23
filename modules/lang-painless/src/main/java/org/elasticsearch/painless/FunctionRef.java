@@ -19,14 +19,18 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.Locals.LocalMethod;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -35,170 +39,205 @@ import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
 /**
- * Reference to a function or lambda.
- * <p>
- * Once you have created one of these, you have "everything you need" to call {@link LambdaBootstrap}
- * either statically from bytecode with invokedynamic, or at runtime from Java.
+ * Contains all the values necessary to write the instruction to initiate a
+ * {@link LambdaBootstrap} for either a function reference or a user-defined
+ * lambda function.
  */
 public class FunctionRef {
 
+    /**
+     * Creates a new FunctionRef which will resolve {@code type::call} from the whitelist.
+     * @param painlessLookup the whitelist against which this script is being compiled
+     * @param localMethods user-defined and synthetic methods generated directly on the script class
+     * @param location the character number within the script at compile-time
+     * @param targetClass functional interface type to implement.
+     * @param typeName the left hand side of a method reference expression
+     * @param methodName the right hand side of a method reference expression
+     * @param numberOfCaptures number of captured arguments
+     */
+    public static FunctionRef create(PainlessLookup painlessLookup, Map<String, LocalMethod> localMethods, Location location,
+            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures) {
+
+        Objects.requireNonNull(painlessLookup);
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(typeName);
+        Objects.requireNonNull(methodName);
+
+        String targetClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+        PainlessMethod interfaceMethod;
+
+        try {
+            interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(targetClass);
+
+            if (interfaceMethod == null) {
+                throw new IllegalArgumentException("cannot convert function reference [" + typeName + "::" + methodName + "] " +
+                        "to a non-functional interface [" + targetClassName + "]");
+            }
+
+            String interfaceMethodName = interfaceMethod.javaMethod.getName();
+            MethodType interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+            String delegateClassName;
+            boolean isDelegateInterface;
+            int delegateInvokeType;
+            String delegateMethodName;
+            MethodType delegateMethodType;
+
+            Class<?> delegateMethodReturnType;
+            List<Class<?>> delegateMethodParameters;
+            int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
+
+            if ("this".equals(typeName)) {
+                Objects.requireNonNull(localMethods);
+
+                if (numberOfCaptures < 0) {
+                    throw new IllegalStateException("internal error");
+                }
+
+                String localMethodKey = Locals.buildLocalMethodKey(methodName, numberOfCaptures + interfaceTypeParametersSize);
+                LocalMethod localMethod = localMethods.get(localMethodKey);
+
+                if (localMethod == null) {
+                    throw new IllegalArgumentException("function reference [this::" + localMethodKey + "] " +
+                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
+                            "not found" + (localMethodKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                    );
+                }
+
+                delegateClassName = CLASS_NAME;
+                isDelegateInterface = false;
+                delegateInvokeType = H_INVOKESTATIC;
+                delegateMethodName = localMethod.name;
+                delegateMethodType = localMethod.methodType;
+
+                delegateMethodReturnType = localMethod.returnType;
+                delegateMethodParameters = localMethod.typeParameters;
+            } else if ("new".equals(methodName)) {
+                if (numberOfCaptures != 0) {
+                    throw new IllegalStateException("internal error");
+                }
+
+                PainlessConstructor painlessConstructor = painlessLookup.lookupPainlessConstructor(typeName, interfaceTypeParametersSize);
+
+                if (painlessConstructor == null) {
+                    throw new IllegalArgumentException("function reference [" + typeName + "::new/" + interfaceTypeParametersSize + "] " +
+                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
+                            "not found");
+                }
+
+                delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
+                isDelegateInterface = false;
+                delegateInvokeType = H_NEWINVOKESPECIAL;
+                delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
+                delegateMethodType = painlessConstructor.methodType;
+
+                delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
+                delegateMethodParameters = painlessConstructor.typeParameters;
+            } else {
+                if (numberOfCaptures != 0 && numberOfCaptures != 1) {
+                    throw new IllegalStateException("internal error");
+                }
+
+                boolean captured = numberOfCaptures == 1;
+                PainlessMethod painlessMethod =
+                        painlessLookup.lookupPainlessMethod(typeName, true, methodName, interfaceTypeParametersSize);
+
+                if (painlessMethod == null) {
+                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName,
+                            captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1);
+
+                    if (painlessMethod == null) {
+                        throw new IllegalArgumentException(
+                                "function reference " + "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
+                                "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
+                                "not found");
+                    }
+                } else if (captured) {
+                    throw new IllegalStateException("internal error");
+                }
+
+                delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
+                isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
+
+                if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+                    delegateInvokeType = H_INVOKESTATIC;
+                } else if (isDelegateInterface) {
+                    delegateInvokeType = H_INVOKEINTERFACE;
+                } else {
+                    delegateInvokeType = H_INVOKEVIRTUAL;
+                }
+
+                delegateMethodName = painlessMethod.javaMethod.getName();
+                delegateMethodType = painlessMethod.methodType;
+
+                delegateMethodReturnType = painlessMethod.returnType;
+
+                if (delegateMethodType.parameterList().size() > painlessMethod.typeParameters.size()) {
+                    delegateMethodParameters = new ArrayList<>(painlessMethod.typeParameters);
+                    delegateMethodParameters.add(0, delegateMethodType.parameterType(0));
+                } else {
+                    delegateMethodParameters = painlessMethod.typeParameters;
+                }
+            }
+
+            if (location != null) {
+                for (int typeParameter = 0; typeParameter < interfaceTypeParametersSize; ++typeParameter) {
+                    Class<?> from = interfaceMethod.typeParameters.get(typeParameter);
+                    Class<?> to = delegateMethodParameters.get(numberOfCaptures + typeParameter);
+                    AnalyzerCaster.getLegalCast(location, from, to, false, true);
+                }
+
+                if (interfaceMethod.returnType != void.class) {
+                    AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType, false, true);
+                }
+            }
+
+            MethodType factoryMethodType = MethodType.methodType(targetClass,
+                    delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
+            delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
+
+            return new FunctionRef(interfaceMethodName, interfaceMethodType,
+                    delegateClassName, isDelegateInterface, delegateInvokeType, delegateMethodName, delegateMethodType,
+                    factoryMethodType
+            );
+        } catch (IllegalArgumentException iae) {
+            if (location != null) {
+                throw location.createError(iae);
+            }
+
+            throw iae;
+        }
+    }
+
     /** functional interface method name */
     public final String interfaceMethodName;
-    /** factory (CallSite) method signature */
-    public final MethodType factoryMethodType;
     /** functional interface method signature */
     public final MethodType interfaceMethodType;
     /** class of the delegate method to be called */
     public final String delegateClassName;
+    /** whether a call is made on a delegate interface */
+    public final boolean isDelegateInterface;
     /** the invocation type of the delegate method */
     public final int delegateInvokeType;
     /** the name of the delegate method */
     public final String delegateMethodName;
     /** delegate method signature */
     public final MethodType delegateMethodType;
+    /** factory (CallSite) method signature */
+    public final MethodType factoryMethodType;
 
-    /** interface method */
-    public final PainlessMethod interfaceMethod;
-    /** delegate method */
-    public final PainlessMethod delegateMethod;
+    private FunctionRef(
+            String interfaceMethodName, MethodType interfaceMethodType,
+            String delegateClassName, boolean isDelegateInterface,
+            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType,
+            MethodType factoryMethodType) {
 
-    /** factory method type descriptor */
-    public final String factoryDescriptor;
-    /** functional interface method as type */
-    public final Type interfaceType;
-    /** delegate method type method as type */
-    public final Type delegateType;
-
-    /** whether a call is made on a delegate interface */
-    public final boolean isDelegateInterface;
-
-    /**
-     * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
-     * @param painlessLookup the whitelist against which this script is being compiled
-     * @param expected functional interface type to implement.
-     * @param type the left hand side of a method reference expression
-     * @param call the right hand side of a method reference expression
-     * @param numCaptures number of captured arguments
-     */
-    public FunctionRef(PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
-        this(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
-                lookup(painlessLookup, expected, type, call, numCaptures > 0), numCaptures);
-    }
-
-    /**
-     * Creates a new FunctionRef (already resolved)
-     * @param expected functional interface type to implement
-     * @param interfaceMethod functional interface method
-     * @param delegateMethod implementation method
-     * @param numCaptures number of captured arguments
-     */
-    public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessMethod delegateMethod, int numCaptures) {
-        MethodType delegateMethodType = delegateMethod.getMethodType();
-
-        interfaceMethodName = interfaceMethod.name;
-        factoryMethodType = MethodType.methodType(expected,
-                delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
-
-        // the Painless$Script class can be inferred if owner is null
-        if (delegateMethod.owner == null) {
-            delegateClassName = CLASS_NAME;
-            isDelegateInterface = false;
-        } else if (delegateMethod.augmentation != null) {
-            delegateClassName = delegateMethod.augmentation.getName();
-            isDelegateInterface = delegateMethod.augmentation.isInterface();
-        } else {
-            delegateClassName = delegateMethod.owner.clazz.getName();
-            isDelegateInterface = delegateMethod.owner.clazz.isInterface();
-        }
-
-        if ("<init>".equals(delegateMethod.name)) {
-            delegateInvokeType = H_NEWINVOKESPECIAL;
-        } else if (Modifier.isStatic(delegateMethod.modifiers)) {
-            delegateInvokeType = H_INVOKESTATIC;
-        } else if (delegateMethod.owner.clazz.isInterface()) {
-            delegateInvokeType = H_INVOKEINTERFACE;
-        } else {
-            delegateInvokeType = H_INVOKEVIRTUAL;
-        }
-
-        delegateMethodName = delegateMethod.name;
-        this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
-
-        this.interfaceMethod = interfaceMethod;
-        this.delegateMethod = delegateMethod;
-
-        factoryDescriptor = factoryMethodType.toMethodDescriptorString();
-        interfaceType = Type.getMethodType(interfaceMethodType.toMethodDescriptorString());
-        delegateType = Type.getMethodType(this.delegateMethodType.toMethodDescriptorString());
-    }
-
-    /**
-     * Creates a new FunctionRef (low level).
-     * It is for runtime use only.
-     */
-    public FunctionRef(Class<?> expected,
-                       PainlessMethod interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
-        interfaceMethodName = interfaceMethod.name;
-        factoryMethodType = MethodType.methodType(expected,
-            delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
-        interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
-
-        delegateClassName = CLASS_NAME;
-        delegateInvokeType = H_INVOKESTATIC;
+        this.interfaceMethodName = interfaceMethodName;
+        this.interfaceMethodType = interfaceMethodType;
+        this.delegateClassName = delegateClassName;
+        this.isDelegateInterface = isDelegateInterface;
+        this.delegateInvokeType = delegateInvokeType;
         this.delegateMethodName = delegateMethodName;
-        this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
-        isDelegateInterface = false;
-
-        this.interfaceMethod = null;
-        delegateMethod = null;
-
-        factoryDescriptor = null;
-        interfaceType = null;
-        delegateType = null;
-    }
-
-    /**
-     * Looks up {@code type::call} from the whitelist, and returns a matching method.
-     */
-    private static PainlessMethod lookup(PainlessLookup painlessLookup, Class<?> expected,
-                                         String type, String call, boolean receiverCaptured) {
-        // check its really a functional interface
-        // for e.g. Comparable
-        PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
-        if (method == null) {
-            throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                               "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
-        }
-
-        // lookup requested method
-        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
-        final PainlessMethod impl;
-        // ctor ref
-        if ("new".equals(call)) {
-            impl = struct.constructors.get(new PainlessMethodKey("<init>", method.arguments.size()));
-        } else {
-            // look for a static impl first
-            PainlessMethod staticImpl = struct.staticMethods.get(new PainlessMethodKey(call, method.arguments.size()));
-            if (staticImpl == null) {
-                // otherwise a virtual impl
-                final int arity;
-                if (receiverCaptured) {
-                    // receiver captured
-                    arity = method.arguments.size();
-                } else {
-                    // receiver passed
-                    arity = method.arguments.size() - 1;
-                }
-                impl = struct.methods.get(new PainlessMethodKey(call, arity));
-            } else {
-                impl = staticImpl;
-            }
-        }
-        if (impl == null) {
-            throw new IllegalArgumentException("Unknown reference [" + type + "::" + call + "] matching " +
-                                               "[" + expected + "]");
-        }
-        return impl;
+        this.delegateMethodType = delegateMethodType;
+        this.factoryMethodType = factoryMethodType;
     }
 }

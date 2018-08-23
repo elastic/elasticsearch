@@ -40,7 +40,6 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      *
      * @return the deserialized response.
      */
-    @SuppressWarnings("deprecation")
     @Override
     default T read(StreamInput in) throws IOException {
         T instance = newInstance();

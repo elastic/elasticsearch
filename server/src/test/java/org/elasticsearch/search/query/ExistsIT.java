@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -140,5 +141,90 @@ public class ExistsIT extends ESIntegTestCase {
                 throw e;
             }
         }
+    }
+
+    public void testFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("bar")
+                            .field("type", "long")
+                        .endObject()
+                        .startObject("foo")
+                            .field("type", "object")
+                            .startObject("properties")
+                                .startObject("bar")
+                                    .field("type", "double")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject("foo-bar")
+                            .field("type", "alias")
+                            .field("path", "foo.bar")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        ensureGreen("idx");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource("bar", 3));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 2.718)));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", singletonMap("bar", 6.283)));
+        indexRandom(true, false, indexRequests);
+
+        Map<String, Integer> expected = new LinkedHashMap<>();
+        expected.put("foo.bar", 2);
+        expected.put("foo-bar", 2);
+        expected.put("foo*", 2);
+        expected.put("*bar", 3);
+
+        for (Map.Entry<String, Integer> entry : expected.entrySet()) {
+            String fieldName = entry.getKey();
+            int expectedCount = entry.getValue();
+
+            SearchResponse response = client().prepareSearch("idx")
+                .setQuery(QueryBuilders.existsQuery(fieldName))
+                .get();
+            assertSearchResponse(response);
+            assertHitCount(response, expectedCount);
+        }
+    }
+
+    public void testFieldAliasWithNoDocValues() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "long")
+                            .field("doc_values", false)
+                        .endObject()
+                        .startObject("foo-alias")
+                            .field("type", "alias")
+                            .field("path", "foo")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("idx").addMapping("type", mapping));
+        ensureGreen("idx");
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource(emptyMap()));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 3));
+        indexRequests.add(client().prepareIndex("idx", "type").setSource("foo", 43));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("idx")
+            .setQuery(QueryBuilders.existsQuery("foo-alias"))
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 2);
     }
 }

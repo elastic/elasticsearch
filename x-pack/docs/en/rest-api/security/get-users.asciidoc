@@ -1,0 +1,74 @@
+[role="xpack"]
+[[security-api-get-user]]
+=== Get users API
+
+Retrieves information about users in the native realm. 
+
+
+==== Request
+
+`GET /_xpack/security/user` +
+
+`GET /_xpack/security/user/<username>` 
+
+==== Description
+
+For more information about the native realm, see 
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+
+==== Path Parameters
+
+`username`::
+  (string) An identifier for the user. You can specify multiple usernames as a comma-separated list. If you omit this parameter, the API retrieves 
+  information about all users.
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+
+==== Examples
+
+To retrieve a native user, submit a GET request to the `/_xpack/security/user/<username>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/user/jacknich
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:jacknich_user]
+
+A successful call returns an array of users with the JSON representation of the
+user. Note that user passwords are not included.
+
+[source,js]
+--------------------------------------------------
+{  
+  "jacknich": {
+    "username": "jacknich",
+    "roles": [
+      "admin", "other_role1"
+    ],
+    "full_name": "Jack Nicholson",
+    "email": "jacknich@example.com",
+    "metadata": { "intelligence" : 7 },
+    "enabled": true
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE
+
+If the user is not defined in the `native` realm, the request 404s.
+
+Omit the username to retrieve all users:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/user
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

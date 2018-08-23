@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -55,15 +54,17 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTestCase {
 
     private SSLService createSSLService() {
-        Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.ssl.key", testnodeKey)
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         try {
             return new SSLService(settings, TestEnvironment.newEnvironment(settings));
         } catch (Exception e) {
@@ -113,13 +114,6 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
         MockTransportService transportService = nioFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
-    }
-
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
-        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

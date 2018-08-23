@@ -19,6 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.test.ESTestCase;
+
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -27,16 +32,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.test.ESTestCase;
-
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -57,6 +59,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testTwoTypes() throws Throwable {
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -82,6 +85,7 @@ public class DefBootstrapTests extends ESTestCase {
         // if this changes, test must be rewritten
         assertEquals(5, DefBootstrap.PIC.MAX_DEPTH);
         CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               Collections.emptyMap(),
                                                MethodHandles.publicLookup(),
                                                "toString",
                                                MethodType.methodType(String.class, Object.class),
@@ -108,6 +112,7 @@ public class DefBootstrapTests extends ESTestCase {
     /** test that we revert to the megamorphic classvalue cache and that it works as expected */
     public void testMegamorphic() throws Throwable {
         DefBootstrap.PIC site = (DefBootstrap.PIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "size",
                                                                           MethodType.methodType(int.class, Object.class),
@@ -129,7 +134,7 @@ public class DefBootstrapTests extends ESTestCase {
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
             Integer.toString((int)handle.invokeExact(new Object()));
         });
-        assertEquals("Unable to find dynamic method [size] with [0] arguments for class [java.lang.Object].", iae.getMessage());
+        assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
         assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
             return e.getMethodName().equals("computeValue") &&
                    e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");
@@ -140,6 +145,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, Object.class, Object.class),
@@ -152,6 +158,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, Object.class, Object.class),
@@ -165,6 +172,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardEq() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
                                                                           MethodType.methodType(boolean.class, Object.class, Object.class),
@@ -178,6 +186,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNullGuardEqWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "eq",
                                                                           MethodType.methodType(boolean.class, Object.class, Object.class),
@@ -196,6 +205,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNoNullGuardAdd() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, int.class, Object.class),
@@ -210,6 +220,7 @@ public class DefBootstrapTests extends ESTestCase {
 
     public void testNoNullGuardAddWhenCached() throws Throwable {
         DefBootstrap.MIC site = (DefBootstrap.MIC) DefBootstrap.bootstrap(painlessLookup,
+                                                                          Collections.emptyMap(),
                                                                           MethodHandles.publicLookup(),
                                                                           "add",
                                                                           MethodType.methodType(Object.class, int.class, Object.class),

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -685,7 +686,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         return lookupPrototypeSafe(key).readFrom(in);
                     }
 
-                    @SuppressWarnings("unchecked")
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                         return lookupPrototypeSafe(key).readDiffFrom(in);

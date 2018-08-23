@@ -22,8 +22,10 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.Diff;
@@ -168,7 +170,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
-    @SuppressWarnings("unchecked")
     MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices,
@@ -248,18 +249,50 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
-     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that point to the specified concrete indices or match partially with the indices via wildcards.
      *
-     * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
      * present for that index
      */
-    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAllAliases(String[] concreteIndices) {
+        return findAliases(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliasesRequest The request to find aliases for
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
+     */
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final AliasesRequest aliasesRequest, String[] concreteIndices) {
+        return findAliases(aliasesRequest.getOriginalAliases(), aliasesRequest.aliases(), concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliases The aliases to look for
+     * @param originalAliases The original aliases that the user originally requested
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
+     */
+    private ImmutableOpenMap<String, List<AliasMetaData>> findAliases(String[] originalAliases, String[] aliases,
+                                                                      String[] concreteIndices) {
         assert aliases != null;
+        assert originalAliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
+            return ImmutableOpenMap.of();
+        }
+
+        //if aliases were provided but they got replaced with empty aliases, return empty map
+        if (originalAliases.length > 0 && aliases.length == 0) {
             return ImmutableOpenMap.of();
         }
 
@@ -469,6 +502,42 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     public String[] getConcreteAllClosedIndices() {
         return allClosedIndices;
+    }
+
+    /**
+     * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
+     * in the write index.
+     */
+    public String resolveWriteIndexRouting(@Nullable String routing, String aliasOrIndex) {
+        if (aliasOrIndex == null) {
+            return routing;
+        }
+
+        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.isAlias() == false) {
+            return routing;
+        }
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
+        IndexMetaData writeIndex = alias.getWriteIndex();
+        if (writeIndex == null) {
+            throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
+        }
+        AliasMetaData aliasMd = writeIndex.getAliases().get(alias.getAliasName());
+        if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
+                    + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
+            if (routing != null) {
+                if (!routing.equals(aliasMd.indexRouting())) {
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
+                        + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                }
+            }
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
+        }
+        return routing;
     }
 
     /**
@@ -931,7 +1000,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public IndexGraveyard indexGraveyard() {
-            @SuppressWarnings("unchecked") IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+            IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
             return graveyard;
         }
 

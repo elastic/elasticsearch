@@ -19,21 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a field load/store and defers to a child subnode.
@@ -64,47 +64,49 @@ public final class PField extends AStoreable {
         prefix = prefix.cast(locals);
 
         if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookup.ClassToName(prefix.actual), value);
+            sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-            PainlessField field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            PainlessField field = locals.getPainlessLookup().lookupPainlessField(prefix.actual, prefix instanceof EStatic, value);
 
-            if (field != null) {
-                sub = new PSubField(location, field);
-            } else {
-                PainlessMethod getter = struct.methods.get(
-                    new PainlessMethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+            if (field == null) {
+                PainlessMethod getter;
+                PainlessMethod setter;
+
+                getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                        "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter == null) {
-                    getter = struct.methods.get(
-                        new PainlessMethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                    getter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                            "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
                 }
 
-                PainlessMethod setter = struct.methods.get(
-                    new PainlessMethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                setter = locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, false,
+                        "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, PainlessLookup.ClassToName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubMapShortcut(location, struct, index);
+                        sub = new PSubMapShortcut(location, prefix.actual, index);
                     }
 
                     if (List.class.isAssignableFrom(prefix.actual)) {
-                        sub = new PSubListShortcut(location, struct, index);
+                        sub = new PSubListShortcut(location, prefix.actual, index);
                     }
                 }
-            }
-        }
 
-        if (sub == null) {
-            throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + PainlessLookup.ClassToName(prefix.actual) + "]."));
+                if (sub == null) {
+                    throw createError(new IllegalArgumentException(
+                            "field [" + typeToCanonicalTypeName(prefix.actual) + ", " + value + "] not found"));
+                }
+            } else {
+                sub = new PSubField(location, field);
+            }
         }
 
         if (nullSafe) {

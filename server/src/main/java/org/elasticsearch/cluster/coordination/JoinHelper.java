@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -135,10 +136,8 @@ public class JoinHelper extends AbstractComponent {
     interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
 
-        default void failPendingJoins(String reason) {
-        }
+        default void close(Mode newMode) {
 
-        default void submitPendingJoins() {
         }
     }
 
@@ -181,26 +180,30 @@ public class JoinHelper extends AbstractComponent {
         }
 
         @Override
-        public void failPendingJoins(String reason) {
-            joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException(reason)));
-        }
+        public void close(Mode newMode) {
+            if (newMode == Mode.LEADER) {
+                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
+                joinRequestAccumulator.forEach((key, value) -> {
+                    final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
+                    pendingAsTasks.put(task, new JoinTaskListener(task, value));
+                });
 
-        @Override
-        public void submitPendingJoins() {
-            final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new HashMap<>();
-            joinRequestAccumulator.forEach((key, value) -> {
-                final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
-                pendingAsTasks.put(task, new JoinTaskListener(task, value));
-            });
+                final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
 
-            final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
+                pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {
+                });
+                pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {
+                });
+                masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
+                    joinTaskExecutor);
+            } else if (newMode == Mode.FOLLOWER) {
+                joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(
+                    new CoordinationStateRejectedException("became follower")));
+            } else {
+                assert newMode == Mode.CANDIDATE;
+                assert joinRequestAccumulator.isEmpty() : joinRequestAccumulator.keySet();
+            }
 
-            pendingAsTasks.put(JoinTaskExecutor.BECOME_MASTER_TASK, (source, e) -> {
-            });
-            pendingAsTasks.put(JoinTaskExecutor.FINISH_ELECTION_TASK, (source, e) -> {
-            });
-            masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
-                joinTaskExecutor);
         }
 
         @Override

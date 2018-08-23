@@ -118,7 +118,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
-            joinAccumulator.failPendingJoins("becoming candidate");
+            joinAccumulator.close(mode);
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         }
     }
@@ -130,7 +130,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         mode = Mode.LEADER;
         lastKnownLeader = Optional.of(getLocalNode());
-        joinAccumulator.submitPendingJoins();
+        joinAccumulator.close(mode);
         joinAccumulator = joinHelper.new LeaderJoinAccumulator();
     }
 
@@ -140,7 +140,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
-            joinAccumulator.failPendingJoins("started following " + leaderNode);
+            joinAccumulator.close(mode);
             joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
         }
 

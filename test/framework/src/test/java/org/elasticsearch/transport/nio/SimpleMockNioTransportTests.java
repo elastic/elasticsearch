@@ -22,7 +22,6 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -97,12 +96,6 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
     @Override
     protected int channelsPerNodeConnection() {
         return 3;
-    }
-
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

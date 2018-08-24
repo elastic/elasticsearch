@@ -112,12 +112,10 @@ import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1128,6 +1126,13 @@ final class RequestConverters {
         return request;
     }
 
+    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
+        String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));        
+        return request;
+    }    
+    
     static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1210,46 +1215,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putMachineLearningJob(PutJobRequest putJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(putJobRequest.getJob().getId())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putJobRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deleteMachineLearningJob(DeleteJobRequest deleteJobRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(deleteJobRequest.getJobId())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params params = new Params(request);
-        params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
-
-        return request;
-    }
-
-    static Request machineLearningOpenJob(OpenJobRequest openJobRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(openJobRequest.getJobId())
-            .addPathPartAsIs("_open")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setJsonEntity(openJobRequest.toString());
-        return request;
-    }
-
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         EndpointBuilder endpointBuilder = new EndpointBuilder()
             .addPathPartAsIs("_xpack/migration/assistance")
@@ -1261,7 +1226,7 @@ final class RequestConverters {
         return request;
     }
 
-    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }

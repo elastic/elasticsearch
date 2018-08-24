@@ -110,7 +110,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         for (int i = 0; i < indexSize; i++) {
             indexPrivileges[i] = RoleDescriptor.IndicesPrivileges.createFrom(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
         }
     }
@@ -124,7 +124,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         for (RoleDescriptor.IndicesPrivileges priv : indexPrivileges) {
             priv.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         }
     }

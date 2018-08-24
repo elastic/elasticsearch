@@ -35,7 +35,7 @@ public class BucketTests extends AbstractXContentTestCase<Bucket> {
         return createTestInstance("foo");
     }
 
-    public Bucket createTestInstance(String jobId) {
+    public static Bucket createTestInstance(String jobId) {
         Bucket bucket = new Bucket(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());

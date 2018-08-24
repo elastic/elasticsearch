@@ -2,9 +2,6 @@
 /*
  * This project contains transport-level requests and responses that are shared between x-pack plugin and qa tests
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 
 description = 'Request and response objects shared by the cli, jdbc ' +
@@ -34,7 +31,7 @@ dependencies {
 
 forbiddenApisMain {
     //sql does not depend on server, so only jdk signatures should be checked
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencyLicenses {

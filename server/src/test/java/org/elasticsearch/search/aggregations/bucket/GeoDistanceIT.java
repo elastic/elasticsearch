@@ -67,7 +67,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
             Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {

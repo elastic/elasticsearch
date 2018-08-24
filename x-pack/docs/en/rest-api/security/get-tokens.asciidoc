@@ -125,8 +125,9 @@ POST /_xpack/security/oauth2/token
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 [[security-api-refresh-token]]
-To extend the life of an existing token, you can call the API again with the 
-refresh token within 24 hours of the token's creation. For example:
+To extend the life of an existing token obtained using the `password` grant type,
+you can call the API again with the refresh token within 24 hours of the token's
+creation. For example:
 
 [source,js]
 --------------------------------------------------

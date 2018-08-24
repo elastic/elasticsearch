@@ -39,16 +39,6 @@ public class PutUserRequestTests extends ESTestCase {
         assertThat(validation.validationErrors().size(), is(1));
     }
 
-    public void testValidateRejectsUserNameThatHasInvalidCharacters() throws Exception {
-        final PutUserRequest request = new PutUserRequest();
-        request.username("fóóbár");
-        request.roles("bar");
-        final ActionRequestValidationException validation = request.validate();
-        assertThat(validation, is(notNullValue()));
-        assertThat(validation.validationErrors(), contains(containsString("must be")));
-        assertThat(validation.validationErrors().size(), is(1));
-    }
-
     public void testValidateRejectsMetaDataWithLeadingUnderscore() throws Exception {
         final PutUserRequest request = new PutUserRequest();
         request.username("foo");

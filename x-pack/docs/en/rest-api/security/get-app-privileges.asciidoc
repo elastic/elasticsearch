@@ -1,0 +1,94 @@
+[role="xpack"]
+[[security-api-get-privileges]]
+=== Get application privileges API
+
+Retrieves 
+{stack-ov}/security-privileges.html#application-privileges[application privileges].
+
+==== Request
+
+`GET /_xpack/security/privilege` +
+
+`GET /_xpack/security/privilege/<application>` +
+
+`GET /_xpack/security/privilege/<application>/<privilege>` 
+
+
+==== Description
+
+To check a user's application privileges, use the
+<<security-api-has-privileges,has privileges API>>.
+
+
+==== Path Parameters
+
+`application`::
+  (string) The name of the application. Application privileges are always
+  associated with exactly one application.
+  If you do not specify this parameter, the API returns information about all 
+  privileges for all applications.
+
+`privilege`::
+  (string) The name of the privilege. If you do not specify this parameter, the 
+  API returns information about all privileges for the requested application.
+
+//==== Request Body
+
+==== Authorization
+
+To use this API, you must have either:
+
+- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
+- the _"Manage Application Privileges"_ global privilege for the application being referenced
+  in the request
+
+==== Examples
+
+The following example retrieves information about the `read` privilege for the 
+`app01` application:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/privilege/myapp/read
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:app0102_privileges]
+
+A successful call returns an object keyed by application name and privilege
+name. If the privilege is not defined, the request responds with a 404 status.
+
+[source,js]
+--------------------------------------------------
+{
+  "myapp": {
+    "read": {
+      "application": "myapp",
+      "name": "read",
+      "actions": [
+        "data:read/*",
+        "action:login"
+      ],
+      "metadata": {
+        "description": "Read access to myapp"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+To retrieve all privileges for an application, omit the privilege name:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/privilege/myapp/
+--------------------------------------------------
+// CONSOLE
+
+To retrieve every privilege, omit both the application and privilege names:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/privilege/
+--------------------------------------------------
+// CONSOLE

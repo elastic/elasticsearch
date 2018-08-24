@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -110,10 +109,6 @@ public class ElasticsearchAssertions {
 
     public static void assertAcked(DeleteIndexRequestBuilder builder) {
         assertAcked(builder.get());
-    }
-
-    public static void assertAcked(DeleteIndexResponse response) {
-        assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
     }
 
     /**

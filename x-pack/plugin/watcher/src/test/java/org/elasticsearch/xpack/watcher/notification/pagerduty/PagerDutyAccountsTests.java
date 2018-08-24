@@ -24,6 +24,7 @@ import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +49,7 @@ public class PagerDutyAccountsTests extends ESTestCase {
 
         HttpProxy proxy = new HttpProxy("localhost", 8080);
         IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, null, proxy);
-        account.send(event, Payload.EMPTY);
+        account.send(event, Payload.EMPTY, null);
 
         HttpRequest request = argumentCaptor.getValue();
         assertThat(request.proxy(), is(proxy));
@@ -72,11 +73,13 @@ public class PagerDutyAccountsTests extends ESTestCase {
                         "https://www.elastic.co/products/x-pack/alerting", "X-Pack-Alerting website link with log")
         };
         IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, contexts, HttpProxy.NO_PROXY);
-        account.send(event, Payload.EMPTY);
+        account.send(event, Payload.EMPTY, null);
 
         HttpRequest request = argumentCaptor.getValue();
         ObjectPath source = ObjectPath.createFromXContent(JsonXContent.jsonXContent, new BytesArray(request.body()));
-        assertThat(source.evaluate("contexts"), notNullValue());
+        assertThat(source.evaluate("contexts"), nullValue());
+        assertThat(source.evaluate("links"), notNullValue());
+        assertThat(source.evaluate("images"), notNullValue());
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

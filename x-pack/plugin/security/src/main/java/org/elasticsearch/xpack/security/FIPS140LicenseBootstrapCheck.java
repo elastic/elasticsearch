@@ -10,6 +10,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.EnumSet;
 
@@ -21,15 +22,9 @@ final class FIPS140LicenseBootstrapCheck implements BootstrapCheck {
     static final EnumSet<License.OperationMode> ALLOWED_LICENSE_OPERATION_MODES =
         EnumSet.of(License.OperationMode.PLATINUM, License.OperationMode.TRIAL);
 
-    private final boolean isInFipsMode;
-
-    FIPS140LicenseBootstrapCheck(boolean isInFipsMode) {
-        this.isInFipsMode = isInFipsMode;
-    }
-
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        if (isInFipsMode) {
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
             License license = LicenseService.getLicense(context.metaData);
             if (license != null && ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
                 return BootstrapCheckResult.failure("FIPS mode is only allowed with a Platinum or Trial license");

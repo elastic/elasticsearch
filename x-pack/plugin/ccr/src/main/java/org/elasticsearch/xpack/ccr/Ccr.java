@@ -166,9 +166,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::fromXContent),
 
                 // Task statuses
-                new NamedXContentRegistry.Entry(ShardFollowNodeTask.Status.class, new ParseField(ShardFollowNodeTask.Status.STATUS_PARSER_NAME),
-                        ShardFollowNodeTask.Status::fromXContent)
-        );
+                new NamedXContentRegistry.Entry(
+                        ShardFollowNodeTask.Status.class,
+                        new ParseField(ShardFollowNodeTask.Status.STATUS_PARSER_NAME),
+                        ShardFollowNodeTask.Status::fromXContent));
     }
 
     /**

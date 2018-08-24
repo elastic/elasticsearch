@@ -1,8 +1,8 @@
 [role="xpack"]
 [[security-api-put-user]]
-=== Create users API
+=== Create or update users API
 
-Creates and updates users in the native realm. These users are commonly referred 
+Adds and updates users in the native realm. These users are commonly referred 
 to as _native users_.
 
 

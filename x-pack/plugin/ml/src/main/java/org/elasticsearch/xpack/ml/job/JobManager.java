@@ -52,8 +52,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
@@ -419,26 +419,22 @@ public class JobManager extends AbstractComponent {
             return;
         }
 
-        Set<String> openJobIds = openJobIds(clusterService.state());
-        if (openJobIds.isEmpty()) {
-            updatedListener.onResponse(Boolean.TRUE);
-            return;
-        }
-
-        String jobsExpression = Strings.collectionToCommaDelimitedString(openJobIds);
-
-        // TODO JIndex probably better to query for the filter ID
-        jobConfigProvider.expandJobs(jobsExpression, false, ActionListener.wrap(
+        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
                 jobBuilders -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                        for (Job.Builder builder: jobBuilders) {
-                            // TODO JIndex - sneaky because the job isn't being built here
-                            Set<String> jobFilters = builder.getAnalysisConfig().extractReferencedFilters();
+                        for (Job job: jobBuilders) {
+                            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+                            ClusterState clusterState = clusterService.state();
                             if (jobFilters.contains(filter.getId())) {
-                                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(builder.getId(), filter),
+                                if (isJobOpen(clusterState, job.getId())) {
+                                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
                                             ActionListener.wrap(isUpdated -> {
-                                                auditFilterChanges(builder.getId(), filter.getId(), addedItems, removedItems);
-                                            }, e -> {}));
+                                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                            }, e -> {
+                                            }));
+                                } else {
+                                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                }
                             }
                         }
 

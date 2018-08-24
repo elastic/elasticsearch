@@ -823,11 +823,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     allRoles, Version.CURRENT);
             assertTrue(nodePredicate.test(node));
         }
-        {
-            DiscoveryNode node = new DiscoveryNode("id", address, Collections.singletonMap("gateway", "true"),
-                    allRoles, Version.V_5_3_0);
-            assertFalse(nodePredicate.test(node));
-        }
     }
 
     public void testRemoteClusterWithProxy() throws Exception {

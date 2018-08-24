@@ -21,8 +21,10 @@ package org.elasticsearch.protocol.xpack.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -33,9 +35,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Request to close Machine Learning Jobs
+ */
 public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
-    public static final ParseField JOB_IDS = new ParseField("job_ids");
+    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
@@ -46,7 +51,9 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         true, a -> new CloseJobRequest((List<String>) a[0]));
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), JOB_IDS);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+            p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
+            JOB_ID, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(CloseJobRequest::setForce, FORCE);
         PARSER.declareBoolean(CloseJobRequest::setAllowNoJobs, ALLOW_NO_JOBS);
@@ -94,49 +101,44 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         return jobIds;
     }
 
-    /**
-     * How long to wait for the close request to complete before timing out.
-     *
-     * Default: 30 minutes
-     */
     public TimeValue getTimeout() {
         return timeout;
     }
 
     /**
-     * {@link CloseJobRequest#getTimeout()}
+     * How long to wait for the close request to complete before timing out.
+     *
+     * @param timeout Default value: 30 minutes
      */
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
+    }
+
+    public Boolean isForce() {
+        return force;
     }
 
     /**
      * Should the closing be forced.
      *
      * Use to close a failed job, or to forcefully close a job which has not responded to its initial close request.
-     */
-    public Boolean isForce() {
-        return force;
-    }
-
-    /**
-     * {@link CloseJobRequest#isForce()}
+     *
+     * @param force When {@code true} forcefully close the job. Defaults to {@code false}
      */
     public void setForce(boolean force) {
         this.force = force;
+    }
+
+    public Boolean isAllowNoJobs() {
+        return this.allowNoJobs;
     }
 
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
      * This includes `_all` string or when no jobs have been specified
-     */
-    public Boolean isAllowNoJobs() {
-        return allowNoJobs;
-    }
-
-    /**
-     * {@link CloseJobRequest#isAllowNoJobs()}
+     *
+     * @param allowNoJobs When {@code true} ignore if wildcard or `_all` matches no jobs. Defaults to {@code true}
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;
@@ -149,7 +151,7 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, timeout, allowNoJobs, force);
+        return Objects.hash(jobIds, timeout, force, allowNoJobs);
     }
 
     @Override
@@ -165,16 +167,14 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         CloseJobRequest that = (CloseJobRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
             Objects.equals(timeout, that.timeout) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs) &&
-            Objects.equals(force, that.force);
+            Objects.equals(force, that.force) &&
+            Objects.equals(allowNoJobs, that.allowNoJobs);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
-        builder.field(JOB_IDS.getPreferredName(), jobIds);
-
+        builder.field(JOB_ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
         if (timeout != null) {
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
         }
@@ -184,8 +184,12 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         if (allowNoJobs != null) {
             builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
         }
-
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

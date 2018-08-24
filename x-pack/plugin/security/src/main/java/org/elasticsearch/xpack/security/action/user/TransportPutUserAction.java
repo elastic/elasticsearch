@@ -17,8 +17,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
-import org.elasticsearch.protocol.xpack.security.PutUserRequest;
-import org.elasticsearch.protocol.xpack.security.PutUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -98,10 +96,6 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                     validationException = addValidationError(roleNameError.toString(), validationException);
                 }
             }
-        }
-
-        if (request.password() != null) {
-            validationException = addValidationError("password should never be passed to the transport action", validationException);
         }
 
         if (request.passwordHash() != null) {

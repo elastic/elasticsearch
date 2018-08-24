@@ -20,24 +20,17 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when adding a user to the security index. Returns a
  * single boolean field for whether the user was created or updated.
  */
-public class PutUserResponse extends ActionResponse implements ToXContentFragment {
+public class PutUserResponse extends ActionResponse {
 
     private boolean created;
 
@@ -53,11 +46,6 @@ public class PutUserResponse extends ActionResponse implements ToXContentFragmen
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("created", created);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(created);
@@ -67,17 +55,6 @@ public class PutUserResponse extends ActionResponse implements ToXContentFragmen
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.created = in.readBoolean();
-    }
-
-    private static final ConstructingObjectParser<PutUserResponse, Void> PARSER = new ConstructingObjectParser<>("put_user_response",
-        true, args -> new PutUserResponse((boolean) args[0]));
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("created"));
-        PARSER.declareObject((a,b) -> {}, (parser, context) -> null, new ParseField("user")); // ignore the user field!
-    }
-
-    public static PutUserResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

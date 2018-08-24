@@ -28,8 +28,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest>, ToXContentObject {
+public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
 
     private String username;
     private String[] roles;
@@ -47,7 +45,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     private String email;
     private Map<String, Object> metadata;
     private char[] passwordHash;
-    private char[] password;
     private boolean enabled = true;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
@@ -65,9 +62,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
             validationException = addValidationError("metadata keys may not start with [_]", validationException);
-        }
-        if (password != null && passwordHash != null) {
-            validationException = addValidationError("only one of [password, passwordHash] can be provided", validationException);
         }
         // we do not check for a password hash here since it is possible that the user exists and we don't want to update the password
         return validationException;
@@ -99,10 +93,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
 
     public void enabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public void password(@Nullable char[] password) {
-        this.password = password;
     }
 
     /**
@@ -154,11 +144,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         return new String[] { username };
     }
 
-    @Nullable
-    public char[] password() {
-        return password;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -177,9 +162,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         super.writeTo(out);
         out.writeString(username);
         writeCharArrayToStream(out, passwordHash);
-        if (password != null) {
-            throw new IllegalStateException("password cannot be serialized. it is only used for HL rest");
-        }
         out.writeStringArray(roles);
         out.writeOptionalString(fullName);
         out.writeOptionalString(email);
@@ -191,28 +173,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (password != null) {
-            byte[] charBytes = CharArrays.toUtf8Bytes(password);
-            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
-        }
-        if (roles != null) {
-            builder.field("roles", roles);
-        }
-        if (fullName != null) {
-            builder.field("full_name", fullName);
-        }
-        if (email != null) {
-            builder.field("email", email);
-        }
-        if (metadata != null) {
-            builder.field("metadata", metadata);
-        }
-        return builder.endObject();
     }
 
     private static char[] readCharArrayFromStream(StreamInput in) throws IOException {

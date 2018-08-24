@@ -135,18 +135,12 @@ public class LogConfigurator {
     }
 
     /**
-     * Sets the node name if it was loaded after logging is initialized. This
-     * is only called if the node name is not in elasticsearcy.yml which is a
-     * normal "first time" thing but not a normal "production" thing.
+     * Sets the node name. This is called before logging is configured if the
+     * node name is set in elasticsearch.yml. Otherwise it is called as soon
+     * as the node id is available.
      */
-    public static void setNodeNameAfterLoggerInitialized(Environment environment, String nodeName) {
+    public static void setNodeName(String nodeName) {
         NodeNamePatternConverter.setNodeName(nodeName);
-        /*
-         * Update loggers private configuration to make the write above visble.
-         * See the reasoning in NodeNamePatternConverter for more on this.
-         */
-        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
-        context.updateLoggers();
     }
 
     private static void checkErrorListener() {
@@ -166,15 +160,6 @@ public class LogConfigurator {
         Objects.requireNonNull(logsPath);
 
         loadLog4jPlugins();
-
-        /*
-         * Initialize the node name on the logger if it was set in
-         * elasticsearch.yml. If we don't have it now we'll set it when we
-         * get it.
-         */
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            NodeNamePatternConverter.setNodeName(Node.NODE_NAME_SETTING.get(settings));
-        }
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context

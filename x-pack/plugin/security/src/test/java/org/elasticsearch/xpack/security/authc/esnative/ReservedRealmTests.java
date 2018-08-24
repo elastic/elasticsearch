@@ -444,23 +444,15 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
-        assertThat(versionPredicate.test(Version.V_5_0_0_rc1), is(false));
         switch (principal) {
             case LogstashSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_5_0_0), is(false));
-                assertThat(versionPredicate.test(Version.V_5_1_1), is(false));
-                assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             case BeatsSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_5_6_9), is(false));
                 assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             default:
-                assertThat(versionPredicate.test(Version.V_5_0_0), is(true));
-                assertThat(versionPredicate.test(Version.V_5_1_1), is(true));
-                assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
         }

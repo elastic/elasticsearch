@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.security;
+package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.protocol.xpack.security.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 
 import java.util.Collections;
 import java.util.Date;

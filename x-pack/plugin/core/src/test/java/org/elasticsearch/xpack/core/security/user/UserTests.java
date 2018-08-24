@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.security;
+package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.test.ESTestCase;
 

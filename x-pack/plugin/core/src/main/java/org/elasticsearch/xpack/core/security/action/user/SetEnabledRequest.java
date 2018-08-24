@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.protocol.xpack.security.UserRequest;
 import org.elasticsearch.xpack.core.security.support.Validation.Error;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 

@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.security;
+package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 
 import java.io.IOException;
 

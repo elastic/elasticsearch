@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.security;
+package org.elasticsearch.xpack.core.security.action.user;
 
 /**
  * Interface for requests that involve user operations

@@ -75,27 +75,20 @@ public class OldIndexUtils {
         final String indexFile,
         final Path dataDir) throws IOException {
         final Version version = Version.fromString(indexName.substring("index-".length()));
-        if (version.before(Version.V_5_0_0_alpha1)) {
-            // the bwc scripts packs the indices under this path
-            Path src = dataDir.resolve("nodes/0/indices/" + indexName);
-            assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
-            return src;
-        } else {
-            final List<Path> indexFolders = new ArrayList<>();
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"),
-                (p) -> p.getFileName().toString().startsWith("extra") == false)) { // extra FS can break this...
-                for (final Path path : stream) {
-                    indexFolders.add(path);
-                }
+        final List<Path> indexFolders = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir.resolve("0/indices"),
+            (p) -> p.getFileName().toString().startsWith("extra") == false)) { // extra FS can break this...
+            for (final Path path : stream) {
+                indexFolders.add(path);
             }
-            assertThat(indexFolders.toString(), indexFolders.size(), equalTo(1));
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
-                indexFolders.get(0));
-            assertNotNull(indexMetaData);
-            assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));
-            assertThat(indexMetaData.getCreationVersion(), equalTo(version));
-            return indexFolders.get(0);
         }
+        assertThat(indexFolders.toString(), indexFolders.size(), equalTo(1));
+        final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            indexFolders.get(0));
+        assertNotNull(indexMetaData);
+        assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));
+        assertThat(indexMetaData.getCreationVersion(), equalTo(version));
+        return indexFolders.get(0);
     }
 
     // randomly distribute the files from src over dests paths

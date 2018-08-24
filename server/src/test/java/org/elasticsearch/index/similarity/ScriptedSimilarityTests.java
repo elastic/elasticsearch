@@ -30,6 +30,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.highlight.Scorer;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,6 +47,7 @@ import org.elasticsearch.script.SimilarityWeightScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ScriptedSimilarityTests extends ESTestCase {
@@ -86,6 +88,16 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 public double execute(double weight, ScriptedSimilarity.Query query,
                         ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
                         ScriptedSimilarity.Doc doc) {
+
+                    StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") &&
+                                ste.getMethodName().equals("score");
+                            }) == false) {
+                        // this might happen when computing max scores
+                        return Float.MAX_VALUE;
+                    }
+
                     assertEquals(1, weight, 0);
                     assertNotNull(doc);
                     assertEquals(2f, doc.getFreq(), 0);
@@ -147,14 +159,13 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
                 @Override
                 public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
-                        ScriptedSimilarity.Term term) {
-                    assertNotNull(field);
+                    ScriptedSimilarity.Term term) {
                     assertEquals(3, field.getDocCount());
                     assertEquals(5, field.getSumDocFreq());
                     assertEquals(6, field.getSumTotalTermFreq());
                     assertNotNull(term);
-                    assertEquals(2, term.getDocFreq());
-                    assertEquals(3, term.getTotalTermFreq());
+                    assertEquals(1, term.getDocFreq());
+                    assertEquals(2, term.getTotalTermFreq());
                     assertNotNull(query);
                     assertEquals(3.2f, query.getBoost(), 0);
                     initCalled.set(true);
@@ -171,6 +182,16 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 public double execute(double weight, ScriptedSimilarity.Query query,
                         ScriptedSimilarity.Field field, ScriptedSimilarity.Term term,
                         ScriptedSimilarity.Doc doc) {
+
+                    StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") &&
+                                ste.getMethodName().equals("score");
+                            }) == false) {
+                        // this might happen when computing max scores
+                        return Float.MAX_VALUE;
+                    }
+
                     assertEquals(28, weight, 0d);
                     assertNotNull(doc);
                     assertEquals(2f, doc.getFreq(), 0);
@@ -180,8 +201,8 @@ public class ScriptedSimilarityTests extends ESTestCase {
                     assertEquals(5, field.getSumDocFreq());
                     assertEquals(6, field.getSumTotalTermFreq());
                     assertNotNull(term);
-                    assertEquals(2, term.getDocFreq());
-                    assertEquals(3, term.getTotalTermFreq());
+                    assertEquals(1, term.getDocFreq());
+                    assertEquals(2, term.getTotalTermFreq());
                     assertNotNull(query);
                     assertEquals(3.2f, query.getBoost(), 0);
                     called.set(true);
@@ -195,8 +216,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
         Document doc = new Document();
-        doc.add(new TextField("f", "foo bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
+        doc.add(new TextField("f", "bar baz", Store.NO));
         w.addDocument(doc);
 
         doc = new Document();
@@ -206,17 +226,13 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
         doc = new Document();
         doc.add(new TextField("f", "bar", Store.NO));
-        doc.add(new StringField("match", "no", Store.NO));
         w.addDocument(doc);
 
         IndexReader r = DirectoryReader.open(w);
         w.close();
         IndexSearcher searcher = new IndexSearcher(r);
         searcher.setSimilarity(sim);
-        Query query = new BoostQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
-                .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(), 3.2f);
+        Query query = new BoostQuery(new TermQuery(new Term("f", "foo")), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
         assertEquals(1, topDocs.totalHits.value);
         assertTrue(initCalled.get());

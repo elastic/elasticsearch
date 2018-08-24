@@ -92,13 +92,8 @@ public class RemoteInfo implements Writeable {
             headers.put(in.readString(), in.readString());
         }
         this.headers = unmodifiableMap(headers);
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            socketTimeout = in.readTimeValue();
-            connectTimeout = in.readTimeValue();
-        } else {
-            socketTimeout = DEFAULT_SOCKET_TIMEOUT;
-            connectTimeout = DEFAULT_CONNECT_TIMEOUT;
-        }
+        socketTimeout = in.readTimeValue();
+        connectTimeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             pathPrefix = in.readOptionalString();
         } else {
@@ -119,10 +114,8 @@ public class RemoteInfo implements Writeable {
             out.writeString(header.getKey());
             out.writeString(header.getValue());
         }
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeTimeValue(socketTimeout);
-            out.writeTimeValue(connectTimeout);
-        }
+        out.writeTimeValue(socketTimeout);
+        out.writeTimeValue(connectTimeout);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(pathPrefix);
         }

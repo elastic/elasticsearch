@@ -86,6 +86,12 @@ bin/elasticsearch-keystore add xpack.security.transport.ssl.secure_key_passphras
 -----------------------------------------------------------
 --
 
+. (Optional) Change how often the certificates, keys, keystores, and truststores 
+are checked. {es} monitors all files that are configured as values of 
+TLS-related node settings and reloads them when they change. By default, files 
+are polled for changes every 5 seconds. To change this interval, use the {es} 
+`resource.reload.interval.high` setting. 
+
 . Restart {es}.
 +
 --
@@ -99,8 +105,3 @@ NOTE: All TLS-related node settings are considered to be highly sensitive and
 therefore are not exposed via the
 {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API] For more
 information about any of these settings, see <<security-settings>>.
-
-NOTE: {es} monitors all files (certificates, keys, keystores, truststores) that
-are configured as values of TLS-related node settings and will reload them upon
-modification. Files are polled for changes at a frequency determined by the global
-{es} `resource.reload.interval.high` setting, which defaults to 5 seconds.

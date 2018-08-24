@@ -67,6 +67,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -210,7 +211,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         reader.close();
         dir.close();
     }
-
 
     public void testMinScoreDisablesCountOptimization() throws Exception {
         Directory dir = newDirectory();
@@ -539,19 +539,19 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    static IndexSearcher getAssertingEarlyTerminationSearcher(IndexReader reader, int size) {
+    private static IndexSearcher getAssertingEarlyTerminationSearcher(IndexReader reader, int size) {
         return new IndexSearcher(reader) {
             protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                final Collector in = new AssertingEalyTerminationFilterCollector(collector, size);
+                final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);
             }
         };
     }
 
-    private static class AssertingEalyTerminationFilterCollector extends FilterCollector {
+    private static class AssertingEarlyTerminationFilterCollector extends FilterCollector {
         private final int size;
 
-        AssertingEalyTerminationFilterCollector(Collector in, int size) {
+        AssertingEarlyTerminationFilterCollector(Collector in, int size) {
             super(in);
             this.size = size;
         }

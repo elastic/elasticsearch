@@ -118,6 +118,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -127,9 +128,9 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -2601,6 +2602,35 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
+    public void testGraphExplore() throws Exception {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
+        graphExploreRequest.sampleDiversityField("diversity");
+        graphExploreRequest.indices("index1", "index2");
+        graphExploreRequest.types("type1", "type2");
+        int timeout = randomIntBetween(10000, 20000);
+        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
+        for (int i = 0; i < numHops; i++) {
+            int hopNumber = i + 1;
+            QueryBuilder guidingQuery = null;
+            if (randomBoolean()) {
+                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
+            }
+            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
+            hop.addVertexRequest("field" + hopNumber);
+            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
+        }
+        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertToXContentBody(graphExploreRequest, request.getEntity());
+    }
+
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2610,33 +2640,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
-    }
-
-    public void testDeleteMachineLearningJob() {
-        String jobId = randomAlphaOfLength(10);
-        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
-
-        Request request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
-        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
-
-        deleteJobRequest.setForce(true);
-        request = RequestConverters.deleteMachineLearningJob(deleteJobRequest);
-        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
-    }
-
-    public void testPostMachineLearningOpenJob() throws Exception {
-        String jobId = "some-job-id";
-        OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
-        openJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
-
-        Request request = RequestConverters.machineLearningOpenJob(openJobRequest);
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_open", request.getEndpoint());
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        request.getEntity().writeTo(bos);
-        assertEquals(bos.toString("UTF-8"), "{\"job_id\":\""+ jobId +"\",\"timeout\":\"10m\"}");
     }
 
     /**

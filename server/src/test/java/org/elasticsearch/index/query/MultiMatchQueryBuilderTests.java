@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -378,6 +379,69 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
             ), 0.0f
         );
+        assertEquals(expected, query);
+    }
+
+    public void testWithStopWords() throws Exception {
+        Query query = new MultiMatchQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        Query expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new MultiMatchQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "quick")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "fox")), BooleanClause.Occur.SHOULD)
+                    .build()
+            ), 0f);
+        assertEquals(expected, query);
+
+        query = new MultiMatchQueryBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new MultiMatchQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new MultiMatchQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f), BooleanClause.Occur.SHOULD)
+            .build();
         assertEquals(expected, query);
     }
 

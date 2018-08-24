@@ -4,7 +4,8 @@ archivesBaseName = 'elasticsearch-security-cli'
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compile 'org.bouncycastle:bcprov-jdk15on:1.59'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
     testImplementation 'com.google.jimfs:jimfs:1.1'

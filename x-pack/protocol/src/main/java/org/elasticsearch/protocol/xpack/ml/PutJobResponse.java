@@ -39,9 +39,6 @@ public class PutJobResponse implements ToXContentObject {
         this.job = job;
     }
 
-    public PutJobResponse() {
-    }
-
     public Job getResponse() {
         return job;
     }

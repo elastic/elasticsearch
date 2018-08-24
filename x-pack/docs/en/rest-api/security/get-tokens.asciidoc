@@ -63,6 +63,41 @@ other supported grant type.
 
 ==== Examples
 
+The following example obtains a token using the `client_credentials` grant type,
+which simply creates a token as the authenticated user:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/oauth2/token
+{
+  "grant_type" : "client_credentials"
+}
+--------------------------------------------------
+// CONSOLE
+
+The following example output contains the access token, the amount of time (in
+seconds) that the token expires in, and the type:
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+
+The token returned by this API can be used by sending a request with a
+`Authorization` header with a value having the prefix `Bearer ` followed
+by the value of the `access_token`.
+
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
+--------------------------------------------------
+// NOTCONSOLE
+
 The following example obtains a token for the `test_admin` user using the
 `password` grant type:
 
@@ -78,7 +113,7 @@ POST /_xpack/security/oauth2/token
 // CONSOLE
 
 The following example output contains the access token, the amount of time (in
-seconds) that the token expires in, and the type:
+seconds) that the token expires in, the type, and the refresh token:
 
 [source,js]
 --------------------------------------------------
@@ -91,38 +126,6 @@ seconds) that the token expires in, and the type:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
-
-The token returned by this API can be used by sending a request with a
-`Authorization` header with a value having the prefix `Bearer ` followed
-by the value of the `access_token`.
-
-[source,shell]
---------------------------------------------------
-curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
---------------------------------------------------
-// NOTCONSOLE
-
-The following example obtains a token using the `client_credentials` grant type,
-which simply creates a token as the authenticated user:
-
-[source,js]
---------------------------------------------------
-POST /_xpack/security/oauth2/token
-{
-  "grant_type" : "client_credentials"
-}
---------------------------------------------------
-// CONSOLE
-
-[source,js]
---------------------------------------------------
-{
-  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
-  "type" : "Bearer",
-  "expires_in" : 1200
-}
---------------------------------------------------
-// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
 [[security-api-refresh-token]]
 To extend the life of an existing token obtained using the `password` grant type,

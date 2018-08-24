@@ -90,7 +90,6 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
 
     /**
      * See {@link GetJobRequest#isAllowNoJobs()}
-     * @param allowNoJobs
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;

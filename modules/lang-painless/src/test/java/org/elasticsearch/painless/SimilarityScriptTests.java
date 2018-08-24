@@ -89,7 +89,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
                 .build(), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();
@@ -128,7 +128,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
                 .build(), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits);
+        assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
         w.close();
         dir.close();

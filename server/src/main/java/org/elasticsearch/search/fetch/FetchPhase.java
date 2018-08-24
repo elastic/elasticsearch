@@ -367,7 +367,8 @@ public class FetchPhase implements SearchPhase {
                 current = nestedParentObjectMapper;
                 continue;
             }
-            final Weight childWeight = context.searcher().createWeight(context.searcher().rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            final Weight childWeight = context.searcher()
+                .createWeight(context.searcher().rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer childScorer = childWeight.scorer(subReaderContext);
             if (childScorer == null) {
                 current = nestedParentObjectMapper;

@@ -47,23 +47,11 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     protected Scorer scorer;
 
     private int totalHitCount;
-    private float maxScore;
-    private final boolean trackMaxScore;
 
-    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN, boolean trackMaxScore) {
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
-        this.trackMaxScore = trackMaxScore;
-        if (trackMaxScore) {
-            maxScore = Float.NEGATIVE_INFINITY;
-        } else {
-            maxScore = Float.NaN;
-        }
         this.sort = sort;
-    }
-
-    public float getMaxScore() {
-        return maxScore;
     }
 
     /**
@@ -106,7 +94,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
 
     @Override
     public ScoreMode scoreMode() {
-        if (trackMaxScore || super.scoreMode().needsScores()) {
+        if (super.scoreMode().needsScores()) {
             return ScoreMode.COMPLETE;
         } else {
             return ScoreMode.COMPLETE_NO_SCORES;
@@ -122,9 +110,6 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     @Override
     public void collect(int doc) throws IOException {
         super.collect(doc);
-        if (trackMaxScore) {
-            maxScore = Math.max(maxScore, scorer.score());
-        }
         totalHitCount++;
     }
 
@@ -143,9 +128,9 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * @param topN          How many top groups to keep.
      */
     public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore)  {
+                                                              int topN)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+                collapseField, sort, topN);
     }
 
     /**
@@ -162,8 +147,8 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      * @param topN          How many top groups to keep.
      */
     public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore)  {
+                                                              int topN)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+                collapseField, sort, topN);
     }
 }

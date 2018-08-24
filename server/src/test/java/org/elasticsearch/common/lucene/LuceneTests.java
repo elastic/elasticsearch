@@ -199,10 +199,10 @@ public class LuceneTests extends ESTestCase {
         assertEquals(3, open.maxDoc());
 
         IndexSearcher s = new IndexSearcher(open);
-        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits, 0);
+        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value, 0);
 
         for (String file : dir.listAll()) {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));

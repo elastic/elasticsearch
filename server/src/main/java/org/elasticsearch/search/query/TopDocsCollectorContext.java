@@ -131,6 +131,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
         private final DocValueFormat[] sortFmt;
         private final CollapsingTopDocsCollector<?> topDocsCollector;
+        private final Supplier<Float> maxScoreSupplier;
 
         /**
          * Ctr
@@ -148,7 +149,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, trackMaxScore);
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
+
+            MaxScoreCollector maxScoreCollector = null;
+            if (trackMaxScore) {
+                maxScoreCollector = new MaxScoreCollector();
+                maxScoreSupplier = maxScoreCollector::getMaxScore;
+            } else {
+                maxScoreSupplier = () -> Float.NaN;
+            }
         }
 
         @Override
@@ -160,7 +169,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
-            result.topDocs(new TopDocsAndMaxScore(topDocs, topDocsCollector.getMaxScore()), sortFmt);
+            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
     }
 

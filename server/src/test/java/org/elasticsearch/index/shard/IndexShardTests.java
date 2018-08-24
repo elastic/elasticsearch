@@ -1942,9 +1942,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
         }
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -1972,9 +1972,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits, 0);
+            assertEquals(search.totalHits.value, 0);
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
         }
         try (Engine.GetResult getResult = newShard
                 .get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {

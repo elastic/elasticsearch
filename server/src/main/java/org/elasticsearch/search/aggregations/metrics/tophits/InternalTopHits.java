@@ -159,9 +159,9 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
-        return new InternalTopHits(name, this.from, this.size, new TopDocsAndMaxScore(reducedTopDocs, maxScore), new SearchHits(hits, reducedTopDocs.totalHits.value,
-                maxScore),
-                pipelineAggregators(), getMetaData());
+        return new InternalTopHits(name, this.from, this.size,
+            new TopDocsAndMaxScore(reducedTopDocs, maxScore),
+            new SearchHits(hits, reducedTopDocs.totalHits.value, maxScore), pipelineAggregators(), getMetaData());
     }
 
     @Override

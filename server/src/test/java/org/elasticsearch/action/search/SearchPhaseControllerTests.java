@@ -355,7 +355,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 int number = randomIntBetween(1, 1000);
                 max.updateAndGet(prev -> Math.max(prev, number));
                 QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id, null));
-                result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number), new DocValueFormat[0]);
+                result.topDocs(new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number),
+                    new DocValueFormat[0]);
                 InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", (double) number,
                     DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
                 result.aggregations(aggs);

@@ -140,9 +140,11 @@ final class SimilarityProviders {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
                 if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
-                    throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, please use another model.");
+                    throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
+                        "please use another model.");
                 } else {
-                    DEPRECATION_LOGGER.deprecated("Basic model [" + basicModel + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    DEPRECATION_LOGGER.deprecated("Basic model [" + basicModel +
+                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
                 }
@@ -169,9 +171,11 @@ final class SimilarityProviders {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
                 if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
-                    throw new IllegalArgumentException("After effect [" + afterEffect + "] isn't supported anymore, please use another effect.");
+                    throw new IllegalArgumentException("After effect [" + afterEffect +
+                        "] isn't supported anymore, please use another effect.");
                 } else {
-                    DEPRECATION_LOGGER.deprecated("After effect [" + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    DEPRECATION_LOGGER.deprecated("After effect [" + afterEffect +
+                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
                 }

@@ -28,9 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;

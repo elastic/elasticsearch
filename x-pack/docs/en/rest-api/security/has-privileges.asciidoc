@@ -1,6 +1,6 @@
 [role="xpack"]
-[[security-api-privileges]]
-=== Privilege APIs
+[[security-api-has-privileges]]
+=== Has Privileges API
 
 [[security-api-has-privilege]]
 
@@ -15,7 +15,7 @@ a specified list of privileges.
 ==== Description
 
 For a list of the privileges that you can specify in this API,
-see {xpack-ref}/security-privileges.html[Security Privileges].
+see {stack-ov}/security-privileges.html[Security privileges].
 
 A successful call returns a JSON structure that shows whether each specified
 privilege is assigned to the user.
@@ -30,6 +30,14 @@ privilege is assigned to the user.
 `privileges`::: (list) A list of the privileges that you want to check for the
 specified indices.
 
+`application`::
+`application`::: (string) The name of the application.
+`privileges`::: (list) A list of the privileges that you want to check for the
+specified resources. May be either application privilege names, or the names of
+actions that are granted by those privileges
+`resources`::: (list) A list of resource names against which the privileges
+should be checked
+
 ==== Authorization
 
 All users can use this API, but only to determine their own privileges.
@@ -41,7 +49,7 @@ more information, see
 ==== Examples
 
 The following example checks whether the current user has a specific set of
-cluster and indices privileges:
+cluster, index, and application privileges:
 
 [source,js]
 --------------------------------------------------
@@ -56,6 +64,13 @@ GET _xpack/security/user/_has_privileges
     {
       "names": [ "inventory" ],
       "privileges" : [ "read", "write" ]
+    }
+  ],
+  "application": [
+    {
+      "application": "inventory_manager",
+      "privileges" : [ "read", "data:write/inventory" ],
+      "resources" : [ "product/1852563" ]
     }
   ]
 }
@@ -85,7 +100,14 @@ The following example output indicates which privileges the "rdeniro" user has:
       "write" : false
     }
   },
-  "application" : {}
+  "application" : {
+    "inventory_manager" : {
+      "product/1852563" : {
+        "read": false,
+        "data:write/inventory": false
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

@@ -33,7 +33,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -108,17 +107,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             assertEquals(shard1, !result.get().get(0).skip());
             assertEquals(shard2, !result.get().get(1).skip());
         }
-    }
-
-    public void testOldNodesTriggerException() {
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null);
-        DiscoveryNode node = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), VersionUtils.randomVersionBetween(random(),
-            VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_5_6_0)));
-        SearchAsyncActionTests.MockConnection mockConnection = new SearchAsyncActionTests.MockConnection(node);
-        IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-            () -> searchTransportService.sendCanMatch(mockConnection, null, null, null));
-        assertEquals("can_match is not supported on pre 5.6 nodes", illegalArgumentException.getMessage());
     }
 
     public void testFilterWithFailure() throws InterruptedException {

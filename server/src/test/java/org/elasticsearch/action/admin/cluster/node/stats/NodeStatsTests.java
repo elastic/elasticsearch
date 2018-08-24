@@ -49,7 +49,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 

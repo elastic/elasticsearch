@@ -757,7 +757,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
@@ -768,7 +768,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdaterRemoval() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.same", 5555).build();
@@ -783,7 +783,7 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<String> affixSetting =
             Setting.affixKeySetting("prefix.foo.", "suffix", key -> Setting.simpleString(key,Property.NodeScope, Property.Dynamic));
 
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, prefixKeySetting, affixSetting));
 
         Settings.Builder currentSettingsBuilder = Settings.builder()

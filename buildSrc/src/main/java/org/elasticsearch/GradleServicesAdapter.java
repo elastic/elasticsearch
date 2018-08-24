@@ -21,6 +21,7 @@ package org.elasticsearch;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
 
@@ -58,4 +59,7 @@ public class GradleServicesAdapter {
         return project.zipTree(zipPath);
     }
 
+    public FileCollection fileTree(File dir) {
+        return project.fileTree(dir);
+    }
 }

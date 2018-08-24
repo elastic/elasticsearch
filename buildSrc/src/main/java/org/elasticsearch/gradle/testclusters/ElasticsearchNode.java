@@ -46,22 +46,25 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.gradle.internal.os.OperatingSystem.current;
 
 public class ElasticsearchNode {
 
-    private static final int ES_DESTROY_TIMEOUT = 20;
-    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 30;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
+    private static final int ES_DESTROY_TIMEOUT = 20;
+    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = SECONDS;
+    private static final int NODE_UP_TIMEOUT = 30;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = SECONDS;
+
     private final String name;
-    private final GradleServicesAdapter services;
-    private final AtomicInteger noOfClaims = new AtomicInteger();
     private final File sharedArtifactsDir;
-    private final File syncDir;
+    private final File rootDir;
+    private final AtomicInteger noOfClaims = new AtomicInteger();
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final GradleServicesAdapter services;
 
     private Distribution distribution = Distribution.ZIP;
     private Version version = VersionProperties.getElasticsearch();
@@ -73,7 +76,7 @@ public class ElasticsearchNode {
         this.name = name;
         this.services = services;
         this.sharedArtifactsDir = sharedArtifactsDir;
-        this.syncDir = new File(workDirBase, pathSafe(name));
+        this.rootDir = new File(workDirBase, pathSafe(name));
     }
 
     private static String pathSafe(String name) {
@@ -83,23 +86,22 @@ public class ElasticsearchNode {
     }
 
     private File getWorkDir() {
-        assertValid();
-        return new File(syncDir, getDistribution().getFileName() + "-" + getVersion());
+        return new File(rootDir, getDistribution().getFileName() + "-" + getVersion());
     }
 
     private File getConfigFile() {
         return new File(getWorkDir(), "config/elasticsearch.yml");
     }
 
-    private File getPathData() {
+    private File getConfPathData() {
         return new File(getWorkDir(), "data");
     }
 
-    private File getPathSharedData() {
+    private File getConfPathSharedData() {
         return new File(getWorkDir(), "sharedData");
     }
 
-    private File getPathRepo() {
+    private File getConfPathRepo() {
         return new File(getWorkDir(), "repo");
     }
 
@@ -143,7 +145,7 @@ public class ElasticsearchNode {
         Objects.requireNonNull(javaHome, "null javaHome passed to cluster formation");
         checkNotRunning();
         if (javaHome.exists() == false) {
-            throw new ClusterFormationException("java home does not exists `" + javaHome + "`");
+            throw new TestClustersException("java home does not exists `" + javaHome + "`");
         }
         this.javaHome = javaHome;
     }
@@ -162,22 +164,20 @@ public class ElasticsearchNode {
         return getTransportPortInternal().get(0);
     }
 
-    public File getConfDir() {
-        // TODO return a copy
-        return getConfigFile().getParentFile();
-    }
-
-    void assertValid() {
-        if (getDistribution() == null) {
-            throw new ClusterFormationException("Missing distribution for cluster `" + getName() + "`");
-        }
-        if (getVersion() == null) {
-            throw new ClusterFormationException("Missing version for cluster `" + getName() + "`");
-        }
+    public File getCopyOfConfDir() {
+        File configDir = getConfigFile().getParentFile();
+        File copyOfConfigDir = new File(getWorkDir(), "copy-of-config");
+        services.sync(spec -> {
+            spec.from(services.fileTree(configDir));
+            spec.setFileMode(0444);
+            spec.into(copyOfConfigDir);
+        });
+        return copyOfConfigDir;
     }
 
     void claim() {
-        noOfClaims.incrementAndGet();
+        int currentClaims = noOfClaims.incrementAndGet();
+        logger.debug("{} registered new claim", this);
     }
 
     /**
@@ -185,29 +185,39 @@ public class ElasticsearchNode {
      */
     void start() {
         if (started.getAndSet(true)) {
-            logger.info("Already started `{}`", name);
+            logger.info("Already started `{}`", this);
             return;
         } else {
-            logger.lifecycle("Starting `{}`", name);
-        }
-        Distribution distro = getDistribution();
-        File artifact = new File(sharedArtifactsDir, distro.getFileName() + "-" + getVersion() + "." + distro.getExtension());
-        if (artifact.exists() == false) {
-            throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
+            logger.lifecycle("Starting `{}`", this);
         }
 
+        File artifact = new File(
+            sharedArtifactsDir,
+            distribution.getFileName() + "-" + getVersion() + "." + distribution.getExtension()
+        );
+        if (artifact.exists() == false) {
+            throw new TestClustersException("Can not start " + this + ", missing artifact: " + artifact);
+        }
+
+        // Note the sync wipes out anything already there
         services.sync(copySpec -> {
             if (getDistribution().getExtension() == "zip") {
                 copySpec.from(services.zipTree(artifact));
             } else {
-                throw new ClusterFormationException("Only ZIP distributions are supported for now");
+                throw new TestClustersException("Only ZIP distributions are supported for now: " + this);
             }
-            copySpec.into(syncDir);
+            copySpec.into(rootDir);
         });
 
         writeConfigFile();
 
-        logger.info("Running `bin/elasticsearch` in `{}`", getWorkDir());
+        startElasticsearchProcess();
+
+        registerCleanupHooks();
+    }
+
+    private void startElasticsearchProcess() {
+        logger.info("Running `bin/elasticsearch` in `{}` for {}", getWorkDir(), this);
         final ProcessBuilder processBuilder = new ProcessBuilder();
         if (current().isWindows()) {
             processBuilder.command("cmd.exe", "/C", "bin\\elasticsearch.bat");
@@ -217,11 +227,19 @@ public class ElasticsearchNode {
         try {
             processBuilder.directory(getWorkDir());
             Map<String, String> environment = processBuilder.environment();
+            // Don't inherit anything from the environment for reproducible testing
             environment.clear();
             if (javaHome != null) {
                 environment.put("JAVA_HOME", javaHome.getAbsolutePath());
             } else if (System.getenv().get("JAVA_HOME") != null) {
+                logger.warn(
+                    "{}: No java home configured will use it from environment: {}",
+                    this,
+                    System.getenv().get("JAVA_HOME")
+                );
                 environment.put("JAVA_HOME", System.getenv().get("JAVA_HOME"));
+            } else {
+                logger.warn("{}: No javaHome configured, will rely on java detection", this);
             }
             environment.put("ES_PATH_CONF", getConfigFile().getParentFile().getAbsolutePath());
             environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
@@ -231,10 +249,8 @@ public class ElasticsearchNode {
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(getStdoutFile()));
             esProcess = processBuilder.start();
         } catch (IOException e) {
-            throw new ClusterFormationException("Failed to start ES process", e);
+            throw new TestClustersException("Failed to start ES process for " + this, e);
         }
-
-        registerCleanupHooks();
     }
 
     private void registerCleanupHooks() {
@@ -245,7 +261,7 @@ public class ElasticsearchNode {
                     try {
                         Thread.sleep(Long.MAX_VALUE);
                     } catch (InterruptedException interrupted) {
-                        logger.info("Interrupted, stopping elasticsearch");
+                        logger.info("Interrupted, stopping elasticsearch: {}", this);
                         doStop();
                         Thread.currentThread().interrupt();
                     }
@@ -268,15 +284,15 @@ public class ElasticsearchNode {
 
     private void writeConfigFile() {
         getConfigFile().getParentFile().mkdirs();
-        getPathRepo().mkdirs();
-        getPathData().mkdirs();
-        getPathSharedData().mkdirs();
+        getConfPathRepo().mkdirs();
+        getConfPathData().mkdirs();
+        getConfPathSharedData().mkdirs();
         LinkedHashMap<Object, Object> config = new LinkedHashMap<>();
-        config.put("cluster.name", "cluster-" + configSafeName(name));
-        config.put("node.name", "node-" + configSafeName(name));
-        config.put("path.repo", getPathRepo().getAbsolutePath());
-        config.put("path.data", getPathData().getAbsolutePath());
-        config.put("path.shared_data", getPathSharedData().getAbsolutePath());
+        config.put("cluster.name", "cluster-" + clusterSafeName(name));
+        config.put("node.name", "node-" + clusterSafeName(name));
+        config.put("path.repo", getConfPathRepo().getAbsolutePath());
+        config.put("path.data", getConfPathData().getAbsolutePath());
+        config.put("path.shared_data", getConfPathSharedData().getAbsolutePath());
         config.put("node.attr.testattr", "test");
         config.put("node.portsfile", "true");
         config.put("http.port", "0");
@@ -290,18 +306,20 @@ public class ElasticsearchNode {
             config.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
         try {
-            Files.write(getConfigFile().toPath(), config.entrySet().stream()
-                .map(entry -> entry.getKey() + ": " + entry.getValue())
-                .collect(Collectors.joining("\n"))
-                .getBytes(StandardCharsets.UTF_8)
+            Files.write(
+                getConfigFile().toPath(),
+                config.entrySet().stream()
+                    .map(entry -> entry.getKey() + ": " + entry.getValue())
+                    .collect(Collectors.joining("\n"))
+                    .getBytes(StandardCharsets.UTF_8)
             );
         } catch (IOException e) {
-            throw new ClusterFormationException("Could not write config file: " + getConfigFile(), e);
+            throw new TestClustersException("Could not write config file: " + getConfigFile(), e);
         }
-        logger.info("Written config file :{}", getConfigFile());
+        logger.info("Written config file:{} for {}", getConfigFile(), this);
     }
 
-    private static String configSafeName(String name) {
+    private static String clusterSafeName(String name) {
         return name
             .replaceAll("^[:#\\s]+", "")
             .replaceAll("[:#\\s]", "-");
@@ -309,8 +327,8 @@ public class ElasticsearchNode {
 
     private void waitForClusterHealthYellow() {
         if (started.get() == false) {
-            throw new ClusterFormationException(
-                "`" + name + "` is not started. " +
+            throw new TestClustersException(
+                "`" + this + "` is not started. " +
                     "Elasticsearch is started at execution time automatically when the task calls `useCluster` at " +
                     "configuration time."
             );
@@ -318,7 +336,7 @@ public class ElasticsearchNode {
         try {
             doWaitClusterHealthYellow();
         } catch (InterruptedException e) {
-            logger.info("Interrupted while waiting for ES node {}", name, e);
+            logger.info("Interrupted while waiting for {}", this, e);
             Thread.currentThread().interrupt();
         }
     }
@@ -332,7 +350,7 @@ public class ElasticsearchNode {
             () -> "waiting for: " + getHttpPortsFile(),
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
-        logger.info("Node {} http is listening on port {}", name, getHttpPortInternal());
+        logger.info("{} http is listening on port {}", this, getHttpPortInternal());
 
         waitForCondition(
             startedAt,
@@ -340,7 +358,7 @@ public class ElasticsearchNode {
             () -> " waiting for: " + getTransportPortFile(),
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
-        logger.info("Node {} transport is listening on port {}", name, getTransportPortInternal());
+        logger.info("{} transport is listening on port {}", this, getTransportPortInternal());
 
         waitForCondition(
             startedAt,
@@ -356,16 +374,14 @@ public class ElasticsearchNode {
                     con.setReadTimeout(500);
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
                         String response = reader.lines().collect(Collectors.joining("\n"));
-                        logger.info("Server responded with:\n{}", response);
-                        logger.info("`{}` is fully up!", name);
+                        logger.info("{} fully up, responded with:\n{}", this, response);
                     }
                     return true;
                 } catch (IOException e) {
-                    logger.debug("Connection attempt to ES failed", e);
-                    return false;
+                    throw new TestClustersException("Connection attempt to " + this + " failed", e);
                 }
             },
-            () -> "waiting for cluster health",
+            () -> "waiting for cluster health yellow",
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
     }
@@ -374,7 +390,10 @@ public class ElasticsearchNode {
         try {
             return readPortsFile(getTransportPortFile());
         } catch (IOException e) {
-            throw new ClusterFormationException("Failed to read transport ports file", e);
+            throw new TestClustersException(
+                "Failed to read transport ports file: " + getTransportPortFile() + " for " + this,
+                e
+            );
         }
     }
 
@@ -390,7 +409,10 @@ public class ElasticsearchNode {
         try {
             return readPortsFile(getHttpPortsFile());
         } catch (IOException e) {
-            throw new ClusterFormationException("Failed to read http ports file", e);
+            throw new TestClustersException(
+                "Failed to read http ports file: " + getHttpPortsFile() + " for " + this ,
+                e
+            );
         }
     }
 
@@ -402,51 +424,69 @@ public class ElasticsearchNode {
     ) throws InterruptedException {
         long thisConditionStartedAt = System.currentTimeMillis();
         boolean conditionMet = false;
-        while (System.currentTimeMillis() - startedAt < TimeUnit.MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)) {
+        Throwable lastException = null;
+        while (System.currentTimeMillis() - startedAt < MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)) {
             if (esProcess.isAlive() == false) {
-                throw new ClusterFormationException("process was found dead while waiting for elasticsearch to be up.");
+                throw new TestClustersException(
+                    "process was found dead while waiting for " + conditionDescription.get() + ", " + this
+                );
             }
-            if (condition.test(this)) {
-                conditionMet = true;
-                break;
+            try {
+                if (condition.test(this)) {
+                    conditionMet = true;
+                    break;
+                }
             }
-            logger.debug("waiting... {} - {} ({}) < {}",
+            catch (TestClustersException e) {
+                if(lastException == null) {
+                    lastException = e ;
+                } else {
+                    e.addSuppressed(lastException);
+                    lastException = e;
+                }
+            }
+            logger.debug("{} waiting... {} - {} ({}) < {}",
+                this,
                 System.currentTimeMillis(), startedAt, System.currentTimeMillis() - startedAt,
-                TimeUnit.MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)
+                MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)
             );
             Thread.sleep(500);
         }
         if (conditionMet == false) {
-            throw new ClusterFormationException(
-                "Node `" + name + "` failed to start after " +
-                    totalWaitTimeout + " " + NODE_UP_TIMEOUT_UNIT + ". " + conditionDescription.get()
-            );
+            String message = "`" + this + "` failed to start after " +
+                totalWaitTimeout + " " + NODE_UP_TIMEOUT_UNIT + ". " + conditionDescription.get();
+            if (lastException == null) {
+                throw new TestClustersException(message);
+            } else {
+                throw new TestClustersException(message, lastException);
+            }
         }
-        logger.info("{} took {} seconds",
+        logger.info("{}: {} took {} seconds",
+            this,
             conditionDescription.get(),
-            (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0d
+            SECONDS.convert(System.currentTimeMillis() - thisConditionStartedAt, MILLISECONDS)
         );
     }
 
     /**
-     * Stops a running cluster if it's not claimed. Does nothing otherwise.
+     * Stops a running cluster if it's not claimed. Only decrements claims otherwise.
      */
     void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
-            logger.lifecycle("Not stopping `{}`, since node still has {} claim(s)", name, decrementedClaims);
+            logger.lifecycle("Not stopping `{}`, since node still has {} claim(s)", this , decrementedClaims);
             return;
         }
         if (checkIfCanStopAndMarkStopped() == false) {
             return;
         }
-        logger.lifecycle("Stopping `{}`, number of claims is {}", name, decrementedClaims);
+        logger.lifecycle("Stopping `{}`, number of claims is {}", this, decrementedClaims);
         // this can happen if the process doesn't really use the cluster, so a crash would go unnoticed until this point
-        // we still want to get streams in this case
+        // we still want to get diagnostics in this case
         if (esProcess.isAlive() == false) {
             logFileContents("Standard output of node", getStdoutFile());
             logFileContents("Standard error of node", getStdErrFile());
-            throw new ClusterFormationException("Node `" + name + "` wasn't alive when we tried to destroy it");
+            throw new TestClustersException("Node `" + this + "` wasn't alive when we tried to destroy it");
         }
         doStop();
         esProcess = null;
@@ -456,7 +496,7 @@ public class ElasticsearchNode {
         if (checkIfCanStopAndMarkStopped() == false) {
             return;
         }
-        logger.lifecycle("Forcefully stopping `{}`, number of claims is {}", name, noOfClaims.get());
+        logger.lifecycle("Forcefully stopping `{}`, number of claims is {}", this, noOfClaims.get());
         doStop();
         // Always relay output and error when the task failed
         logFileContents("Standard output of node", getStdoutFile());
@@ -467,13 +507,13 @@ public class ElasticsearchNode {
     private boolean checkIfCanStopAndMarkStopped() {
         // this happens when the process could not start
         if (started.getAndSet(false) == false) {
-            logger.lifecycle("`{}` was not running, no need to stop", name);
+            logger.lifecycle("`{}` was not running, no need to stop", this);
             return false;
         }
         if (esProcess == null) {
-            logger.error("Can't stop node. Internal error at startup.");
-            // don't throw an exception here, as it will mask startup errors, as stop is called even if the process was
-            // not started.
+            logger.error("Can't stop node {}. Internal error at startup.", this);
+            // don't throw an exception here, as it will mask startup errors, as stop is called even if the start
+            // failed Gradle will not show that exception if we throw from here.
             return false;
         }
         return true;
@@ -488,25 +528,25 @@ public class ElasticsearchNode {
         esProcess.destroy();
         waitForESProcess();
         if (esProcess.isAlive()) {
-            logger.info("Node `{}` did not terminate after {} {}, stopping it forcefully",
-                name, ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
+            logger.info("`{}` did not terminate after {} {}, stopping it forcefully",
+                this, ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
             );
             esProcess.destroyForcibly();
         }
         waitForESProcess();
         if (esProcess.isAlive()) {
-            throw new ClusterFormationException("Was not able to terminate node: " + name);
+            throw new TestClustersException("Was not able to terminate: " + this);
         }
     }
 
     private void logFileContents(String description, File from) {
-        logger.error("{} `{}`", description, name);
+        logger.error("{} `{}`", description, this);
         try (BufferedReader reader = new BufferedReader(new FileReader(from))) {
             reader.lines()
                 .map(line -> "    [" + name + "]" + line)
                 .forEach(logger::error);
         } catch (IOException e) {
-            throw new ClusterFormationException("Error reading process streams", e);
+            throw new TestClustersException("Error reading process streams", e);
         }
     }
 
@@ -523,14 +563,14 @@ public class ElasticsearchNode {
         try {
             esProcess.waitFor(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            logger.info("Interrupted while waiting for ES process", e);
+            logger.info("{}: Interrupted while waiting for ES process",this, e);
             Thread.currentThread().interrupt();
         }
     }
 
     private void checkNotRunning() {
         if (started.get()) {
-            throw new IllegalStateException("Configuration can not be altered while running ");
+            throw new TestClustersException("Configuration can not be altered while running " + this);
         }
     }
 
@@ -545,5 +585,14 @@ public class ElasticsearchNode {
     @Override
     public int hashCode() {
         return Objects.hash(name);
+    }
+
+    @Override
+    public String toString() {
+        return "ElasticsearchNode{" +
+            "name='" + name + '\'' +
+            ", noOfClaims=" + noOfClaims +
+            ", started=" + started +
+            '}';
     }
 }

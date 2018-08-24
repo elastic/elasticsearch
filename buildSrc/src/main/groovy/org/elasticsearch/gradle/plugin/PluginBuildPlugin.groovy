@@ -147,7 +147,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             runner.configure {
                 useCluster esNode
                 systemProperty('tests.rest.cluster', {-> esNode.getHttpSocketURI()})
-                systemProperty('tests.config.dir', {-> esNode.getConfDir()})
+                systemProperty('tests.config.dir', {-> esNode.getCopyOfConfDir()})
                 systemProperty('tests.cluster', {-> esNode.getTransportPortURI()})
             }
         } else {

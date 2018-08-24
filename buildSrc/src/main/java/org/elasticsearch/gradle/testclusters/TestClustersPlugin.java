@@ -103,13 +103,16 @@ public class TestClustersPlugin implements Plugin<Project> {
         configureStopClustersHook(project);
     }
 
-    private void autoConfigureClusterDependencies(Project project, Project rootProject, NamedDomainObjectContainer<ElasticsearchNode> container) {
+    private void autoConfigureClusterDependencies(
+        Project project,
+        Project rootProject,
+        NamedDomainObjectContainer<ElasticsearchNode> container
+    ) {
         // When the project evaluated we know of all tasks that use clusters.
         // Each of these have to depend on the artifacts being synced.
         project.afterEvaluate(ip -> {
             container.forEach(esConfig -> {
                 // declare dependencies against artifacts needed by cluster formation.
-                esConfig.assertValid();
                 String dependency = MessageFormat.format(
                     "org.elasticsearch.distribution.{0}:{1}:{2}@{0}",
                     esConfig.getDistribution().getExtension(),

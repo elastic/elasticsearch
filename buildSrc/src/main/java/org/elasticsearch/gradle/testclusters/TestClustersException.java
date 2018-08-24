@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-public class ClusterFormationException extends RuntimeException {
-    public ClusterFormationException(String message) {
+public class TestClustersException extends RuntimeException {
+    public TestClustersException(String message) {
         super(message);
     }
 
-    public ClusterFormationException(String message, Throwable cause) {
+    public TestClustersException(String message, Throwable cause) {
         super(message, cause);
     }
 }

@@ -49,8 +49,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
         assertOutputContains(
             result.getOutput(),
-                "Starting `myTestCluster`",
-                "Stopping `myTestCluster`, number of claims is 0"
+                "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`",
+                "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}`, number of claims is 0"
         );
     }
 
@@ -81,9 +81,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SUCCESS, result.task(":user2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Starting `myTestCluster`",
-            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
-            "Stopping `myTestCluster`, number of claims is 0"
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`, since node still has 1 claim(s)",
+            "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}`, number of claims is 0"
         );
     }
 
@@ -98,8 +98,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.UP_TO_DATE, result.task(":upToDate2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
-            "`myTestCluster` was not running, no need to stop"
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=false}`, since node still has 1 claim(s)",
+            "`ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}` was not running, no need to stop"
         );
         assertOutputDoesNotContain(result.getOutput(), "Starting `myTestCluster`");
     }
@@ -115,8 +115,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SKIPPED, result.task(":skipped2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
-            "`myTestCluster` was not running, no need to stop"
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=false}`, since node still has 1 claim(s)",
+            "`ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}` was not running, no need to stop"
         );
         assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
     }
@@ -150,9 +150,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         String output = result.getOutput();
         assertOutputContains(
             output,
-            "Starting `myTestCluster`",
-            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
-            "Stopping `myTestCluster`, number of claims is 0"
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`, since node still has 1 claim(s)",
+            "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}`, number of claims is 0"
         );
         assertOutputOnlyOnce(output, "Task :synctestclustersArtifacts");
     }
@@ -167,8 +167,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Starting `myTestCluster`",
-            "Forcefully stopping `myTestCluster`, number of claims is 1",
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`",
+            "Forcefully stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=false}`, number of claims is 1",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -184,8 +184,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertNull(result.task(":dependsOnFailed"));
         assertOutputContains(
             result.getOutput(),
-            "Starting `myTestCluster`",
-            "Forcefully stopping `myTestCluster`, number of claims is 2"
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Forcefully stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=false}`, number of claims is 2"
         );
     }
 

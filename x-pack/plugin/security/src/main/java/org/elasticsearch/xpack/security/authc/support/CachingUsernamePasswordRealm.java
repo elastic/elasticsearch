@@ -101,28 +101,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             final AtomicBoolean authenticationInCache = new AtomicBoolean(true);
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(token.principal(), k -> {
                 authenticationInCache.set(false);
-                final ListenableFuture<UserWithHash> created = new ListenableFuture<>();
-                // attempt authentication against the authentication source
-                doAuthenticate(token, ActionListener.wrap(authResult -> {
-                    if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
-                        // compute the credential hash of this successful authentication request
-                        final UserWithHash userWithHash = new UserWithHash(authResult.getUser(), token.credentials(), cacheHasher);
-                        // notify any forestalled request listeners; they will not reach to the
-                        // authentication request and instead will use this hash for comparison
-                        created.onResponse(userWithHash);
-                    } else {
-                        // notify any forestalled request listeners; they will retry the request
-                        created.onResponse(null);
-                    }
-                    // notify the listener of the inflight authentication request; this request is not retried
-                    listener.onResponse(authResult);
-                }, e -> {
-                    // notify any staved off listeners; they will retry the request
-                    created.onFailure(e);
-                    // notify the listener of the inflight authentication request; this request is not retried
-                    listener.onFailure(e);
-                }));
-                return created;
+                return new ListenableFuture<>();
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
@@ -147,6 +126,27 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     cache.invalidate(token.principal(), listenableCacheEntry);
                     authenticateWithCache(token, listener);
                 }), threadPool.executor(ThreadPool.Names.GENERIC));
+            } else {
+                // attempt authentication against the authentication source
+                doAuthenticate(token, ActionListener.wrap(authResult -> {
+                    if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
+                        // compute the credential hash of this successful authentication request
+                        final UserWithHash userWithHash = new UserWithHash(authResult.getUser(), token.credentials(), cacheHasher);
+                        // notify any forestalled request listeners; they will not reach to the
+                        // authentication request and instead will use this hash for comparison
+                        listenableCacheEntry.onResponse(userWithHash);
+                    } else {
+                        // notify any forestalled request listeners; they will retry the request
+                        listenableCacheEntry.onResponse(null);
+                    }
+                    // notify the listener of the inflight authentication request; this request is not retried
+                    listener.onResponse(authResult);
+                }, e -> {
+                    // notify any staved off listeners; they will retry the request
+                    listenableCacheEntry.onFailure(e);
+                    // notify the listener of the inflight authentication request; this request is not retried
+                    listener.onFailure(e);
+                }));
             }
         } catch (final ExecutionException e) {
             listener.onFailure(e);
@@ -184,30 +184,33 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private void lookupWithCache(String username, ActionListener<User> listener) {
         try {
+            final AtomicBoolean lookupInCache = new AtomicBoolean(true);
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(username, key -> {
-                final ListenableFuture<UserWithHash> created = new ListenableFuture<>();
+                lookupInCache.set(false);
+                return new ListenableFuture<>();
+            });
+            if (false == lookupInCache.get()) {
                 // attempt lookup against the user directory
                 doLookupUser(username, ActionListener.wrap(user -> {
                     if (user != null) {
                         // user found
                         final UserWithHash userWithHash = new UserWithHash(user, null, null);
                         // notify forestalled request listeners
-                        created.onResponse(userWithHash);
+                        listenableCacheEntry.onResponse(userWithHash);
                     } else {
                         // user not found, invalidate cache so that subsequent requests are forwarded to
                         // the user directory
-                        cache.invalidate(username, created);
+                        cache.invalidate(username, listenableCacheEntry);
                         // notify forestalled request listeners
-                        created.onResponse(null);
+                        listenableCacheEntry.onResponse(null);
                     }
                 }, e -> {
                     // the next request should be forwarded, not halted by a failed lookup attempt
-                    cache.invalidate(username, created);
+                    cache.invalidate(username, listenableCacheEntry);
                     // notify forestalled listeners
-                    created.onFailure(e);
+                    listenableCacheEntry.onFailure(e);
                 }));
-                return created;
-            });
+            }
             listenableCacheEntry.addListener(ActionListener.wrap(userWithHash -> {
                 if (userWithHash != null) {
                     listener.onResponse(userWithHash.user);

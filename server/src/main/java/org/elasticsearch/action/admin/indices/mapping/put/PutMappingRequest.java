@@ -297,10 +297,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_5_3_0)) {
-            // we do not know the format from earlier versions so convert if necessary
-            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
-        }
         if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
             in.readBoolean(); // updateAllTypes
         }

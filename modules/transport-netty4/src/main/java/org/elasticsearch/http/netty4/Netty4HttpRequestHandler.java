@@ -27,7 +27,6 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
@@ -58,7 +57,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();
                 if (cause instanceof Error) {
-                    ExceptionsHelper.dieOnError(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     serverTransport.incomingRequestError(httpRequest, channel, new Exception(cause));
                 } else {
                     serverTransport.incomingRequestError(httpRequest, channel, (Exception) cause);
@@ -74,7 +73,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Netty4Utils.maybeDie(cause);
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {
             serverTransport.onException(channel, new Exception(cause));

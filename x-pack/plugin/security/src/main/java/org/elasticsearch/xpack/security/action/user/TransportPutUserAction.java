@@ -15,12 +15,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -33,14 +31,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
     private final NativeUsersStore usersStore;
-    private final Hasher hasher;
 
     @Inject
     public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
                                   NativeUsersStore usersStore, TransportService transportService) {
         super(settings, PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.usersStore = usersStore;
-        this.hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
     }
 
     @Override
@@ -95,13 +91,6 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                 if (roleNameError != null) {
                     validationException = addValidationError(roleNameError.toString(), validationException);
                 }
-            }
-        }
-
-        if (request.passwordHash() != null) {
-            final Hasher hasher = Hasher.resolveFromHash(request.passwordHash());
-            if (hasher != this.hasher) {
-                validationException = addValidationError("password hash is not the correct type", validationException);
             }
         }
         return validationException;

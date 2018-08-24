@@ -186,7 +186,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         try {
             final ListenableFuture<UserWithHash> listenableCacheEntry = cache.computeIfAbsent(username, key -> {
                 final ListenableFuture<UserWithHash> created = new ListenableFuture<>();
-                // attempt authentication against authentication source
+                // attempt lookup against the user directory
                 doLookupUser(username, ActionListener.wrap(user -> {
                     if (user != null) {
                         // user found
@@ -195,7 +195,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         created.onResponse(userWithHash);
                     } else {
                         // user not found, invalidate cache so that subsequent requests are forwarded to
-                        // the external system
+                        // the user directory
                         cache.invalidate(username, created);
                         // notify forestalled request listeners
                         created.onResponse(null);

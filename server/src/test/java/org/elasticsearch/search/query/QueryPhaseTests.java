@@ -290,14 +290,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertNull(context.queryResult().terminatedEarly());
         assertThat(context.terminateAfter(), equalTo(0));
-        assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
 
         contextSearcher = getAssertingEarlyTerminationSearcher(reader, size);
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertTrue(context.queryResult().terminatedEarly());
         assertThat(context.terminateAfter(), equalTo(size));
-        assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+        assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         reader.close();
         dir.close();
@@ -512,7 +512,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.terminateAfter(), equalTo(0));
-            assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
             int sizeMinus1 = context.queryResult().topDocs().topDocs.scoreDocs.length - 1;
             FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[sizeMinus1];
 
@@ -521,7 +521,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.terminateAfter(), equalTo(0));
-            assertThat(context.queryResult().getTotalHits(), equalTo((long) numDocs));
+            assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
             FieldDoc firstDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
             for (int i = 0; i < searchSortAndFormat.sort.getSort().length; i++) {
                 @SuppressWarnings("unchecked")

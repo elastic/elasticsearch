@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
@@ -215,7 +216,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
             sslEngine.setUseClientMode(true);
             if (sniServerName != null) {
-                sslEngine.getSSLParameters().setServerNames(Collections.singletonList(new SNIHostName(sniServerName)));
+                SSLParameters sslParameters = sslEngine.getSSLParameters();
+                sslParameters.setServerNames(Collections.singletonList(new SNIHostName(sniServerName)));
+                sslEngine.setSSLParameters(sslParameters);
             }
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);

@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
@@ -20,57 +24,67 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportFuture;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.HandshakeCompletedListener;
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIMatcher;
+import javax.net.ssl.SNIServerName;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportTestCase {
+
+    private static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
+
+    static {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        SINGLE_CHANNEL_PROFILE = builder.build();
+    }
 
     private SSLService createSSLService() {
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -96,15 +110,15 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder()
-                .put(settings)
-                .put("xpack.security.transport.ssl.enabled", true).build();
+            .put(settings)
+            .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNetty4Transport(settings1, threadPool,
-                networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-                new NoneCircuitBreakerService(), createSSLService()) {
+            networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
+            new NoneCircuitBreakerService(), createSSLService()) {
 
             @Override
             protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
-                    InterruptedException {
+                InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
                 } else {
@@ -119,8 +133,8 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
 
         };
         MockTransportService mockTransportService =
-                MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings,
-                        Collections.emptySet());
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings,
+                Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
     }
@@ -128,8 +142,8 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         settings = Settings.builder().put(settings)
-                .put(TcpTransport.PORT.getKey(), "0")
-                .build();
+            .put(TcpTransport.PORT.getKey(), "0")
+            .build();
         MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
         transportService.start();
         return transportService;
@@ -138,7 +152,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(), emptySet(), Version.CURRENT));
+                emptyMap(), emptySet(), Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
@@ -152,11 +166,11 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
         // this is on a lower level since it needs access to the TransportService before it's started
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
-                .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .put("transport.tcp.port", port)
-                .build();
+            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put("transport.tcp.port", port)
+            .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
             MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
@@ -218,7 +232,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
             assertNull(error.get());
 
             stream.writeByte((byte) 'E');
-            stream.writeByte((byte)'S');
+            stream.writeByte((byte) 'S');
             stream.writeInt(-1);
             stream.flush();
         }
@@ -228,65 +242,78 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
 
     @Override
     @AwaitsFix(bugUrl = "")
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testTcpHandshake() {
     }
 
     public void testSNI() throws Exception {
-        try (MockTransportService serviceC = build(
-            Settings.builder()
-                .put("name", "TS_TEST")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version0,
-            null, true)) {
-            DiscoveryNode nodeA = serviceA.getLocalNode();
-            serviceC.acceptIncomingRequests();
+        SSLService sslService = createSSLService();
+        final ServerBootstrap serverBootstrap = new ServerBootstrap();
+        boolean success = false;
+        try {
+            serverBootstrap.group(new NioEventLoopGroup(1));
+            serverBootstrap.channel(NioServerSocketChannel.class);
 
-            final CountDownLatch connectionLatch = new CountDownLatch(1);
-            TransportConnectionListener waitForConnection = new TransportConnectionListener() {
-                @Override
-                public void onConnectionOpened(Transport.Connection connection) {
-                    connectionLatch.countDown();
-                }
-            };
-            final CountDownLatch requestLatch = new CountDownLatch(1);
-            class TestRequestHandler implements TransportRequestHandler<TestRequest> {
+            final String sniIp = "1.2.3.4";
+            final SNIHostName sniHostName = new SNIHostName(sniIp);
+            final CountDownLatch latch = new CountDownLatch(2);
+            serverBootstrap.childHandler(new ChannelInitializer<Channel>() {
 
                 @Override
-                public void messageReceived(TestRequest request, TransportChannel channel, Task task) throws Exception {
-                    requestLatch.countDown();
-                    // TODO: Maybe add assertions.
+                protected void initChannel(Channel ch) {
+                    SSLEngine serverEngine = sslService.createSSLEngine(sslService.getSSLConfiguration(setting("transport.ssl.")), null, -1);
+                    serverEngine.setUseClientMode(false);
+                    SSLParameters sslParameters = serverEngine.getSSLParameters();
+                    sslParameters.setSNIMatchers(Collections.singletonList(new SNIMatcher(0) {
+                        @Override
+                        public boolean matches(SNIServerName sniServerName) {
+                            if (sniHostName.equals(sniServerName)) {
+                                latch.countDown();
+                            }
+                            return true;
+                        }
+                    }));
+                    serverEngine.setSSLParameters(sslParameters);
+                    final SslHandler sslHandler = new SslHandler(serverEngine);
+                    sslHandler.handshakeFuture().addListener(future -> latch.countDown());
+                    ch.pipeline().addFirst("sslhandler", sslHandler);
                 }
+            });
+            serverBootstrap.validate();
+            ChannelFuture serverFuture = serverBootstrap.bind(getLocalEphemeral());
+            serverFuture.await();
+            InetSocketAddress serverAddress = (InetSocketAddress) serverFuture.channel().localAddress();
+
+            try (MockTransportService serviceC = build(
+                Settings.builder()
+                    .put("name", "TS_TEST")
+                    .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                    .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                    .build(),
+                version0,
+                null, true)) {
+                serviceC.acceptIncomingRequests();
+
+                HashMap<String, String> attributes = new HashMap<>();
+                attributes.put("sni_server_name", sniIp);
+                DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
+                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+
+                new Thread(() -> {
+                    try {
+                        serviceC.connectToNode(node, SINGLE_CHANNEL_PROFILE);
+                    } catch (ConnectTransportException ex) {
+                        // Ignore. The other side is not setup to do the ES handshake. So this will fail.
+                    }
+                }).start();
+
+                latch.await();
+                serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
+                success = true;
             }
-
-            serviceC.addConnectionListener(waitForConnection);
-            HashMap<String, String> attributes = new HashMap<>();
-            attributes.put("sni_server_name", "1.4.5.6");
-            serviceC.connectToNode(new DiscoveryNode(nodeA.getName(), nodeA.getId(), nodeA.getEphemeralId(), nodeA.getHostName(), nodeA.getHostAddress(),
-                nodeA.getAddress(), attributes, nodeA.getRoles(), nodeA.getVersion()));
-            connectionLatch.await();
-            serviceA.registerRequestHandler("internal:action1", TestRequest::new, ThreadPool.Names.SAME, new TestRequestHandler());
-            serviceC.sendRequest(nodeA, "internal:action1", new TestRequest("REQ[1]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TransportResponseHandler<TransportResponse>() {
-                    @Override
-                    public void handleResponse(TransportResponse response) {
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                    }
-
-                    @Override
-                    public String executor() {
-                        return null;
-                    }
-                });
-
-            requestLatch.await();
-
-            serviceC.close();
-            serviceA.disconnectFromNode(serviceC.getLocalDiscoNode());
+        } finally {
+            if (success == false) {
+                serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            }
         }
     }
 }

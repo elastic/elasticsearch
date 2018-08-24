@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -115,8 +116,8 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
         return map;
     }
 
-    public Map<String, Object> getMetadata() {
-        return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval);
+    public Set<String> getAllFields() {
+        return Arrays.stream(fields).collect(Collectors.toSet());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

@@ -154,7 +154,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.quoteFieldSuffix(randomAlphaOfLengthBetween(1, 3));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.tieBreaker(randomFloat());
+            queryStringQueryBuilder.tieBreaker((float) randomDoubleBetween(0d, 1d, true));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.minimumShouldMatch(randomMinimumShouldMatch());

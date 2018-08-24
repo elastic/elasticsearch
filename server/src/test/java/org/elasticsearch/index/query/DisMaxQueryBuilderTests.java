@@ -50,7 +50,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             dismax.add(RandomQueryBuilder.createQuery(random()));
         }
         if (randomBoolean()) {
-            dismax.tieBreaker(2.0f / randomIntBetween(1, 20));
+            dismax.tieBreaker((float) randomDoubleBetween(0d, 1d, true));
         }
         return dismax;
     }

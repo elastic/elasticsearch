@@ -1,6 +1,8 @@
 ---
 "Fetch remote cluster info for existing cluster":
-
+  - skip:
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/issues/33128
   - do:
       cluster.remote_info: {}
   - match: { my_remote_cluster.connected: true }
@@ -11,6 +13,9 @@
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
+  - skip:
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/issues/33128
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -65,8 +70,11 @@
 ---
 "skip_unavailable is returned as part of _remote/info response":
   - skip:
-      version: " - 6.0.99"
-      reason: "skip_unavailable is only returned from 6.1.0 on"
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/issues/33128
+  #- skip:
+  #    version: " - 6.0.99"
+  #    reason: "skip_unavailable is only returned from 6.1.0 on"
 
   - do:
       cluster.get_settings:

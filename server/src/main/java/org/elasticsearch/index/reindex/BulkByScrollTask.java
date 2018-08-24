@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -303,11 +302,7 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         public Status(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-                sliceId = in.readOptionalVInt();
-            } else {
-                sliceId = null;
-            }
+            sliceId = in.readOptionalVInt();
             total = in.readVLong();
             updated = in.readVLong();
             created = in.readVLong();
@@ -321,18 +316,12 @@ public class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
             throttledUntil = in.readTimeValue();
-            if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-                sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
-            } else {
-                sliceStatuses = emptyList();
-            }
+            sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-                out.writeOptionalVInt(sliceId);
-            }
+            out.writeOptionalVInt(sliceId);
             out.writeVLong(total);
             out.writeVLong(updated);
             out.writeVLong(created);
@@ -346,11 +335,9 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
             out.writeTimeValue(throttledUntil);
-            if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-                out.writeVInt(sliceStatuses.size());
-                for (StatusOrException sliceStatus : sliceStatuses) {
-                    out.writeOptionalWriteable(sliceStatus);
-                }
+            out.writeVInt(sliceStatuses.size());
+            for (StatusOrException sliceStatus : sliceStatuses) {
+                out.writeOptionalWriteable(sliceStatus);
             }
         }
 

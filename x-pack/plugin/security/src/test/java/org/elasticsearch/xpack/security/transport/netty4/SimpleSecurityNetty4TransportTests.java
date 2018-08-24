@@ -245,7 +245,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     public void testTcpHandshake() {
     }
 
-    public void testSNI() throws Exception {
+    public void testSNIServerNameIsPropogated() throws Exception {
         SSLService sslService = createSSLService();
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
         boolean success = false;

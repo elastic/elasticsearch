@@ -153,6 +153,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         public int hashCode() {
             return Objects.hash(fromSeqNo, maxOperationCount, shardId, maxOperationSizeInBytes);
         }
+
+        @Override
+        public String toString() {
+            return "Request{" +
+                    "fromSeqNo=" + fromSeqNo +
+                    ", maxOperationCount=" + maxOperationCount +
+                    ", shardId=" + shardId +
+                    ", maxOperationSizeInBytes=" + maxOperationSizeInBytes +
+                    '}';
+        }
+
     }
 
     public static final class Response extends ActionResponse {

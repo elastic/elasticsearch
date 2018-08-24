@@ -160,7 +160,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::new),
 
                 // Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTask.Status.NAME,
+                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTask.Status.STATUS_PARSER_NAME,
                         ShardFollowNodeTask.Status::new)
         );
     }
@@ -172,9 +172,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::fromXContent),
 
                 // Task statuses
-                new NamedXContentRegistry.Entry(ShardFollowNodeTask.Status.class, new ParseField(ShardFollowNodeTask.Status.NAME),
-                        ShardFollowNodeTask.Status::fromXContent)
-        );
+                new NamedXContentRegistry.Entry(
+                        ShardFollowNodeTask.Status.class,
+                        new ParseField(ShardFollowNodeTask.Status.STATUS_PARSER_NAME),
+                        ShardFollowNodeTask.Status::fromXContent));
     }
 
     /**

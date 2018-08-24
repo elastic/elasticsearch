@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -150,13 +149,6 @@ public class MetricConfig implements Writeable, ToXContentObject {
             aggs.add(newBuilder);
         }
         return aggs;
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public List<Map<String, Object>> toAggCap() {
-        return metrics.stream().map(metric -> Collections.singletonMap("agg", (Object)metric)).collect(Collectors.toList());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

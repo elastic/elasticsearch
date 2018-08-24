@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,7 +46,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "histogram";
-    private static final String INTERVAL = "interval";
+    public static final String INTERVAL = "interval";
     private static final String FIELDS = "fields";
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
     static {
@@ -103,20 +102,6 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
             vsBuilder.missingBucket(true);
             return vsBuilder;
         }).collect(Collectors.toList());
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public Map<String, Object> toAggCap() {
-        Map<String, Object> map = new HashMap<>(2);
-        map.put("agg", HistogramAggregationBuilder.NAME);
-        map.put(INTERVAL, interval);
-        return map;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval);
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

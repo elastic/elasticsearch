@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +39,6 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,15 +50,6 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         status.writeTo(out);
         BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
         assertTaskStatusEquals(out.getVersion(), status, tripped);
-
-        // Also check round tripping pre-5.1 which is the first version to support parallelized scroll
-        out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0_rc1); // This can be V_5_0_0
-        status.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.V_5_0_0_rc1);
-        tripped = new BulkByScrollTask.Status(in);
-        assertTaskStatusEquals(Version.V_5_0_0_rc1, status, tripped);
     }
 
     /**
@@ -81,23 +70,19 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
-        if (version.onOrAfter(Version.V_5_1_1)) {
-            assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
-            for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
-                BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
-                if (sliceStatus == null) {
-                    assertNull(actual.getSliceStatuses().get(i));
-                } else if (sliceStatus.getException() == null) {
-                    assertNull(actual.getSliceStatuses().get(i).getException());
-                    assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
-                } else {
-                    assertNull(actual.getSliceStatuses().get(i).getStatus());
-                    // Just check the message because we're not testing exception serialization in general here.
-                    assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
-                }
+        assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
+        for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
+            BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
+            if (sliceStatus == null) {
+                assertNull(actual.getSliceStatuses().get(i));
+            } else if (sliceStatus.getException() == null) {
+                assertNull(actual.getSliceStatuses().get(i).getException());
+                assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+            } else {
+                assertNull(actual.getSliceStatuses().get(i).getStatus());
+                // Just check the message because we're not testing exception serialization in general here.
+                assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
             }
-        } else {
-            assertEquals(emptyList(), actual.getSliceStatuses());
         }
     }
 

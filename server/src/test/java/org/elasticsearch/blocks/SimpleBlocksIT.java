@@ -22,9 +22,9 @@ package org.elasticsearch.blocks;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -147,7 +147,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(newSettings);
-        UpdateSettingsResponse settingsResponse = settingsRequest.execute().actionGet();
+        AcknowledgedResponse settingsResponse = settingsRequest.execute().actionGet();
         assertThat(settingsResponse, notNullValue());
     }
 }

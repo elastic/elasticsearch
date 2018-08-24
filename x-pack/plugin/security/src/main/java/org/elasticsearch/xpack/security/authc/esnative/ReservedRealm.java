@@ -226,12 +226,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private Version getDefinedVersion(String username) {
         switch (username) {
-            case LogstashSystemUser.NAME:
-                return LogstashSystemUser.DEFINED_SINCE;
             case BeatsSystemUser.NAME:
                 return BeatsSystemUser.DEFINED_SINCE;
             default:
-                return Version.V_5_0_0;
+                return Version.V_6_0_0;
         }
     }
 

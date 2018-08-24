@@ -95,7 +95,7 @@ public class QueryPhase implements SearchPhase {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
             searchContext.queryResult().topDocs(
-                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, Float.NaN),
                     new DocValueFormat[0]);
             return;
         }

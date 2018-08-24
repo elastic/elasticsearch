@@ -1,0 +1,59 @@
+[[java-rest-high-x-pack-ml-close-job]]
+=== Close Job API
+
+The Close Job API provides the ability to close {ml} jobs in the cluster.
+It accepts a `CloseJobRequest` object and responds
+with a `CloseJobResponse` object.
+
+[[java-rest-high-x-pack-ml-close-job-request]]
+==== Close Job Request
+
+A `CloseJobRequest` object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-close-job-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing job IDs
+<2> Optionally used to close a failed job, or to forcefully close a job
+which has not responded to its initial close request.
+<3> Optionally set to ignore if a wildcard expression matches no jobs.
+ (This includes `_all` string or when no jobs have been specified)
+<4> Optionally setting the `timeout` value for how long the
+execution should wait for the job to be closed.
+
+[[java-rest-high-x-pack-ml-close-job-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-close-job-execute]
+--------------------------------------------------
+<1> `isClosed()` from the `CloseJobResponse` indicates if the job was successfully
+closed or not.
+
+[[java-rest-high-x-pack-ml-close-job-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-close-job-execute-async]
+--------------------------------------------------
+<1> The `CloseJobRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The method does not block and returns immediately. The passed `ActionListener` is used
+to notify the caller of completion. A typical `ActionListener` for `CloseJobResponse` may
+look like
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-close-job-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs

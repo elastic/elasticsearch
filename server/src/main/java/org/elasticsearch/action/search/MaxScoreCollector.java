@@ -31,7 +31,7 @@ import java.io.IOException;
 public class MaxScoreCollector extends SimpleCollector {
 
     private Scorer scorer;
-    private float maxScore = Float.NaN;
+    private float maxScore = Float.NEGATIVE_INFINITY;
     private boolean hasHits = false;
 
     @Override

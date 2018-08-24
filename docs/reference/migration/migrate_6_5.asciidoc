@@ -23,3 +23,13 @@ Elasticsearch will log a warning on startup and log with the new pattern. It
 will not change the logging configuration files though. You should make this
 change before 7.0 because in 7.0 Elasticsearch will no longer automatically
 add the node name to the logging configuration if it isn't already present.
+
+=== Search changes
+
+==== Scroll
+
+Using `rescore` with a scroll query now raises a deprecation warning and
+ignores the parameter.  In earlier 6.x releases, rescore on scroll queries was
+silently ignored.  In 7.0 and later, we will return a `400 - Bad Request` with
+a validation error.
+

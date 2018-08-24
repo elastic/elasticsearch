@@ -180,11 +180,6 @@ In prior versions the source field names were relative to the inner hit.
 The `from` parameter can no longer be used in the search request body when initiating a scroll.
 The parameter was already ignored in these situations, now in addition an error is thrown.
 
-Using `rescore` with a scroll query now raises a deprecation warning and
-ignores the parameter.  In earlier 6.x releases, rescore on scroll queries was
-silently ignored.  In future versions, including we will return a `400 - Bad
-Request` with a validation error.
-
 ==== Limit on from/size in top hits and inner hits
 
 The maximum number of results (`from` + `size`) that is allowed to be retrieved

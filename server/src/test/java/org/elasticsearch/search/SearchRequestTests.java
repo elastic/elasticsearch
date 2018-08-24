@@ -26,15 +26,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.rescore.RescorerBuilder;
-import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,7 +130,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // Rescore is not allowed on scroll requests
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.source().addRescorer(new NoOpRescorerBuilder());
+            searchRequest.source().addRescorer(new QueryRescorerBuilder(QueryBuilders.matchAllQuery()));
             searchRequest.requestCache(false);
             searchRequest.scroll(new TimeValue(1000));
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -181,33 +179,4 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         return result;
     }
-
-    private static class NoOpRescorerBuilder extends RescorerBuilder<NoOpRescorerBuilder> {
-        NoOpRescorerBuilder() throws IOException {
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "test";
-        }
-
-        @Override
-        public RescorerBuilder<NoOpRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
-            return this;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-        }
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        }
-
-        @Override
-        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
-            return null;
-        }
-    }
-
 }

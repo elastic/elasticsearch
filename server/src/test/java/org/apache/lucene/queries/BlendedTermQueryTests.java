@@ -64,15 +64,12 @@ public class BlendedTermQueryTests extends ESTestCase {
                 "generator", "foo fighers - generator", "foo fighters generator"
         };
         final boolean omitNorms = random().nextBoolean();
+        final boolean omitFreqs = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
-        ft.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
+        ft.setIndexOptions(omitFreqs ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
         ft.setOmitNorms(omitNorms);
         ft.freeze();
 
-        FieldType ft1 = new FieldType(TextField.TYPE_NOT_STORED);
-        ft1.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
-        ft1.setOmitNorms(omitNorms);
-        ft1.freeze();
         for (int i = 0; i < username.length; i++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
@@ -84,8 +81,8 @@ public class BlendedTermQueryTests extends ESTestCase {
         for (int j = 0; j < iters; j++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(username.length + j), Field.Store.YES));
-            d.add(new Field("username", "foo fighters", ft1));
-            d.add(new Field("song", "some bogus text to bump up IDF", ft1));
+            d.add(new Field("username", "foo fighters", ft));
+            d.add(new Field("song", "some bogus text to bump up IDF", ft));
             w.addDocument(d);
         }
         w.commit();

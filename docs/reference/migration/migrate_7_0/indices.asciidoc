@@ -81,9 +81,8 @@ The previous behavior can be restored by setting `indices.breaker.total.use_real
 
 ==== `fix` value for `index.shard.check_on_startup` is removed
 
-`elasticsearch-shard remove-corrupted-segments` tool has to be used instead of
-`index.shard.check_on_startup: fix` setting.
+Use the `elasticsearch-shard` tool to remove corrupted Lucene index segments.
 
 ==== `elasticsearch-translog` tool merged into `elasticsearch-shard`
 
-Instead of `elasticsearch-translog` tool you should use `elasticsearch-shard truncate-translog`.
+Use the `elasticsearch-shard` tool to remove corrupted translog data.

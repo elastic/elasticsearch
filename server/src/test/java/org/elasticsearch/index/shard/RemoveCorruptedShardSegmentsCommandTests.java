@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-public class ResolveShardCorruptionCommandTests extends IndexShardTestCase {
+public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;
     private ShardRouting routing;
@@ -135,7 +135,7 @@ public class ResolveShardCorruptionCommandTests extends IndexShardTestCase {
         final ShardPath shardPath = indexShard.shardPath();
         final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
 
-        final ResolveShardCorruptionCommand command = new ResolveShardCorruptionCommand();
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
@@ -246,7 +246,7 @@ public class ResolveShardCorruptionCommandTests extends IndexShardTestCase {
 
             final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
-            final Pattern pattern = Pattern.compile("Corrupted segments found -\\s+(?<docs>\\d+) documents will be lost.");
+            final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
             final Matcher matcher = pattern.matcher(output);
             assertThat(matcher.find(), equalTo(true));
             final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
@@ -289,7 +289,7 @@ public class ResolveShardCorruptionCommandTests extends IndexShardTestCase {
         final ShardPath shardPath = indexShard.shardPath();
         final Path translogPath = shardPath.getDataPath().resolve(ShardPath.TRANSLOG_FOLDER_NAME);
 
-        final ResolveShardCorruptionCommand command = new ResolveShardCorruptionCommand();
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
@@ -413,7 +413,7 @@ public class ResolveShardCorruptionCommandTests extends IndexShardTestCase {
         // close shard
         closeShards(indexShard);
 
-        final ResolveShardCorruptionCommand command = new ResolveShardCorruptionCommand();
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final OptionParser parser = command.getParser();
 
         // `--index index_name --shard-id 0` has to be resolved to indexPath

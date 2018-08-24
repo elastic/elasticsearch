@@ -79,23 +79,23 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
+public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand {
 
-    protected static final Logger logger = Loggers.getLogger(ResolveShardCorruptionCommand.class);
+    protected static final Logger logger = Loggers.getLogger(RemoveCorruptedShardSegmentsCommand.class);
 
-    protected static final int MISCONFIGURATION = 1;
-    protected static final int FAILURE = 2;
+    private static final int MISCONFIGURATION = 1;
+    private static final int FAILURE = 2;
 
-    protected final OptionSpec<String> folderOption;
-    protected final OptionSpec<String> indexNameOption;
-    protected final OptionSpec<Integer> shardIdOption;
+    private final OptionSpec<String> folderOption;
+    private final OptionSpec<String> indexNameOption;
+    private final OptionSpec<Integer> shardIdOption;
     private final OptionSpec<String> dryRunOption;
 
-    private final RemoveCorruptedSegmentsAction removeCorruptedSegmentsAction;
+    private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
 
-    public ResolveShardCorruptionCommand() {
-        super("Resolves corrupted shard files");
+    public RemoveCorruptedShardSegmentsCommand() {
+        super("Removes corrupted shard files");
 
         folderOption = parser.acceptsAll(Arrays.asList("d", "dir"),
             "Index directory location on disk")
@@ -111,7 +111,7 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
         dryRunOption = parser.accepts("dry-run", "Only perform analysis")
             .withOptionalArg();
 
-        removeCorruptedSegmentsAction = new RemoveCorruptedSegmentsAction();
+        removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction();
     }
 
@@ -146,6 +146,7 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
 
         final List<ShardPath> shardPaths = new ArrayList<>();
 
+        // have to scan shards to pick up proper shard id
         resolveShardPath(environment, (nodeLockId, nodePath) -> {
             final SimpleFileVisitor<Path> visitor = new SimpleFileVisitor<Path>() {
                 @Override
@@ -301,14 +302,16 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private static void loseDataBanner(Terminal terminal, Tuple<CleanStatus, String> cleanStatus) {
+    private static void loseDataBanner(Terminal terminal, Tuple<CleanStatus, String> cleanStatus, boolean dryRun) {
         terminal.println("-----------------------------------------------------------------------");
         terminal.println("");
         if (cleanStatus.v2() != null) {
-            terminal.println(cleanStatus.v2());
+            terminal.println("  " + cleanStatus.v2());
         }
-        terminal.println("");
-        terminal.println("            WARNING:              YOU WILL LOSE DATA.                  ");
+        if (dryRun == false) {
+            terminal.println("");
+            terminal.println("            WARNING:              YOU WILL LOSE DATA.                  ");
+        }
         terminal.println("-----------------------------------------------------------------------");
     }
 
@@ -371,7 +374,7 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
                 terminal.println("Opening Lucene index at " + indexPath);
                 terminal.println("");
                 try {
-                    indexCleanStatus = removeCorruptedSegmentsAction.getCleanStatus(shardPath, indexDirectory,
+                    indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(shardPath, indexDirectory,
                         writeLock, printStream, verbose);
                 } catch (Exception e) {
                     terminal.println(e.getMessage());
@@ -403,9 +406,22 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
                 }
 
                 ////////// Drop corrupted parts
-                if (dryRun == false) {
-                    final CleanStatus indexStatus = indexCleanStatus.v1();
-                    final CleanStatus translogStatus = translogCleanStatus.v1();
+                final CleanStatus indexStatus = indexCleanStatus.v1();
+                final CleanStatus translogStatus = translogCleanStatus.v1();
+                if (dryRun) {
+                    if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
+                        terminal.println("Both Lucene index and traslog at " + shardPath.getDataPath() + " are clean.");
+                    } else {
+                        if (indexStatus != CleanStatus.CLEAN) {
+                            loseDataBanner(terminal, indexCleanStatus, dryRun);
+                        }
+
+                        if (translogStatus != CleanStatus.CLEAN) {
+                            loseDataBanner(terminal, translogCleanStatus, dryRun);
+                        }
+                    }
+                } else {
+
                     if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
                         throw new ElasticsearchException("Both Lucene index and traslog at " + shardPath.getDataPath() + " are clean.");
                     }
@@ -424,13 +440,13 @@ public class ResolveShardCorruptionCommand extends EnvironmentAwareCommand {
 
 
                     if (indexStatus != CleanStatus.CLEAN) {
-                        loseDataBanner(terminal, indexCleanStatus);
+                        loseDataBanner(terminal, indexCleanStatus, dryRun);
                         confirm("Continue and remove docs from the index ?", terminal);
-                        removeCorruptedSegmentsAction.execute(terminal, shardPath, indexDirectory, writeLock, printStream, verbose);
+                        removeCorruptedLuceneSegmentsAction.execute(terminal, shardPath, indexDirectory, writeLock, printStream, verbose);
                     }
 
                     if (translogStatus != CleanStatus.CLEAN) {
-                        loseDataBanner(terminal, translogCleanStatus);
+                        loseDataBanner(terminal, translogCleanStatus, dryRun);
                         confirm("Continue and DELETE files?", terminal);
                         truncateTranslogAction.execute(terminal, shardPath, indexDirectory);
                     }

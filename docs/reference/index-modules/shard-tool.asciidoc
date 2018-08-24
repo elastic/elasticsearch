@@ -1,0 +1,139 @@
+[[shard-tool]]
+== elasticsearch-shard
+
+In some cases (a bad drive, user error) the Lucene index or translog on a shard copy can become corrupted.
+
+The `elasticsearch-shard` command enables you to remove a corrupted Lucene index segments or corrupted translog
+if a shard cannot be recovered automatically or restored from backup.
+
+[WARNING]
+You will lose the corrupted data when you run `elasticsearch-shard`.
+This tool should only be used as a last resort if there is no way to recover from another copy of the shard
+or restore a snapshot.
+
+When Elasticsearch detects that a shard's translog or Lucene index is corrupted, it fails that shard copy
+and quits using it. Under normal conditions, the shard is automatically recovered from another copy.
+If no good copy of the shard is available and you cannot restore from backup, you can use `elasticsearch-shard`
+to remove only the corrupted data and restore access to the data in unaffected segments.
+
+[WARNING]
+Stop Elasticsearch before running `elasticsearch-shard`.
+
+To remove corrupted Lucene index segments and/or corrupted translog files, use the `remove-corrupted-segments` subcommand.
+
+There are two ways to specify the path:
+
+* Specify the index name and shard name with the `--index` and `--shard-id` options.
+* Use the `-d` option to specify the full path to the corrupted index or translog files.
+
+=== Listing corrupted Lucene index files and/or corrupted translog files
+
+You can get an overview of the corruption with `--dry-run` option :
+
+[source,txt]
+--------------------------------------------------
+$ bin/elasticsearch-shard remove-corrupted-segments --dry-run --index twitter --shard-id 0
+
+
+    WARNING: ElasticSearch MUST be stopped before running this tool.
+
+  Please make a complete backup of your index before using this tool.
+
+
+Opening Lucene index at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+
+ >> Lucene index is corrupted at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+
+Opening translog at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+
+ >> Translog is clean at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+
+
+  Corrupted Lucene index segments found - 32 documents will be lost.
+
+
+--------------------------------------------------
+
+=== Removing a corrupted Lucene index files and/or corrupted translog files
+
+You must confirm that you want to remove the corrupted segments when run `elasticsearch-shard` without `--dry-run`:
+
+[WARNING]
+Back up your data before running `elasticsearch-shard`. This is a destructive operation that removes corrupted data from the shard.
+
+[source,txt]
+--------------------------------------------------
+$ bin/elasticsearch-shard remove-corrupted-segments --index twitter --shard-id 0
+
+
+    WARNING: ElasticSearch MUST be stopped before running this tool.
+
+  Please make a complete backup of your index before using this tool.
+
+
+Opening Lucene index at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+
+ >> Lucene index is corrupted at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+
+Opening translog at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+
+
+ >> Translog is clean at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+
+
+  Corrupted Lucene index segments found - 32 documents will be lost.
+
+            WARNING:              YOU WILL LOSE DATA.
+
+Continue and remove docs from the index ? Y
+
+WARNING: 1 broken segments (containing 32 documents) detected
+Took 0.056 sec total.
+Writing...
+OK
+Wrote new segments file "segments_c"
+Marking index with the new history uuid : 0pIBd9VTSOeMfzYT6p0AsA
+Changing allocation id V8QXk-QXSZinZMT-NvEq4w to tjm9Ve6uTBewVFAlfUMWjA
+You should run follow command to apply allocation id changes:
+
+$ curl -XPOST 'http://localhost:0/_cluster/reroute' -d '
+{
+  "commands" : [
+    {
+      "allocate_stale_primary" : {
+        "index" : "index42",
+        "shard" : 0,
+        "node" : "II47uXW2QvqzHBnMcl2o_Q",
+        "accept_data_loss" : true
+      }
+    }
+  ]
+}'
+Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag
+
+--------------------------------------------------
+
+
+When you use `elasticsearch-shard` to drop the corrupted data, the shard's allocation ID changes.
+After you restart the node, you must use the cluster reroute API to tell Elasticsearch to use the new ID.
+When you run the `elasticsearch-shard` command, it shows the request that you need to submit.
+
+[source,txt]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/_cluster/reroute' -d '
+{
+  "commands" : [
+    {
+      "allocate_stale_primary" : {
+        "index" : "twitter",
+        "shard" : 0,
+        "node" : "pAfJBgAAQACIfI2M_____w",
+        "accept_data_loss" : true
+      }
+    }
+  ]
+}'
+--------------------------------------------------
+
+You can also use the `-h` option to get a list of all options and parameters
+that the `elasticsearch-shard` tool supports.

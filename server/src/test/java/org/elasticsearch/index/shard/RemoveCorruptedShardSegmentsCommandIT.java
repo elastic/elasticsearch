@@ -84,7 +84,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.shard.ResolveShardCorruptionCommandTests.corruptIndexFiles;
+import static org.elasticsearch.index.shard.RemoveCorruptedShardSegmentsCommandTests.corruptIndexFiles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -97,7 +97,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
-public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
+public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -134,7 +134,7 @@ public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
 
         logger.info("--> indexed {} docs", numDocs);
 
-        final ResolveShardCorruptionCommand command = new ResolveShardCorruptionCommand();
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
@@ -210,6 +210,8 @@ public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
         }
         assertThat(nodeId, notNullValue());
 
+        logger.info("--> output:\n{}", t.getOutput());
+
         assertThat(t.getOutput(), containsString("allocate_stale_primary"));
         assertThat(t.getOutput(), containsString("\"node\" : \"" + nodeId + "\""));
 
@@ -240,7 +242,7 @@ public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
             assertThat(explanation.getShardState(), equalTo(ShardRoutingState.STARTED));
         });
 
-        final Pattern pattern = Pattern.compile("Corrupted segments found -\\s+(?<docs>\\d+) documents will be lost.");
+        final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
         final Matcher matcher = pattern.matcher(t.getOutput());
         assertThat(matcher.find(), equalTo(true));
         final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
@@ -291,7 +293,7 @@ public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        ResolveShardCorruptionCommand ttc = new ResolveShardCorruptionCommand();
+        RemoveCorruptedShardSegmentsCommand ttc = new RemoveCorruptedShardSegmentsCommand();
         MockTerminal t = new MockTerminal();
         OptionParser parser = ttc.getParser();
 
@@ -486,7 +488,7 @@ public class ResolveShardCorruptionCommandIT extends ESIntegTestCase {
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch("test").setQuery(matchAllQuery()).get(), totalDocs);
 
-        ResolveShardCorruptionCommand ttc = new ResolveShardCorruptionCommand();
+        RemoveCorruptedShardSegmentsCommand ttc = new RemoveCorruptedShardSegmentsCommand();
         MockTerminal t = new MockTerminal();
         OptionParser parser = ttc.getParser();
 

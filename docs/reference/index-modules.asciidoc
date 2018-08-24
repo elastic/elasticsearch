@@ -277,6 +277,13 @@ Other index settings are available in index modules:
 
     Command-line tools if shard is corrupted
 
+[float]
+[[elasticsearch-shard-tool]]
+=== elasticsearch-shard tool
+
+You can use the <<index-modules-elasticsearch-shard,shard-tool>> recovery tool to remove corrupted translog or corrupted Lucene
+segments if a shard cannot be recovered automatically or restored from backup.
+
 --
 
 include::index-modules/analysis.asciidoc[]
@@ -295,6 +302,6 @@ include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
 
-include::index-modules/command-line-tools.asciidoc[]
+include::index-modules/shard-tool.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]

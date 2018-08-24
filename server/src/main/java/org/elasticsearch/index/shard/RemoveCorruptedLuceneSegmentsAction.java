@@ -31,15 +31,15 @@ import java.io.PrintStream;
 /**
  * Removes corrupted Lucene index segments
  */
-public class RemoveCorruptedSegmentsAction {
+public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<ResolveShardCorruptionCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                   Directory indexDirectory,
-                                                                                   Lock writeLock,
-                                                                                   PrintStream printStream,
-                                                                                   boolean verbose) throws IOException {
-        if (ResolveShardCorruptionCommand.isCorruptMarkerFileIsPresent(indexDirectory) == false) {
-            return Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.CLEAN, null);
+    public Tuple<RemoveCorruptedShardSegmentsCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
+                                                                                         Directory indexDirectory,
+                                                                                         Lock writeLock,
+                                                                                         PrintStream printStream,
+                                                                                         boolean verbose) throws IOException {
+        if (RemoveCorruptedShardSegmentsCommand.isCorruptMarkerFileIsPresent(indexDirectory) == false) {
+            return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CLEAN, null);
         }
 
         final CheckIndex.Status status;
@@ -52,14 +52,14 @@ public class RemoveCorruptedSegmentsAction {
             status = checker.checkIndex(null);
 
             if (status.missingSegments) {
-                return Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.UNRECOVERABLE,
+                return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.UNRECOVERABLE,
                     "Index is unrecoverable - there are missing segments");
             }
 
             return status.clean
-                ? Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER, null)
-                : Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.CORRUPTED,
-                    "Corrupted segments found - " + status.totLoseDocCount + " documents will be lost.");
+                ? Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER, null)
+                : Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CORRUPTED,
+                    "Corrupted Lucene index segments found - " + status.totLoseDocCount + " documents will be lost.");
         }
     }
 
@@ -95,7 +95,7 @@ public class RemoveCorruptedSegmentsAction {
     }
 
     protected void checkCorruptMarkerFileIsPresent(Directory directory) throws IOException {
-        if (ResolveShardCorruptionCommand.isCorruptMarkerFileIsPresent(directory) == false) {
+        if (RemoveCorruptedShardSegmentsCommand.isCorruptMarkerFileIsPresent(directory) == false) {
             throw new ElasticsearchException("There is no corruption file marker");
         }
     }

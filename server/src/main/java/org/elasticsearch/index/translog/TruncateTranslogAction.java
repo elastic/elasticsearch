@@ -36,7 +36,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ResolveShardCorruptionCommand;
+import org.elasticsearch.index.shard.RemoveCorruptedShardSegmentsCommand;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -56,8 +56,8 @@ public class TruncateTranslogAction {
 
     protected static final Logger logger = Loggers.getLogger(TruncateTranslogAction.class);
 
-    public Tuple<ResolveShardCorruptionCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                   Directory indexDirectory) throws IOException {
+    public Tuple<RemoveCorruptedShardSegmentsCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
+                                                                                         Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
         List<IndexCommit> commits;
@@ -80,7 +80,7 @@ public class TruncateTranslogAction {
         final boolean clean = isTranslogClean(shardPath, translogGeneration, translogUUID);
 
         if (clean) {
-            return Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.CLEAN, null);
+            return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CLEAN, null);
         }
 
         // Hold the lock open for the duration of the tool running
@@ -92,7 +92,7 @@ public class TruncateTranslogAction {
         }
         final String details = deletingFilesDetails(translogFiles);
 
-        return Tuple.tuple(ResolveShardCorruptionCommand.CleanStatus.CORRUPTED, details);
+        return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CORRUPTED, details);
     }
 
     public void execute(Terminal terminal, ShardPath shardPath, Directory indexDirectory) throws IOException {

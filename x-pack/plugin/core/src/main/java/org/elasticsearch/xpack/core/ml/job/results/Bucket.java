@@ -137,19 +137,11 @@ public class Bucket implements ToXContentObject, Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        // bwc for recordCount
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readInt();
-        }
         records = in.readList(AnomalyRecord::new);
         eventCount = in.readLong();
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        // bwc for perPartitionMaxProbability
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readGenericValue();
-        }
         // bwc for perPartitionNormalization
         if (in.getVersion().before(Version.V_6_5_0)) {
             in.readList(Bucket::readOldPerPartitionNormalization);
@@ -171,19 +163,11 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        // bwc for recordCount
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeInt(0);
-        }
         out.writeList(records);
         out.writeLong(eventCount);
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        // bwc for perPartitionMaxProbability
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeGenericValue(Collections.emptyMap());
-        }
         // bwc for perPartitionNormalization
         if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeList(Collections.emptyList());

@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RunTask
 
 description = 'Integration tests for SQL'
@@ -29,8 +28,7 @@ dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
+  replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
 thirdPartyAudit.excludes = [

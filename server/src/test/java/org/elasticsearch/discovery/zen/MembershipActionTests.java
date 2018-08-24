@@ -80,7 +80,7 @@ public class MembershipActionTests extends ESTestCase {
 
         final Version maxNodeVersion = nodes.getMaxNodeVersion();
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (maxNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
+        if (maxNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
             final Version tooLow = getPreviousVersion(maxNodeVersion.minimumCompatibilityVersion());
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
@@ -91,7 +91,7 @@ public class MembershipActionTests extends ESTestCase {
             });
         }
 
-        if (minNodeVersion.before(Version.V_5_5_0)) {
+        if (minNodeVersion.before(Version.V_6_0_0)) {
             Version tooHigh = incompatibleFutureVersion(minNodeVersion);
             expectThrows(IllegalStateException.class, () -> {
                 if (randomBoolean()) {
@@ -102,8 +102,8 @@ public class MembershipActionTests extends ESTestCase {
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
-            Version oldMajor = randomFrom(allVersions().stream().filter(v -> v.major < 6).collect(Collectors.toList()));
+        if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> MembershipAction.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

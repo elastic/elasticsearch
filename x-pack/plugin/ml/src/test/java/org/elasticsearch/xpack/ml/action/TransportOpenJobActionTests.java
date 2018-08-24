@@ -423,33 +423,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertNull(result.getExecutorNode());
     }
 
-    public void testSelectLeastLoadedMlNode_noNodesPriorTo_V_5_5() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .build();
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("incompatible_type_job", "_node_id1", null, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "incompatible_type_job");
-        cs.nodes(nodes);
-        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
-        cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
-        assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
-        assertNull(result.getExecutorNode());
-    }
-
     public void testSelectLeastLoadedMlNode_noNodesMatchingModelSnapshotMinVersion() {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
@@ -606,12 +579,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
-    public void testMappingRequiresUpdateOldMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_54", Version.V_5_4_0.toString()));
-        String[] indices = new String[] { "version_54" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
-    }
-
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
@@ -630,21 +597,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
                 TransportOpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
-    }
-
-    public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
-        Map<String, Object> versionMix = new HashMap<>();
-        versionMix.put("version_54", Version.V_5_4_0);
-        versionMix.put("version_current", Version.CURRENT);
-        versionMix.put("version_null", null);
-        versionMix.put("version_current2", Version.CURRENT);
-        versionMix.put("version_bogus", "0.0.0");
-        versionMix.put("version_current3", Version.CURRENT);
-        versionMix.put("version_bogus2", "0.0.0");
-
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
-        String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testNodeNameAndVersion() {

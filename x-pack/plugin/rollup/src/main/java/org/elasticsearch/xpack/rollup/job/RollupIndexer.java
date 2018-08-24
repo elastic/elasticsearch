@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -392,15 +393,12 @@ public abstract class RollupIndexer {
     private CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
-        Map<String, Object> metadata = new HashMap<>();
 
         // Add all the agg builders to our request in order: date_histo -> histo -> terms
         if (groupConfig != null) {
             builders.addAll(groupConfig.getDateHistogram().toBuilders());
-            metadata.putAll(groupConfig.getDateHistogram().getMetadata());
             if (groupConfig.getHistogram() != null) {
                 builders.addAll(groupConfig.getHistogram().toBuilders());
-                metadata.putAll(groupConfig.getHistogram().getMetadata());
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());
@@ -409,6 +407,8 @@ public abstract class RollupIndexer {
 
         CompositeAggregationBuilder composite = new CompositeAggregationBuilder(AGGREGATION_NAME, builders);
         config.getMetricsConfig().forEach(m -> m.toBuilders().forEach(composite::subAggregation));
+
+        final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
             composite.setMetaData(metadata);
         }
@@ -440,6 +440,21 @@ public abstract class RollupIndexer {
                 .lt(maxBoundary)
                 .format("epoch_millis");
         return query;
+    }
+
+    static Map<String, Object> createMetadata(final GroupConfig groupConfig) {
+        final Map<String, Object> metadata = new HashMap<>();
+        if (groupConfig != null) {
+            // Add all the metadata in order: date_histo -> histo
+            final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
+            metadata.put(RollupField.formatMetaField(RollupField.INTERVAL), dateHistogram.getInterval().toString());
+
+            final HistogramGroupConfig histogram = groupConfig.getHistogram();
+            if (histogram != null) {
+                metadata.put(RollupField.formatMetaField(RollupField.INTERVAL), histogram.getInterval());
+            }
+        }
+        return metadata;
     }
 }
 

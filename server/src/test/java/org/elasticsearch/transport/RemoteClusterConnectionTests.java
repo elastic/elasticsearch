@@ -1437,10 +1437,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             throw new IllegalArgumentException("nodeMap must be non-empty");
         }
 
-        return new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY, Version
-            .CURRENT, threadPool)) {
-            @Override
-            public Connection openConnection(final DiscoveryNode node, ConnectionProfile profile) {
+        StubbableTransport stubbableTransport = new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY, Version
+            .CURRENT, threadPool));
+        stubbableTransport.setDefaultConnectBehavior((t, node,  profile) -> {
                 Map<String, DiscoveryNode> proxyMapping = nodeMap.get(node.getAddress().toString());
                 if (proxyMapping == null) {
                     throw new IllegalStateException("no proxy mapping for node: " + node);
@@ -1454,8 +1453,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-                Connection connection = super.openConnection(proxyNode, profile);
-                return new Connection() {
+                Transport.Connection connection = t.openConnection(proxyNode, profile);
+                return new Transport.Connection() {
                     @Override
                     public DiscoveryNode getNode() {
                         return node;
@@ -1482,7 +1481,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         connection.close();
                     }
                 };
-            }
-        };
+            });
+        return stubbableTransport;
     }
 }

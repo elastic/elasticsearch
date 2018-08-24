@@ -117,17 +117,22 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals("failed to parse port", e.getMessage());
     }
 
-    public void testBuiltRemoteClustersSeeds() throws Exception {
-        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> map = RemoteClusterService.buildRemoteClustersSeeds(
-            Settings.builder().put("search.remote.foo.seeds", "192.168.0.1:8080").put("search.remote.bar.seeds", "[::1]:9090").build());
-        assertEquals(2, map.size());
+    public void testBuildRemoteClustersDynamicConfig() throws Exception {
+        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> map = RemoteClusterService.buildRemoteClustersDynamicConfig(
+            Settings.builder().put("search.remote.foo.seeds", "192.168.0.1:8080")
+                .put("search.remote.bar.seeds", "[::1]:9090")
+                .put("search.remote.boom.seeds", "boom-node1.internal:1000")
+                .put("search.remote.boom.proxy", "foo.bar.com:1234").build());
+        assertEquals(3, map.size());
         assertTrue(map.containsKey("foo"));
         assertTrue(map.containsKey("bar"));
+        assertTrue(map.containsKey("boom"));
         assertEquals(1, map.get("foo").v2().size());
         assertEquals(1, map.get("bar").v2().size());
+        assertEquals(1, map.get("boom").v2().size());
 
         DiscoveryNode foo = map.get("foo").v2().get(0).get();
-
+        assertEquals("", map.get("foo").v1());
         assertEquals(foo.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("192.168.0.1"), 8080)));
         assertEquals(foo.getId(), "foo#192.168.0.1:8080");
         assertEquals(foo.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
@@ -135,7 +140,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
         DiscoveryNode bar = map.get("bar").v2().get(0).get();
         assertEquals(bar.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("[::1]"), 9090)));
         assertEquals(bar.getId(), "bar#[::1]:9090");
+        assertEquals("", map.get("bar").v1());
         assertEquals(bar.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
+
+        DiscoveryNode boom = map.get("boom").v2().get(0).get();
+        assertEquals(boom.getAddress(), new TransportAddress(TransportAddress.META_ADDRESS, 0));
+        assertEquals("boom-node1.internal", boom.getHostName());
+        assertEquals(boom.getId(), "boom#boom-node1.internal:1000");
+        assertEquals("foo.bar.com:1234", map.get("boom").v1());
+        assertEquals(boom.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
     }
 
 

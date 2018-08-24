@@ -418,7 +418,7 @@ class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
             listenForUpdates(clusterSettings);
         }
 

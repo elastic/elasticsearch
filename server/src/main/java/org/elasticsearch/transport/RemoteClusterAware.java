@@ -97,7 +97,12 @@ public abstract class RemoteClusterAware extends AbstractComponent {
         this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
     }
 
-    protected static Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> buildRemoteClustersSeeds(Settings settings) {
+    /**
+     * Builds the dynamic per-cluster config from the given settings. This is a map keyed by the cluster alias that points to a tuple
+     * (ProxyAddresss, [SeedNodeSuppliers]). If a cluster is configured with a proxy address all seed nodes will point to
+     * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
+     */
+    protected static Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> buildRemoteClustersDynamicConfig(Settings settings) {
         Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
         return allConcreteSettings.collect(
             Collectors.toMap(REMOTE_CLUSTERS_SEEDS::getNamespace, concreteSetting -> {
@@ -112,7 +117,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
             }));
     }
 
-    public static DiscoveryNode buildSeedNode(String clusterName, String address, boolean proxyMode) {
+    static DiscoveryNode buildSeedNode(String clusterName, String address, boolean proxyMode) {
         if (proxyMode) {
             TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
             String hostName = address.substring(0, indexOfPortSeparator(address));

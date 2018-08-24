@@ -339,7 +339,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(settings);
+        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds = RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);

@@ -36,4 +36,5 @@ followClusterTestRunner {
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
+check.dependsOn followClusterTest
 test.enabled = false

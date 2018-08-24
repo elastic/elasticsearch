@@ -135,7 +135,7 @@ A mapping could be specified when creating an index, as follows:
 PUT my_index <1>
 {
   "mappings": {
-    "doc": { <2>
+    "_doc": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>
         "name":     { "type": "text"  }, <4>
@@ -151,7 +151,7 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add a mapping type called `doc`.
+<2> Add a mapping type called `_doc`.
 <3> Specify fields or _properties_.
 <4> Specify the data `type` and mapping for each field.
 

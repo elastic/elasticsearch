@@ -265,7 +265,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
      */
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>();
-        filters.put("standard", null);
         filters.put("lowercase", null);
         return filters;
     }

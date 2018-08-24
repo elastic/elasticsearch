@@ -2666,6 +2666,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Rollback the current engine to the safe commit, the replay local translog up to the given {@code upToSeqNo} (inclusive) */
     void resetEngineUpToSeqNo(long upToSeqNo) throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
+        assert SequenceNumbers.loadSeqNoInfoFromLuceneCommit(commitStats().getUserData().entrySet()).maxSeqNo == seqNoStats().getMaxSeqNo()
+            : "engine must be flushed before reset; max_seq_no[" + seqNoStats() + "] commit[" + commitStats().getUserData() + "]";
         final Engine resettingEngine;
         sync(); // persist the global checkpoint which will be used to trim unsafe commits
         synchronized (mutex) {

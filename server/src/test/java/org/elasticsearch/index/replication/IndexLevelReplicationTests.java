@@ -54,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -366,7 +367,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             List<Translog.Operation> expectedTranslogOps = new ArrayList<>();
             BulkItemResponse indexResp = shards.index(new IndexRequest(index.getName(), "type", "1").source("{}", XContentType.JSON));
             assertThat(indexResp.isFailed(), equalTo(false));
-            expectedTranslogOps.add(new Translog.Index("type", "1", 0, primaryTerm, 1, new byte[]{123, 125}, null, -1));
+            expectedTranslogOps.add(new Translog.Index("type", "1", 0, primaryTerm, 1, "{}".getBytes(StandardCharsets.UTF_8), null, -1));
             try (Translog.Snapshot snapshot = getTranslog(shards.getPrimary()).newSnapshot()) {
                 assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
             }

@@ -42,7 +42,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksRequest, CcrStats
 
     @Override
     public TasksResponse newResponse() {
-        return null;
+        return new TasksResponse();
     }
 
     public static class TasksResponse extends BaseTasksResponse implements ToXContentObject {

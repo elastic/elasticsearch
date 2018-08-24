@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -47,13 +46,11 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -288,29 +285,6 @@ public class SearchResponseTests extends ESTestCase {
             assertEquals(searchResponse.getTotalShards(), serialized.getTotalShards());
             assertEquals(searchResponse.getSkippedShards(), serialized.getSkippedShards());
             assertEquals(searchResponse.getClusters(), serialized.getClusters());
-        }
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AAAAAAAAAAAAAgABBQUAAAoAAAAAAAAA");
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_5, Version.V_6_0_0);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), namedWriteableRegistry)) {
-            in.setVersion(version);
-            SearchResponse deserialized = new SearchResponse();
-            deserialized.readFrom(in);
-            assertSame(SearchResponse.Clusters.EMPTY, deserialized.getClusters());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                deserialized.writeTo(out);
-                try (StreamInput in2 = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes),
-                        namedWriteableRegistry)) {
-                    in2.setVersion(version);
-                    SearchResponse deserialized2 = new SearchResponse();
-                    deserialized2.readFrom(in2);
-                    assertSame(SearchResponse.Clusters.EMPTY, deserialized2.getClusters());
-                }
-            }
         }
     }
 }

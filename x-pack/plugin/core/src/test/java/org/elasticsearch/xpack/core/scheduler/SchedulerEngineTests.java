@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class SchedulerEngineTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33124")
     public void testListenersThrowingExceptionsDoNotCauseOtherListenersToBeSkipped() throws InterruptedException {
         final Logger mockLogger = mock(Logger.class);
         final SchedulerEngine engine = new SchedulerEngine(Settings.EMPTY, Clock.systemUTC(), mockLogger);

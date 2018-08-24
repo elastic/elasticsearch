@@ -12,7 +12,6 @@ import org.elasticsearch.protocol.xpack.ml.job.config.JobState;
 import org.elasticsearch.protocol.xpack.ml.job.process.DataCounts;
 import org.elasticsearch.protocol.xpack.ml.job.process.ModelSizeStats;
 import org.elasticsearch.protocol.xpack.ml.NodeAttributes;
-import org.elasticsearch.protocol.xpack.ml.job.util.TimeUtil;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +34,8 @@ public class JobStats implements ToXContentObject {
                 String jobId = (String) a[i++];
                 DataCounts dataCounts = (DataCounts) a[i++];
                 JobState jobState = (JobState) a[i++];
-                ModelSizeStats modelSizeStats = (ModelSizeStats) a[i++];
+                ModelSizeStats.Builder modelSizeStatsBuilder = (ModelSizeStats.Builder) a[i++];
+                ModelSizeStats modelSizeStats = modelSizeStatsBuilder == null ? null : modelSizeStatsBuilder.build();
                 ForecastStats forecastStats = (ForecastStats) a[i++];
                 NodeAttributes node = (NodeAttributes) a[i++];
                 String assignmentExplanation = (String) a[i++];
@@ -62,7 +62,7 @@ public class JobStats implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p) -> TimeUtil.parseTimeField(p, OPEN_TIME.getPreferredName()),
+            (p) -> TimeValue.parseTimeValue(p.text(), OPEN_TIME.getPreferredName()),
             OPEN_TIME,
             ObjectParser.ValueType.VALUE);
     }

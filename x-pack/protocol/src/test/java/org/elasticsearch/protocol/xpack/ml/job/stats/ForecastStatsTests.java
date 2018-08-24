@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.protocol.xpack.ml.job.stats;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -29,22 +26,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> {
-
-    public void testEmpty() throws IOException {
-        ForecastStats forecastStats = new ForecastStats(0, null, null, null, null);
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        forecastStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        XContentParser parser = createParser(builder);
-        Map<String, Object> properties = parser.map();
-        assertTrue(properties.containsKey(ForecastStats.TOTAL.getPreferredName()));
-        assertTrue(properties.containsKey(ForecastStats.FORECASTED_JOBS.getPreferredName()));
-        assertFalse(properties.containsKey(ForecastStats.MEMORY.getPreferredName()));
-        assertFalse(properties.containsKey(ForecastStats.RECORDS.getPreferredName()));
-        assertFalse(properties.containsKey(ForecastStats.RUNTIME.getPreferredName()));
-        assertFalse(properties.containsKey(ForecastStats.STATUSES.getPreferredName()));
-    }
 
     @Override
     public ForecastStats createTestInstance() {
@@ -58,7 +39,7 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     public static ForecastStats createForecastStats(long minTotal, long maxTotal) {

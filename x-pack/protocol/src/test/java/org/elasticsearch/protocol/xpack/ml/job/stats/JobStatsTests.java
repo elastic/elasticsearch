@@ -57,6 +57,6 @@ public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

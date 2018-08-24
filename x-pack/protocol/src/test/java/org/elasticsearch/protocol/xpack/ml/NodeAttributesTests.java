@@ -35,6 +35,6 @@ public class NodeAttributesTests extends AbstractXContentTestCase<NodeAttributes
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

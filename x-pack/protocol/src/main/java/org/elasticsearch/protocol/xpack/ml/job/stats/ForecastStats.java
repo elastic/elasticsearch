@@ -64,7 +64,7 @@ public class ForecastStats implements ToXContentObject {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             p -> {
                 Map<String, Long> counts = new HashMap<>();
-                p.map().forEach((key, value) -> counts.put(key, (Long)value));
+                p.map().forEach((key, value) -> counts.put(key, ((Number)value).longValue()));
                 return counts;
             }, STATUSES, ObjectParser.ValueType.OBJECT);
     }

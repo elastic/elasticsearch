@@ -28,6 +28,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TestRuleLimitSysouts;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@TestRuleLimitSysouts.Limit(bytes = 14000)
 public class WildflyIT extends LuceneTestCase {
 
     public void testTransportClient() throws URISyntaxException, IOException {

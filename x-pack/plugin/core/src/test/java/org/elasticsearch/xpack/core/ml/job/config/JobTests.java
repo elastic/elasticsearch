@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -477,19 +476,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
         assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
-    }
-
-    public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_0_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_0).isEmpty(), is(true));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_3_2).isEmpty(), is(true));
-    }
-
-    public void testGetCompatibleJobTypes_givenVersionAfter_V_5_4() {
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
-        assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
     }
 
     public void testInvalidCreateTimeSettings() {

@@ -75,7 +75,7 @@ public class GetSettingsActionTests extends ESTestCase {
         threadPool = new TestThreadPool("GetSettingsActionTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
+        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();

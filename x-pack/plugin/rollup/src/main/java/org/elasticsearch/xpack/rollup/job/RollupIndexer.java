@@ -21,8 +21,9 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -54,6 +56,7 @@ public abstract class RollupIndexer {
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<Map<String, Object>> position;
     private final Executor executor;
+    protected final AtomicBoolean upgradedDocumentID;
 
     private final CompositeAggregationBuilder compositeBuilder;
     private long maxBoundary;
@@ -65,13 +68,15 @@ public abstract class RollupIndexer {
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                  Map<String, Object> initialPosition, AtomicBoolean upgradedDocumentID) {
         this.executor = executor;
         this.job = job;
         this.stats = new RollupJobStats();
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
+        this.upgradedDocumentID = upgradedDocumentID;
     }
 
     /**
@@ -138,6 +143,13 @@ public abstract class RollupIndexer {
      */
     public RollupJobStats getStats() {
         return stats;
+    }
+
+    /**
+     * Returns if this job has upgraded it's ID scheme yet or not
+     */
+    public boolean isUpgradedDocumentID() {
+        return upgradedDocumentID.get();
     }
 
     /**
@@ -208,7 +220,7 @@ public abstract class RollupIndexer {
 
                 // rounds the current time to its current bucket based on the date histogram interval.
                 // this is needed to exclude buckets that can still receive new documents.
-                DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+                DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
                 long rounded = dateHisto.createRounding().round(now);
                 if (dateHisto.getDelay() != null) {
                     // if the job has a delay we filter all documents that appear before it.
@@ -312,8 +324,10 @@ public abstract class RollupIndexer {
             }
 
             final BulkRequest bulkRequest = new BulkRequest();
+            // Indexer is single-threaded, and only place that the ID scheme can get upgraded is doSaveState(), so
+            // we can pass down the boolean value rather than the atomic here
             final List<IndexRequest> docs = IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(),
-                    stats, job.getConfig().getGroupConfig(), job.getConfig().getId());
+                    stats, job.getConfig().getGroupConfig(), job.getConfig().getId(), upgradedDocumentID.get());
             docs.forEach(bulkRequest::add);
             assert bulkRequest.requests().size() > 0;
             doNextBulk(bulkRequest,
@@ -379,24 +393,22 @@ public abstract class RollupIndexer {
     private CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
-        Map<String, Object> metadata = new HashMap<>();
 
         // Add all the agg builders to our request in order: date_histo -> histo -> terms
         if (groupConfig != null) {
-            builders.addAll(groupConfig.getDateHisto().toBuilders());
-            metadata.putAll(groupConfig.getDateHisto().getMetadata());
-            if (groupConfig.getHisto() != null) {
-                builders.addAll(groupConfig.getHisto().toBuilders());
-                metadata.putAll(groupConfig.getHisto().getMetadata());
+            builders.addAll(groupConfig.getDateHistogram().toBuilders());
+            if (groupConfig.getHistogram() != null) {
+                builders.addAll(groupConfig.getHistogram().toBuilders());
             }
             if (groupConfig.getTerms() != null) {
                 builders.addAll(groupConfig.getTerms().toBuilders());
-                metadata.putAll(groupConfig.getTerms().getMetadata());
             }
         }
 
         CompositeAggregationBuilder composite = new CompositeAggregationBuilder(AGGREGATION_NAME, builders);
         config.getMetricsConfig().forEach(m -> m.toBuilders().forEach(composite::subAggregation));
+
+        final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
             composite.setMetaData(metadata);
         }
@@ -414,7 +426,7 @@ public abstract class RollupIndexer {
      */
     private QueryBuilder createBoundaryQuery(Map<String, Object> position) {
         assert maxBoundary < Long.MAX_VALUE;
-        DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
+        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         String fieldName = dateHisto.getField();
         String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
         long lowerBound = 0L;
@@ -428,6 +440,21 @@ public abstract class RollupIndexer {
                 .lt(maxBoundary)
                 .format("epoch_millis");
         return query;
+    }
+
+    static Map<String, Object> createMetadata(final GroupConfig groupConfig) {
+        final Map<String, Object> metadata = new HashMap<>();
+        if (groupConfig != null) {
+            // Add all the metadata in order: date_histo -> histo
+            final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
+            metadata.put(RollupField.formatMetaField(RollupField.INTERVAL), dateHistogram.getInterval().toString());
+
+            final HistogramGroupConfig histogram = groupConfig.getHistogram();
+            if (histogram != null) {
+                metadata.put(RollupField.formatMetaField(RollupField.INTERVAL), histogram.getInterval());
+            }
+        }
+        return metadata;
     }
 }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -53,13 +52,14 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -163,8 +163,11 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.ParsedDerivative;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -205,6 +208,11 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
+    private final WatcherClient watcherClient = new WatcherClient(this);
+    private final GraphClient graphClient = new GraphClient(this);
+    private final LicenseClient licenseClient = new LicenseClient(this);
+    private final MigrationClient migrationClient = new MigrationClient(this);
+    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -296,16 +304,72 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
-     * default distribution of Elasticsearch. All of these APIs will 404 if run
-     * against the OSS distribution of Elasticsearch.
+     * Provides methods for accessing the Elastic Licensed X-Pack Info
+     * and Usage APIs that are shipped with the default distribution of
+     * Elasticsearch. All of these APIs will 404 if run against the OSS
+     * distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
-     * X-Pack APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * Info APIs on elastic.co</a> for more information.
      */
     public final XPackClient xpack() {
         return xPackClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Watcher APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
+     * Watcher APIs on elastic.co</a> for more information.
+     */
+    public WatcherClient watcher() { return watcherClient; }
+    
+    /**
+     * Provides methods for accessing the Elastic Licensed Graph explore API that
+     * is shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
+     * Graph API on elastic.co</a> for more information.
+     */
+    public GraphClient graph() { return graphClient; }    
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
+     * Licensing APIs on elastic.co</a> for more information.
+     */
+    public LicenseClient license() { return licenseClient; }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * are shipped with the default distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
+     * Migration APIs on elastic.co</a> for more information.
+     */
+    public MigrationClient migration() {
+        return migrationClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+     * Machine Learning APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Machine Learning API calls
+     */
+    public MachineLearningClient machineLearning() {
+        return machineLearningClient;
     }
 
     /**
@@ -863,9 +927,9 @@ public class RestHighLevelClient implements Closeable {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteStoredScriptResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, emptySet());
+            AcknowledgedResponse::fromXContent, emptySet());
     }
 
     /**
@@ -877,9 +941,9 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                  ActionListener<DeleteStoredScriptResponse> listener) {
+                                  ActionListener<AcknowledgedResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
-            DeleteStoredScriptResponse::fromXContent, listener, emptySet());
+            AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -896,6 +960,11 @@ public class RestHighLevelClient implements Closeable {
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             RequestOptions options,
@@ -905,15 +974,58 @@ public class RestHighLevelClient implements Closeable {
                 response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
+    /**
+     * Defines a helper method for performing a request and then parsing the returned entity using the provided entityParser.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                  RequestOptions options,
+                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                  Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
-                                                          CheckedFunction<Req, Request, IOException> requestConverter,
-                                                          RequestOptions options,
-                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                          Set<Integer> ignores) throws IOException {
+                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                           RequestOptions options,
+                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                           Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Defines a helper method for performing a request.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequest(Req request,
+                                                             CheckedFunction<Req, Request, IOException> requestConverter,
+                                                             RequestOptions options,
+                                                             CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                             Set<Integer> ignores) throws IOException {
+        ValidationException validationException = request.validate();
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Provides common functionality for performing a request.
+     */
+    private <Req, Resp> Resp internalPerformRequest(Req request,
+                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                            RequestOptions options,
+                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                            Set<Integer> ignores) throws IOException {
         Request req = requestConverter.apply(request);
         req.setOptions(options);
         Response response;
@@ -941,25 +1053,75 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                 RequestOptions options,
-                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                         RequestOptions options,
+                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                         ActionListener<Resp> listener, Set<Integer> ignores) {
         performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                       CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                       RequestOptions options,
+                                                                       CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                       ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
-                                                               CheckedFunction<Req, Request, IOException> requestConverter,
-                                                               RequestOptions options,
-                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                               ActionListener<Resp> listener, Set<Integer> ignores) {
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
+                                                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                            ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             listener.onFailure(validationException);
             return;
         }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsync(Req request,
+                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                          RequestOptions options,
+                                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                          ActionListener<Resp> listener, Set<Integer> ignores) {
+        ValidationException validationException = request.validate();
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
+            listener.onFailure(validationException);
+            return;
+        }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Provides common functionality for asynchronously performing a request.
+     */
+    private <Req, Resp> void internalPerformRequestAsync(Req request,
+                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                 RequestOptions options,
+                                                 CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
         Request req;
         try {
             req = requestConverter.apply(request);
@@ -972,6 +1134,7 @@ public class RestHighLevelClient implements Closeable {
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
     }
+
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
                                                         ActionListener<Resp> actionListener, Set<Integer> ignores) {
@@ -1050,8 +1213,7 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry,
-            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
@@ -1068,6 +1230,19 @@ public class RestHighLevelClient implements Closeable {
     static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
+
+    /**
+     * Ignores deprecation warnings. This is appropriate because it is only
+     * used to parse responses from Elasticsearch. Any deprecation warnings
+     * emitted there just mean that you are talking to an old version of
+     * Elasticsearch. There isn't anything you can do about the deprecation.
+     */
+    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
+        @Override
+        public void usedDeprecatedName(String usedName, String modernName) {}
+        @Override
+        public void usedDeprecatedField(String usedName, String replacedWith) {}
+    };
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
@@ -1119,11 +1294,11 @@ public class RestHighLevelClient implements Closeable {
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(TermSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(PhraseSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestion.NAME),
+        entries.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField(CompletionSuggestionBuilder.SUGGESTION_NAME),
                 (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
         return entries;
     }

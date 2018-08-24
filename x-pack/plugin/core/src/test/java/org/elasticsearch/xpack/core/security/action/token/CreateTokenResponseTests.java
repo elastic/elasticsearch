@@ -41,7 +41,7 @@ public class CreateTokenResponseTests extends ESTestCase {
     public void testSerializationToPre62Version() throws Exception {
         CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
             randomBoolean() ? null : "FULL", randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_1_4);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_1_4);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
             response.writeTo(output);

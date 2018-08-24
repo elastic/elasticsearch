@@ -157,11 +157,13 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -929,22 +931,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
-        final int operations = scaledRandomIntBetween(0, 1024);
-        for (int seqNo = 0; seqNo < operations; seqNo++) {
-            if (rarely()) {
-                continue; // gap in sequence number
-            }
-            final String id = Integer.toString(seqNo);
-            SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
-                new BytesArray("{}"), XContentType.JSON);
-            indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
-            if (rarely()) {
-                indexShard.flush(new FlushRequest());
-            }
-            if (rarely()) {
-                indexShard.getEngine().rollTranslogGeneration();
-            }
-        }
+        indexOnReplicaWithGaps(indexShard, scaledRandomIntBetween(0, 1024), Math.toIntExact(indexShard.getLocalCheckpoint()));
         final long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
         final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
@@ -977,7 +964,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
         // ensure that after the local checkpoint throw back and indexing again, the local checkpoint advances
-        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));
+        final Result result = indexOnReplicaWithGaps(indexShard, between(0, 100), Math.toIntExact(indexShard.getLocalCheckpoint()));
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) result.localCheckpoint));
 
         closeShards(indexShard);
@@ -2678,6 +2665,9 @@ public class IndexShardTests extends IndexShardTestCase {
             } else {
                 gap = true;
             }
+            if (rarely()) {
+                indexShard.flush(new FlushRequest());
+            }
         }
         assert localCheckpoint == indexShard.getLocalCheckpoint();
         assert !gap || (localCheckpoint != max);
@@ -3182,4 +3172,63 @@ public class IndexShardTests extends IndexShardTestCase {
 
     }
 
+    public void testResetEngine() throws Exception {
+        IndexShard replica = newStartedShard(false);
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+        long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, replica.getLocalCheckpoint());
+        replica.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+        Set<String> allDocs = getShardDocUIDs(replica);
+        Thread[] searchers = new Thread[between(1, 4)];
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicLong ackedSeqNo = new AtomicLong(globalCheckpoint);
+        CountDownLatch latch = new CountDownLatch(searchers.length);
+        for (int i = 0; i < searchers.length; i++) {
+            searchers[i] = new Thread(() -> {
+                latch.countDown();
+                while (done.get() == false) {
+                    Set<String> ackedDocs = allDocs.stream()
+                        .filter(id -> Long.parseLong(id) <= ackedSeqNo.get()).collect(Collectors.toSet());
+                    try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
+                        Set<String> docIds = EngineTestCase.getDocIds(searcher);
+                        assertThat(ackedDocs, everyItem(isIn(docIds)));
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                    for (String id : randomSubsetOf(ackedDocs)) {
+                        Engine.Get get = new Engine.Get(randomBoolean(), randomBoolean(), "_doc", id, new Term("_id", Uid.encodeId(id)));
+                        try (Engine.GetResult getResult = replica.get(get)) {
+                            assertThat("doc [" + id + "] not found" + ackedSeqNo, getResult.exists(), equalTo(true));
+                        }
+                    }
+                }
+            });
+            searchers[i].start();
+        }
+        latch.await();
+        int iterations = between(1, 10);
+        for (int i = 0; i < iterations; i++) {
+            globalCheckpoint = randomLongBetween(replica.getGlobalCheckpoint(), replica.getLocalCheckpoint());
+            replica.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+            long upToSeqNo = randomLongBetween(globalCheckpoint, replica.seqNoStats().getMaxSeqNo());
+            logger.debug("resetting from {} to {}", replica.seqNoStats().getMaxSeqNo(), upToSeqNo);
+            replica.flush(new FlushRequest()); // we flush before reset in the production.
+            replica.resetEngineUpToSeqNo(upToSeqNo);
+            ackedSeqNo.set(globalCheckpoint); // expose to the background threads
+            Set<String> expectedDocs = getShardDocUIDs(replica).stream()
+                .filter(id -> Long.parseLong(id) <= upToSeqNo).collect(Collectors.toSet());
+            assertThat(getShardDocUIDs(replica), equalTo(expectedDocs));
+            if (randomBoolean()) {
+                replica.resetEngineUpToSeqNo(Long.MAX_VALUE);
+                replica.getEngine().fillSeqNoGaps(replica.pendingPrimaryTerm);
+                if (randomBoolean()) {
+                    indexOnReplicaWithGaps(replica, between(0, 100), Math.toIntExact(replica.getLocalCheckpoint()));
+                }
+            }
+        }
+        done.set(true);
+        for (Thread searcher : searchers) {
+            searcher.join();
+        }
+        closeShards(replica);
+    }
 }

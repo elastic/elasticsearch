@@ -157,6 +157,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -503,8 +504,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * replaying the translog and marking any operations there are completed.
                                  */
                                 if (seqNoStats().getLocalCheckpoint() < maxSeqNoOfResettingEngine) {
+                                    // The engine was reset before but hasn't restored all existing operations yet.
+                                    // We need to reset the engine again with all the local history.
                                     getEngine().flush();
                                     resetEngineUpToSeqNo(Long.MAX_VALUE);
+                                    maxSeqNoOfResettingEngine = SequenceNumbers.NO_OPS_PERFORMED;
                                 } else {
                                     getEngine().restoreLocalCheckpointFromTranslog();
                                 }
@@ -842,8 +846,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        readAllowed();
-        return getEngine().get(get, this::acquireSearcher);
+        return accessEngineAndRetryOnSwap(engine -> engine.get(get, this::acquireSearcher));
     }
 
     /**
@@ -1172,9 +1175,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
-        readAllowed();
-        final Engine engine = getEngine();
-        final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
+        final Engine.Searcher searcher = accessEngineAndRetryOnSwap(engine -> engine.acquireSearcher(source, scope));
         boolean success = false;
         try {
             final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
@@ -1186,6 +1187,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } finally {
             if (success == false) {
                 Releasables.close(success, searcher);
+            }
+        }
+    }
+
+    private <T> T accessEngineAndRetryOnSwap(Function<Engine, T> accessor) {
+        // Retry only occurs when we are swapping the engine during the primary-replica resync.
+        // We limit the number of retries to 10 as a safe guard - this should happen at most twice.
+        int remained = 10;
+        while (true) {
+            remained--;
+            readAllowed();
+            Engine engine = getEngine();
+            try {
+                return accessor.apply(engine);
+            } catch (AlreadyClosedException e) {
+                if (engine != getEngine() && remained > 0) {
+                    logger.debug("retrying as engine was swapped - remained=" + remained);
+                }else {
+                    throw e;
+                }
             }
         }
     }
@@ -2290,7 +2311,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
                                     opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
                                 if (localCheckpoint < getEngine().getSeqNoStats(localCheckpoint).getMaxSeqNo()) {
-                                    sync();
                                     getEngine().flush(true, true);
                                     getEngine().resetLocalCheckpoint(localCheckpoint);
                                     resetEngineUpToSeqNo(localCheckpoint);
@@ -2645,15 +2665,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /** Rollback the current engine to the safe commit, the replay local translog up to the given {@code upToSeqNo} (inclusive) */
-    private void resetEngineUpToSeqNo(long upToSeqNo) throws IOException {
+    void resetEngineUpToSeqNo(long upToSeqNo) throws IOException {
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         final Engine resettingEngine;
+        sync(); // persist the global checkpoint which will be used to trim unsafe commits
         synchronized (mutex) {
             final Engine currentEngine = getEngine();
-            final long lastSyncedGlobalCheckpoint = getLastSyncedGlobalCheckpoint();
-            final SeqNoStats seqNoStats = currentEngine.getSeqNoStats(lastSyncedGlobalCheckpoint);
-            logger.info("resetting replica engine from max_seq_no [{}] to global checkpoint [{}]",
-                seqNoStats.getMaxSeqNo(), lastSyncedGlobalCheckpoint);
+            final SeqNoStats seqNoStats = currentEngine.getSeqNoStats(getGlobalCheckpoint());
+            logger.info("resetting replica engine from max_seq_no [{}] to seq_no [{}] global checkpoint [{}]",
+                seqNoStats.getMaxSeqNo(), upToSeqNo, seqNoStats.getGlobalCheckpoint());
             final TranslogStats translogStats = currentEngine.getTranslogStats();
             final SearchOnlyEngine searchOnlyEngine = new SearchOnlyEngine(currentEngine.config(), seqNoStats, translogStats);
             IOUtils.close(currentEngineReference.getAndSet(searchOnlyEngine));

@@ -64,7 +64,9 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 lastDocIds = getDocIds(engine, true);
                 assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(searchOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(searchOnlyEngine, false), equalTo(lastDocIds));
+                try (Engine.Searcher searcher = searchOnlyEngine.acquireSearcher("test")) {
+                    assertThat(getDocIds(searcher), equalTo(lastDocIds));
+                }
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
@@ -77,7 +79,9 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 // the locked down engine should still point to the previous commit
                 assertThat(searchOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(searchOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
-                assertThat(getDocIds(searchOnlyEngine, false), equalTo(lastDocIds));
+                try (Engine.Searcher searcher = searchOnlyEngine.acquireSearcher("test")) {
+                    assertThat(getDocIds(searcher), equalTo(lastDocIds));
+                }
             }
             // Close and reopen the main engine
             trimUnsafeCommits(config);

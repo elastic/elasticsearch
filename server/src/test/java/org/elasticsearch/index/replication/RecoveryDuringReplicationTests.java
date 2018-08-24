@@ -22,7 +22,7 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -39,9 +39,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -665,34 +667,36 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
             shards.refresh("test");
+            CountDownLatch latch = new CountDownLatch(numberOfReplicas);
             for (int i = 0; i < numberOfReplicas; i++) {
                 IndexShard replica = shards.getReplicas().get(i);
                 Thread thread = new Thread(() -> {
-                    // should fail at most twice with two transitions: normal engine -> read-only engine -> resetting engine
-                    long hitClosedExceptions = 0;
+                    latch.countDown();
                     while (isDone.get() == false) {
-                        try {
-                            Set<String> docIds = getShardDocUIDs(replica, false);
+                        try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
+                            Set<String> docIds = EngineTestCase.getDocIds(searcher);
                             assertThat(ackedDocIds, everyItem(isIn(docIds)));
-                            assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
-                        } catch (AlreadyClosedException e) {
-                            hitClosedExceptions++;
                         } catch (IOException e) {
                             throw new AssertionError(e);
                         }
+                        for (String id : randomSubsetOf(ackedDocIds)) {
+                            try (Engine.GetResult getResult = replica.get(
+                                new Engine.Get(randomBoolean(), randomBoolean(), "type", id, new Term("_id", Uid.encodeId(id))))) {
+                                assertThat("doc [" + id + "] not found", getResult.exists(), equalTo(true));
+                            }
+                        }
+                        assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                     }
-                    assertThat(hitClosedExceptions, lessThanOrEqualTo(2L));
                 });
                 threads.add(thread);
                 thread.start();
             }
+            latch.await();
             shards.promoteReplicaToPrimary(newPrimary).get();
             shards.assertAllEqual(initDocs + extraDocsOnNewPrimary);
             int moreDocs = shards.indexDocs(scaledRandomIntBetween(1, 10));
             shards.assertAllEqual(initDocs + extraDocsOnNewPrimary + moreDocs);
             isDone.set(true); // stop before closing shards to have an accurate "AlreadyClosedException" count
-        } finally {
-            isDone.set(true);
             for (Thread thread : threads) {
                 thread.join();
             }

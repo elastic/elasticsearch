@@ -575,7 +575,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard, boolean refresh) throws IOException {
-        return EngineTestCase.getDocIds(shard.getEngine(), refresh);
+        if (refresh) {
+            shard.refresh("test");
+        }
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return EngineTestCase.getDocIds(searcher);
+        }
     }
 
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {

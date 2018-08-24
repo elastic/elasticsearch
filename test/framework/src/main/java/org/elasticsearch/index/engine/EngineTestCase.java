@@ -520,20 +520,24 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Set<String> ids = new HashSet<>();
-            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                Bits liveDocs = reader.getLiveDocs();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
-                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
-                    }
+            return getDocIds(searcher);
+        }
+    }
+
+    public static Set<String> getDocIds(Engine.Searcher searcher) throws IOException {
+        Set<String> ids = new HashSet<>();
+        for (LeafReaderContext leafContext : searcher.reader().leaves()) {
+            LeafReader reader = leafContext.reader();
+            Bits liveDocs = reader.getLiveDocs();
+            for (int i = 0; i < reader.maxDoc(); i++) {
+                if (liveDocs == null || liveDocs.get(i)) {
+                    Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
+                    BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
+                    ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
                 }
             }
-            return ids;
         }
+        return ids;
     }
 
     static void trimUnsafeCommits(EngineConfig config) throws IOException {

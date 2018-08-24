@@ -78,6 +78,10 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
+/*
+ * Note: This ******must****** line up with the logic in IsIdePlugin or Eclipse
+ * users will have a bad time.
+ */
 List startTasks = gradle.startParameter.taskNames
 boolean isEclipse =
     System.getProperty("eclipse.launcher") != null ||    // Detects gradle launched from the Eclipse IDE

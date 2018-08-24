@@ -426,6 +426,18 @@ class BuildPlugin implements Plugin<Project> {
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             Configuration bundle = project.configurations.create('bundle')
             bundle.dependencies.all(disableTransitiveDeps)
+            /*
+             * IntelliJ and Eclipse don't know about the shadow plugin so when we're
+             * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
+             * regular "compile" dependencies. This isn't needed for the project
+             * itself because the IDE configuration is done by SourceSets but it is
+             * *is* needed for projects that depends on the project doing the shadowing.
+             * Without this they won't properly depend on the shadowed project.
+             */
+            project.pluginManager.apply('elasticsearch.is-ide')
+            if (project.isEclipse || project.isIdea) {
+                project.configurations.compile.extendsFrom bundle
+            }
         }
     }
 
@@ -537,9 +549,9 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }

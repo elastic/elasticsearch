@@ -127,14 +127,8 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
 
 // injecting groovy property variables into all projects
 allprojects {
+  apply plugin: 'elasticsearch.is-ide'
   project.ext {
-    // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
-    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
-
     // for BWC testing
     bwcVersions = versions
 
@@ -512,24 +506,6 @@ allprojects {
   tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
-}
-
-allprojects {
-  /*
-   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
-   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
-   * regular "compile" dependencies. This isn't needed for the project
-   * itself because the IDE configuration is done by SourceSets but it is
-   * *is* needed for projects that depends on the project doing the shadowing.
-   * Without this they won't properly depend on the shadowed project.
-   */
-  if (isEclipse || isIdea) {
-    project.plugins.withType(ShadowPlugin).whenPluginAdded {
-      project.afterEvaluate {
-        project.configurations.compile.extendsFrom project.configurations.bundle
-      }
-    }
-  }
 }
 
 // we need to add the same --debug-jvm option as

@@ -10,23 +10,25 @@ You can use the following APIs to perform {security} activities.
 * <<security-api-ssl>>
 
 [float]
-[[security-role-apis]]
-=== Roles
-
-You can use the following APIs to add, remove, and retrieve roles in the native realm:
-
-* <<security-api-put-role,Create role>>, <<security-api-delete-role,Delete role>>
-* <<security-api-clear-role-cache,Clear roles cache>>
-* <<security-api-get-role,Get roles>>
-
-[float]
 [[security-role-mapping-apis]]
 === Role mappings
 
-You can use the following APIs to add, remove, and retrieve role mappings:
+You can use the following APIs to add, remove, update, and retrieve role mappings:
 
-* <<security-api-put-role-mapping,Add role mappings>>, <<security-api-delete-role-mapping,Delete role mappings>>
+* <<security-api-put-role-mapping,Create or update role mappings>> 
+* <<security-api-delete-role-mapping,Delete role mappings>>
 * <<security-api-get-role-mapping,Get role mappings>>
+
+[float]
+[[security-role-apis]]
+=== Roles
+
+You can use the following APIs to add, remove, update, and retrieve roles in the native realm:
+
+* <<security-api-put-role,Create or update roles>>
+* <<security-api-clear-role-cache,Clear roles cache>>
+* <<security-api-delete-role,Delete roles>>
+* <<security-api-get-role,Get roles>>
 
 [float]
 [[security-token-apis]]
@@ -35,18 +37,21 @@ You can use the following APIs to add, remove, and retrieve role mappings:
 You can use the following APIs to create and invalidate bearer tokens for access
 without requiring basic authentication:
 
-* <<security-api-get-token,Get token>>, <<security-api-invalidate-token,Invalidate token>>
+* <<security-api-get-token,Get token>>
+* <<security-api-invalidate-token,Invalidate token>>
 
 [float]
 [[security-user-apis]]
 === Users
 
-You can use the following APIs to create, read, update, and delete users from the
+You can use the following APIs to add, remove, update, and retrieve users from the
 native realm:
 
-* <<security-api-put-user,Create users>>, <<security-api-delete-user,Delete users>>
-* <<security-api-enable-user,Enable users>>, <<security-api-disable-user,Disable users>>
+* <<security-api-put-user,Create or update users>>
 * <<security-api-change-password,Change passwords>>
+* <<security-api-delete-user,Delete users>>
+* <<security-api-disable-user,Disable users>>
+* <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
 
 include::security/authenticate.asciidoc[]

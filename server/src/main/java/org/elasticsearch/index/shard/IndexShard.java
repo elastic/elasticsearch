@@ -1314,7 +1314,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog();
+        getEngine().recoverFromTranslog(Long.MAX_VALUE);
     }
 
     /**

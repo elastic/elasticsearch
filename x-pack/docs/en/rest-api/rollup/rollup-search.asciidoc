@@ -101,6 +101,7 @@ GET /sensor_rollup/_rollup_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_prefab_data]
+// TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 
 The query is targeting the `sensor_rollup` data, since this contains the rollup data as configured in the job.  A `max`
 aggregation has been used on the `temperature` field, yielding the following response:
@@ -194,6 +195,7 @@ GET sensor-1,sensor_rollup/_rollup_search <1>
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+// TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 <1> Note the URI now searches `sensor-1` and `sensor_rollup` at the same time
 
 When the search is executed, the Rollup Search endpoint will do two things:

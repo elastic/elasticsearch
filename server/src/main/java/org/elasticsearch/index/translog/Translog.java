@@ -577,21 +577,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Snapshot newSnapshot() throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return newSnapshotFromGen(getMinFileGeneration());
+            return newSnapshotFromGen(new TranslogGeneration(translogUUID, getMinFileGeneration()), Long.MAX_VALUE);
         }
     }
 
-    public Snapshot newSnapshotFromGen(long minGeneration) throws IOException {
+    public Snapshot newSnapshotFromGen(TranslogGeneration fromGeneration, long upToSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            if (minGeneration < getMinFileGeneration()) {
-                throw new IllegalArgumentException("requested snapshot generation [" + minGeneration + "] is not available. " +
+            final long fromFileGen = fromGeneration.translogFileGeneration;
+            if (fromFileGen < getMinFileGeneration()) {
+                throw new IllegalArgumentException("requested snapshot generation [" + fromFileGen + "] is not available. " +
                     "Min referenced generation is [" + getMinFileGeneration() + "]");
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
-                .filter(reader -> reader.getGeneration() >= minGeneration)
+                .filter(reader -> reader.getGeneration() >= fromFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            return newMultiSnapshot(snapshots);
+            final Snapshot snapshot = newMultiSnapshot(snapshots);
+            if (upToSeqNo == Long.MAX_VALUE) {
+                return snapshot;
+            } else {
+                return new SeqNoFilterSnapshot(snapshot, Long.MIN_VALUE, upToSeqNo);
+            }
         }
     }
 
@@ -926,7 +932,59 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Returns the next operation in the snapshot or <code>null</code> if we reached the end.
          */
         Translog.Operation next() throws IOException;
+    }
 
+    /**
+     * A filtered snapshot consisting of only operations whose sequence numbers are in the given range
+     * between {@code fromSeqNo} (inclusive) and {@code toSeqNo} (inclusive). This filtered snapshot
+     * shares the same underlying resources with the {@code delegate} snapshot, therefore we should not
+     * use the {@code delegate} after passing it to this filtered snapshot.
+     */
+    static final class SeqNoFilterSnapshot implements Snapshot {
+        private final Snapshot delegate;
+        private int filteredOpsCount;
+        private final long fromSeqNo; // inclusive
+        private final long toSeqNo;   // inclusive
+
+        SeqNoFilterSnapshot(Snapshot delegate, long fromSeqNo, long toSeqNo) {
+            assert fromSeqNo <= toSeqNo : "from_seq_no[" + fromSeqNo + "] > to_seq_no[" + toSeqNo + "]";
+            this.delegate = delegate;
+            this.fromSeqNo = fromSeqNo;
+            this.toSeqNo = toSeqNo;
+        }
+
+        @Override
+        public int totalOperations() {
+            return delegate.totalOperations();
+        }
+
+        @Override
+        public int skippedOperations() {
+            return filteredOpsCount + delegate.skippedOperations();
+        }
+
+        @Override
+        public int overriddenOperations() {
+            return delegate.overriddenOperations();
+        }
+
+        @Override
+        public Operation next() throws IOException {
+            Translog.Operation op;
+            while ((op = delegate.next()) != null) {
+                if (fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo) {
+                    return op;
+                } else {
+                    filteredOpsCount++;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     /**

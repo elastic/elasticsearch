@@ -19,10 +19,19 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.anyString;
 
 public class QueryExplanationTests extends AbstractStreamableXContentTestCase<QueryExplanation> {
 
@@ -55,5 +64,38 @@ public class QueryExplanationTests extends AbstractStreamableXContentTestCase<Qu
     @Override
     protected QueryExplanation createTestInstance() {
         return createRandomQueryExplanation();
+    }
+
+    public void testCompatabilityOfStreamInputApi_V_6_4_0() throws IOException {
+        QueryExplanation queryExplanation = createRandomQueryExplanation(true);
+        StreamInput in = mock(StreamInput.class);
+        when(in.getVersion()).thenReturn(Version.V_6_4_0);
+        queryExplanation.readFrom(in);
+        verify(in, times(3)).readOptionalString();
+    }
+
+    public void testCompatabilityOfStreamInputApi_V_5_4_0() throws IOException {
+        QueryExplanation queryExplanation = createRandomQueryExplanation(true);
+        StreamInput in = mock(StreamInput.class);
+        when(in.getVersion()).thenReturn(Version.V_5_4_0);
+        queryExplanation.readFrom(in);
+        verify(in).readString();
+        verify(in).readInt();
+    }
+
+    public void testCompatabilityOfStreamOutputApi_V_6_4_0() throws IOException {
+        QueryExplanation queryExplanation = createRandomQueryExplanation(true);
+        StreamOutput out = mock(StreamOutput.class);
+        when(out.getVersion()).thenReturn(Version.V_6_4_0);
+        queryExplanation.writeTo(out);
+        verify(out, times(3)).writeOptionalString(anyString());
+    }
+
+    public void testCompatabilityOfStreamOutputApi_V_5_4_0() throws IOException {
+        QueryExplanation queryExplanation = createRandomQueryExplanation(true);
+        StreamOutput out = mock(StreamOutput.class);
+        when(out.getVersion()).thenReturn(Version.V_5_4_0);
+        queryExplanation.writeTo(out);
+        verify(out).writeString(anyString());
     }
 }

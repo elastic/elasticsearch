@@ -32,6 +32,7 @@ import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
@@ -54,6 +55,11 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             ShardFollowNodeTask.Status status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
+            final long numberOfFailedFetches =
+                    testRun.responses.values().stream().flatMap(List::stream).filter(f -> f.exception != null).count();
+            assertThat(status.numberOfFailedFetches(), equalTo(numberOfFailedFetches));
+            // the failures were able to be retried so fetch failures should have cleared
+            assertThat(status.fetchExceptions().entrySet(), hasSize(0));
             assertThat(status.indexMetadataVersion(), equalTo(testRun.finalIndexMetaDataVerion));
         });
 

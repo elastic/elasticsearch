@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.audit;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -111,10 +110,12 @@ public class IndexAuditIT extends ESIntegTestCase {
     }
 
     public void testIndexAuditTrailWorking() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/",
-                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()))));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray())));
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final boolean found = awaitSecurityAuditIndex(lastClusterState, QueryBuilders.matchQuery("principal", USER));
 

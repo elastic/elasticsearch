@@ -21,7 +21,6 @@ package org.elasticsearch.gradle;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
@@ -31,6 +30,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -82,14 +82,14 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         this.outputDir = outputDir;
     }
 
-    public RegularFileProperty take(String resource) {
+    public File copy(String resource) {
         if (getState().getExecuted() || getState().getExecuting()) {
             throw new GradleException("buildResources can't be configured after the task ran. " +
                 "Make sure task is not used after configuration time"
             );
         }
         resources.add(resource);
-        return getProject().getLayout().fileProperty(outputDir.file(resource));
+        return outputDir.file(resource).get().getAsFile();
     }
 
     @TaskAction
@@ -101,12 +101,13 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
             .forEach(resourcePath -> {
                 Path destination = outputDir.get().file(resourcePath).getAsFile().toPath();
                 try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                    Files.createDirectories(destination.getParent());
                     if (is == null) {
                         throw new GradleException("Can't export `" + resourcePath + "` from build-tools: not found");
                     }
                     Files.copy(is, destination);
                 } catch (IOException e) {
-                    throw new GradleException("Can't write resource `" + resourcePath + "` to " + destination);
+                    throw new GradleException("Can't write resource `" + resourcePath + "` to " + destination, e);
                 }
             });
     }

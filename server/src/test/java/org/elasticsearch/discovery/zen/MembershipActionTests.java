@@ -103,7 +103,7 @@ public class MembershipActionTests extends ESTestCase {
         }
 
         if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
-            Version oldMajor = randomFrom(allVersions().stream().filter(v -> v.major < 6).collect(Collectors.toList()));
+            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> MembershipAction.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

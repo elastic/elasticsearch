@@ -19,6 +19,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
@@ -36,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32993")
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testPutJob() throws Exception {

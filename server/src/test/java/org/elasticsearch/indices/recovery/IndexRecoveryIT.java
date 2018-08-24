@@ -61,6 +61,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
@@ -604,8 +605,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
         final CountDownLatch requestBlocked = new CountDownLatch(1);
 
-        blueMockTransportService.addDelegate(redTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, blueMockTransportService.original(), requestBlocked));
-        redMockTransportService.addDelegate(blueTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, redMockTransportService.original(), requestBlocked));
+        blueMockTransportService.addSendBehavior(redTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
+        redMockTransportService.addSendBehavior(blueTransportService, new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestBlocked));
 
         logger.info("--> starting recovery from blue to red");
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(
@@ -626,21 +627,20 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     }
 
-    private class RecoveryActionBlocker extends MockTransportService.DelegateTransport {
+    private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {
         private final boolean dropRequests;
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
 
-        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
-            super(delegate);
+        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, CountDownLatch requestBlocked) {
             this.dropRequests = dropRequests;
             this.recoveryActionToBlock = recoveryActionToBlock;
             this.requestBlocked = requestBlocked;
         }
 
         @Override
-        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                   TransportRequestOptions options) throws IOException {
+        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
@@ -649,7 +649,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 }
                 throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
             }
-            super.sendRequest(connection, requestId, action, request, options);
+            connection.sendRequest(requestId, action, request, options);
         }
     }
 
@@ -692,12 +692,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, blueNodeName);
         MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
 
-        redMockTransportService.addDelegate(blueMockTransportService, new MockTransportService.DelegateTransport(redMockTransportService.original()) {
+        redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
 
             @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
+            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
@@ -707,7 +707,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                     try {
                         Thread.sleep(disconnectAfterDelay.millis());
                     } catch (InterruptedException e) {
@@ -715,35 +715,27 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     }
                     throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
                 } else {
-                    super.sendRequest(connection, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                 }
             }
         });
 
         final AtomicBoolean finalized = new AtomicBoolean();
-        blueMockTransportService.addDelegate(redMockTransportService, new MockTransportService.DelegateTransport(blueMockTransportService.original()) {
-            @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                logger.info("--> sending request {} on {}", action, connection.getNode());
-                if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
-                    finalized.set(true);
-                }
-                super.sendRequest(connection, requestId, action, request, options);
+        blueMockTransportService.addSendBehavior(redMockTransportService, (connection, requestId, action, request, options) -> {
+            logger.info("--> sending request {} on {}", action, connection.getNode());
+            if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                finalized.set(true);
             }
+            connection.sendRequest(requestId, action, request, options);
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
-            mockTransportService.addDelegate(masterTransportService, new MockTransportService.DelegateTransport(mockTransportService.original()) {
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                           TransportRequestOptions options) throws IOException {
-                    logger.info("--> sending request {} on {}", action, connection.getNode());
-                    if ((primaryRelocation && finalized.get()) == false) {
-                        assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
-                    }
-                    super.sendRequest(connection, requestId, action, request, options);
+            mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
+                logger.info("--> sending request {} on {}", action, connection.getNode());
+                if ((primaryRelocation && finalized.get()) == false) {
+                    assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                 }
+                connection.sendRequest(requestId, action, request, options);
             });
         }
 

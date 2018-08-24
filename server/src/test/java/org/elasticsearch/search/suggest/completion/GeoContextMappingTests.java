@@ -203,6 +203,67 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertContextSuggestFields(fields, 3);
     }
 
+    public void testMalformedGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject("type1");
+        mapping.startObject("properties");
+        String type = randomFrom("text", "keyword", "long", null);
+        if (type != null) {
+            mapping.startObject("pin");
+            mapping.field("type", type);
+            mapping.endObject();
+        }
+        mapping.startObject("suggestion");
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        XContentBuilder builder = jsonBuilder().startObject();
+        if (type != null) {
+            switch (type) {
+                case "keyword":
+                case "text":
+                    builder.field("pin", "52.529172, 13.407333");
+                    break;
+                case "long":
+                    builder.field("pin", 1234);
+                    break;
+                case "object":
+                    builder.latlon("pin", 52.529172, 13.407333);
+                    break;
+            }
+        } else {
+            builder.field("pin", "52.529172, 13.407333");
+        }
+
+        builder.startObject("suggestion")
+            .array("input", "Hotel Amsterdam in Berlin")
+            .endObject()
+            .endObject();
+
+        ParsedDocument parsedDocument = mapperService.documentMapper("type1").parse(
+            SourceToParse.source("test", "type1", "1", BytesReference.bytes(builder), XContentType.JSON));
+        IndexableField[] fields = parsedDocument.rootDoc().getFields("suggestion");
+        // Make sure that in 6.x all these cases are still parsed
+        assertContextSuggestFields(fields, 1);
+    }
+
     public void testParsingQueryContextBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value("ezs42e44yx96");
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));

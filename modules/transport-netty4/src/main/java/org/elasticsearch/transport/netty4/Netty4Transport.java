@@ -57,7 +57,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -150,7 +149,6 @@ public class Netty4Transport extends TcpTransport {
 
         bootstrap.handler(getClientChannelInitializer());
 
-        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(defaultConnectionProfile.getConnectTimeout().millis()));
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
 
@@ -178,14 +176,8 @@ public class Netty4Transport extends TcpTransport {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
-                    + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
+                    + "receive_predictor[{}->{}]",
                 name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts, compress,
-                defaultConnectionProfile.getConnectTimeout(),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
-                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
                 receivePredictorMin, receivePredictorMax);
         }
 
@@ -276,8 +268,12 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    ScheduledPing getPing() {
-        return scheduledPing;
+    long successfulPingCount() {
+        return successfulPings.count();
+    }
+
+    long failedPingCount() {
+        return failedPings.count();
     }
 
     @Override

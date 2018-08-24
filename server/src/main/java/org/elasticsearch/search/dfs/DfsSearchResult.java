@@ -138,9 +138,14 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
-        assert termStatistic.docFreq() >= 0;
-        out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(addOne(termStatistic.totalTermFreq()));
+        if (termStatistic != null) {
+            assert termStatistic.docFreq() > 0;
+            out.writeVLong(termStatistic.docFreq());
+            out.writeVLong(addOne(termStatistic.totalTermFreq()));
+        } else {
+            out.writeVLong(0);
+            out.writeVLong(0);
+        }
     }
 
     public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
@@ -178,6 +183,9 @@ public class DfsSearchResult extends SearchPhaseResult {
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
                 final long totalTermFreq = subOne(in.readVLong());
+                if (docFreq == 0) {
+                    continue;
+                }
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }

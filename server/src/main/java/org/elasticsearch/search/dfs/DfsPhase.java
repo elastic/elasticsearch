@@ -79,9 +79,11 @@ public class DfsPhase implements SearchPhase {
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             for (Term term : terms) {
                 assert term.field() != null : "field is null";
-                if (!fieldStatistics.containsKey(term.field())) {
+                if (fieldStatistics.containsKey(term.field()) == false) {
                     final CollectionStatistics collectionStatistics = context.searcher().collectionStatistics(term.field());
-                    fieldStatistics.put(term.field(), collectionStatistics);
+                    if (collectionStatistics != null) {
+                        fieldStatistics.put(term.field(), collectionStatistics);
+                    }
                     if(context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }

@@ -97,14 +97,17 @@ public final class SearchPhaseController extends AbstractComponent {
             assert terms.length == stats.length;
             for (int i = 0; i < terms.length; i++) {
                 assert terms[i] != null;
+                if (stats[i] == null) {
+                    continue;
+                }
                 TermStatistics existing = termStatistics.get(terms[i]);
                 if (existing != null) {
                     assert terms[i].bytes().equals(existing.term());
                     // totalTermFrequency is an optional statistic we need to check if either one or both
                     // are set to -1 which means not present and then set it globally to -1
                     termStatistics.put(terms[i], new TermStatistics(existing.term(),
-                            existing.docFreq() + stats[i].docFreq(),
-                            optionalSum(existing.totalTermFreq(), stats[i].totalTermFreq())));
+                        existing.docFreq() + stats[i].docFreq(),
+                        optionalSum(existing.totalTermFreq(), stats[i].totalTermFreq())));
                 } else {
                     termStatistics.put(terms[i], stats[i]);
                 }
@@ -118,6 +121,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 if (keys[i] != null) {
                     String key = (String) keys[i];
                     CollectionStatistics value = (CollectionStatistics) values[i];
+                    if (value == null) {
+                        continue;
+                    }
                     assert key != null;
                     CollectionStatistics existing = fieldStatistics.get(key);
                     if (existing != null) {

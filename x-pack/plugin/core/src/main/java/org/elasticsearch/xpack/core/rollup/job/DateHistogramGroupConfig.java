@@ -211,10 +211,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return map;
     }
 
-    public Map<String, Object> getMetadata() {
-        return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval.toString());
-    }
-
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
                                                              ActionRequestValidationException validationException) {
 

@@ -92,11 +92,14 @@ fi
 
 @test "[$GROUP] install a sample plugin with a symlinked plugins path" {
     # Clean up after the last time this test was run
-    rm -rf /tmp/plugins.*
-    rm -rf /tmp/old_plugins.*
+    rm -rf /var/plugins.*
+    rm -rf /var/old_plugins.*
 
     rm -rf "$ESPLUGINS"
-    local es_plugins=$(mktemp -d -t 'plugins.XXXX')
+    # The custom plugins directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionaly means different
+    # processes can have different views of what's in these directories
+    local es_plugins=$(mktemp -p /var -d -t 'plugins.XXXX')
     chown -R elasticsearch:elasticsearch "$es_plugins"
     ln -s "$es_plugins" "$ESPLUGINS"
 

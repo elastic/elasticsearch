@@ -199,7 +199,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Also automatically adds empty consumers for all settings in order to activate logging
      */
     public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
-        addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, logger, settings));
+        addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, settings));
     }
 
     /**
@@ -208,11 +208,78 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
                                                         BiConsumer<String, T> validator) {
+        ensureSettingIsRegistered(setting);
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
+    }
+
+    /**
+     * Adds a affix settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
+     * and if the provided validator succeeded.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * This method registers a compound updater that is useful if two settings are depending on each other.
+     * The consumer is always provided with both values even if only one of the two changes.
+     */
+    public synchronized <A,B> void addAffixUpdateConsumer(Setting.AffixSetting<A> settingA, Setting.AffixSetting<B> settingB,
+                                                          BiConsumer<String, Tuple<A, B>> consumer,
+                                                          BiConsumer<String, Tuple<A, B>> validator) {
+        // it would be awesome to have a generic way to do that ie. a set of settings that map to an object with a builder
+        // down the road this would be nice to have!
+        ensureSettingIsRegistered(settingA);
+        ensureSettingIsRegistered(settingB);
+        SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {});
+        SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {});
+
+        addSettingsUpdater(new SettingUpdater<Map<String, Tuple<A, B>>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaterA.hasChanged(current, previous) || affixUpdaterB.hasChanged(current, previous);
+            }
+
+            @Override
+            public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
+                Map<String, Tuple<A, B>> map = new HashMap<>();
+                BiConsumer<String, A> aConsumer = (key, value) -> {
+                    assert map.containsKey(key) == false : "duplicate key: " + key;
+                    map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
+                };
+                BiConsumer<String, B> bConsumer = (key, value) -> {
+                    Tuple<A, B> abTuple = map.get(key);
+                    if (abTuple != null) {
+                        map.put(key, new Tuple<>(abTuple.v1(), value));
+                    } else {
+                        assert settingA.getConcreteSettingForNamespace(key).get(current).equals(settingA.getConcreteSettingForNamespace
+                            (key).get(previous)) : "expected: " + settingA.getConcreteSettingForNamespace(key).get(current)
+                            + " but was " + settingA.getConcreteSettingForNamespace(key).get(previous);
+                        map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
+                    }
+                };
+                SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, logger, (a,b) ->{});
+                SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, logger, (a,b) ->{});
+                affixUpdaterA.apply(current, previous);
+                affixUpdaterB.apply(current, previous);
+                for (Map.Entry<String, Tuple<A, B>> entry : map.entrySet()) {
+                    validator.accept(entry.getKey(), entry.getValue());
+                }
+                return Collections.unmodifiableMap(map);
+            }
+
+            @Override
+            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
+
+    private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
     }
 
     /**

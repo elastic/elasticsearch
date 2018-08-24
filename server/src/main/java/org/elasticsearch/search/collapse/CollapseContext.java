@@ -25,24 +25,29 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
  * Context used for field collapsing
  */
 public class CollapseContext {
+    private final String fieldName;
     private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(MappedFieldType fieldType, InnerHitBuilder innerHit) {
-        this.fieldType = fieldType;
-        this.innerHits = Collections.singletonList(innerHit);
-    }
-
-    public CollapseContext(MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
+    public CollapseContext(String fieldName,
+                           MappedFieldType fieldType,
+                           List<InnerHitBuilder> innerHits) {
+        this.fieldName = fieldName;
         this.fieldType = fieldType;
         this.innerHits = innerHits;
+    }
+
+    /**
+     * The requested field name to collapse on.
+     */
+    public String getFieldName() {
+        return fieldName;
     }
 
     /** The field type used for collapsing **/

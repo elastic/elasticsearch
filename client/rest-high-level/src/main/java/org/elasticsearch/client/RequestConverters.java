@@ -112,7 +112,6 @@ import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -1168,15 +1167,6 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putUser(PutUserRequest putUserRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_xpack/security/user").addPathPart(putUserRequest.username()).build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
-        Params params = new Params(request);
-        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
         return request;
     }
 

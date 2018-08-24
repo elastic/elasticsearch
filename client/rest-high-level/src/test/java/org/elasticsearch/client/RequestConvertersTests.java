@@ -128,7 +128,6 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.security.PutUserRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.Hop;
@@ -2384,7 +2383,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+    static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
@@ -2630,38 +2629,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertToXContentBody(graphExploreRequest, request.getEntity());
-    }    
-
-    public void testPutUser() throws IOException {
-        PutUserRequest putUserRequest = new PutUserRequest();
-        putUserRequest.username(randomAlphaOfLengthBetween(4, 12));
-        if (randomBoolean()) {
-            putUserRequest.password(randomAlphaOfLengthBetween(8, 12).toCharArray());
-        }
-        putUserRequest.roles(generateRandomStringArray(randomIntBetween(2, 8), randomIntBetween(8, 16), false, true));
-        putUserRequest.email(randomBoolean() ? null : randomAlphaOfLengthBetween(12, 24));
-        putUserRequest.fullName(randomBoolean() ? null : randomAlphaOfLengthBetween(7, 14));
-        putUserRequest.enabled(randomBoolean());
-        if (randomBoolean()) {
-            Map<String, Object> metadata = new HashMap<>();
-            for (int i = 0; i < randomIntBetween(1, 10); i++) {
-                metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
-            }
-            putUserRequest.metadata(metadata);
-        }
-        putUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
-        final Map<String, String> expectedParams;
-        if (putUserRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            expectedParams = Collections.singletonMap("refresh", putUserRequest.getRefreshPolicy().getValue());
-        } else {
-            expectedParams = Collections.emptyMap();
-        }
-
-        Request request = RequestConverters.putUser(putUserRequest);
-        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + putUserRequest.username(), request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-        assertToXContentBody(putUserRequest, request.getEntity());
     }
 
     public void testXPackDeleteWatch() {

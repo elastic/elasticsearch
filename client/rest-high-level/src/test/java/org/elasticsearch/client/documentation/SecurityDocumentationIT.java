@@ -24,9 +24,10 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.protocol.xpack.security.PutUserRequest;
-import org.elasticsearch.protocol.xpack.security.PutUserResponse;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.PutUserResponse;
 
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -37,23 +38,21 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-put-user-execute
-            PutUserRequest request = new PutUserRequest();
-            request.username("example");
-            request.roles("superuser");
-            request.password(new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' } );
+            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            PutUserRequest request =
+                new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::x-pack-put-user-execute
 
             //tag::x-pack-put-user-response
-            boolean isCreated = response.created(); // <1>
+            boolean isCreated = response.isCreated(); // <1>
             //end::x-pack-put-user-response
         }
 
         {
-            PutUserRequest request = new PutUserRequest();
-            request.username("example2");
-            request.roles("superuser");
-            request.password(new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' } );
+            char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+            PutUserRequest request =
+                new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true, null);
             // tag::x-pack-put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override

@@ -9,8 +9,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.protocol.xpack.security.PutUserRequest;
-import org.elasticsearch.protocol.xpack.security.PutUserResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.hamcrest.Matchers;
 import org.junit.After;
 

@@ -52,6 +52,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         NamedDomainObjectContainer<ElasticsearchNode> nodeExtension =
                 TestClustersPlugin.getNodeExtension(project)
         ElasticsearchNode esNode = nodeExtension.create("${project.getPath()}##node") {
+            // TODO: change this to INTEG_TEST_ZIP when we add support to install plugins
             it.distribution = Distribution.ZIP
             it.version = VersionProperties.elasticsearch
         }
@@ -80,9 +81,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                         'run.distribution', 'integ-test-zip'
                 )
             } else {
-                //if (project.tasks.findByName('integTestCluster') != null) {
-                    project.integTestCluster.plugin(project.path)
-                //}
                 project.tasks.run.clusterConfig.plugin(project.path)
             }
 

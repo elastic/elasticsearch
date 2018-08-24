@@ -20,8 +20,6 @@ package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
 import org.elasticsearch.GradleServicesAdapter;
-import org.elasticsearch.gradle.Distribution;
-import org.elasticsearch.gradle.Version;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -53,35 +51,128 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
-    // Have to make this static to be able to maintain a single set of listeners
+    // this is static so we have a single mapping across multi project builds, because some of the listeners we use, like
+    // task graph are also singletons across multi project builds.
     private static final Map<Task, List<ElasticsearchNode>> taskToCluster = new ConcurrentHashMap<>();
 
     @Override
     public void apply(Project project) {
         Project rootProject = project.getRootProject();
 
-        // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
-            ElasticsearchNode.class,
-            name -> new ElasticsearchNode(
-                name,
-                GradleServicesAdapter.getInstance(project),
-                getArtifactsDir(project),
-                new File(project.getBuildDir(), NODE_EXTENSION_NAME)
-            )
-        );
-        project.getExtensions().add(NODE_EXTENSION_NAME, container);
+        // enable the DSL to describe clusters
+        NamedDomainObjectContainer<ElasticsearchNode> container = createTestClustersContainerExtension(project);
 
-        // Utility task to list all clusters defined
-        Task listTask = project.getTasks().create(LIST_TASK_NAME);
-        listTask.setGroup("ES cluster formation");
-        listTask.setDescription("Lists all ES clusters configured for this project");
-        listTask.doLast((Task task) ->
-            container.forEach(cluster ->
-                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
-            )
-        );
+        // create a task to list defined clusters.
+        createListClustersTask(project, container);
 
+        // create DSL for tasks to mark clusters these use
+        creteUseClusterTaskExtension(project, rootProject);
+
+        // Create a configuration to manage dependencies e.x. distros and plugins.
+        // We create a single one on the root project, so this also acts as a gate for setup that needs to happen only
+        // once for multi project builds.
+        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
+            Configuration helperConfiguration = rootProject.getConfigurations().create(HELPER_CONFIGURATION_NAME);
+            helperConfiguration.setDescription(
+                "Internal helper configuration used by cluster configuration to download " +
+                    "ES distributions and plugins."
+            );
+            // We have a single task to sync the helper configuration to "artifacts dir"
+            // the clusters will look for artifacts there based on the naming conventions.
+            // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
+            // the build.
+            Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
+            syncTask.from(helperConfiguration);
+            syncTask.into(getArtifactsDir(rootProject));
+
+            // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
+            // that are defined in the build script and the ones that will actually be used in this invocation of gradle
+            // we use this information to determine when the last task that required the cluster executed so that we can
+            // terminate the cluster right away and free up resources.
+            configureClaimClustersHook(project);
+
+            // Before each task, we determine if a cluster needs to be started for that task.
+            configureStartClustersHook(project);
+
+            // After each task we determine if there are clusters that are no longer needed.
+            autoConfigureClusterDependencies(project, rootProject, container);
+        }
+
+        // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
+        // configuration so the user doesn't have to repeat this.
+        configureStopClustersHook(project);
+    }
+
+    private void autoConfigureClusterDependencies(Project project, Project rootProject, NamedDomainObjectContainer<ElasticsearchNode> container) {
+        // When the project evaluated we know of all tasks that use clusters.
+        // Each of these have to depend on the artifacts being synced.
+        project.afterEvaluate(ip -> {
+            container.forEach(esConfig -> {
+                // declare dependencies against artifacts needed by cluster formation.
+                esConfig.assertValid();
+                String dependency = MessageFormat.format(
+                    "org.elasticsearch.distribution.{0}:{1}:{2}@{0}",
+                    esConfig.getDistribution().getExtension(),
+                    esConfig.getDistribution().getFileName(),
+                    esConfig.getVersion()
+                );
+                logger.info("Cluster {} depends on {}", esConfig.getName(), dependency);
+                rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+            });
+        });
+    }
+
+    private void configureStopClustersHook(Project project) {
+        project.getGradle().addListener(
+            new TaskExecutionListener() {
+                @Override
+                public void afterExecute(Task task, TaskState state) {
+                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
+                    // and caused the cluster to start.
+                    if (state.getFailure() != null) {
+                        // If the task fails, and other tasks use this cluster, the other task will likely never be
+                        // executed at all, so we will never get to un-claim and terminate it.
+                        // The downside is that with multi project builds if that other  task is in a different
+                        // project and executing right now, we may terminate the cluster while it's running it.
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
+                            ElasticsearchNode::forceStop
+                        );
+                    } else {
+                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
+                            ElasticsearchNode::unClaimAndStop
+                        );
+                    }
+                }
+                @Override
+                public void beforeExecute(Task task) {}
+            }
+        );
+    }
+
+    private void configureStartClustersHook(Project project) {
+        project.getGradle().addListener(
+            new TaskActionListener() {
+                @Override
+                public void beforeActions(Task task) {
+                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::start);
+                }
+                @Override
+                public void afterActions(Task task) {}
+            }
+        );
+    }
+
+    private void configureClaimClustersHook(Project project) {
+        project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
+            taskExecutionGraph.getAllTasks()
+                .forEach(task ->
+                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::claim)
+                )
+        );
+    }
+
+    private void creteUseClusterTaskExtension(Project project, Project rootProject) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
         project.getTasks().all((Task task) ->
@@ -100,90 +191,43 @@ public class TestClustersPlugin implements Plugin<Project> {
                         }
                     })
         );
+    }
 
-        // When the project evaluated we know of all tasks that use clusters.
-        // Each of these have to depend on the artifacts being synced.
-        project.afterEvaluate(ip -> {
-            container.forEach(esConfig -> {
-                // declare dependencies against artifacts needed by cluster formation.
-                // this causes a download if the  artifacts are not in the Gradle cache, but that is no different than Gradle
-                // dependencies in general
-                esConfig.assertValid();
-                String dependency = MessageFormat.format(
-                    "org.elasticsearch.distribution.{0}:{1}:{2}@{0}",
-                    esConfig.getDistribution().getExtension(),
-                    esConfig.getDistribution().getFileName(),
-                    esConfig.getVersion()
-                );
-                logger.info("Cluster {} depends on {}", esConfig.getName(), dependency);
-                rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
-            });
-        });
+    private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchNode> container) {
+        Task listTask = project.getTasks().create(LIST_TASK_NAME);
+        listTask.setGroup("ES cluster formation");
+        listTask.setDescription("Lists all ES clusters configured for this project");
+        listTask.doLast((Task task) ->
+            container.forEach(cluster ->
+                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
+            )
+        );
+    }
 
-        // Have a single common location to set up the required artifacts
-        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
-            Configuration helperConfiguration = rootProject.getConfigurations().create(HELPER_CONFIGURATION_NAME);
-            helperConfiguration.setDescription(
-                "Internal helper configuration used by cluster configuration to download " +
-                    "ES distributions and plugins."
-            );
-
-            Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
-            syncTask.from(helperConfiguration);
-            syncTask.into(getArtifactsDir(rootProject));
-
-            project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
-                taskExecutionGraph.getAllTasks()
-                    .forEach(task ->
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::claim)
-                    )
-            );
-            project.getGradle().addListener(
-                new TaskActionListener() {
-                    @Override
-                    public void beforeActions(Task task) {
-                        // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::start);
-                    }
-                    @Override
-                    public void afterActions(Task task) {}
-                }
-            );
-            project.getGradle().addListener(
-                new TaskExecutionListener() {
-                    @Override
-                    public void afterExecute(Task task, TaskState state) {
-                        // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                        // and caused the cluster to start.
-                        if (state.getFailure() != null) {
-                            // If the task fails, and other tasks use this cluster, the other task will likely never be
-                            // executed at all, so we will never get to un-claim and terminate it.
-                            // The downside is that with multi project builds if that other  task is in a different
-                            // project and executing right now, we may terminate the cluster while it's running it.
-                            taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                                ElasticsearchNode::forceStop
-                            );
-                        } else {
-                            taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                                ElasticsearchNode::unClaimAndStop
-                            );
-                        }
-                    }
-                    @Override
-                    public void beforeExecute(Task task) {}
-                }
-            );
-        }
+    private NamedDomainObjectContainer<ElasticsearchNode> createTestClustersContainerExtension(Project project) {
+        // Create an extensions that allows describing clusters
+        NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
+            ElasticsearchNode.class,
+            name -> new ElasticsearchNode(
+                name,
+                GradleServicesAdapter.getInstance(project),
+                getArtifactsDir(project),
+                new File(project.getBuildDir(), NODE_EXTENSION_NAME)
+            )
+        );
+        project.getExtensions().add(NODE_EXTENSION_NAME, container);
+        return container;
     }
 
     private static File getArtifactsDir(Project project) {
         return new File(project.getRootProject().getBuildDir(), "testclusters-artifacts");
     }
 
-    static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
-        return new File(sharedArtifactsDir, distro.getFileName() + "-" + version + "." + distro.getExtension());
-    }
-
+    /**
+     * Boilerplate to get testClusters container extension
+     *
+     * Equivalent to project.testClusters in the DSL
+     */
     @SuppressWarnings("unchecked")
     public static NamedDomainObjectContainer<ElasticsearchNode> getNodeExtension(Project project) {
         return (NamedDomainObjectContainer<ElasticsearchNode>)

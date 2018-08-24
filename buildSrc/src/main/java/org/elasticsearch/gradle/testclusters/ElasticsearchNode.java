@@ -190,7 +190,8 @@ public class ElasticsearchNode {
         } else {
             logger.lifecycle("Starting `{}`", name);
         }
-        File artifact = TestClustersPlugin.getArtifact(sharedArtifactsDir, getDistribution(), getVersion());
+        Distribution distro = getDistribution();
+        File artifact = new File(sharedArtifactsDir, distro.getFileName() + "-" + getVersion() + "." + distro.getExtension());
         if (artifact.exists() == false) {
             throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }

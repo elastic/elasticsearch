@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,7 +24,7 @@ esplugin {
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
-forbiddenApis {
+tasks.withType(ForbiddenApisCliTask) {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]

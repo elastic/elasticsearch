@@ -236,11 +236,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -512,28 +514,64 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
             final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+            final Map<Integer, Set<String>> sortedWWWAuthenticateHeaderValues = new TreeMap<>();
             realms.asList().stream().forEach((realm) -> {
                 Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                 realmFailureHeaders.entrySet().stream().forEach((e) -> {
                     String key = e.getKey();
-                    e.getValue().stream()
-                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
-                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                    if (key.equalsIgnoreCase("WWW-Authenticate")) {
+                        /*
+                         * Some browsers (eg. Firefox) behave differently when presented with multiple
+                         * auth schemes in 'WWW-Authenticate' header. The expected behavior is that browser
+                         * select the most secure auth scheme before trying others, but Firefox selects the
+                         * first presented auth scheme and tries the next one's sequentially. As the
+                         * interpretation is something we do not control, we can at least present
+                         * the auth schemes in most to least secure order as server's preference.
+                         */
+                        e.getValue().stream()
+                                .forEach(v -> {
+                                    sortedWWWAuthenticateHeaderValues.computeIfAbsent(authSchemePriority(v), t -> new HashSet<>()).add(v);
+                                });
+                    } else {
+                        e.getValue().stream()
+                                .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>())
+                                        .contains(v) == false)
+                                .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                    }
                 });
             });
 
             if (TokenService.isTokenServiceEnabled(settings)) {
                 String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
-                        .contains(bearerScheme) == false) {
-                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
-                }
+                sortedWWWAuthenticateHeaderValues.computeIfAbsent(authSchemePriority(bearerScheme), v -> new HashSet<>()).add(bearerScheme);
             }
+            defaultFailureResponseHeaders.put("WWW-Authenticate",
+                    sortedWWWAuthenticateHeaderValues.values().stream().flatMap(coll -> coll.stream()).collect(Collectors.toList()));
             failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }
         return failureHandler;
+    }
+
+    /**
+     * For given 'WWW-Authenticate' header value returns the priority based on
+     * the auth-scheme. Lower number denotes more secure and preferred
+     * auth-scheme than the higher number.
+     *
+     * @param headerValue string starting with auth-scheme name
+     * @return integer value denoting priority for given auth scheme.
+     */
+    private static Integer authSchemePriority(final String headerValue) {
+        if (headerValue.regionMatches(true, 0, "negotiate", 0, "negotiate".length())) {
+            return 0;
+        } else if (headerValue.regionMatches(true, 0, "bearer", 0, "bearer".length())) {
+            return 1;
+        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
+            return 2;
+        } else {
+            return 3;
+        }
     }
 
     @Override

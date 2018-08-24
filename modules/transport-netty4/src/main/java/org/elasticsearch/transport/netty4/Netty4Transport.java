@@ -235,7 +235,7 @@ public class Netty4Transport extends TcpTransport {
         ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
         Channel channel = channelFuture.channel();
         if (channel == null) {
-            Netty4Utils.maybeDie(channelFuture.cause());
+            ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());
             throw new IOException(channelFuture.cause());
         }
         addClosedExceptionLogger(channel);
@@ -249,7 +249,7 @@ public class Netty4Transport extends TcpTransport {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     listener.onFailure(new Exception(cause));
                 } else {
                     listener.onFailure((Exception) cause);
@@ -314,7 +314,7 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }
@@ -340,7 +340,7 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }

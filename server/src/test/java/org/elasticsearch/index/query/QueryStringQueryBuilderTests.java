@@ -1028,6 +1028,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertThat(query, equalTo(new MatchNoDocsQuery()));
         }
 
+        if (getCurrentTypes().length > 0) {
+            for (boolean quoted : new boolean[]{true, false}) {
+                String value = (quoted ? "\"" : "") + STRING_FIELD_NAME + (quoted ? "\"" : "");
+                queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
+                query = queryBuilder.toQuery(context);
+                if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                    && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+                    assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
+                } else {
+                    assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
+                }
+            }
+        }
+
         queryBuilder = new QueryStringQueryBuilder("_all:*");
         query = queryBuilder.toQuery(context);
         Query expected = new MatchAllDocsQuery();
@@ -1306,10 +1320,57 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(STRING_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+        Query expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "fox")), Occur.SHOULD)
+                    .build()
+            ), 0f);
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new BooleanQuery.Builder().build(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder().build(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 

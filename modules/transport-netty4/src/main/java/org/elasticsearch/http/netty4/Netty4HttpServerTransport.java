@@ -44,6 +44,7 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -619,7 +620,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
 

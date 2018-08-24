@@ -47,13 +47,13 @@ dependencies {
    * Everything in the "shadow" configuration is *not* copied into the
    * shadowJar.
    */
-  shadow "org.elasticsearch:elasticsearch:${version}"
-  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  shadow "org.elasticsearch.plugin:parent-join-client:${version}"
-  shadow "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
-  shadow "org.elasticsearch.plugin:rank-eval-client:${version}"
-  shadow "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  compile project(':x-pack:protocol')
+  compile "org.elasticsearch:elasticsearch:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch.plugin:parent-join-client:${version}"
+  compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
+  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  bundle project(':x-pack:protocol')
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"

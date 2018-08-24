@@ -292,12 +292,12 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
-        if (quoted) {
-            return getFieldQuery(field, queryText, getPhraseSlop());
-        }
-
         if (field != null && EXISTS_FIELD.equals(field)) {
             return existsQuery(queryText);
+        }
+
+        if (quoted) {
+            return getFieldQuery(field, queryText, getPhraseSlop());
         }
 
         // Detects additional operators '<', '<=', '>', '>=' to handle range query with one side unbounded.
@@ -345,6 +345,10 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query getFieldQuery(String field, String queryText, int slop) throws ParseException {
+        if (field != null && EXISTS_FIELD.equals(field)) {
+            return existsQuery(queryText);
+        }
+
         Map<String, Float> fields = extractMultiFields(field, true);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(field);
@@ -359,6 +363,9 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             queryBuilder.setPhraseSlop(slop);
             Query query = queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, fields, queryText, null);
+            if (query == null) {
+                return null;
+            }
             return applySlop(query, slop);
         } catch (IOException e) {
             throw new ParseException(e.getMessage());

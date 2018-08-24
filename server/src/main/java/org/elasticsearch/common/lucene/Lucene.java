@@ -105,7 +105,7 @@ public class Lucene {
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
+    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, Float.NaN);
 
     public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {

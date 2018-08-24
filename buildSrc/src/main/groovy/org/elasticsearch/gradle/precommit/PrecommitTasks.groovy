@@ -18,18 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.file.FileCollection
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
-import org.gradle.api.tasks.JavaExec
-import org.gradle.api.tasks.StopExecutionException
-
 /**
  * Validation tasks which should be run before committing. These run before tests.
  */
@@ -38,8 +32,8 @@ class PrecommitTasks {
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
         List<Task> precommitTasks = [
-            configureForbiddenApis(project),
             configureCheckstyle(project),
+            configureForbiddenApisCli(project),
             configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
@@ -47,9 +41,6 @@ class PrecommitTasks {
             project.tasks.create('jarHell', JarHellTask.class),
             project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
         ]
-
-        // Configure it but don't add it as a dependency yet
-        configureForbiddenApisCli(project)
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
         // the task optional
@@ -84,77 +75,60 @@ class PrecommitTasks {
         return project.tasks.create(precommitOptions)
     }
 
-    private static Task configureForbiddenApis(Project project) {
-        project.pluginManager.apply(ForbiddenApisPlugin.class)
-        project.forbiddenApis {
-            failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-non-portable', 'jdk-system-out']
-            signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
-                              getClass().getResource('/forbidden/es-all-signatures.txt')]
-            suppressAnnotations = ['**.SuppressForbidden']
-        }
-        project.tasks.withType(CheckForbiddenApis) {
-            // we do not use the += operator to add signatures, as conventionMappings of Gradle do not work when it's configured using withType:
-            if (name.endsWith('Test')) {
-                signaturesURLs = project.forbiddenApis.signaturesURLs +
-                    [ getClass().getResource('/forbidden/es-test-signatures.txt'), getClass().getResource('/forbidden/http-signatures.txt') ]
-            } else {
-                signaturesURLs = project.forbiddenApis.signaturesURLs +
-                    [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
-            }
-            // forbidden apis doesn't support Java 11, so stop at 10
-            String targetMajorVersion = (project.compilerJavaVersion.compareTo(JavaVersion.VERSION_1_10) > 0 ?
-                    JavaVersion.VERSION_1_10 :
-                    project.compilerJavaVersion).getMajorVersion()
-            targetCompatibility = Integer.parseInt(targetMajorVersion) >= 9 ?targetMajorVersion : "1.${targetMajorVersion}"
-        }
-        Task forbiddenApis = project.tasks.findByName('forbiddenApis')
-        forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
-
-        return forbiddenApis
-    }
-
     private static Task configureForbiddenApisCli(Project project) {
-        project.configurations.create("forbiddenApisCliJar")
+        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.5'
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
         }
-        Task forbiddenApisCli = project.tasks.create('forbiddenApisCli')
+        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
 
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
-                project.tasks.create(sourceSet.getTaskName('forbiddenApisCli', null), JavaExec) {
+                project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
                     dependsOn(buildResources)
-                    classpath = project.files(
-                            project.configurations.forbiddenApisCliJar,
+                    execAction = { spec ->
+                        spec.classpath = project.files(
+                                project.configurations.forbiddenApisCliJar,
+                                sourceSet.compileClasspath,
+                                sourceSet.runtimeClasspath
+                        )
+                        spec.executable = "${project.runtimeJavaHome}/bin/java"
+                    }
+                    inputs.files(
+                            forbiddenApisConfiguration,
                             sourceSet.compileClasspath,
                             sourceSet.runtimeClasspath
                     )
-                    main = 'de.thetaphi.forbiddenapis.cli.CliMain'
-                    executable = "${project.runtimeJavaHome}/bin/java"
-                    args "-b", 'jdk-unsafe-1.8'
-                    args "-b", 'jdk-deprecated-1.8'
-                    args "-b", 'jdk-non-portable'
-                    args "-b", 'jdk-system-out'
-                    args "-f", buildResources.copy("forbidden/jdk-signatures.txt")
-                    args "-f", buildResources.copy("forbidden/es-all-signatures.txt")
-                    args "--suppressannotation", '**.SuppressForbidden'
+
+                    targetCompatibility = project.compilerJavaVersion
+                    bundledSignatures = [
+                       "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
+                    ]
+                    signaturesFiles = project.files(
+                            buildResources.copy("forbidden/jdk-signatures.txt"),
+                            buildResources.copy("forbidden/es-all-signatures.txt")
+                    )
+                    suppressAnnotations = ['**.SuppressForbidden']
                     if (sourceSet.name == 'test') {
-                        args "-f", buildResources.copy("forbidden/es-test-signatures.txt")
-                        args "-f", buildResources.copy("forbidden/http-signatures.txt")
+                        signaturesFiles += project.files(
+                                buildResources.copy("forbidden/es-test-signatures.txt"),
+                                buildResources.copy("forbidden/http-signatures.txt")
+                        )
                     } else {
-                        args "-f", buildResources.copy("forbidden/es-server-signatures.txt")
+                        signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
                     }
                     dependsOn sourceSet.classesTaskName
-                    doFirst {
-                        // Forbidden APIs expects only existing dirs, and requires at least one
-                        FileCollection existingOutputs = sourceSet.output.classesDirs
-                                .filter { it.exists() }
-                        if (existingOutputs.isEmpty()) {
-                            throw new StopExecutionException("${sourceSet.name} has no outputs")
-                        }
-                        existingOutputs.forEach { args "-d", it }
+                    classesDirs = sourceSet.output.classesDirs
+                    ext.replaceSignatureFiles = { String... names ->
+                        signaturesFiles = project.files(
+                                names.collect { buildResources.copy("forbidden/${it}.txt") }
+                        )
+                    }
+                    ext.addSignatureFiles = { String... names ->
+                        signaturesFiles += project.files(
+                                names.collect { buildResources.copy("forbidden/${it}.txt") }
+                        )
                     }
                 }
             )

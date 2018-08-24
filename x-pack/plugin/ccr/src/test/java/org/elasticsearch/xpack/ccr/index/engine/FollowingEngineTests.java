@@ -280,7 +280,7 @@ public class FollowingEngineTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
-        followingEngine.recoverFromTranslog();
+        followingEngine.recoverFromTranslog(Long.MAX_VALUE);
         return followingEngine;
     }
 

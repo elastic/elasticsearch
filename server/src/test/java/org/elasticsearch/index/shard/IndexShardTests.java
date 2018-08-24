@@ -3218,6 +3218,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .filter(id -> Long.parseLong(id) <= upToSeqNo).collect(Collectors.toSet());
             assertThat(getShardDocUIDs(replica), equalTo(expectedDocs));
             if (randomBoolean()) {
+                // simulate a primary promotion
                 replica.resetEngineUpToSeqNo(Long.MAX_VALUE);
                 replica.getEngine().fillSeqNoGaps(replica.pendingPrimaryTerm);
                 if (randomBoolean()) {

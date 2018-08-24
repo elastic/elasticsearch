@@ -84,7 +84,7 @@ public class SearchOnlyEngineTests extends EngineTestCase {
                 }
             }
             // Close and reopen the main engine
-            trimUnsafeCommits(config);
+            InternalEngineTests.trimUnsafeCommits(config);
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
                 recoveringEngine.recoverFromTranslog(Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit

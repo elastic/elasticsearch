@@ -508,7 +508,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     // We need to reset the engine again with all the local history.
                                     getEngine().flush();
                                     resetEngineUpToSeqNo(Long.MAX_VALUE);
-                                    maxSeqNoOfResettingEngine = SequenceNumbers.NO_OPS_PERFORMED;
                                 } else {
                                     getEngine().restoreLocalCheckpointFromTranslog();
                                 }

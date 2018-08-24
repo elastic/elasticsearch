@@ -727,8 +727,14 @@ The response looks like:
               "search": 0
             },
             "throttled_millis": 0
+            "requests_per_second": -1,
+            "throttled_until_millis": 0
           },
-          "description" : ""
+          "description" : "",
+          "start_time_in_millis": 1535149899665,
+          "running_time_in_nanos": 5926916792,
+          "cancellable": true,
+          "headers": {}
         }
       }
     }
@@ -744,14 +750,14 @@ of operations that the `_reindex` expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
-With the task id you can look up the task directly:
+With the task id you can look up the task directly. The following example 
+retrieves information about the task ID `36619` on node ID `r1A2WoRbTwKZ516z6NEs5A`:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/task_id
+GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -766,16 +772,17 @@ you to delete that document.
 [[docs-reindex-cancel-task-api]]
 === Works with the Cancel Task API
 
-Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
+Any Reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
+example:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id/_cancel
+POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
+// TEST[catch:missing]
 
-The `task_id` can be found using the Tasks API.
+The `task_id` can be found using the <<tasks,Tasks API>>.
 
 Cancelation should happen quickly but might take a few seconds. The Tasks
 API will continue to list the task until it wakes to cancel itself.

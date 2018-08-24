@@ -18,21 +18,12 @@
  */
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.similarities.AfterEffectB;
-import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BasicModelG;
-import org.apache.lucene.search.similarities.BasicModelIne;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.DFRSimilarity;
-import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.hamcrest.Matchers;
 
 import java.util.Collections;
 
@@ -64,78 +55,5 @@ public class SimilarityServiceTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof BooleanSimilarity);
-    }
-
-    public void testDeprecatedDFRSimilarities() {
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_4_0)
-
-                .put("index.similarity.my_sim1.type", "dfr")
-                .put("index.similarity.my_sim1.model", "d")
-                .put("index.similarity.my_sim1.normalization", "h2")
-                .put("index.similarity.my_sim1.after_effect", "no")
-
-                .put("index.similarity.my_sim2.type", "dfr")
-                .put("index.similarity.my_sim2.model", "p")
-                .put("index.similarity.my_sim2.normalization", "h2")
-                .put("index.similarity.my_sim2.after_effect", "l")
-
-                .put("index.similarity.my_sim2.type", "dfr")
-                .put("index.similarity.my_sim2.model", "be")
-                .put("index.similarity.my_sim2.normalization", "h2")
-                .put("index.similarity.my_sim2.after_effect", "b")
-
-                .build();
-
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
-
-        Similarity sim = service.getSimilarity("my_sim1").get();
-        assertThat(sim, Matchers.instanceOf(DFRSimilarity.class));
-        DFRSimilarity dfrSim = (DFRSimilarity) sim;
-        assertThat(dfrSim.getBasicModel(), Matchers.instanceOf(BasicModelIne.class));
-        assertThat(dfrSim.getAfterEffect(), Matchers.instanceOf(AfterEffectL.class));
-
-        sim = service.getSimilarity("my_sim2").get();
-        assertThat(sim, Matchers.instanceOf(DFRSimilarity.class));
-        dfrSim = (DFRSimilarity) sim;
-        assertThat(dfrSim.getBasicModel(), Matchers.instanceOf(BasicModelIne.class));
-        assertThat(dfrSim.getAfterEffect(), Matchers.instanceOf(AfterEffectL.class));
-
-        sim = service.getSimilarity("my_sim3").get();
-        assertThat(sim, Matchers.instanceOf(DFRSimilarity.class));
-        dfrSim = (DFRSimilarity) sim;
-        assertThat(dfrSim.getBasicModel(), Matchers.instanceOf(BasicModelG.class));
-        assertThat(dfrSim.getAfterEffect(), Matchers.instanceOf(AfterEffectB.class));
-
-        assertWarnings(
-                "Basic model [d] isn't supported anymore and has arbitrarily been replaced with [ine].",
-                "Basic model [p] isn't supported anymore and has arbitrarily been replaced with [ine].",
-                "Basic model [be] isn't supported anymore and has arbitrarily been replaced with [g].",
-                "After effect [no] isn't supported anymore and has arbitrarily been replaced with [l].");
-    }
-
-    public void testRejectUnsupportedDFRSimilarities() {
-        Settings settings = Settings.builder()
-                .put("index.similarity.my_sim1.type", "dfr")
-                .put("index.similarity.my_sim1.model", "d")
-                .put("index.similarity.my_sim1.normalization", "h2")
-                .put("index.similarity.my_sim1.after_effect", "l")
-                .build();
-        IndexSettings indexSettings1 = IndexSettingsModule.newIndexSettings("test", settings);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new SimilarityService(indexSettings1, null, Collections.emptyMap()));
-        assertEquals("Basic model [d] isn't supported anymore, please use another model.", e.getMessage());
-
-        settings = Settings.builder()
-                .put("index.similarity.my_sim1.type", "dfr")
-                .put("index.similarity.my_sim1.model", "g")
-                .put("index.similarity.my_sim1.normalization", "h2")
-                .put("index.similarity.my_sim1.after_effect", "no")
-                .build();
-        IndexSettings indexSettings2 = IndexSettingsModule.newIndexSettings("test", settings);
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new SimilarityService(indexSettings2, null, Collections.emptyMap()));
-        assertEquals("After effect [no] isn't supported anymore, please use another effect.", e.getMessage());
     }
 }

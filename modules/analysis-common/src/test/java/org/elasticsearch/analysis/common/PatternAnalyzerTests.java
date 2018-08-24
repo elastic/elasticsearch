@@ -20,7 +20,6 @@ package org.elasticsearch.analysis.common;
  */
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTokenStreamTestCase;

@@ -21,7 +21,6 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 public class SnowballAnalyzerTests extends ESTokenStreamTestCase {

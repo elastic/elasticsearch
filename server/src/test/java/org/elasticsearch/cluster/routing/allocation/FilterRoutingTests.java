@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -30,8 +29,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -42,13 +41,15 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(FilterRoutingTests.class);
 
     public void testClusterFilters() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.include.tag1", "value1,value2")
-                .put("cluster.routing.allocation.exclude.tag1", "value3,value4")
-                .build());
+        Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.put("cluster.routing.allocation.include.tag1", "value1,value2");
+        } else {
+            settingsBuilder.put("cluster.routing.allocation.exclude.tag1", "value3,value4");
+        }
+        AllocationService strategy = createAllocationService(settingsBuilder.build());
 
         logger.info("Building initial routing table");
 
@@ -92,14 +93,13 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData initialMetaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
-                        .put("index.number_of_shards", 2)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.routing.allocation.include.tag1", "value1,value2")
-                        .put("index.routing.allocation.exclude.tag1", "value3,value4")
-                        .build()))
-                .build();
+        final Settings.Builder settingsBuilder = settings(Version.CURRENT).put("index.number_of_shards", 2).put("index.number_of_replicas", 1);
+        if (randomBoolean()) {
+            settingsBuilder.put("index.routing.allocation.include.tag1", "value1,value2");
+        } else {
+            settingsBuilder.put("index.routing.allocation.exclude.tag1", "value3,value4");
+        }
+        final MetaData initialMetaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settingsBuilder.build())).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(initialMetaData.index("test"))
@@ -132,13 +132,19 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> switch between value2 and value4, shards should be relocating");
 
-        IndexMetaData existingMetaData = clusterState.metaData().index("test");
-        MetaData updatedMetaData = MetaData.builder()
-            .put(IndexMetaData.builder(existingMetaData).settings(Settings.builder().put(existingMetaData.getSettings())
+        final IndexMetaData existingMetaData = clusterState.metaData().index("test");
+        final Settings.Builder updatedSettingsBuilder = Settings.builder().put(existingMetaData.getSettings());
+        if (randomBoolean()) {
+            updatedSettingsBuilder
                 .put("index.routing.allocation.include.tag1", "value1,value4")
+                .putNull("index.routing.allocation.exclude.tag1");
+        } else {
+            updatedSettingsBuilder
                 .put("index.routing.allocation.exclude.tag1", "value2,value3")
-                .build()))
-            .build();
+                .putNull("index.routing.allocation.include.tag1");
+        }
+        final MetaData updatedMetaData
+            = MetaData.builder().put(IndexMetaData.builder(existingMetaData).settings(updatedSettingsBuilder.build())).build();
         clusterState = ClusterState.builder(clusterState).metaData(updatedMetaData).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));

@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -1258,6 +1259,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("expected object but got a " + token);
             }
+            boolean mappingVersion = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -1357,6 +1359,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     } else if (KEY_VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());
                     } else if (KEY_MAPPING_VERSION.equals(currentFieldName)) {
+                        mappingVersion = true;
                         builder.mappingVersion(parser.longValue());
                     } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
                         builder.setRoutingNumShards(parser.intValue());
@@ -1366,6 +1369,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
+            }
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_0_0_alpha1)) {
+                assert mappingVersion : "mapping version should be present for indices created on or after 7.0.0";
             }
             return builder.build();
         }

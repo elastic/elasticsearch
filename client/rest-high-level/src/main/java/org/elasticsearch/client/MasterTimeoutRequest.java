@@ -26,7 +26,9 @@ import org.elasticsearch.common.unit.TimeValue;
 // created when everything is moved from o.e.xpack.protocol to o.e.client.
 public abstract class MasterTimeoutRequest<Request> implements Validatable {
 
-    protected TimeValue timeout;
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    protected TimeValue timeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
     @SuppressWarnings("unchecked")
     public Request masterNodeTimeout(TimeValue timeout) {

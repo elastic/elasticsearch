@@ -36,10 +36,14 @@ import java.util.List;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider
+    .CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterRoutingTests extends ESAllocationTestCase {
@@ -98,28 +102,28 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
     public void testIndexIncludeFilters() {
         testIndexFilters(
-            Settings.builder().put("index.routing.allocation.include.tag1", "value1,value2"),
-            Settings.builder().put("index.routing.allocation.include.tag1", "value1,value4"));
+            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
+            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value4"));
     }
 
     public void testIndexExcludeFilters() {
         testIndexFilters(
-            Settings.builder().put("index.routing.allocation.exclude.tag1", "value3,value4"),
-            Settings.builder().put("index.routing.allocation.exclude.tag1", "value2,value3"));
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value2,value3"));
     }
 
     public void testIndexIncludeThenExcludeFilters() {
         testIndexFilters(
-            Settings.builder().put("index.routing.allocation.include.tag1", "value1,value2"),
-            Settings.builder().put("index.routing.allocation.exclude.tag1", "value2,value3")
-                .putNull("index.routing.allocation.include.tag1"));
+            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value2,value3")
+                .putNull(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1"));
     }
 
     public void testIndexExcludeThenIncludeFilters() {
         testIndexFilters(
-            Settings.builder().put("index.routing.allocation.exclude.tag1", "value3,value4"),
-            Settings.builder().put("index.routing.allocation.include.tag1", "value1,value4")
-                .putNull("index.routing.allocation.exclude.tag1"));
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
+            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value4")
+                .putNull(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1"));
     }
 
     /**
@@ -135,11 +139,12 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         final MetaData initialMetaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
             .put("index.number_of_shards", 2).put("index.number_of_replicas", 1).put(initialIndexSettings.build()))).build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
+        final RoutingTable initialRoutingTable = RoutingTable.builder()
             .addAsNew(initialMetaData.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(initialMetaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(initialMetaData).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -201,7 +206,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .addAsNew(metaData.index("test2"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes and performing rerouting");
         DiscoveryNode node1 = newNode("node1", singletonMap("tag1", "value1"));
@@ -219,8 +225,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> disable allocation for node1 and reroute");
         strategy = createAllocationService(Settings.builder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", "1")
-            .put("cluster.routing.allocation.exclude.tag1", "value1")
+            .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), "1")
+            .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value1")
             .build());
 
         logger.info("--> move shards from node1 to node2");

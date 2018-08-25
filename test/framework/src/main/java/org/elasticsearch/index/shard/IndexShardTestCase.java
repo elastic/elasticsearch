@@ -139,7 +139,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName(), threadPoolSettings());
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
-        failOnShardFailures.set(true);
+        failOnShardFailures();
     }
 
     @Override
@@ -158,6 +158,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected void allowShardFailures() {
         failOnShardFailures.set(false);
+    }
+
+    protected void failOnShardFailures() {
+        failOnShardFailures.set(true);
     }
 
     public Settings threadPoolSettings() {

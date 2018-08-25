@@ -477,7 +477,10 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
         // Corrupt the translog file(s)
         logger.info("--> corrupting translog");
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        for (Path translogDir : translogDirs) {
+            final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogDir);
+            TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, minTranslogGen);
+        }
 
         // Restart the single node
         logger.info("--> starting node");
@@ -573,7 +576,10 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles(String indexName) throws IOException {
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
-        TestTranslog.corruptTranslogFiles(logger, random(), translogDirs);
+        for (Path translogDir : translogDirs) {
+            final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogDir);
+            TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, minTranslogGen);
+        }
     }
 
     /** Disables translog flushing for the specified index */

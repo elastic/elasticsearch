@@ -42,6 +42,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -197,6 +198,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
+        allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
         expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
 
@@ -238,6 +240,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
             // reopen shard, do checksum on start up
 
+            failOnShardFailures();
             final IndexShard newShard = newStartedShard(p ->
                     newShard(shardRouting, shardPath, indexMetaData,
                         null, null, indexShard.engineFactory,
@@ -317,7 +320,8 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             assertThat(t.getOutput(), containsString("Translog is clean at"));
         }
 
-        TestTranslog.corruptTranslogFiles(logger, random(), Arrays.asList(translogPath));
+        final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogPath);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath, minTranslogGen);
 
         // open shard with the same location
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
@@ -344,9 +348,10 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             },
             null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER);
 
+        allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
         final Exception exception = expectThrows(Exception.class, () -> newStartedShard(p -> corruptedShard, true));
-        final Throwable cause = (exception instanceof IndexShardRecoveryException ? exception.getCause() : exception.getCause().getCause());
+        final Throwable cause = exception.getCause() instanceof EngineException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
         closeShards(corruptedShard);
@@ -385,6 +390,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         // reopen shard, do checksum on start up
 
+        failOnShardFailures();
         final IndexShard newShard = newStartedShard(p ->
                 newShard(shardRouting, shardPath, indexMetaData,
                     null, null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),

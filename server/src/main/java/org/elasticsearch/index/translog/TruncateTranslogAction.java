@@ -60,7 +60,7 @@ public class TruncateTranslogAction {
                                                                                          Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
-        List<IndexCommit> commits;
+        final List<IndexCommit> commits;
         try {
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
@@ -69,15 +69,13 @@ public class TruncateTranslogAction {
 
         // Retrieve the generation and UUID from the existing data
         final Map<String, String> commitData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
-        String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
-        String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
+        final String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
 
-        if (translogGeneration == null || translogUUID == null) {
-            throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
-                translogGeneration, translogUUID);
+        if (translogUUID == null) {
+            throw new ElasticsearchException("shard must have a valid translog UUID but got: [null]");
         }
 
-        final boolean clean = isTranslogClean(shardPath, translogGeneration, translogUUID);
+        final boolean clean = isTranslogClean(shardPath, translogUUID);
 
         if (clean) {
             return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CLEAN, null);
@@ -160,7 +158,7 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, String translogGeneration, String translogUUID) throws IOException {
+    private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
         // TODO: perform clean check of translog instead of corrupted marker file
         boolean clean = true;
         try {
@@ -177,7 +175,7 @@ public class TruncateTranslogAction {
                     indexSettings.getTranslogRetentionAge().getMillis());
             try (Translog translog = new Translog(translogConfig, translogUUID,
                 translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
-                 Translog.Snapshot snapshot = translog.newSnapshotFromGen(Long.parseLong(translogGeneration))) {
+                 Translog.Snapshot snapshot = translog.newSnapshot()) {
                 while (snapshot.next() != null) {
                     // just iterate over snapshot
                 }

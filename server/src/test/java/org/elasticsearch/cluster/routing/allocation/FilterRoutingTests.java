@@ -54,21 +54,21 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-                .build();
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
-                .build();
+            .addAsNew(metaData.index("test"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding four nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node1", singletonMap("tag1", "value1")))
-                .add(newNode("node2", singletonMap("tag1", "value2")))
-                .add(newNode("node3", singletonMap("tag1", "value3")))
-                .add(newNode("node4", singletonMap("tag1", "value4")))
+            .add(newNode("node1", singletonMap("tag1", "value1")))
+            .add(newNode("node2", singletonMap("tag1", "value2")))
+            .add(newNode("node3", singletonMap("tag1", "value3")))
+            .add(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -89,7 +89,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
     public void testIndexFilters() {
         AllocationService strategy = createAllocationService(Settings.builder()
-                .build());
+            .build());
 
         logger.info("Building initial routing table");
 
@@ -102,17 +102,17 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         final MetaData initialMetaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settingsBuilder.build())).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(initialMetaData.index("test"))
-                .build();
+            .addAsNew(initialMetaData.index("test"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(initialMetaData).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node1", singletonMap("tag1", "value1")))
-                .add(newNode("node2", singletonMap("tag1", "value2")))
-                .add(newNode("node3", singletonMap("tag1", "value3")))
-                .add(newNode("node4", singletonMap("tag1", "value4")))
+            .add(newNode("node1", singletonMap("tag1", "value1")))
+            .add(newNode("node2", singletonMap("tag1", "value2")))
+            .add(newNode("node3", singletonMap("tag1", "value3")))
+            .add(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
@@ -166,14 +166,14 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .build();
+            .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test1"))
-                .addAsNew(metaData.index("test2"))
-                .build();
+            .addAsNew(metaData.index("test1"))
+            .addAsNew(metaData.index("test2"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
@@ -193,9 +193,9 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> disable allocation for node1 and reroute");
         strategy = createAllocationService(Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", "1")
-                .put("cluster.routing.allocation.exclude.tag1", "value1")
-                .build());
+            .put("cluster.routing.allocation.node_concurrent_recoveries", "1")
+            .put("cluster.routing.allocation.exclude.tag1", "value1")
+            .build());
 
         logger.info("--> move shards from node1 to node2");
         clusterState = strategy.reroute(clusterState, "reroute");

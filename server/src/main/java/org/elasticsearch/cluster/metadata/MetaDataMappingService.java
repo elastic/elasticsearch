@@ -329,6 +329,14 @@ public class MetaDataMappingService extends AbstractComponent {
                         indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                     }
                 }
+                if (updated) {
+                    indexMetaDataBuilder.mappingVersion(1 + indexMetaDataBuilder.mappingVersion());
+                }
+                /*
+                 * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
+                 * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
+                 * statement.
+                 */
                 builder.put(indexMetaDataBuilder);
             }
             if (updated) {

@@ -64,27 +64,21 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
-import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand {
 
-    protected static final Logger logger = Loggers.getLogger(RemoveCorruptedShardSegmentsCommand.class);
+    private static final Logger logger = Loggers.getLogger(RemoveCorruptedShardSegmentsCommand.class);
 
     private static final int MISCONFIGURATION = 1;
-    private static final int FAILURE = 2;
 
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
@@ -144,43 +138,37 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
         final String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
         final Integer id = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
 
-        final List<ShardPath> shardPaths = new ArrayList<>();
+        return resolveShardPath(environment,
+            (nodeLockId, nodePath) -> {
+                // have to scan all index uuid folders to resolve from index name
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                    for (Path file : stream) {
+                        if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))
+                            // and shard id folder
+                            && Files.exists(file.resolve(Integer.toString(id)))) {
+                            final IndexMetaData indexMetaData =
+                                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
+                            if (indexMetaData != null) {
+                                final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                                final Index index = indexMetaData.getIndex();
+                                if (indexName.equals(index.getName())) {
+                                    final ShardId shardId = new ShardId(index, id);
 
-        // have to scan shards to pick up proper shard id
-        resolveShardPath(environment, (nodeLockId, nodePath) -> {
-            final SimpleFileVisitor<Path> visitor = new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
-                        final IndexMetaData indexMetaData =
-                            IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
-                        if (indexMetaData != null) {
-                            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                            final Index index = indexMetaData.getIndex();
-                            if (indexName.equals(index.getName())) {
-                                final ShardId shardId = new ShardId(index, id);
-
-                                final Path shardPathLocation = nodePath.resolve(shardId);
-                                final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings,
-                                    new Path[]{shardPathLocation},
-                                    nodeLockId, nodePath.path);
-                                if (shardPath != null) {
-                                    shardPaths.add(shardPath);
+                                    final Path shardPathLocation = nodePath.resolve(shardId);
+                                    final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings,
+                                        new Path[]{shardPathLocation},
+                                        nodeLockId, nodePath.path);
+                                    if (shardPath != null) {
+                                        return shardPath;
+                                    }
                                 }
                             }
                         }
                     }
-                    return FileVisitResult.CONTINUE;
                 }
-            };
-            Files.walkFileTree(nodePath.indicesPath, EnumSet.noneOf(FileVisitOption.class), 1, visitor);
-            return shardPaths.isEmpty() == false ? null : Boolean.FALSE;
-        });
-
-        if (shardPaths.size() == 1) {
-            return shardPaths.get(0);
-        }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + id + "]");
+                return null;
+            },
+            () -> new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + id + "]"));
     }
 
     /**
@@ -213,39 +201,36 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
 
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
 
-        AtomicReference<ShardPath> reference = new AtomicReference<>();
-        resolveShardPath(environment, (nodeLockId, nodePath) -> {
-            final Path shardPathLocation = nodePath.resolve(shardId);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
-                nodeLockId, nodePath.path);
-            if (shardPath == null) {
-                return true;
-            }
-            if (shardPath.resolveIndex().equals(indexPath)) {
-                reference.set(shardPath);
+        return resolveShardPath(environment,
+            (nodeLockId, nodePath) -> {
+                final Path shardPathLocation = nodePath.resolve(shardId);
+                final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
+                    nodeLockId, nodePath.path);
+                if (shardPath != null && shardPath.resolveIndex().equals(indexPath)) {
+                    return shardPath;
+                }
                 return null;
-            }
-            return false;
-        });
-        if (reference.get() != null) {
-            return reference.get();
-        }
-        throw new ElasticsearchException("Unable to resolve shard path for path " + path.toString());
+            },
+            () -> new ElasticsearchException("Unable to resolve shard path for path " + path.toString()));
     }
 
-    private void resolveShardPath(Environment environment,
-                                  CheckedBiFunction<Integer, NodeEnvironment.NodePath, Boolean, IOException> function)
+    private ShardPath resolveShardPath(final Environment environment,
+                                       final CheckedBiFunction<Integer, NodeEnvironment.NodePath, ShardPath, IOException> function,
+                                       final Supplier<ElasticsearchException> exceptionSupplier)
         throws IOException, UserException {
         // have to iterate over possibleLockId as NodeEnvironment - but fail if node owns lock
         final Settings settings = environment.settings();
         // try to resolve shard path in case of multi-node layout per environment (hope it's only integration tests)
-        int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+        final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+
+        nodeLoop:
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
-                Path dataDir = environment.dataFiles()[dirIndex];
-                Path dir = NodeEnvironment.resolveNodePath(dataDir, possibleLockId);
+                final Path dataDir = environment.dataFiles()[dirIndex];
+                final Path dir = NodeEnvironment.resolveNodePath(dataDir, possibleLockId);
                 if (Files.exists(dir) == false) {
-                    break;
+                    // assume that we do not have gaps in nodes like
+                    break nodeLoop;
                 }
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE);
                      Lock lock = luceneDir.obtainLock(NodeEnvironment.NODE_LOCK_FILENAME)) {
@@ -260,20 +245,19 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
                     break;
                 }
 
-                final Boolean apply = function.apply(possibleLockId, nodePath);
-                if (apply == null) {
-                    return;
-                }
-                if (apply.booleanValue()) {
-                    break;
+                final ShardPath shardPath = function.apply(possibleLockId, nodePath);
+                if (shardPath != null) {
+                    return shardPath;
                 }
             }
         }
+        throw exceptionSupplier.get();
     }
 
-    public static boolean isCorruptMarkerFileIsPresent(Directory directory) throws IOException {
+    public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
         boolean found = false;
-        String[] files = directory.listAll();
+
+        final String[] files = directory.listAll();
         for (String file : files) {
             if (file.startsWith(Store.CORRUPTED)) {
                 found = true;

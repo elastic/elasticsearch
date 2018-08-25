@@ -349,6 +349,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
         this.index = index;
         this.version = version;
+        assert mappingVersion >= 0 : mappingVersion;
         this.mappingVersion = mappingVersion;
         this.primaryTerms = primaryTerms;
         assert primaryTerms.length == numberOfShards;

@@ -80,7 +80,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long followerMaxSeqNo = 0;
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
-    private long currentIndexMetadataVersion = 0;
+    private long currentMappingVersion = 0;
     private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
@@ -131,14 +131,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
         }
 
-        // Forcefully updates follower mapping, this gets us the leader imd version and
-        // makes sure that leader and follower mapping are identical.
-        updateMapping(imdVersion -> {
+        // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
+        updateMapping(mappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentIndexMetadataVersion = imdVersion;
+                currentMappingVersion = mappingVersion;
             }
-            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, indexMetaDataVersion={}",
-                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, imdVersion);
+            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, mappingVersion={}",
+                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, mappingVersion);
             coordinateReads();
         });
     }
@@ -258,7 +257,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(response.getIndexMetadataVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
+        maybeUpdateMapping(response.getMappingVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
     }
 
     /** Called when some operations are fetched from the leading */
@@ -344,16 +343,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         coordinateReads();
     }
 
-    private synchronized void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {
-        if (currentIndexMetadataVersion >= minimumRequiredIndexMetadataVersion) {
-            LOGGER.trace("{} index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
-                params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
+    private synchronized void maybeUpdateMapping(Long minimumRequiredMappingVersion, Runnable task) {
+        if (currentMappingVersion >= minimumRequiredMappingVersion) {
+            LOGGER.trace("{} mapping version [{}] is higher or equal than minimum required mapping version [{}]",
+                params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
             task.run();
         } else {
-            LOGGER.trace("{} updating mapping, index metadata version [{}] is lower than minimum required index metadata version [{}]",
-                params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
-            updateMapping(imdVersion -> {
-                currentIndexMetadataVersion = imdVersion;
+            LOGGER.trace("{} updating mapping, mapping version [{}] is lower than minimum required mapping version [{}]",
+                params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
+            updateMapping(mappingVersion -> {
+                currentMappingVersion = mappingVersion;
                 task.run();
             });
         }
@@ -422,7 +421,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentReads,
                 numConcurrentWrites,
                 buffer.size(),
-                currentIndexMetadataVersion,
+                currentMappingVersion,
                 totalFetchTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
@@ -448,7 +447,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
         static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
-        static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
+        static final ParseField MAPPING_VERSION_FIELD = new ParseField("mapping_version");
         static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
         static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
         static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
@@ -504,7 +503,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
             STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
             STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
-            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_METADATA_VERSION_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAPPING_VERSION_FIELD);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
@@ -582,10 +581,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return numberOfQueuedWrites;
         }
 
-        private final long indexMetadataVersion;
+        private final long mappingVersion;
 
-        public long indexMetadataVersion() {
-            return indexMetadataVersion;
+        public long mappingVersion() {
+            return mappingVersion;
         }
 
         private final long totalFetchTimeMillis;
@@ -658,7 +657,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final int numberOfConcurrentReads,
                 final int numberOfConcurrentWrites,
                 final int numberOfQueuedWrites,
-                final long indexMetadataVersion,
+                final long mappingVersion,
                 final long totalFetchTimeMillis,
                 final long numberOfSuccessfulFetches,
                 final long numberOfFailedFetches,
@@ -678,7 +677,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentReads = numberOfConcurrentReads;
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
             this.numberOfQueuedWrites = numberOfQueuedWrites;
-            this.indexMetadataVersion = indexMetadataVersion;
+            this.mappingVersion = mappingVersion;
             this.totalFetchTimeMillis = totalFetchTimeMillis;
             this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
             this.numberOfFailedFetches = numberOfFailedFetches;
@@ -701,7 +700,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentReads = in.readVInt();
             this.numberOfConcurrentWrites = in.readVInt();
             this.numberOfQueuedWrites = in.readVInt();
-            this.indexMetadataVersion = in.readVLong();
+            this.mappingVersion = in.readVLong();
             this.totalFetchTimeMillis = in.readVLong();
             this.numberOfSuccessfulFetches = in.readVLong();
             this.numberOfFailedFetches = in.readVLong();
@@ -730,7 +729,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
             out.writeVInt(numberOfQueuedWrites);
-            out.writeVLong(indexMetadataVersion);
+            out.writeVLong(mappingVersion);
             out.writeVLong(totalFetchTimeMillis);
             out.writeVLong(numberOfSuccessfulFetches);
             out.writeVLong(numberOfFailedFetches);
@@ -756,7 +755,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
                 builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
-                builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
+                builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
                 builder.humanReadableField(
                         TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
                         "total_fetch_time",
@@ -815,7 +814,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentReads == that.numberOfConcurrentReads &&
                     numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
                     numberOfQueuedWrites == that.numberOfQueuedWrites &&
-                    indexMetadataVersion == that.indexMetadataVersion &&
+                    mappingVersion == that.mappingVersion &&
                     totalFetchTimeMillis == that.totalFetchTimeMillis &&
                     numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
                     numberOfFailedFetches == that.numberOfFailedFetches &&
@@ -837,7 +836,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentReads,
                     numberOfConcurrentWrites,
                     numberOfQueuedWrites,
-                    indexMetadataVersion,
+                    mappingVersion,
                     totalFetchTimeMillis,
                     numberOfSuccessfulFetches,
                     numberOfFailedFetches,

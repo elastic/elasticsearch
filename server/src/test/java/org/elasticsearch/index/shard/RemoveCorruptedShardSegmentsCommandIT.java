@@ -65,6 +65,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -84,7 +85,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.shard.RemoveCorruptedShardSegmentsCommandTests.corruptIndexFiles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -164,7 +164,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
                     assertThat(e.getMessage(), allOf(startsWith("Both Lucene index and traslog at"), endsWith(" are clean.")));
                 }
 
-                corruptIndexFiles(indexDirs.iterator().next(), false);
+                CorruptionUtils.corruptIndex(random(), indexDirs.iterator().next(), false);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -477,10 +477,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
         // Corrupt the translog file(s)
         logger.info("--> corrupting translog");
-        for (Path translogDir : translogDirs) {
-            final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogDir);
-            TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, minTranslogGen);
-        }
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
 
         // Restart the single node
         logger.info("--> starting node");
@@ -576,10 +573,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles(String indexName) throws IOException {
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
-        for (Path translogDir : translogDirs) {
-            final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogDir);
-            TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, minTranslogGen);
-        }
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
     }
 
     /** Disables translog flushing for the specified index */

@@ -167,7 +167,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         }
 
         final boolean corruptSegments = randomBoolean();
-        corruptIndexFiles(indexPath, corruptSegments);
+        CorruptionUtils.corruptIndex(random(), indexPath, corruptSegments);
 
         // open shard with the same location
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
@@ -320,8 +320,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             assertThat(t.getOutput(), containsString("Translog is clean at"));
         }
 
-        final long minTranslogGen = TestTranslog.minTranslogGenUsedInRecovery(translogPath);
-        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath, minTranslogGen);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
         // open shard with the same location
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
@@ -429,20 +428,6 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         assertThat(shardPath.resolveIndex(), equalTo(indexPath));
 
-    }
-
-    static void corruptIndexFiles(Path indexPath, boolean corruptSegments) throws IOException {
-        // corrupt files
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> Files.isRegularFile(p) && IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString()) == false)
-                .filter(p -> {
-                    final String name = p.getFileName().toString();
-                    final boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
-                    return corruptSegments ? segmentFile : segmentFile == false;
-                })
-                .toArray(Path[]::new);
-        CorruptionUtils.corruptFile(random(), filesToCorrupt);
     }
 
     private void writeIndexState() throws IOException {

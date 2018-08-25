@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -2599,7 +2598,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final ShardPath shardPath = indexShard.shardPath();
 
-        final Path indexPath = corruptIndexFile(shardPath);
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        CorruptionUtils.corruptIndex(random(), indexPath, false);
 
         // check that corrupt marker is *NOT* there
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
@@ -2696,21 +2696,6 @@ public class IndexShardTests extends IndexShardTestCase {
         corruptedMarkerCount.set(0);
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store still has a single corrupt marker", corruptedMarkerCount.get(), equalTo(1));
-    }
-
-    private Path corruptIndexFile(ShardPath shardPath) throws IOException {
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> {
-                    final String name = p.getFileName().toString();
-                    return Files.isRegularFile(p)
-                        && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
-                        && name.startsWith("segments_") == false && name.endsWith(".si") == false;
-                })
-                .toArray(Path[]::new);
-        CorruptionUtils.corruptFile(random(), filesToCorrupt);
-        return indexPath;
     }
 
     /**

@@ -32,8 +32,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.hamcrest.Matchers;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -42,25 +45,100 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider
-    .CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterRoutingTests extends ESAllocationTestCase {
 
-    public void testClusterIncludeFilters() {
-        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"));
+    public void testClusterIncludeFiltersSingleAttribute() {
+        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4"))));
     }
 
-    public void testClusterExcludeFilters() {
-        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"));
+    public void testClusterIncludeFiltersMultipleAttributes() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1")
+                .put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag2", "value2"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag2", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag2", "value4"))));
+    }
+
+    public void testClusterIncludeFiltersOptionalAttribute() {
+        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap()))
+                .add(newNode("node4", attrMap())));
+    }
+
+    public void testClusterExcludeFiltersSingleAttribute() {
+        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4"))));
+    }
+
+    public void testClusterExcludeFiltersMultipleAttributes() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3")
+                .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag2", "value4"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag2", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag2", "value4"))));
+    }
+
+    public void testClusterExcludeFiltersOptionalAttribute() {
+        testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap()))
+                .add(newNode("node2", attrMap()))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4"))));
+    }
+
+    public void testClusterRequireFilters() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag1", "req1")
+                .put(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag2", "req2"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "req1", "tag2", "req2")))
+                .add(newNode("node2", attrMap("tag1", "req1", "tag2", "req2")))
+                .add(newNode("node3", attrMap("tag1", "req1")))
+                .add(newNode("node4", attrMap("tag1", "other", "tag2", "req2"))));
+    }
+
+    private static Map<String, String> attrMap(String... keysValues) {
+        if (keysValues.length == 0) {
+            return emptyMap();
+        }
+        if (keysValues.length == 2) {
+            return singletonMap(keysValues[0], keysValues[1]);
+        }
+        Map<String, String> result = new HashMap<>();
+        for (int i = 0; i < keysValues.length; i += 2) {
+            result.put(keysValues[i], keysValues[i + 1]);
+        }
+        return result;
     }
 
     /**
-     * A test that creates a 2p1r index in a 4-node cluster and which expects the given allocation service's settings only to allocate
-     * the shards of this index to two of the nodes.
+     * A test that creates a 2p1r index and which expects the given allocation service's settings only to allocate the shards of this index
+     * to `node1` and `node2`.
      */
-    private void testClusterFilters(Settings.Builder allocationServiceSettings) {
+    private void testClusterFilters(Settings.Builder allocationServiceSettings, DiscoveryNodes.Builder nodes) {
         final AllocationService strategy = createAllocationService(allocationServiceSettings.build());
 
         logger.info("Building initial routing table");
@@ -74,15 +152,9 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(initialRoutingTable).build();
+            .metaData(metaData).routingTable(initialRoutingTable).nodes(nodes).build();
 
-        logger.info("--> adding four nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1", singletonMap("tag1", "value1")))
-            .add(newNode("node2", singletonMap("tag1", "value2")))
-            .add(newNode("node3", singletonMap("tag1", "value3")))
-            .add(newNode("node4", singletonMap("tag1", "value4")))
-        ).build();
+        logger.info("--> rerouting");
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 

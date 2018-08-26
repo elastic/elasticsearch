@@ -244,8 +244,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         }
 
         private static boolean supportsAbortedFlag(Version version) {
-            // The "aborted" flag was added for 5.5.3 and 5.6.0, but was not in 6.0.0-beta2
-            return version.after(Version.V_6_0_0_beta2) || (version.major == 5 && version.onOrAfter(Version.V_5_5_3));
+            // The "aborted" flag was not in 6.0.0-beta2
+            return version.after(Version.V_6_0_0_beta2);
         }
 
         /**
@@ -447,11 +447,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            opType = OpType.fromId(in.readByte());
-        } else {
-            opType = OpType.fromString(in.readString());
-        }
+        opType = OpType.fromId(in.readByte());
 
         byte type = in.readByte();
         if (type == 0) {
@@ -474,11 +470,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeByte(opType.getId());
-        } else {
-            out.writeString(opType.getLowercase());
-        }
+        out.writeByte(opType.getId());
 
         if (response == null) {
             out.writeByte((byte) 2);

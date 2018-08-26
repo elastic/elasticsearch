@@ -134,7 +134,7 @@ public class RefreshListenersTests extends ESTestCase {
             (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
             EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
-        engine.recoverFromTranslog();
+        engine.recoverFromTranslog(Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 

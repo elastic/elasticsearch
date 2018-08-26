@@ -1009,6 +1009,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
+    public static Setting<String> simpleString(String key, Function<String, String> parser, Property... properties) {
+        return new Setting<>(key, s -> "", parser, properties);
+    }
+
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
         return new Setting<>(key, fallback, Function.identity(), properties);
     }

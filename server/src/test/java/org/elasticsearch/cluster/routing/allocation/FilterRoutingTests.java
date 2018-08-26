@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -41,6 +43,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -175,34 +178,73 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     public void testIndexIncludeFilters() {
         testIndexFilters(
             Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
-            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value4"));
+            Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value4"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4")))
+                .add(newNode("node5", attrMap()))
+        );
     }
 
     public void testIndexExcludeFilters() {
         testIndexFilters(
             Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
-            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value2,value3"));
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value2,value3"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap()))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4"))));
     }
 
     public void testIndexIncludeThenExcludeFilters() {
         testIndexFilters(
             Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value2"),
             Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value2,value3")
-                .putNull(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1"));
+                .putNull(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap("tag1", "value2")))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap())));
     }
 
     public void testIndexExcludeThenIncludeFilters() {
         testIndexFilters(
             Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
             Settings.builder().put(INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "value1,value4")
-                .putNull(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1"));
+                .putNull(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1")))
+                .add(newNode("node2", attrMap()))
+                .add(newNode("node3", attrMap("tag1", "value3")))
+                .add(newNode("node4", attrMap("tag1", "value4"))));
+    }
+
+    public void testIndexRequireFilters() {
+        testIndexFilters(
+            Settings.builder()
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag1", "value1")
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag2", "value2"),
+            Settings.builder()
+                .putNull(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag2")
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "tag3", "value3"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "value1", "tag2", "value2", "tag3", "value3")))
+                .add(newNode("node2", attrMap("tag1", "value1", "tag2", "value2", "tag3", "other")))
+                .add(newNode("node3", attrMap("tag1", "other", "tag2", "value2", "tag3", "other")))
+                .add(newNode("node4", attrMap("tag1", "value1", "tag2", "other", "tag3", "value3")))
+                .add(newNode("node5", attrMap("tag2", "value2", "tag3", "value3")))
+                .add(newNode("node6", attrMap())));
     }
 
     /**
-     * A test that creates a 2p1r index in a 4-node cluster and expects the given index allocation settings only to allocate the shards
-     * to two of the nodes; on updating the index allocation settings the shards should be relocated.
+     * A test that creates a 2p1r index and expects the given index allocation settings only to allocate the shards to `node1` and `node2`;
+     * on updating the index allocation settings the shards should be relocated to nodes `node1` and `node4`.
      */
-    private void testIndexFilters(Settings.Builder initialIndexSettings, Settings.Builder updatedIndexSettings) {
+    private void testIndexFilters(Settings.Builder initialIndexSettings, Settings.Builder updatedIndexSettings, Builder nodesBuilder) {
         AllocationService strategy = createAllocationService(Settings.builder()
             .build());
 
@@ -216,15 +258,9 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(initialMetaData).routingTable(initialRoutingTable).build();
+            .metaData(initialMetaData).routingTable(initialRoutingTable).nodes(nodesBuilder).build();
 
-        logger.info("--> adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1", singletonMap("tag1", "value1")))
-            .add(newNode("node2", singletonMap("tag1", "value2")))
-            .add(newNode("node3", singletonMap("tag1", "value3")))
-            .add(newNode("node4", singletonMap("tag1", "value4")))
-        ).build();
+        logger.info("--> rerouting");
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 

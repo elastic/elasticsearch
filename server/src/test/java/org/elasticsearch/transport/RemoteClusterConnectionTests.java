@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.transport;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
@@ -52,6 +54,7 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -378,15 +381,19 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             }
         }
     }
-
     private void updateSeedNodes(RemoteClusterConnection connection, List<Supplier<DiscoveryNode>> seedNodes) throws Exception {
+        updateSeedNodes(connection, seedNodes, null);
+    }
+
+    private void updateSeedNodes(RemoteClusterConnection connection, List<Supplier<DiscoveryNode>> seedNodes, String proxyAddress)
+        throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
             exceptionAtomicReference.set(x);
             latch.countDown();
         });
-        connection.updateSeedNodes(seedNodes, listener);
+        connection.updateSeedNodes(proxyAddress, seedNodes, listener);
         latch.await();
         if (exceptionAtomicReference.get() != null) {
             throw exceptionAtomicReference.get();
@@ -517,7 +524,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         exceptionReference.set(x);
                         listenerCalled.countDown();
                     });
-                    connection.updateSeedNodes(Arrays.asList(() -> seedNode), listener);
+                    connection.updateSeedNodes(null, Arrays.asList(() -> seedNode), listener);
                     acceptedLatch.await();
                     connection.close(); // now close it, this should trigger an interrupt on the socket and we can move on
                     assertTrue(connection.assertNoRunningConnections());
@@ -787,7 +794,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                     throw new AssertionError(x);
                                                 }
                                             });
-                                        connection.updateSeedNodes(seedNodes, listener);
+                                        connection.updateSeedNodes(null, seedNodes, listener);
                                     }
                                     latch.await();
                                 } catch (Exception ex) {
@@ -875,7 +882,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                 }
                                             });
                                         try {
-                                            connection.updateSeedNodes(seedNodes, listener);
+                                            connection.updateSeedNodes(null, seedNodes, listener);
                                         } catch (Exception e) {
                                             // it's ok if we're shutting down
                                             assertThat(e.getMessage(), containsString("threadcontext is already closed"));
@@ -1383,5 +1390,98 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testProxyMode() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("node_0", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("node_1", knownNodes, Version.CURRENT)) {
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+            final String proxyAddress = "1.1.1.1:99";
+            Map<String, DiscoveryNode> nodes = new HashMap<>();
+            nodes.put("node_0", seedTransport.getLocalDiscoNode());
+            nodes.put("node_1", discoverableTransport.getLocalDiscoNode());
+            Transport mockTcpTransport = getProxyTransport(threadPool, Collections.singletonMap(proxyAddress, nodes));
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, mockTcpTransport, Version.CURRENT,
+                threadPool, null, Collections.emptySet())) {
+                service.start();
+                service.acceptIncomingRequests();
+                Supplier<DiscoveryNode> seedSupplier = () ->
+                    RemoteClusterAware.buildSeedNode("some-remote-cluster", "node_0:" + randomIntBetween(1, 10000), true);
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedSupplier), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true, proxyAddress)) {
+                    updateSeedNodes(connection, Arrays.asList(seedSupplier), proxyAddress);
+                    assertEquals(2, connection.getNumNodesConnected());
+                    assertNotNull(connection.getConnection(discoverableTransport.getLocalDiscoNode()));
+                    assertNotNull(connection.getConnection(seedTransport.getLocalDiscoNode()));
+                    assertEquals(proxyAddress, connection.getConnection(seedTransport.getLocalDiscoNode())
+                        .getNode().getAddress().toString());
+                    assertEquals(proxyAddress, connection.getConnection(discoverableTransport.getLocalDiscoNode())
+                        .getNode().getAddress().toString());
+                    service.getConnectionManager().disconnectFromNode(knownNodes.get(0));
+                    // ensure we reconnect
+                    assertBusy(() -> {
+                        assertEquals(2, connection.getNumNodesConnected());
+                    });
+                    discoverableTransport.close();
+                    seedTransport.close();
+                }
+            }
+        }
+    }
+
+    public static Transport getProxyTransport(ThreadPool threadPool, Map<String, Map<String, DiscoveryNode>> nodeMap) {
+        if (nodeMap.isEmpty()) {
+            throw new IllegalArgumentException("nodeMap must be non-empty");
+        }
+
+        StubbableTransport stubbableTransport = new StubbableTransport(MockTransportService.newMockTransport(Settings.EMPTY, Version
+            .CURRENT, threadPool));
+        stubbableTransport.setDefaultConnectBehavior((t, node,  profile) -> {
+                Map<String, DiscoveryNode> proxyMapping = nodeMap.get(node.getAddress().toString());
+                if (proxyMapping == null) {
+                    throw new IllegalStateException("no proxy mapping for node: " + node);
+                }
+                DiscoveryNode proxyNode = proxyMapping.get(node.getName());
+                if (proxyNode == null) {
+                    // this is a seednode - lets pick one randomly
+                    assertEquals("seed node must not have a port in the hostname: " + node.getHostName(),
+                        -1, node.getHostName().lastIndexOf(':'));
+                    assertTrue("missing hostname: " + node, proxyMapping.containsKey(node.getHostName()));
+                    // route by seed hostname
+                    proxyNode = proxyMapping.get(node.getHostName());
+                }
+                Transport.Connection connection = t.openConnection(proxyNode, profile);
+                return new Transport.Connection() {
+                    @Override
+                    public DiscoveryNode getNode() {
+                        return node;
+                    }
+
+                    @Override
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                        throws IOException, TransportException {
+                        connection.sendRequest(requestId, action, request, options);
+                    }
+
+                    @Override
+                    public void addCloseListener(ActionListener<Void> listener) {
+                        connection.addCloseListener(listener);
+                    }
+
+                    @Override
+                    public boolean isClosed() {
+                        return connection.isClosed();
+                    }
+
+                    @Override
+                    public void close() {
+                        connection.close();
+                    }
+                };
+            });
+        return stubbableTransport;
     }
 }

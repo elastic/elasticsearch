@@ -111,10 +111,11 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         indexMetaData = metaData.build();
     }
 
-    public void testCorruptedIndex() throws Exception {
+    public void testShardLock() throws Exception {
         final IndexShard indexShard = newStartedShard(p ->
                 newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER),
+                    new InternalEngineFactory(), () -> {
+                    }, EMPTY_EVENT_LISTENER),
             true);
 
         // index some docs in several segments
@@ -165,6 +166,39 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
                 ));
             assertThat(t.getOutput(), containsString("Lucene index is clean at"));
         }
+    }
+
+    public void testCorruptedIndex() throws Exception {
+        final IndexShard indexShard = newStartedShard(p ->
+                newShard(routing, shardPath, indexMetaData, null, null,
+                    new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER),
+            true);
+
+        // index some docs in several segments
+        int numDocs = 0;
+        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
+            final int numExtraDocs = between(10, 100);
+            for (long j = 0; j < numExtraDocs; j++) {
+                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
+            }
+            numDocs += numExtraDocs;
+
+            flushShard(indexShard, true);
+        }
+
+        logger.info("--> indexed {} docs", numDocs);
+
+        writeIndexState();
+
+        final ShardPath shardPath = indexShard.shardPath();
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        // close shard
+        closeShards(indexShard);
 
         final boolean corruptSegments = randomBoolean();
         CorruptionUtils.corruptIndex(random(), indexPath, corruptSegments);
@@ -203,13 +237,6 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
 
         closeShards(corruptedShard);
-
-        // checking that lock has been released
-
-        try (Directory dir = FSDirectory.open(indexPath, NativeFSLockFactory.INSTANCE);
-             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            // Great, do nothing, we just wanted to obtain the lock
-        }
 
         // index is closed, lock is released - run remove-corrupted-segments command with dry-run
         t.addTextInput("n"); // mean dry run
@@ -282,7 +309,6 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
                 numDocsToKeep += numExtraDocs;
                 flushShard(indexShard, true);
             }
-
         }
 
         logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
@@ -290,35 +316,14 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         writeIndexState();
 
         final ShardPath shardPath = indexShard.shardPath();
-        final Path translogPath = shardPath.getDataPath().resolve(ShardPath.TRANSLOG_FOLDER_NAME);
+        final Path translogPath = shardPath.resolveTranslog();
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
-        // Try running it before the shard is closed, it should flip out because it can't acquire the lock
-        try {
-            final OptionSet options = parser.parse("-d", translogPath.toString());
-            command.execute(t, options, environment);
-            fail("expected the command to fail not being able to acquire the lock");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("Failed to lock shard's directory"));
-        }
-
         // close shard
         closeShards(indexShard);
-
-        // TODO: translog does not creates corrupted marker
-        // translog is clean - run it before the shard is corrupted
-        try {
-            final OptionSet options = parser.parse("-d", translogPath.toString());
-            command.execute(t, options, environment);
-            fail("expected the command to fail as translog is clean");
-        } catch (Exception e) {
-            assertThat(e.getMessage(),
-                allOf(startsWith("Both Lucene index and traslog at"), endsWith(" are clean.")));
-            assertThat(t.getOutput(), containsString("Translog is clean at"));
-        }
 
         TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
@@ -362,26 +367,23 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             // Great, do nothing, we just wanted to obtain the lock
         }
 
+        final OptionSet options = parser.parse("-d", translogPath.toString());
         // index is closed, lock is released - run command with dry-run
-        {
-            t.addTextInput("n"); // mean dry run
-            final OptionSet options = parser.parse("-d", translogPath.toString());
-            t.setVerbosity(Terminal.Verbosity.VERBOSE);
-            try {
-                command.execute(t, options, environment);
-                fail();
-            } catch (ElasticsearchException e) {
-                assertThat(e.getMessage(), containsString("aborted by user"));
-                assertThat(t.getOutput(), containsString("Continue and DELETE files?"));
-            }
-
-            logger.info("--> output:\n{}", t.getOutput());
+        t.addTextInput("n"); // mean dry run
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        try {
+            command.execute(t, options, environment);
+            fail();
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), containsString("aborted by user"));
+            assertThat(t.getOutput(), containsString("Continue and DELETE files?"));
         }
 
-        // index is closed, lock is released - run command
-        t.addTextInput("y");
-        final OptionSet options = parser.parse("-d", translogPath.toString());
+        logger.info("--> output:\n{}", t.getOutput());
 
+        // index is closed, lock is released - run command
+        t.reset();
+        t.addTextInput("y");
         command.execute(t, options, environment);
 
         final String output = t.getOutput();
@@ -398,6 +400,133 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
         assertThat(shardDocUIDs.size(), equalTo(numDocsToKeep));
+
+        closeShards(newShard);
+    }
+
+    public void testCorruptedBothIndexAndTranslog() throws Exception {
+        final InternalEngineFactory engineFactory = new InternalEngineFactory();
+        final Runnable globalCheckpointSyncer = () -> { };
+        final IndexShard indexShard = newStartedShard(p ->
+                newShard(routing, shardPath, indexMetaData, null, null,
+                    engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
+            true);
+
+        // index some docs in several segments
+        int numDocs = 0;
+        int numDocsToKeep = 0;
+        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
+            final int numExtraDocs = between(10, 100);
+            for (long j = 0; j < numExtraDocs; j++) {
+                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
+            }
+            numDocs += numExtraDocs;
+
+            if (i < attempts - 1) {
+                numDocsToKeep += numExtraDocs;
+                flushShard(indexShard, true);
+            }
+        }
+
+        logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
+
+        writeIndexState();
+
+        // close shard
+        closeShards(indexShard);
+
+        final ShardPath shardPath = indexShard.shardPath();
+        final Path indexPath = shardPath.resolveIndex();
+        final Path translogPath = shardPath.resolveTranslog();
+
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        CorruptionUtils.corruptIndex(random(), indexPath, false);
+
+        // open shard with the same location
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
+        );
+
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
+            .build();
+
+        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
+            indexSettings -> {
+                final ShardId shardId = shardPath.getShardId();
+                final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
+                    @Override
+                    public Directory newDirectory() throws IOException {
+                        final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(indexPath);
+                        // index is corrupted - don't even try to check index on close - it fails
+                        baseDirectoryWrapper.setCheckIndexOnClose(false);
+                        return baseDirectoryWrapper;
+                    }
+                };
+                return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+            },
+            null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER);
+
+        allowShardFailures();
+        // it has to fail on start up due to index.shard.check_on_startup = checksum
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+
+        closeShards(corruptedShard);
+
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+
+        // checking that lock has been released
+
+        try (Directory dir = FSDirectory.open(translogPath, NativeFSLockFactory.INSTANCE);
+             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+            // Great, do nothing, we just wanted to obtain the lock
+        }
+
+        final OptionSet options = parser.parse("-d", translogPath.toString());
+        // index is closed, lock is released - run command with dry-run
+        t.addTextInput("n"); // mean dry run
+        t.addTextInput("n"); // mean dry run
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        try {
+            command.execute(t, options, environment);
+            fail();
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), containsString("aborted by user"));
+            assertThat(t.getOutput(), containsString("Continue and remove docs from the index ?"));
+        }
+
+        logger.info("--> output:\n{}", t.getOutput());
+
+        // index is closed, lock is released - run command
+        t.reset();
+        t.addTextInput("y");
+        t.addTextInput("y");
+        command.execute(t, options, environment);
+
+        final String output = t.getOutput();
+        logger.info("--> output:\n{}", output);
+
+        // reopen shard, do checksum on start up
+
+        failOnShardFailures();
+        final IndexShard newShard = newStartedShard(p ->
+                newShard(shardRouting, shardPath, indexMetaData,
+                    null, null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
+            true);
+
+        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+
+        final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
+        final Matcher matcher = pattern.matcher(output);
+        assertThat(matcher.find(), equalTo(true));
+        final int expectedNumDocs = numDocsToKeep - Integer.parseInt(matcher.group("docs"));
+
+        assertThat(shardDocUIDs.size(), equalTo(expectedNumDocs));
 
         closeShards(newShard);
     }

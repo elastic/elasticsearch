@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
@@ -33,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
 
@@ -51,7 +53,16 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
         request.indices(new Index[] {indexService.index()});
         request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
-        mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        // the task completed successfully
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        // the task really was a mapping update
+        assertThat(
+                indexService.mapperService().documentMapper("type").mappingSource(),
+                not(equalTo(result.resultingState.metaData().index("test").mapping("type").source())));
+        // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
     }
 

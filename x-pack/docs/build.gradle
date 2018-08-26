@@ -30,7 +30,8 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
@@ -309,7 +310,7 @@ setups['farequote_datafeed'] = setups['farequote_job'] + '''
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 setups['ml_filter_safe_domains'] = '''
   - do:
       xpack.ml.put_filter:
@@ -748,4 +749,23 @@ setups['jacknich_user'] = '''
             "email" : "jacknich@example.com",
             "metadata" : { "intelligence" : 7 }
           }
+'''
+setups['app0102_privileges'] = '''
+  - do:
+        xpack.security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ], 
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              } 
+            }
 '''

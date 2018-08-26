@@ -13,6 +13,7 @@ import org.junit.ClassRule;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,8 +38,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/agg.sql-spec", parser));
         tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
         tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
-        // AwaitsFix: https://github.com/elastic/elasticsearch/issues/32589
-        // tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
+        tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
         return tests;
     }
 
@@ -60,8 +60,11 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
-        boolean goodLocale = !(Locale.getDefault().equals(new Locale.Builder().setLanguageTag("tr").build())
-                || Locale.getDefault().equals(new Locale.Builder().setLanguageTag("tr-TR").build()));
+        // we skip the tests in case of these locales because ES-SQL is Locale-insensitive for now
+        // while H2 does take the Locale into consideration
+        String[] h2IncompatibleLocales = new String[] {"tr", "az", "tr-TR", "tr-CY", "az-Latn", "az-Cyrl", "az-Latn-AZ", "az-Cyrl-AZ"};
+        boolean goodLocale = !Arrays.stream(h2IncompatibleLocales)
+                .anyMatch((l) -> Locale.getDefault().equals(new Locale.Builder().setLanguageTag(l).build()));
         if (fileName.startsWith("case-functions")) {
             Assume.assumeTrue(goodLocale);
         }

@@ -138,9 +138,8 @@ class VersionCollection {
                             break
                         }
                     }
-                    // caveat 0 - now dip back 2 versions to get the last supported snapshot version of the line
-                    Version highestMinor = getHighestPreviousMinor(currentVersion.major - 1)
-                    maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
+                    // caveat 0 - the last supported snapshot of the line is on a version that we don't support (N-2)
+                    maintenanceBugfixSnapshot = null
                 } else {
                     // caveat 3 did not apply. version is not a X.0.0, so we are somewhere on a X.Y line
                     // only check till minor == 0 of the major
@@ -293,7 +292,8 @@ class VersionCollection {
      * If you have a list [5.0.2, 5.1.2, 6.0.1, 6.1.1] and pass in 6 for the nextMajorVersion, it will return you 5.1.2
      */
     private Version getHighestPreviousMinor(Integer nextMajorVersion) {
-        return versionSet.headSet(Version.fromString("${nextMajorVersion}.0.0")).last()
+        SortedSet<Version> result = versionSet.headSet(Version.fromString("${nextMajorVersion}.0.0"))
+        return result.isEmpty() ? null : result.last()
     }
 
     /**

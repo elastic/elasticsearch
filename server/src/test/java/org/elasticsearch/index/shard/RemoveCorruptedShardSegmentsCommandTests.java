@@ -20,12 +20,8 @@ package org.elasticsearch.index.shard;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
@@ -159,11 +155,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     }
 
     public void testCorruptedIndex() throws Exception {
-        int numDocs = indexDocs(indexShard, true);
-
-        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
-        final MockTerminal t = new MockTerminal();
-        final OptionParser parser = command.getParser();
+        final int numDocs = indexDocs(indexShard, true);
 
         // close shard
         closeShards(indexShard);
@@ -171,15 +163,17 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final boolean corruptSegments = randomBoolean();
         CorruptionUtils.corruptIndex(random(), indexPath, corruptSegments);
 
+        // test corrupted shard
         final IndexShard corruptedShard = reopenIndexShard(true);
-
         allowShardFailures();
-        // it has to fail on start up due to index.shard.check_on_startup = checksum
         expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-
         closeShards(corruptedShard);
 
-        // run remove-corrupted-segments command with dry-run
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        // run command with dry-run
         t.addTextInput("n"); // mean dry run
         final OptionSet options = parser.parse("-d", indexPath.toString());
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -198,7 +192,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         if (corruptSegments == false) {
 
-            // index is closed, lock is released - run remove-corrupted-segments command
+            // // run command without dry-run
             t.addTextInput("y");
             t.addTextInput("y");
             command.execute(t, options, environment);
@@ -206,8 +200,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             final String output = t.getOutput();
             logger.info("--> output:\n{}", output);
 
-            // reopen shard, do checksum on start up
-
+            // reopen shard
             failOnShardFailures();
             final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
@@ -227,15 +220,12 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     public void testCorruptedTranslog() throws Exception {
         final int numDocsToKeep = indexDocs(indexShard, false);
 
-        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
-        final MockTerminal t = new MockTerminal();
-        final OptionParser parser = command.getParser();
-
         // close shard
         closeShards(indexShard);
 
         TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
+        // test corrupted shard
         final IndexShard corruptedShard = reopenIndexShard(true);
 
         allowShardFailures();
@@ -246,15 +236,12 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         closeShards(corruptedShard);
 
-        // checking that lock has been released
-
-        try (Directory dir = FSDirectory.open(translogPath, NativeFSLockFactory.INSTANCE);
-             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            // Great, do nothing, we just wanted to obtain the lock
-        }
+        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
-        // index is closed, lock is released - run command with dry-run
+        // run command with dry-run
         t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
@@ -267,7 +254,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         logger.info("--> output:\n{}", t.getOutput());
 
-        // index is closed, lock is released - run command
+        // run command without dry-run
         t.reset();
         t.addTextInput("y");
         command.execute(t, options, environment);
@@ -275,8 +262,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);
 
-        // reopen shard, do checksum on start up
-
+        // reopen shard
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
@@ -289,29 +275,27 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
     public void testCorruptedBothIndexAndTranslog() throws Exception {
         // index some docs in several segments
-        int numDocsToKeep = indexDocs(indexShard, false);
+        final int numDocsToKeep = indexDocs(indexShard, false);
 
         // close shard
         closeShards(indexShard);
+
+        CorruptionUtils.corruptIndex(random(), indexPath, false);
+
+        // test corrupted shard
+        final IndexShard corruptedShard = reopenIndexShard(true);
+        allowShardFailures();
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+        closeShards(corruptedShard);
+
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
-        CorruptionUtils.corruptIndex(random(), indexPath, false);
-
-        final IndexShard corruptedShard = reopenIndexShard(true);
-
-        allowShardFailures();
-        // it has to fail on start up due to index.shard.check_on_startup = checksum
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-
-        closeShards(corruptedShard);
-
-        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
-
         final OptionSet options = parser.parse("-d", translogPath.toString());
-        // index is closed, lock is released - run command with dry-run
+        // run command with dry-run
         t.addTextInput("n"); // mean dry run
         t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -325,7 +309,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         logger.info("--> output:\n{}", t.getOutput());
 
-        // index is closed, lock is released - run command
+        // run command without dry-run
         t.reset();
         t.addTextInput("y");
         t.addTextInput("y");
@@ -334,8 +318,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);
 
-        // reopen shard, do checksum on start up
-
+        // reopen shard
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 

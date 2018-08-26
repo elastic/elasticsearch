@@ -82,6 +82,17 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                 .add(newNode("node4", attrMap())));
     }
 
+    public void testClusterIncludeFiltersWildcards() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "*incl*")
+                .put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag2", "*incl*"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "do_include_this")))
+                .add(newNode("node2", attrMap("tag2", "also_include_this")))
+                .add(newNode("node3", attrMap("tag1", "exclude_this")))
+                .add(newNode("node4", attrMap("tag2", "also_exclude_this"))));
+    }
+
     public void testClusterExcludeFiltersSingleAttribute() {
         testClusterFilters(Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value3,value4"),
             DiscoveryNodes.builder()
@@ -109,6 +120,28 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                 .add(newNode("node2", attrMap()))
                 .add(newNode("node3", attrMap("tag1", "value3")))
                 .add(newNode("node4", attrMap("tag1", "value4"))));
+    }
+
+    public void testClusterExcludeFiltersWildcards() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "*excl*")
+                .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag2", "*excl*"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "do_include_this")))
+                .add(newNode("node2", attrMap("tag2", "also_include_this")))
+                .add(newNode("node3", attrMap("tag1", "exclude_this")))
+                .add(newNode("node4", attrMap("tag2", "also_exclude_this"))));
+    }
+
+    public void testClusterIncludeAndExcludeFilters() {
+        testClusterFilters(Settings.builder()
+                .put(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag1", "*incl*")
+                .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag2", "*excl*"),
+            DiscoveryNodes.builder()
+                .add(newNode("node1", attrMap("tag1", "do_include_this")))
+                .add(newNode("node2", attrMap("tag1", "also_include_this", "tag2", "ok_by_tag2")))
+                .add(newNode("node3", attrMap("tag1", "included_by_tag1", "tag2", "excluded_by_tag2")))
+                .add(newNode("node4", attrMap("tag1", "excluded_by_tag1", "tag2", "included_by_tag2"))));
     }
 
     public void testClusterRequireFilters() {

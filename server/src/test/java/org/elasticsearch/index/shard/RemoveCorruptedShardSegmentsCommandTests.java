@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -77,6 +78,9 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     private Settings settings;
     private ShardPath shardPath;
     private IndexMetaData indexMetaData;
+    private IndexShard indexShard;
+    private Path translogPath;
+    private Path indexPath;
 
     @Before
     public void setup() throws IOException {
@@ -109,33 +113,19 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             .primaryTerm(0, randomIntBetween(1, 100))
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
-    }
 
-    public void testShardLock() throws Exception {
-        final IndexShard indexShard = newStartedShard(p ->
+        indexShard = newStartedShard(p ->
                 newShard(routing, shardPath, indexMetaData, null, null,
                     new InternalEngineFactory(), () -> {
                     }, EMPTY_EVENT_LISTENER),
             true);
 
-        // index some docs in several segments
-        int numDocs = 0;
-        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
-            final int numExtraDocs = between(10, 100);
-            for (long j = 0; j < numExtraDocs; j++) {
-                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
-            }
-            numDocs += numExtraDocs;
+        translogPath = shardPath.resolveTranslog();
+        indexPath = shardPath.resolveIndex();
+    }
 
-            flushShard(indexShard, true);
-        }
-
-        logger.info("--> indexed {} docs", numDocs);
-
-        writeIndexState();
-
-        final ShardPath shardPath = indexShard.shardPath();
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+    public void testShardLock() throws Exception {
+        indexDocs(indexShard, true);
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
@@ -169,29 +159,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     }
 
     public void testCorruptedIndex() throws Exception {
-        final IndexShard indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER),
-            true);
-
-        // index some docs in several segments
-        int numDocs = 0;
-        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
-            final int numExtraDocs = between(10, 100);
-            for (long j = 0; j < numExtraDocs; j++) {
-                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
-            }
-            numDocs += numExtraDocs;
-
-            flushShard(indexShard, true);
-        }
-
-        logger.info("--> indexed {} docs", numDocs);
-
-        writeIndexState();
-
-        final ShardPath shardPath = indexShard.shardPath();
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        int numDocs = indexDocs(indexShard, true);
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
@@ -203,34 +171,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final boolean corruptSegments = randomBoolean();
         CorruptionUtils.corruptIndex(random(), indexPath, corruptSegments);
 
-        // open shard with the same location
-        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
-        );
-
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
-            .settings(Settings.builder()
-                .put(indexShard.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
-            .build();
-
-        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            indexSettings -> {
-                final ShardId shardId = shardPath.getShardId();
-                final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-                    @Override
-                    public Directory newDirectory() throws IOException {
-                        final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
-                        // index is corrupted - don't even try to check index on close - it fails
-                        baseDirectoryWrapper.setCheckIndexOnClose(false);
-                        return baseDirectoryWrapper;
-                    }
-                };
-                return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
-            },
-            null,
-            indexShard.engineFactory,
-            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        final IndexShard corruptedShard = reopenIndexShard(true);
 
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
@@ -238,7 +179,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         closeShards(corruptedShard);
 
-        // index is closed, lock is released - run remove-corrupted-segments command with dry-run
+        // run remove-corrupted-segments command with dry-run
         t.addTextInput("n"); // mean dry run
         final OptionSet options = parser.parse("-d", indexPath.toString());
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -268,11 +209,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             // reopen shard, do checksum on start up
 
             failOnShardFailures();
-            final IndexShard newShard = newStartedShard(p ->
-                    newShard(shardRouting, shardPath, indexMetaData,
-                        null, null, indexShard.engineFactory,
-                        indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER),
-                true);
+            final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
             final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
@@ -288,35 +225,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     }
 
     public void testCorruptedTranslog() throws Exception {
-        final InternalEngineFactory engineFactory = new InternalEngineFactory();
-        final Runnable globalCheckpointSyncer = () -> { };
-        final IndexShard indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
-            true);
-
-        // index some docs in several segments
-        int numDocs = 0;
-        int numDocsToKeep = 0;
-        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
-            final int numExtraDocs = between(10, 100);
-            for (long j = 0; j < numExtraDocs; j++) {
-                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
-            }
-            numDocs += numExtraDocs;
-
-            if (i < attempts - 1) {
-                numDocsToKeep += numExtraDocs;
-                flushShard(indexShard, true);
-            }
-        }
-
-        logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
-
-        writeIndexState();
-
-        final ShardPath shardPath = indexShard.shardPath();
-        final Path translogPath = shardPath.resolveTranslog();
+        final int numDocsToKeep = indexDocs(indexShard, false);
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
@@ -327,30 +236,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
-        // open shard with the same location
-        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
-        );
-
-        final IndexMetaData indexMetaData =
-            IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
-                .build();
-
-        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            indexSettings -> {
-                final ShardId shardId = shardPath.getShardId();
-                final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-                    @Override
-                    public Directory newDirectory() throws IOException {
-                        final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
-                        // index is corrupted - don't even try to check index on close - it fails
-                        baseDirectoryWrapper.setCheckIndexOnClose(false);
-                        return baseDirectoryWrapper;
-                    }
-                };
-                return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
-            },
-            null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER);
+        final IndexShard corruptedShard = reopenIndexShard(true);
 
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
@@ -392,10 +278,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         // reopen shard, do checksum on start up
 
         failOnShardFailures();
-        final IndexShard newShard = newStartedShard(p ->
-                newShard(shardRouting, shardPath, indexMetaData,
-                    null, null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
-            true);
+        final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
         final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
@@ -405,39 +288,11 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     }
 
     public void testCorruptedBothIndexAndTranslog() throws Exception {
-        final InternalEngineFactory engineFactory = new InternalEngineFactory();
-        final Runnable globalCheckpointSyncer = () -> { };
-        final IndexShard indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
-            true);
-
         // index some docs in several segments
-        int numDocs = 0;
-        int numDocsToKeep = 0;
-        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
-            final int numExtraDocs = between(10, 100);
-            for (long j = 0; j < numExtraDocs; j++) {
-                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
-            }
-            numDocs += numExtraDocs;
-
-            if (i < attempts - 1) {
-                numDocsToKeep += numExtraDocs;
-                flushShard(indexShard, true);
-            }
-        }
-
-        logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
-
-        writeIndexState();
+        int numDocsToKeep = indexDocs(indexShard, false);
 
         // close shard
         closeShards(indexShard);
-
-        final ShardPath shardPath = indexShard.shardPath();
-        final Path indexPath = shardPath.resolveIndex();
-        final Path translogPath = shardPath.resolveTranslog();
 
         final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
         final MockTerminal t = new MockTerminal();
@@ -445,32 +300,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         CorruptionUtils.corruptIndex(random(), indexPath, false);
 
-        // open shard with the same location
-        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
-        );
-
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
-            .settings(Settings.builder()
-                .put(indexShard.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
-            .build();
-
-        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            indexSettings -> {
-                final ShardId shardId = shardPath.getShardId();
-                final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-                    @Override
-                    public Directory newDirectory() throws IOException {
-                        final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(indexPath);
-                        // index is corrupted - don't even try to check index on close - it fails
-                        baseDirectoryWrapper.setCheckIndexOnClose(false);
-                        return baseDirectoryWrapper;
-                    }
-                };
-                return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
-            },
-            null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER);
+        final IndexShard corruptedShard = reopenIndexShard(true);
 
         allowShardFailures();
         // it has to fail on start up due to index.shard.check_on_startup = checksum
@@ -479,13 +309,6 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         closeShards(corruptedShard);
 
         TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
-
-        // checking that lock has been released
-
-        try (Directory dir = FSDirectory.open(translogPath, NativeFSLockFactory.INSTANCE);
-             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            // Great, do nothing, we just wanted to obtain the lock
-        }
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
         // index is closed, lock is released - run command with dry-run
@@ -514,10 +337,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         // reopen shard, do checksum on start up
 
         failOnShardFailures();
-        final IndexShard newShard = newStartedShard(p ->
-                newShard(shardRouting, shardPath, indexMetaData,
-                    null, null, engineFactory, globalCheckpointSyncer, EMPTY_EVENT_LISTENER),
-            true);
+        final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
         final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
@@ -532,17 +352,10 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
     }
 
     public void testResolveIndexDirectory() throws Exception {
-        final IndexShard indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {}, EMPTY_EVENT_LISTENER),
-            true);
-
-        // index single doc to have files on disk
+        // index a single doc to have files on a disk
         indexDoc(indexShard, "_doc", "0", "{}");
         flushShard(indexShard, true);
         writeIndexState();
-
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
 
         // close shard
         closeShards(indexShard);
@@ -554,9 +367,62 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
         final ShardPath shardPath = command.getShardPath(options, environment);
-
         assertThat(shardPath.resolveIndex(), equalTo(indexPath));
+    }
 
+    private IndexShard reopenIndexShard(boolean corrupted) throws IOException {
+        // open shard with the same location
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
+        );
+
+        final IndexMetaData metaData = IndexMetaData.builder(indexMetaData)
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
+            .build();
+
+        CheckedFunction<IndexSettings, Store, IOException> storeProvider =
+            corrupted == false ? null :
+                indexSettings -> {
+                    final ShardId shardId = shardPath.getShardId();
+                    final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
+                        @Override
+                        public Directory newDirectory() throws IOException {
+                            final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
+                            // index is corrupted - don't even try to check index on close - it fails
+                            baseDirectoryWrapper.setCheckIndexOnClose(false);
+                            return baseDirectoryWrapper;
+                        }
+                    };
+            return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        };
+
+        return newShard(shardRouting, shardPath, metaData, storeProvider, null,
+            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+    }
+
+    private int indexDocs(IndexShard indexShard, boolean flushLast) throws IOException {
+        // index some docs in several segments
+        int numDocs = 0;
+        int numDocsToKeep = 0;
+        for (int i = 0, attempts = randomIntBetween(5, 10); i < attempts; i++) {
+            final int numExtraDocs = between(10, 100);
+            for (long j = 0; j < numExtraDocs; j++) {
+                indexDoc(indexShard, "_doc", Long.toString(numDocs + j), "{}");
+            }
+            numDocs += numExtraDocs;
+
+            if (flushLast || i < attempts - 1) {
+                numDocsToKeep += numExtraDocs;
+                flushShard(indexShard, true);
+            }
+        }
+
+        logger.info("--> indexed {} docs, {} to keep", numDocs, numDocsToKeep);
+
+        writeIndexState();
+        return numDocsToKeep;
     }
 
     private void writeIndexState() throws IOException {

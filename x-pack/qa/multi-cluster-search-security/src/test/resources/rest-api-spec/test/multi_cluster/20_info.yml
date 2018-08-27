@@ -33,6 +33,9 @@ teardown:
         ignore: 404
 ---
 "Fetch remote cluster info for existing cluster":
+  - skip:
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/issues/33128
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
@@ -46,6 +49,10 @@ teardown:
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
+  - skip:
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/issues/33128
+
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -87,4 +94,3 @@ teardown:
 
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
-

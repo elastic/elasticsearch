@@ -430,7 +430,7 @@ class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
             listenForUpdates(clusterSettings);
         }
 
@@ -440,7 +440,7 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {

@@ -728,7 +728,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         followerGlobalCheckpoints = new LinkedList<>();
         maxSeqNos = new LinkedList<>();
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
+                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime,
+                System::currentTimeMillis) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

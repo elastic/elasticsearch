@@ -72,6 +72,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
+    private final LongSupplier currentTimeSupplier;
 
     private long leaderGlobalCheckpoint;
     private long leaderMaxSeqNo;
@@ -90,15 +91,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfSuccessfulBulkOperations = 0;
     private long numberOfFailedBulkOperations = 0;
     private long numberOfOperationsIndexed = 0;
+    private long lastFetchTimeStamp = 0;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private final LinkedHashMap<Long, ElasticsearchException> fetchExceptions;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
-                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider,
+                        LongSupplier currentTimeSupplier) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
+        this.currentTimeSupplier = currentTimeSupplier;
         this.retryTimeout = params.getRetryTimeout();
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
         /*
@@ -235,6 +239,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private void sendShardChangesRequest(long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
+        // Use Math.max(...) here to avoid the lastFetchTimeStamp from going backwards.
+        lastFetchTimeStamp = Math.max(lastFetchTimeStamp, currentTimeSupplier.getAsLong());
         final long startTime = relativeTimeProvider.getAsLong();
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
@@ -412,7 +418,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public synchronized Status getStatus() {
+        String leaderIndex;
+        if (params.getLeaderClusterAlias() != null) {
+            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
+        } else {
+            leaderIndex = params.getLeaderShardId().getIndexName();
+        }
         return new Status(
+                leaderIndex,
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
                 leaderMaxSeqNo,
@@ -432,13 +445,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numberOfSuccessfulBulkOperations,
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed,
-                new TreeMap<>(fetchExceptions));
+                new TreeMap<>(fetchExceptions),
+                lastFetchTimeStamp);
     }
 
     public static class Status implements Task.Status {
 
         public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
 
+        static final ParseField LEADER_INDEX = new ParseField("leader_index");
         static final ParseField SHARD_ID = new ParseField("shard_id");
         static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
         static final ParseField LEADER_MAX_SEQ_NO_FIELD = new ParseField("leader_max_seq_no");
@@ -459,20 +474,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD = new ParseField("number_of_failed_bulk_operations");
         static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
         static final ParseField FETCH_EXCEPTIONS = new ParseField("fetch_exceptions");
+        static final ParseField LAST_FETCH_TIME_STAMP = new ParseField("last_fetch_time_stamp");
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Status, Void> STATUS_PARSER = new ConstructingObjectParser<>(STATUS_PARSER_NAME,
             args -> new Status(
-                    (int) args[0],
-                    (long) args[1],
+                    (String) args[0],
+                    (int) args[1],
                     (long) args[2],
                     (long) args[3],
                     (long) args[4],
                     (long) args[5],
-                    (int) args[6],
+                    (long) args[6],
                     (int) args[7],
                     (int) args[8],
-                    (long) args[9],
+                    (int) args[9],
                     (long) args[10],
                     (long) args[11],
                     (long) args[12],
@@ -482,10 +498,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     (long) args[16],
                     (long) args[17],
                     (long) args[18],
+                    (long) args[19],
                     new TreeMap<>(
-                            ((List<Map.Entry<Long, ElasticsearchException>>) args[19])
+                            ((List<Map.Entry<Long, ElasticsearchException>>) args[20])
                                     .stream()
-                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
+                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                    (long) args[21]));
 
         public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -495,6 +513,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         args -> new AbstractMap.SimpleEntry<>((long) args[0], (ElasticsearchException) args[1]));
 
         static {
+            STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
             STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_MAX_SEQ_NO_FIELD);
@@ -515,6 +534,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
             STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
             STATUS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_PARSER, FETCH_EXCEPTIONS);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_FETCH_TIME_STAMP);
         }
 
         static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -526,6 +546,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     ConstructingObjectParser.constructorArg(),
                     (p, c) -> ElasticsearchException.fromXContent(p),
                     FETCH_EXCEPTIONS_ENTRY_EXCEPTION);
+        }
+
+        private final String leaderIndex;
+
+        public String leaderIndex() {
+            return leaderIndex;
         }
 
         private final int shardId;
@@ -648,7 +674,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return fetchExceptions;
         }
 
+        private final long lastFetchTimeStamp;
+
+        public long lastFetchTimeStamp() {
+            return lastFetchTimeStamp;
+        }
+
         Status(
+                String leaderIndex,
                 final int shardId,
                 final long leaderGlobalCheckpoint,
                 final long leaderMaxSeqNo,
@@ -668,7 +701,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final long numberOfSuccessfulBulkOperations,
                 final long numberOfFailedBulkOperations,
                 final long numberOfOperationsIndexed,
-                final NavigableMap<Long, ElasticsearchException> fetchExceptions) {
+                final NavigableMap<Long, ElasticsearchException> fetchExceptions,
+                final long lastFetchTimeStamp) {
+            this.leaderIndex = leaderIndex;
             this.shardId = shardId;
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
@@ -689,9 +724,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
             this.numberOfOperationsIndexed = numberOfOperationsIndexed;
             this.fetchExceptions = fetchExceptions;
+            this.lastFetchTimeStamp = lastFetchTimeStamp;
         }
 
         public Status(final StreamInput in) throws IOException {
+            this.leaderIndex = in.readString();
             this.shardId = in.readVInt();
             this.leaderGlobalCheckpoint = in.readZLong();
             this.leaderMaxSeqNo = in.readZLong();
@@ -712,6 +749,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfFailedBulkOperations = in.readVLong();
             this.numberOfOperationsIndexed = in.readVLong();
             this.fetchExceptions = new TreeMap<>(in.readMap(StreamInput::readVLong, StreamInput::readException));
+            this.lastFetchTimeStamp = in.readVLong();
         }
 
         @Override
@@ -721,6 +759,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
+            out.writeString(leaderIndex);
             out.writeVInt(shardId);
             out.writeZLong(leaderGlobalCheckpoint);
             out.writeZLong(leaderMaxSeqNo);
@@ -741,12 +780,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVLong(numberOfFailedBulkOperations);
             out.writeVLong(numberOfOperationsIndexed);
             out.writeMap(fetchExceptions, StreamOutput::writeVLong, StreamOutput::writeException);
+            out.writeVLong(lastFetchTimeStamp);
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
+                builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
                 builder.field(SHARD_ID.getPreferredName(), shardId);
                 builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
                 builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
@@ -792,6 +833,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     }
                 }
                 builder.endArray();
+                builder.field(LAST_FETCH_TIME_STAMP.getPreferredName(), lastFetchTimeStamp);
             }
             builder.endObject();
             return builder;
@@ -806,7 +848,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Status that = (Status) o;
-            return shardId == that.shardId &&
+            return leaderIndex.equals(that.leaderIndex) &&
+                    shardId == that.shardId &&
                     leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
                     leaderMaxSeqNo == that.leaderMaxSeqNo &&
                     followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
@@ -822,12 +865,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived == that.operationsReceived &&
                     totalTransferredBytes == that.totalTransferredBytes &&
                     numberOfSuccessfulBulkOperations == that.numberOfSuccessfulBulkOperations &&
-                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations;
+                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations &&
+                    lastFetchTimeStamp == that.lastFetchTimeStamp;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
+                    leaderIndex,
                     shardId,
                     leaderGlobalCheckpoint,
                     leaderMaxSeqNo,
@@ -844,7 +889,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived,
                     totalTransferredBytes,
                     numberOfSuccessfulBulkOperations,
-                    numberOfFailedBulkOperations);
+                    numberOfFailedBulkOperations,
+                    lastFetchTimeStamp);
 
         }
 

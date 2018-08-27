@@ -32,6 +32,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     protected ShardFollowNodeTask.Status createTestInstance() {
         // if you change this constructor, reflect the changes in the hand-written assertions below
         return new ShardFollowNodeTask.Status(
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -51,7 +52,8 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomReadExceptions());
+                randomReadExceptions(),
+                randomNonNegativeLong());
     }
 
     @Override

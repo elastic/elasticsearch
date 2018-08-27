@@ -165,7 +165,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         AtomicBoolean stopped = new AtomicBoolean(false);
         LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
+                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime,
+                System::currentTimeMillis) {
             @Override
             protected synchronized void onOperationsFetched(Translog.Operation[] operations) {
                 super.onOperationsFetched(operations);

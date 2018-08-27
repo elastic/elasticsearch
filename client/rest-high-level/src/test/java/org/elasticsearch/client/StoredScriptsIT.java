@@ -17,9 +17,6 @@ package org.elasticsearch.client;/*
  * under the License.
  */
 
-
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -35,7 +32,6 @@ import org.elasticsearch.script.StoredScriptSource;
 
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,12 +48,9 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         final String script = Strings.toString(scriptSource.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
         // TODO: change to HighLevel PutStoredScriptRequest when it will be ready
         // so far - using low-level REST API
-        Response putResponse =
-            adminClient()
-                .performRequest("PUT", "/_scripts/calculate-score", emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
-                        ContentType.APPLICATION_JSON));
-        assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
+        Request putRequest = new Request("PUT", "/_scripts/calculate-score");
+        putRequest.setJsonEntity("{\"script\":" + script + "}");
+        Response putResponse = adminClient().performRequest(putRequest);
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
@@ -78,12 +71,9 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         final String script = Strings.toString(scriptSource.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
         // TODO: change to HighLevel PutStoredScriptRequest when it will be ready
         // so far - using low-level REST API
-        Response putResponse =
-            adminClient()
-                .performRequest("PUT", "/_scripts/" + id, emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
-                        ContentType.APPLICATION_JSON));
-        assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
+        Request putRequest = new Request("PUT", "/_scripts/" + id);
+        putRequest.setJsonEntity("{\"script\":" + script + "}");
+        Response putResponse = adminClient().performRequest(putRequest);
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);

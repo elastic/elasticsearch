@@ -28,16 +28,17 @@ public class DeleteLifecycleRequestTests extends ESTestCase {
     }
 
     public void testValidate() {
-        if (frequently()) {
-            DeleteLifecycleRequest req = createTestInstance();
-            assertTrue(req == null || req.validate().validationErrors().size() == 0);
-        } else {
-            try {
-                DeleteLifecycleRequest req = new DeleteLifecycleRequest(null);
-                fail("should not be able to create a DeleteLifecycleRequest with null lifecycle name");
-            } catch (NullPointerException exception) {
-                // ok
-            }
+        DeleteLifecycleRequest req = createTestInstance();
+        assertTrue(req.validate() == null || req.validate().validationErrors().size() == 0);
+
+    }
+
+    public void testValidationFailure() {
+        try {
+            DeleteLifecycleRequest req = new DeleteLifecycleRequest(null);
+            fail("should not be able to create a DeleteLifecycleRequest with null lifecycle name");
+        } catch (NullPointerException exception) {
+            // ok
         }
     }
 }

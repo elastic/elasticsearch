@@ -115,7 +115,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return Version.V_6_0_0_alpha1;
     }
 
     @Override

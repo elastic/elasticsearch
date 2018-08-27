@@ -528,7 +528,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
             .addMapping("_doc", "field1", "type=keyword,store=true")
             .addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
+            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_6_0_0.id)));
             // multi types in 5.6
 
         client().prepareIndex("test", "_doc", "1")

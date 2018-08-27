@@ -24,6 +24,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response acknowledging the Machine Learning Job request
+ */
 public class DeleteJobResponse extends AcknowledgedResponse {
 
    public DeleteJobResponse(boolean acknowledged) {

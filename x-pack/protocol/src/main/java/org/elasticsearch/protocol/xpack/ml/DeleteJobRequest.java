@@ -23,6 +23,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 
 import java.util.Objects;
 
+/**
+ * Request to delete a Machine Learning Job via its ID
+ */
 public class DeleteJobRequest extends ActionRequest {
 
     private String jobId;
@@ -36,6 +39,10 @@ public class DeleteJobRequest extends ActionRequest {
         return jobId;
     }
 
+    /**
+     * The jobId which to delete
+     * @param jobId unique jobId to delete, must not be null
+     */
     public void setJobId(String jobId) {
         this.jobId = Objects.requireNonNull(jobId, "[job_id] must not be null");
     }
@@ -44,6 +51,12 @@ public class DeleteJobRequest extends ActionRequest {
         return force;
     }
 
+    /**
+     * Used to forcefully delete an opened job.
+     * This method is quicker than closing and deleting the job.
+     *
+     * @param force When {@code true} forcefully delete an opened job. Defaults to {@code false}
+     */
     public void setForce(boolean force) {
         this.force = force;
     }

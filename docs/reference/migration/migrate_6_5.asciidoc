@@ -5,6 +5,7 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.5.
 
 * <<breaking_65_logging_changes>>
+* <<breaking_65_search_changes>>
 * <<breaking_65_sql_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
@@ -25,6 +26,7 @@ will not change the logging configuration files though. You should make this
 change before 7.0 because in 7.0 Elasticsearch will no longer automatically
 add the node name to the logging configuration if it isn't already present.
 
+[[breaking_65_search_changes]]
 === Search changes
 
 ==== Scroll

@@ -168,10 +168,6 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
 
         public JobParams(StreamInput in) throws IOException {
             jobId = in.readString();
-            if (in.getVersion().onOrBefore(Version.V_5_5_0)) {
-                // Read `ignoreDowntime`
-                in.readBoolean();
-            }
             timeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
@@ -199,10 +195,6 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(jobId);
-            if (out.getVersion().onOrBefore(Version.V_5_5_0)) {
-                // Write `ignoreDowntime` - true by default
-                out.writeBoolean(true);
-            }
             out.writeVLong(timeout.millis());
         }
 

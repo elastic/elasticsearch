@@ -2353,6 +2353,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     final ObjectLongMap<String> globalCheckpoints = indexShard.getInSyncGlobalCheckpoints();
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                        if (seqNoStats == null) {
+                            continue; // this shard was closed
+                        }
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
                                 seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",

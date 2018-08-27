@@ -37,4 +37,5 @@ followClusterTestRunner {
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
+check.dependsOn followClusterTest
 test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

@@ -43,6 +43,7 @@
   - match: { bar.0.number_of_successful_bulk_operations: 0 }
   - match: { bar.0.number_of_failed_bulk_operations: 0 }
   - match: { bar.0.number_of_operations_indexed: 0 }
+  - length: { bar.0.fetch_exceptions: 0 }
 
   - do:
       ccr.unfollow_index:

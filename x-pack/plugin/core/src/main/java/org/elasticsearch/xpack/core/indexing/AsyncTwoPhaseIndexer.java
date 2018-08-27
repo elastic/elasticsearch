@@ -32,17 +32,17 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
  */
-public abstract class AsyncTwoPhaseIndexer<JobPosition> {
+public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends IndexerJobStats> {
     private static final Logger logger = Logger.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
-    private final IndexerJobStats stats;
+    private final JobStats stats;
 
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
     private final Executor executor;
 
     protected AsyncTwoPhaseIndexer(Executor executor, AtomicReference<IndexerState> initialState,
-                                   JobPosition initialPosition, IndexerJobStats jobStats) {
+                                   JobPosition initialPosition, JobStats jobStats) {
         this.executor = executor;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
@@ -66,7 +66,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition> {
     /**
      * Get the stats of this indexer.
      */
-    public IndexerJobStats getStats() {
+    public JobStats getStats() {
         return stats;
     }
 

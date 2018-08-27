@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 /**
  * An abstract implementation of {@link AsyncTwoPhaseIndexer} that builds a rollup index incrementally.
  */
-public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Object> > {
+public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, RollupIndexerJobStats> {
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final RollupJob job;

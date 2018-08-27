@@ -31,7 +31,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     AtomicBoolean isFinished = new AtomicBoolean(false);
 
-    private class MockIndexer extends AsyncTwoPhaseIndexer<Integer> {
+    private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, RollupIndexerJobStats> {
 
         // test the execution order
         private int step;

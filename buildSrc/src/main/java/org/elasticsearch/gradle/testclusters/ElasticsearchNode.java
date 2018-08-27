@@ -39,7 +39,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -52,7 +54,7 @@ import static org.gradle.internal.os.OperatingSystem.current;
 
 public class ElasticsearchNode {
 
-    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
+    private static final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = SECONDS;
@@ -220,7 +222,7 @@ public class ElasticsearchNode {
         logger.info("Running `bin/elasticsearch` in `{}` for {}", getWorkDir(), this);
         final ProcessBuilder processBuilder = new ProcessBuilder();
         if (current().isWindows()) {
-            processBuilder.command("cmd.exe", "/C", "bin\\elasticsearch.bat");
+            processBuilder.command("cmd", "/c", "bin\\elasticsearch.bat");
         } else {
             processBuilder.command("bin/elasticsearch");
         }
@@ -262,7 +264,7 @@ public class ElasticsearchNode {
                         Thread.sleep(Long.MAX_VALUE);
                     } catch (InterruptedException interrupted) {
                         logger.info("Interrupted, stopping elasticsearch: {}", this);
-                        doStop();
+                        doStop(esProcess.toHandle());
                         Thread.currentThread().interrupt();
                     }
                 }
@@ -271,7 +273,7 @@ public class ElasticsearchNode {
         // When the Daemon is not used, or runs into issues, rely on a shutdown hook
         // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptable
         // thread in the build) process will be stopped eventually when the daemon dies.
-        Runtime.getRuntime().addShutdownHook(new Thread(this::doStop));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> doStop(esProcess.toHandle())));
     }
 
     private File getStdoutFile() {
@@ -488,7 +490,7 @@ public class ElasticsearchNode {
             logFileContents("Standard error of node", getStdErrFile());
             throw new TestClustersException("Node `" + this + "` wasn't alive when we tried to destroy it");
         }
-        doStop();
+        doStop(esProcess.toHandle());
         esProcess = null;
     }
 
@@ -497,7 +499,7 @@ public class ElasticsearchNode {
             return;
         }
         logger.lifecycle("Forcefully stopping `{}`, number of claims is {}", this, noOfClaims.get());
-        doStop();
+        doStop(esProcess.toHandle());
         // Always relay output and error when the task failed
         logFileContents("Standard output of node", getStdoutFile());
         logFileContents("Standard error of node", getStdErrFile());
@@ -519,23 +521,27 @@ public class ElasticsearchNode {
         return true;
     }
 
-    private void doStop() {
-        if (esProcess.isAlive()) {
-            logProcessInfo("Elasticsearch Process:", esProcess.info());
-            esProcess.children().forEach(child -> logProcessInfo("Child Process:", child.info()));
+    private static void doStop(ProcessHandle processHandle) {
+        // Stop all children first
+        if (processHandle.isAlive()) {
+            processHandle.children().forEach(ElasticsearchNode::doStop);
         }
-
-        esProcess.destroy();
-        waitForESProcess();
-        if (esProcess.isAlive()) {
-            logger.info("`{}` did not terminate after {} {}, stopping it forcefully",
-                this, ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
+        logProcessInfo("Terminating elasticsearch process:", processHandle.info());
+        if (processHandle.isAlive()) {
+            processHandle.destroy();
+        } else {
+            logger.info("Process was not running when we tried to terminate it.");
+        }
+        waitForESProcess(processHandle);
+        if (processHandle.isAlive()) {
+            logger.info("process did not terminate after {} {}, stopping it forcefully",
+                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
             );
-            esProcess.destroyForcibly();
+            processHandle.destroyForcibly();
         }
-        waitForESProcess();
-        if (esProcess.isAlive()) {
-            throw new TestClustersException("Was not able to terminate: " + this);
+        waitForESProcess(processHandle);
+        if (processHandle.isAlive()) {
+            throw new TestClustersException("Was not able to terminate es process");
         }
     }
 
@@ -550,7 +556,7 @@ public class ElasticsearchNode {
         }
     }
 
-    private void logProcessInfo(String prefix, ProcessHandle.Info info) {
+    private static void logProcessInfo(String prefix, ProcessHandle.Info info) {
         logger.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"), info.command().orElse("-"),
             Arrays.stream(info.arguments().orElse(new String[]{}))
@@ -559,12 +565,16 @@ public class ElasticsearchNode {
         );
     }
 
-    private void waitForESProcess() {
+    private static void waitForESProcess(ProcessHandle processHandle) {
         try {
-            esProcess.waitFor(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+            processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            logger.info("{}: Interrupted while waiting for ES process",this, e);
+            logger.info("Interrupted while waiting for ES process", e);
             Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            logger.info("Failure while waiting for process to exist", e);
+        } catch (TimeoutException e) {
+            logger.info("Timed out waiting for process to exit", e);
         }
     }
 

@@ -29,7 +29,10 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
 
     @Override
     public ForecastStats createTestInstance() {
-        return createForecastStats(1, 22);
+        if (randomBoolean()) {
+            return createForecastStats(1, 22);
+        }
+        return new ForecastStats(0, null,null,null,null);
     }
 
     @Override

@@ -35,7 +35,6 @@ import java.io.IOException;
 
 public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
 
-
     public static JobStats createRandomInstance() {
         String jobId = JobTests.randomValidJobId();
         JobState state = randomFrom(JobState.CLOSING, JobState.CLOSED, JobState.OPENED, JobState.FAILED, JobState.OPENING);

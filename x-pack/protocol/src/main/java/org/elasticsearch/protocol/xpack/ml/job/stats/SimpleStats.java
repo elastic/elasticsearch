@@ -92,7 +92,6 @@ public class SimpleStats implements ToXContentObject {
             return true;
         }
 
-
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }

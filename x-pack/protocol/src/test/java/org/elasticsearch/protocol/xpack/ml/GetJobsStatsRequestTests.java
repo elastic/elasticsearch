@@ -35,7 +35,7 @@ public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsSt
     }
 
     public void testNewWithJobId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobsStatsRequest("job",null));
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobsStatsRequest("job", null));
         assertEquals(exception.getMessage(), "jobIds must not contain null values");
     }
 

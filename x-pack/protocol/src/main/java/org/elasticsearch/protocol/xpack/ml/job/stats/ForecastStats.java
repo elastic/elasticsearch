@@ -155,17 +155,20 @@ public class ForecastStats implements ToXContentObject {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
+        if (this == obj) {
+            return true;
         }
 
-        if (getClass() != obj.getClass()) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) && Objects.equals(forecastedJobs, other.forecastedJobs)
-            && Objects.equals(memoryStats, other.memoryStats) && Objects.equals(recordStats, other.recordStats)
-            && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(statusCounts, other.statusCounts);
+        return Objects.equals(total, other.total) &&
+            Objects.equals(forecastedJobs, other.forecastedJobs) &&
+            Objects.equals(memoryStats, other.memoryStats) &&
+            Objects.equals(recordStats, other.recordStats) &&
+            Objects.equals(runtimeStats, other.runtimeStats) &&
+            Objects.equals(statusCounts, other.statusCounts);
     }
 }

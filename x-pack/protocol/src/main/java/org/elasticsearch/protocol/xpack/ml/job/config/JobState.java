@@ -22,7 +22,7 @@ import java.util.Locale;
 
 /**
  * Jobs whether running or complete are in one of these states.
- * When a job is created it is initialised in to the state closed
+ * When a job is created it is initialised in the state closed
  * i.e. it is not running.
  */
 public enum JobState {

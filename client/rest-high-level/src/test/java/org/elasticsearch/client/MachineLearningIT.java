@@ -159,7 +159,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         GetJobsStatsRequest request = new GetJobsStatsRequest(jobId1, jobId2);
 
         Thread.sleep(1000);
-        // Test getting specific jobs stats
+        // Test getting specific
         GetJobsStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertEquals(2, response.count());
@@ -173,7 +173,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             }
         }
 
-        // Test getting all jobs explicitly
+        // Test getting all explicitly
         request = GetJobsStatsRequest.allJobsStats();
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
@@ -181,21 +181,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.jobs().size() >= 2L);
         assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
-        // Test getting all jobs implicitly
+        // Test getting all implicitly
         response = execute(new GetJobsStatsRequest(), machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertTrue(response.count() >= 2L);
         assertTrue(response.jobs().size() >= 2L);
         assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
-        // Test getting all jobs with wildcard
+        // Test getting all with wildcard
         request = new GetJobsStatsRequest("ml-get-job-stats-test-id-*");
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
         assertTrue(response.count() >= 2L);
         assertTrue(response.jobs().size() >= 2L);
         assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
-        // Test when allow no jobs is false
+        // Test when allow_no_jobs is false
         final GetJobsStatsRequest erroredRequest = new GetJobsStatsRequest("jobs-that-do-not-exist*");
         erroredRequest.setAllowNoJobs(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,

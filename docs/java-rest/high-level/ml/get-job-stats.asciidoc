@@ -1,16 +1,17 @@
 [[java-rest-high-x-pack-ml-get-job-stats]]
 === Get Job Stats API
 
-The Get Job Stats API provides the ability to get {ml} job's statistics in the cluster.
+The Get Job Stats API provides the ability to get any number of
+ {ml} job's statistics in the cluster.
 It accepts a `GetJobsStatsRequest` object and responds
 with a `GetJobsStatsResponse` object.
 
 [[java-rest-high-x-pack-ml-get-job-stats-request]]
 ==== Get Job Stats Request
 
-A `GetJobsStatsRequest` object gets can have any number of `jobId`
+A `GetJobsStatsRequest` object can have any number of `jobId`
 entries. However, they all must be non-null. An empty list is the same as
-requesting for all jobs.
+requesting statistics for all jobs.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

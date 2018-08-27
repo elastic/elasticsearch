@@ -194,11 +194,6 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testGetJobsStats() throws IOException {
-
-    }
-
-
     private static class BucketStats {
         // score < 50.0
         private long minorCount;

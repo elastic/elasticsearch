@@ -686,8 +686,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             NodesInfoRequest request = new NodesInfoRequest();
             request.clear();
             request.http(true);
-
-            transportService.sendRequest(anyNode.get(), NodesInfoAction.NAME, request, new TransportResponseHandler<NodesInfoResponse>() {
+            Transport.Connection connection = connectionManager.getConnection(anyNode.get());
+            transportService.sendRequest(connection, NodesInfoAction.NAME, request, TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<NodesInfoResponse>() {
                 @Override
                 public NodesInfoResponse newInstance() {
                     return new NodesInfoResponse();

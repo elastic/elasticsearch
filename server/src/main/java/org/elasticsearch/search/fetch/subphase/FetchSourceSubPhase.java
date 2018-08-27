@@ -29,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public final class FetchSourceSubPhase implements FetchSubPhase {
@@ -57,6 +58,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         if (nestedHit) {
             value = getNestedSource((Map<String, Object>) value, hitContext);
         }
+
         try {
             final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
             BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
@@ -81,6 +83,9 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
     private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
         for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
             sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
+            if (sourceAsMap == null) {
+                return null;
+            }
         }
         return sourceAsMap;
     }

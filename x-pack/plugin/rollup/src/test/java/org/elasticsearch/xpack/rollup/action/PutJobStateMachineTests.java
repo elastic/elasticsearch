@@ -180,8 +180,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
             fail("Listener success should not have been triggered.");
         }, e -> {
-            assertThat(e.getMessage(), equalTo("Rollup indices cannot co-mingle with non-rollup data (expected to " +
-                "find _meta key in mapping of rollup index [" + job.getConfig().getRollupIndex() + "] but not found)."));
+            assertThat(e.getMessage(), equalTo("Rollup data cannot be added to existing indices that contain " +
+                "non-rollup data (expected to find _meta key in mapping of rollup index ["
+                + job.getConfig().getRollupIndex() + "] but not found)."));
         });
 
         Logger logger = mock(Logger.class);
@@ -213,8 +214,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
             fail("Listener success should not have been triggered.");
         }, e -> {
-            assertThat(e.getMessage(), equalTo("Rollup indices cannot co-mingle with non-rollup data (expected to " +
-                "find rollup meta key [_rollup] in mapping of rollup index [" + job.getConfig().getRollupIndex() + "] but not found)."));
+            assertThat(e.getMessage(), equalTo("Rollup data cannot be added to existing indices that contain " +
+                "non-rollup data (expected to find rollup meta key [_rollup] in mapping of rollup index ["
+                + job.getConfig().getRollupIndex() + "] but not found)."));
         });
 
         Logger logger = mock(Logger.class);

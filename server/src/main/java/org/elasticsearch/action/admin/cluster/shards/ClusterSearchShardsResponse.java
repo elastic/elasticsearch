@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -77,14 +76,12 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (int i = 0; i < nodes.length; i++) {
             nodes[i] = new DiscoveryNode(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            int size = in.readVInt();
-            indicesAndFilters = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                String index = in.readString();
-                AliasFilter aliasFilter = new AliasFilter(in);
-                indicesAndFilters.put(index, aliasFilter);
-            }
+        int size = in.readVInt();
+        indicesAndFilters = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            String index = in.readString();
+            AliasFilter aliasFilter = new AliasFilter(in);
+            indicesAndFilters.put(index, aliasFilter);
         }
     }
 
@@ -99,12 +96,10 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         for (DiscoveryNode node : nodes) {
             node.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeVInt(indicesAndFilters.size());
-            for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+        out.writeVInt(indicesAndFilters.size());
+        for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
         }
     }
 

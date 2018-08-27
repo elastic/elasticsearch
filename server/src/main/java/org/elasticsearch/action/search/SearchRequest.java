@@ -135,10 +135,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            maxConcurrentShardRequests = in.readVInt();
-            preFilterShardSize = in.readVInt();
-        }
+        maxConcurrentShardRequests = in.readVInt();
+        preFilterShardSize = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
@@ -160,10 +158,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeVInt(maxConcurrentShardRequests);
-            out.writeVInt(preFilterShardSize);
-        }
+        out.writeVInt(maxConcurrentShardRequests);
+        out.writeVInt(preFilterShardSize);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }

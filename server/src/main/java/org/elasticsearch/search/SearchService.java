@@ -98,6 +98,8 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -789,14 +791,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
-            if (source.docValueFields().size() > maxAllowedDocvalueFields) {
-                throw new IllegalArgumentException(
-                        "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                                + "] but was [" + source.docValueFields().size() + "]. This limit can be set by changing the ["
-                                + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+            List<DocValueFieldsContext.FieldAndFormat> docValueFields = new ArrayList<>();
+            for (DocValueFieldsContext.FieldAndFormat format : source.docValueFields()) {
+                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
+                for (String fieldName: fieldNames) {
+                   docValueFields.add(new DocValueFieldsContext.FieldAndFormat(fieldName, format.format));
+                }
             }
-            context.docValueFieldsContext(new DocValueFieldsContext(source.docValueFields()));
+            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
+            if (docValueFields.size() > maxAllowedDocvalueFields) {
+                throw new IllegalArgumentException(
+                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                        + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+            }
+            context.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

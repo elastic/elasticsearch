@@ -430,8 +430,8 @@ public class QueryStringIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("test", "_doc", "1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
 
-        // The wildcard field matches aliases for both a text and boolean field.
-        // By default, the boolean field should be ignored when building the query.
+        // The wildcard field matches aliases for both a text and geo_point field.
+        // By default, the geo_point field should be ignored when building the query.
         SearchResponse response = client().prepareSearch("test")
             .setQuery(queryStringQuery("text").field("f*_alias"))
             .execute().actionGet();

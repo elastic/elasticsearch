@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -74,11 +75,8 @@ artifacts  {
 }
 
 
-forbiddenApisMain {
-    signaturesURLs += file('src/forbidden/cli-signatures.txt').toURI().toURL()
-}
-forbiddenApisTest {
-    signaturesURLs += file('src/forbidden/cli-signatures.txt').toURI().toURL()
+tasks.withType(ForbiddenApisCliTask) {
+    signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
 thirdPartyAudit.excludes = [

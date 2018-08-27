@@ -439,26 +439,29 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
-                        RollupJobStatus::fromXContent),
+                        RollupJobStatus::fromXContent)
                 // ILM
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.AllocateAction::parse),
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.DeleteAction::parse),
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.ReadOnlyAction::parse),
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.RolloverAction::parse),
-                new NamedXContentRegistry.Entry(org.elasticsearch.protocol.xpack.indexlifecycle.LifecycleAction.class,
-                    new ParseField(org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction.NAME),
-                    org.elasticsearch.protocol.xpack.indexlifecycle.ShrinkAction::parse)
+                // TODO NORELEASE: These lines may not be necessary, and they cause errors if present
+                // as they are duplicated in IndexLifecycle.
+                // Leaving this for now in case they are necessary as we move forward with the HLRC.
+//                new NamedXContentRegistry.Entry(LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.AllocateAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.AllocateAction::parse),
+//                new NamedXContentRegistry.Entry(org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.DeleteAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.DeleteAction::parse),
+//                new NamedXContentRegistry.Entry(org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction::parse),
+//                new NamedXContentRegistry.Entry(org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction::parse),
+//                new NamedXContentRegistry.Entry(org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.RolloverAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.RolloverAction::parse),
+//                new NamedXContentRegistry.Entry(org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction.class,
+//                    new ParseField(org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction.NAME),
+//                    org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction::parse)
             );
     }
 

@@ -84,4 +84,34 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertSame(result, result2);
     }
 
+    public void testMappingVersion() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final long previousVersion = indexService.getMetaData().getMappingVersion();
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": { \"field\": { \"type\": \"text\" }}}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+    }
+
+    public void testMappingVersionUnchanged() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final long previousVersion = indexService.getMetaData().getMappingVersion();
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type("type");
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": {}}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(previousVersion));
+    }
+
 }

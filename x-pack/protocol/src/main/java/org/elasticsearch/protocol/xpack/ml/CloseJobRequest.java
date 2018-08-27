@@ -35,6 +35,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Request to close Machine Learning Jobs
+ */
 public class CloseJobRequest extends ActionRequest implements ToXContentObject {
 
     public static final ParseField JOB_ID = new ParseField("job_id");
@@ -98,49 +101,44 @@ public class CloseJobRequest extends ActionRequest implements ToXContentObject {
         return jobIds;
     }
 
-    /**
-     * How long to wait for the close request to complete before timing out.
-     *
-     * Default: 30 minutes
-     */
     public TimeValue getTimeout() {
         return timeout;
     }
 
     /**
-     * {@link CloseJobRequest#getTimeout()}
+     * How long to wait for the close request to complete before timing out.
+     *
+     * @param timeout Default value: 30 minutes
      */
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
+    }
+
+    public Boolean isForce() {
+        return force;
     }
 
     /**
      * Should the closing be forced.
      *
      * Use to close a failed job, or to forcefully close a job which has not responded to its initial close request.
-     */
-    public Boolean isForce() {
-        return force;
-    }
-
-    /**
-     * {@link CloseJobRequest#isForce()}
+     *
+     * @param force When {@code true} forcefully close the job. Defaults to {@code false}
      */
     public void setForce(boolean force) {
         this.force = force;
+    }
+
+    public Boolean isAllowNoJobs() {
+        return this.allowNoJobs;
     }
 
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
      * This includes `_all` string or when no jobs have been specified
-     */
-    public Boolean isAllowNoJobs() {
-        return this.allowNoJobs;
-    }
-
-    /**
-     * {@link CloseJobRequest#isAllowNoJobs()}
+     *
+     * @param allowNoJobs When {@code true} ignore if wildcard or `_all` matches no jobs. Defaults to {@code true}
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;

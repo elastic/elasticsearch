@@ -38,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -85,9 +84,7 @@ public class ConnectionManager implements Closeable {
     }
 
     public void addListener(TransportConnectionListener listener) {
-        if (connectionListener.listeners.contains(listener) == false) {
-            this.connectionListener.listeners.add(listener);
-        }
+        this.connectionListener.listeners.addIfAbsent(listener);
     }
 
     public void removeListener(TransportConnectionListener listener) {
@@ -297,7 +294,7 @@ public class ConnectionManager implements Closeable {
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {

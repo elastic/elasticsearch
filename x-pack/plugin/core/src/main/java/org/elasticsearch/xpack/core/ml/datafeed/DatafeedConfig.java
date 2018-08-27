@@ -189,10 +189,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            // read former _source field
-            in.readBoolean();
-        }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
@@ -290,10 +286,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            // write former _source field
-            out.writeBoolean(false);
-        }
         out.writeOptionalWriteable(chunkingConfig);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);

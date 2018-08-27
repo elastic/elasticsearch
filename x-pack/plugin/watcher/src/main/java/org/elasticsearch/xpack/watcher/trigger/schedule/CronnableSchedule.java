@@ -35,8 +35,9 @@ public abstract class CronnableSchedule implements Schedule {
             // filter out expired dates before sorting
             .filter(nextValidTime -> nextValidTime > -1)
             .sorted()
+            .findFirst()
             // no date in the future found, return -1 to the caller
-            .findFirst().orElse(-1L);
+            .orElse(-1L);
     }
 
     public Cron[] crons() {

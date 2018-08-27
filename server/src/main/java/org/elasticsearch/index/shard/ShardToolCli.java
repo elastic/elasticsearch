@@ -27,8 +27,8 @@ import org.elasticsearch.cli.Terminal;
 public class ShardToolCli extends LoggingAwareMultiCommand {
 
     private ShardToolCli() {
-        super("A CLI tool to manage shard");
-        subcommands.put("remove-corrupted-segments", new RemoveCorruptedShardSegmentsCommand());
+        super("A CLI tool to remove corrupted parts of unrecoverable shards");
+        subcommands.put("remove-corrupted-data", new RemoveCorruptedShardSegmentsCommand());
     }
 
     public static void main(String[] args) throws Exception {

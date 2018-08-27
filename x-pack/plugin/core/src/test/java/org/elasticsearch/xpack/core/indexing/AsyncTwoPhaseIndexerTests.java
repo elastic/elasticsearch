@@ -13,11 +13,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -31,13 +32,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     AtomicBoolean isFinished = new AtomicBoolean(false);
 
-    private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, RollupIndexerJobStats> {
+    private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, MockJobStats> {
 
         // test the execution order
         private int step;
 
         protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition) {
-            super(executor, initialState, initialPosition, new RollupIndexerJobStats());
+            super(executor, initialState, initialPosition, new MockJobStats());
         }
 
         @Override
@@ -107,6 +108,14 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             return step;
         }
 
+    }
+
+    private static class MockJobStats extends IndexerJobStats {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
     }
 
     public void testStateMachine() throws InterruptedException {

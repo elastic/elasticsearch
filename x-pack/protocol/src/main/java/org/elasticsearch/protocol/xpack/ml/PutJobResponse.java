@@ -27,6 +27,9 @@ import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response containing the newly created {@link Job}
+ */
 public class PutJobResponse implements ToXContentObject {
 
     private Job job;
@@ -35,11 +38,8 @@ public class PutJobResponse implements ToXContentObject {
         return new PutJobResponse(Job.PARSER.parse(parser, null).build());
     }
 
-    public PutJobResponse(Job job) {
+    PutJobResponse(Job job) {
         this.job = job;
-    }
-
-    public PutJobResponse() {
     }
 
     public Job getResponse() {

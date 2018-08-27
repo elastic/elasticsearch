@@ -2391,8 +2391,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32766")
-    public void testDocStats() throws IOException {
+    public void testDocStats() throws IOException, InterruptedException {
         IndexShard indexShard = null;
         try {
             indexShard = newStartedShard();
@@ -2441,8 +2440,6 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.reader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
-                // Lucene will delete a segment if all docs are deleted from it; this means that we lose the deletes when deleting all docs
-                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete == numDocs ? 0 : numDocsToDelete));
             }
 
             // merge them away

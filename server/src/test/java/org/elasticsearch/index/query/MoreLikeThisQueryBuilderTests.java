@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -36,13 +35,11 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -52,7 +49,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -331,26 +327,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         Item newItem = Item.parse(parser, new Item());
         assertEquals(expectedItem, newItem);
-    }
-
-    public void testItemSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AQVpbmRleAEEdHlwZQEODXsiZm9vIjoiYmFyIn0A/wD//////////QAAAAAAAAAA");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            Item item = new Item(in);
-            assertEquals(XContentType.JSON, item.xContentType());
-            assertEquals("{\"foo\":\"bar\"}", item.doc().utf8ToString());
-            assertEquals("index", item.index());
-            assertEquals("type", item.type());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                item.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
     }
 
     @Override

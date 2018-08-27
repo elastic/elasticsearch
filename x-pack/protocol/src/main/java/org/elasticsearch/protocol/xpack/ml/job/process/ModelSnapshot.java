@@ -221,10 +221,8 @@ public class ModelSnapshot implements ToXContentObject {
     public static class Builder {
         private String jobId;
 
-        // Stored snapshot documents created prior to 6.3.0 will have no
-        // value for min_version. We default it to 5.5.0 as there were
-        // no model changes between 5.5.0 and 6.3.0.
-        private Version minVersion = Version.V_5_5_0;
+        // Stored snapshot documents created prior to 6.3.0 will have no value for min_version.
+        private Version minVersion = Version.V_6_3_0;
 
         private Date timestamp;
         private String description;

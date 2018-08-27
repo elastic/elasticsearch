@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 
 archivesBaseName = 'x-pack-log-structure-finder'
@@ -31,6 +29,6 @@ artifacts {
 
 forbiddenApisMain {
     // log-structure-finder does not depend on server, so cannot forbid server methods
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 

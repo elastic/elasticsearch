@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -71,7 +72,8 @@ public class TransportDeleteAutoFollowPatternAction extends
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
         AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null) {
-            return currentState;
+            throw new ResourceNotFoundException("auto follow patterns for [{}] cluster alias are missing",
+                request.getRemoteClusterAlias());
         }
         Map<String, AutoFollowMetadata.AutoFollowPattern> configurations = currentAutoFollowMetadata.getPatterns();
         Set<String> toRemove = new HashSet<>();
@@ -81,16 +83,19 @@ public class TransportDeleteAutoFollowPatternAction extends
             }
         }
         if (toRemove.isEmpty()) {
-            throw new ResourceNotFoundException("auto follow pattern [{}] is missing", request.getRemoteClusterAlias());
-        } else if (toRemove.isEmpty()) {
-            return currentState;
+            throw new ResourceNotFoundException("auto follow patterns for [{}] cluster alias are missing",
+                request.getRemoteClusterAlias());
         }
+
         final Map<String, AutoFollowMetadata.AutoFollowPattern> configurationsCopy = new HashMap<>(configurations);
+        final Map<String, List<String>> followedLeaderIndexUUIDSCopy =
+            new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDS());
         for (String key : toRemove) {
             configurationsCopy.remove(key);
+            followedLeaderIndexUUIDSCopy.remove(key);
         }
-        AutoFollowMetadata newAutoFollowMetadata =
-            new AutoFollowMetadata(configurationsCopy, currentAutoFollowMetadata.getFollowedLeaderIndexUUIDS());
+
+        AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(configurationsCopy, followedLeaderIndexUUIDSCopy);
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)

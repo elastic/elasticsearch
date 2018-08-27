@@ -103,7 +103,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         // TODO: When a snapshot is restored do we want to restore this?
-        // (Otherwise we could start following indices automatically immediately)
+        // (Otherwise we would start following indices automatically immediately)
         return MetaData.ALL_CONTEXTS;
     }
 
@@ -331,8 +331,17 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderIndexPatterns, followIndexPattern, maxBatchOperationCount, maxConcurrentReadBatches,
-                maxOperationSizeInBytes, maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryDelay);
+            return Objects.hash(
+                leaderIndexPatterns,
+                followIndexPattern,
+                maxBatchOperationCount,
+                maxConcurrentReadBatches,
+                maxOperationSizeInBytes,
+                maxConcurrentWriteBatches,
+                maxWriteBufferSize,
+                retryTimeout,
+                idleShardRetryDelay
+            );
         }
     }
 

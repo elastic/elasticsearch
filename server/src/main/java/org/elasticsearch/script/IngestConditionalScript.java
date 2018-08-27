@@ -25,17 +25,17 @@ import java.util.Map;
 /**
  * A script used by the Ingest Script Processor.
  */
-public abstract class ProcessorConditionalScript {
+public abstract class IngestConditionalScript {
 
     public static final String[] PARAMETERS = { "ctx" };
 
-    /** The context used to compile {@link ProcessorConditionalScript} factories. */
+    /** The context used to compile {@link IngestConditionalScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("processor_conditional", Factory.class);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public ProcessorConditionalScript(Map<String, Object> params) {
+    public IngestConditionalScript(Map<String, Object> params) {
         this.params = params;
     }
 
@@ -47,6 +47,6 @@ public abstract class ProcessorConditionalScript {
     public abstract boolean execute(Map<String, Object> ctx);
 
     public interface Factory {
-        ProcessorConditionalScript newInstance(Map<String, Object> params);
+        IngestConditionalScript newInstance(Map<String, Object> params);
     }
 }

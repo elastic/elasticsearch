@@ -41,7 +41,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.ProcessorConditionalScript;
+import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
@@ -68,8 +68,9 @@ public class ConditionalProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        if (scriptService.compile(condition, ProcessorConditionalScript.CONTEXT)
-            .newInstance(condition.getParams()).execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
+        IngestConditionalScript script =
+            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
+        if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
             processor.execute(ingestDocument);
         }
     }
@@ -101,7 +102,7 @@ public class ConditionalProcessor extends AbstractProcessor {
                 config.remove("script");
                 // verify script is able to be compiled before successfully creating processor.
                 try {
-                    scriptService.compile(script, ProcessorConditionalScript.CONTEXT);
+                    scriptService.compile(script, IngestConditionalScript.CONTEXT);
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, tag, null, e);
                 }
@@ -125,6 +126,8 @@ public class ConditionalProcessor extends AbstractProcessor {
     }
 
     private static Object wrapUnmodifiable(Object raw) {
+        // Wraps all mutable types that the JSON parser can create by immutable wrappers.
+        // Any inputs not wrapped are assumed to be immutable
         if (raw instanceof Map) {
             return new UnmodifiableIngestData((Map<String, Object>) raw);
         } else if (raw instanceof List) {

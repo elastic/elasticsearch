@@ -163,9 +163,6 @@ public class RestUtils {
         for (int i = 0; i < size; i++) {
             char c = s.charAt(i);
             switch (c) {
-                case '+':
-                    buf[pos++] = ' ';  // "+" -> " "
-                    break;
                 case '%':
                     if (i == size - 1) {
                         throw new IllegalArgumentException("unterminated escape sequence at end of string: " + s);

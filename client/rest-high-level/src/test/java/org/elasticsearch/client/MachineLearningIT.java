@@ -24,6 +24,8 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.FlushJobRequest;
+import org.elasticsearch.protocol.xpack.ml.FlushJobResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -136,6 +138,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::closeJob,
             machineLearningClient::closeJobAsync);
         assertTrue(response.isClosed());
+    }
+
+    public void testFlushJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        FlushJobResponse response = execute(new FlushJobRequest(jobId),
+            machineLearningClient::flushJob,
+            machineLearningClient::flushJobAsync);
+        assertTrue(response.isFlushed());
     }
 
     public static String randomValidJobId() {

@@ -33,6 +33,8 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.FlushJobRequest;
+import org.elasticsearch.protocol.xpack.ml.FlushJobResponse;
 import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
 import org.elasticsearch.protocol.xpack.ml.GetBucketsResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
@@ -450,6 +452,61 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-get-buckets-execute-async
             client.machineLearning().getBucketsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-get-buckets-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
+    public void testFlushJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("flushing-my-first-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("flushing-my-second-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(secondJob.getId()), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-flush-job-request
+            FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-first-machine-learning-job"); //<1>
+            flushJobRequest.setCalcInterim(true); //<2>
+            flushJobRequest.setAdvanceTime("1000"); //<3>
+            flushJobRequest.setStart("1500"); //<4>
+            flushJobRequest.setEnd("2000"); //<5>
+            flushJobRequest.setSkipTime("1100"); //<6>
+            //end::x-pack-ml-flush-job-request
+
+            //tag::x-pack-ml-flush-job-execute
+            FlushJobResponse flushJobResponse = client.machineLearning().flushJob(flushJobRequest, RequestOptions.DEFAULT);
+            boolean isFlushed = flushJobResponse.isFlushed(); //<1>
+            Date lastFinalizedBucketEnd = flushJobResponse.getLastFinalizedBucketEnd(); //<2>
+            //end::x-pack-ml-flush-job-execute
+
+        }
+        {
+            //tag::x-pack-ml-flush-job-listener
+            ActionListener<FlushJobResponse> listener = new ActionListener<FlushJobResponse>() {
+                @Override
+                public void onResponse(FlushJobResponse FlushJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-flush-job-listener
+            FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-second-machine-learning-job");
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-flush-job-execute-async
+            client.machineLearning().flushJobAsync(flushJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-flush-job-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

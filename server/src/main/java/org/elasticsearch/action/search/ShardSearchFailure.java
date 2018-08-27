@@ -54,8 +54,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     private SearchShardTarget shardTarget;
 
-    private ShardSearchFailure() {
-
+    ShardSearchFailure() {
     }
 
     public ShardSearchFailure(Exception e) {
@@ -101,6 +100,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             shardTarget = new SearchShardTarget(in);
+            super.index = shardTarget.getFullyQualifiedIndexName();
+            super.shardId = shardTarget.getShardId().getId();
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);

@@ -23,6 +23,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -47,7 +49,7 @@ public class ShardSearchFailureTests extends ESTestCase {
             String indexName = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), clusterAlias, OriginalIndices.NONE);
+                    new ShardId(new Index(indexName, randomAlphaOfLength(12)), randomInt()), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -133,5 +135,16 @@ public class ShardSearchFailureTests extends ESTestCase {
                 + "}"
                 + "}",
             xContent.utf8ToString());
+    }
+
+    public void testSerialization() throws IOException {
+        ShardSearchFailure testItem = createTestItem();
+        ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(),
+            ShardSearchFailure::new, VersionUtils.randomVersion(random()));
+        assertEquals(testItem.index(), deserializedInstance.index());
+        assertEquals(testItem.shard(), deserializedInstance.shard());
+        assertEquals(testItem.shardId(), deserializedInstance.shardId());
+        assertEquals(testItem.reason(), deserializedInstance.reason());
+        assertEquals(testItem.status(), deserializedInstance.status());
     }
 }

@@ -47,10 +47,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class TruncateTranslogAction {
 
@@ -88,7 +89,7 @@ public class TruncateTranslogAction {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to find existing translog files", e);
         }
-        final String details = deletingFilesDetails(translogFiles);
+        final String details = deletingFilesDetails(translogPath, translogFiles);
 
         return Tuple.tuple(RemoveCorruptedShardSegmentsCommand.CleanStatus.CORRUPTED, details);
     }
@@ -159,7 +160,7 @@ public class TruncateTranslogAction {
     }
 
     private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
-        // TODO: perform clean check of translog instead of corrupted marker file
+        // perform clean check of translog instead of corrupted marker file
         boolean clean = true;
         try {
             final Path translogPath = shardPath.resolveTranslog();
@@ -208,23 +209,26 @@ public class TruncateTranslogAction {
     }
 
     /** Show a warning about deleting files, asking for a confirmation if {@code batchMode} is false */
-    private String deletingFilesDetails(Set<Path> files) {
+    private String deletingFilesDetails(Path translogPath, Set<Path> files) {
         StringBuilder builder = new StringBuilder();
 
         builder
-            .append("   WARNING:    Documents inside of translog files will be lost\n")
-            .append("\n")
-            .append("   WARNING:       The following files will be DELETED:\n")
-            .append("\n");
-        for (Path file : files) {
-            builder.append("--> ").append(file).append("\n");
+            .append("Documents inside of translog files will be lost.\n")
+            .append("  The following files will be DELETED at ")
+            .append(translogPath)
+            .append("\n\n");
+        for(Iterator<Path> it = files.iterator();it.hasNext();) {
+            builder.append("  --> ").append(it.next().getFileName());
+            if (it.hasNext()) {
+                builder.append("\n");
+            }
         }
-        return builder.append("\n").toString();
+        return builder.toString();
     }
 
     /** Return a Set of all files in a given directory */
     public static Set<Path> filesInDirectory(Path directory) throws IOException {
-        Set<Path> files = new HashSet<>();
+        Set<Path> files = new TreeSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path file : stream) {
                 files.add(file);

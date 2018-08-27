@@ -528,7 +528,8 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
         internalCluster().startNode();
         ensureGreen(indexName);
         for (String node : internalCluster().nodesInclude(indexName)) {
-            assertHitCount(client().prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
+            assertHitCount(client().prepareSearch(indexName)
+                .setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(), totalDocs);
         }
 
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();

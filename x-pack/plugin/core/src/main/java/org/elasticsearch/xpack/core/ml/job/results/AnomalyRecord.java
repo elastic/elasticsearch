@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -163,10 +162,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     @SuppressWarnings("unchecked")
     public AnomalyRecord(StreamInput in) throws IOException {
         jobId = in.readString();
-        // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readInt();
-        }
         detectorIndex = in.readInt();
         probability = in.readDouble();
         byFieldName = in.readOptionalString();
@@ -201,10 +196,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeInt(0);
-        }
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
         out.writeOptionalString(byFieldName);

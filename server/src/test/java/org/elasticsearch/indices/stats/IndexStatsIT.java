@@ -725,7 +725,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
+                .setSettings(Settings.builder().put("index.version.created", Version.V_6_0_0.id))
                 .addMapping("_doc", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 

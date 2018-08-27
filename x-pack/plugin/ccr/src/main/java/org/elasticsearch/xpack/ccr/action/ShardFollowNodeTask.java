@@ -416,13 +416,19 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public synchronized Status getStatus() {
-        String leaderIndex;
+        final String leaderIndex;
         if (params.getLeaderClusterAlias() != null) {
             leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
         } else {
             leaderIndex = params.getLeaderShardId().getIndexName();
         }
-        long timeSinceLastFetch = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - lastFetchTime);
+        final long timeSinceLastFetchMillis;
+        if (lastFetchTime != 0) {
+             timeSinceLastFetchMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - lastFetchTime);
+        } else {
+            // To avoid confusion when ccr didn't yet execute a fetch:
+            timeSinceLastFetchMillis = 0;
+        }
         return new Status(
                 leaderIndex,
                 getFollowShardId().getId(),
@@ -445,7 +451,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed,
                 new TreeMap<>(fetchExceptions),
-                timeSinceLastFetch);
+                timeSinceLastFetchMillis);
     }
 
     public static class Status implements Task.Status {

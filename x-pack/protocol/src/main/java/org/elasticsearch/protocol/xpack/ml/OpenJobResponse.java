@@ -20,7 +20,7 @@ package org.elasticsearch.protocol.xpack.ml;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,22 +28,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response indicating if the Machine Learning Job is now opened or not
+ */
 public class OpenJobResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField OPENED = new ParseField("opened");
 
-    public static final ObjectParser<OpenJobResponse, Void> PARSER = new ObjectParser<>("open_job_response", true, OpenJobResponse::new);
+    public static final ConstructingObjectParser<OpenJobResponse, Void> PARSER =
+        new ConstructingObjectParser<>("open_job_response", true, (a) -> new OpenJobResponse((Boolean)a[0]));
 
     static {
-        PARSER.declareBoolean(OpenJobResponse::setOpened, OPENED);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), OPENED);
     }
 
     private boolean opened;
 
-    OpenJobResponse() {
-    }
-
-    public OpenJobResponse(boolean opened) {
+    OpenJobResponse(boolean opened) {
         this.opened = opened;
     }
 
@@ -51,12 +52,13 @@ public class OpenJobResponse extends ActionResponse implements ToXContentObject 
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Has the job opened or not
+     *
+     * @return boolean value indicating the job opened status
+     */
     public boolean isOpened() {
         return opened;
-    }
-
-    public void setOpened(boolean opened) {
-        this.opened = opened;
     }
 
     @Override

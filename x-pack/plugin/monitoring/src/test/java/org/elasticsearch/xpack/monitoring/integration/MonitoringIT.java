@@ -120,8 +120,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // REST is the realistic way that these operations happen, so it's the most realistic way to integration test it too
             // Use Monitoring Bulk API to index 3 documents
-            //final Response bulkResponse = getRestClient().performRequest("POST", "/_xpack/monitoring/_bulk",
-            //                                                             parameters, createBulkEntity());
+            //final Request bulkRequest = new Request("POST", "/_xpack/monitoring/_bulk");
+            //<<add all parameters>
+            //bulkRequest.setJsonEntity(createBulkEntity());
+            //final Response bulkResponse = getRestClient().performRequest(request);
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())

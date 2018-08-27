@@ -468,11 +468,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // commit the change
         if (defaultMappingSource != null) {
             this.defaultMappingSource = defaultMappingSource;
+            this.defaultMapper = defaultMapper;
         }
         if (newMapper != null) {
             this.mapper = newMapper;
         }
-        this.defaultMapper = defaultMapper;
         this.fieldTypes = fieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;

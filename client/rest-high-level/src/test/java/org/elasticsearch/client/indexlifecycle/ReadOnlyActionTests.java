@@ -16,25 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-public class DeleteActionTests extends AbstractXContentTestCase<DeleteAction> {
+public class ReadOnlyActionTests extends AbstractXContentTestCase<ReadOnlyAction> {
 
     @Override
-    protected DeleteAction createTestInstance() {
-        return new DeleteAction();
-    }
-
-    @Override
-    protected DeleteAction doParseInstance(XContentParser parser) {
-        return DeleteAction.parse(parser);
+    protected ReadOnlyAction doParseInstance(XContentParser parser) {
+        return ReadOnlyAction.parse(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return false;
+    }
+
+    @Override
+    protected ReadOnlyAction createTestInstance() {
+        return new ReadOnlyAction();
     }
 }

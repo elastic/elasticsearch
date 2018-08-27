@@ -26,9 +26,10 @@ import java.util.Optional;
 public interface Validatable {
     /**
      * Perform validation. This method does not have to be overridden in the event that no validation needs to be done,
-     * or the validation was done during object construction time.
+     * or the validation was done during object construction time. A {@link ValidationException} that is not null is
+     * assumed to contain validation errors and will be thrown.
      *
-     * @return An {@link Optional} {@link ValidationException} that may or may not contain a list of validation errors.
+     * @return An {@link Optional} {@link ValidationException} that contains a list of validation errors.
      */
     default Optional<ValidationException> validate() {
         return Optional.empty();

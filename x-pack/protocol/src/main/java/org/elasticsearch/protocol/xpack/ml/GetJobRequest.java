@@ -88,7 +88,6 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
     }
 
     /**
-     * See {@link GetJobRequest#isAllowNoJobs()}
      * Whether to ignore if a wildcard expression matches no jobs.
      *
      * @param allowNoJobs If this is {@code false}, then an error is returned when a wildcard (or `_all`) does not match any jobs

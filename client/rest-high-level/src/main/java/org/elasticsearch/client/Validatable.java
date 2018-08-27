@@ -24,6 +24,16 @@ import java.util.Optional;
  * Defines a validation layer for Requests.
  */
 public interface Validatable {
+
+    Validatable EMPTY = new Validatable() {};
+
+    ValidationException EMPTY_VALIDATION = new ValidationException() {
+        @Override
+        public void addValidationError(String error) {
+            throw new UnsupportedOperationException("Validation messages should not be added to the empty validation");
+        }
+    };
+
     /**
      * Perform validation. This method does not have to be overridden in the event that no validation needs to be done,
      * or the validation was done during object construction time. A {@link ValidationException} that is not null is

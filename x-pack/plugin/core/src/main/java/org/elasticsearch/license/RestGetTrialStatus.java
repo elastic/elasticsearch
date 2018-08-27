@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
@@ -28,17 +29,8 @@ public class RestGetTrialStatus extends XPackRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        return channel -> client.licensing().prepareGetStartTrial().execute(
-                new RestBuilderListener<GetTrialStatusResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetTrialStatusResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        builder.field("eligible_to_start_trial", response.isEligibleToStartTrial());
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
+    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) {
+        return channel -> client.licensing().prepareGetStartTrial().execute(new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -88,4 +88,12 @@ final class LicenseRequestConverters {
         }
         return request;
     }
+
+    static Request getLicenseTrialStatus() {
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/trial_status");
+    }
+
+    static Request getLicenseBasicStatus() {
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/license/basic_status");
+    }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,7 +39,7 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class ShardSearchFailureTests extends ESTestCase {
 
-    public static ShardSearchFailure createTestItem() {
+    public static ShardSearchFailure createTestItem(String indexUuid) {
         String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
         SearchShardTarget searchShardTarget = null;
@@ -47,7 +48,7 @@ public class ShardSearchFailureTests extends ESTestCase {
             String indexName = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, randomAlphaOfLength(12)), randomInt()), clusterAlias, OriginalIndices.NONE);
+                    new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -66,7 +67,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ShardSearchFailure response = createTestItem();
+        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -136,7 +137,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        ShardSearchFailure testItem = createTestItem();
+        ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12));
         ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(),
             ShardSearchFailure::new, VersionUtils.randomVersion(random()));
         assertEquals(testItem.index(), deserializedInstance.index());

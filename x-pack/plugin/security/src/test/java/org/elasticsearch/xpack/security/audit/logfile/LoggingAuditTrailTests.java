@@ -160,7 +160,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         patternLayout = PatternLayout.newBuilder().withPattern(
                 "{" +
-                "\"timestamp\":\"%d{ISO8601}\"" +
+                "\"@timestamp\":\"%d{ISO8601}\"" +
                 "%varsNotEmpty{, \"node.name\":\"%enc{%map{node.name}}{JSON}\"}" +
                 "%varsNotEmpty{, \"host.name\":\"%enc{%map{host.name}}{JSON}\"}" +
                 "%varsNotEmpty{, \"host.ip\":\"%enc{%map{host.ip}}{JSON}\"}" +
@@ -971,7 +971,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
-        logLine = logLine.replaceFirst("\"timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
+        logLine = logLine.replaceFirst("\"@timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }

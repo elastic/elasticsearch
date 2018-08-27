@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
@@ -220,7 +221,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), IndexerJobStats.PARSER::apply, STATS);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupIndexerJobStats.PARSER::apply, STATS);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }
 
@@ -232,7 +233,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public JobWrapper(StreamInput in) throws IOException {
             this.job = new RollupJobConfig(in);
-            this.stats = new IndexerJobStats(in);
+            this.stats = new RollupIndexerJobStats(in);
             this.status = new RollupJobStatus(in);
         }
 

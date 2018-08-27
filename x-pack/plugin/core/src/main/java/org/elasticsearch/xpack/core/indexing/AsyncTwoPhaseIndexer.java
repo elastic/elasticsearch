@@ -32,8 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
  */
-public abstract class IterativeIndexer<JobPosition> {
-    private static final Logger logger = Logger.getLogger(IterativeIndexer.class.getName());
+public abstract class AsyncTwoPhaseIndexer<JobPosition> {
+    private static final Logger logger = Logger.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
     private final IndexerJobStats stats;
 
@@ -41,11 +41,12 @@ public abstract class IterativeIndexer<JobPosition> {
     private final AtomicReference<JobPosition> position;
     private final Executor executor;
 
-    protected IterativeIndexer(Executor executor, AtomicReference<IndexerState> initialState, JobPosition initialPosition) {
+    protected AsyncTwoPhaseIndexer(Executor executor, AtomicReference<IndexerState> initialState,
+                                   JobPosition initialPosition, IndexerJobStats jobStats) {
         this.executor = executor;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
-        this.stats = new IndexerJobStats();
+        this.stats = jobStats;
     }
 
     /**

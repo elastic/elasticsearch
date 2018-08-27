@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.rollup.Rollup;
 
@@ -27,15 +26,9 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(ID.getPreferredName());
-        boolean rollupsIndexedFormat = restRequest.paramAsBoolean(IndexerJobStats.ROLLUP_BWC_XCONTENT_PARAM, true);
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request(id);
 
-        return channel -> {
-            // BWC: inject parameter to force the old style rollup output
-            // injecting after request handling avoids IAE
-            channel.request().params().put(IndexerJobStats.ROLLUP_BWC_XCONTENT_PARAM, String.valueOf(rollupsIndexedFormat));
-            client.execute(GetRollupJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
-        };
+        return channel -> client.execute(GetRollupJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

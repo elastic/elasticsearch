@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 
 import java.util.Collections;
 import java.util.concurrent.Executor;
@@ -26,17 +27,17 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IterativeIndexerTests extends ESTestCase {
+public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     AtomicBoolean isFinished = new AtomicBoolean(false);
 
-    private class MockIndexer extends IterativeIndexer<Integer> {
+    private class MockIndexer extends AsyncTwoPhaseIndexer<Integer> {
 
         // test the execution order
         private int step;
 
         protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition) {
-            super(executor, initialState, initialPosition);
+            super(executor, initialState, initialPosition, new RollupIndexerJobStats());
         }
 
         @Override

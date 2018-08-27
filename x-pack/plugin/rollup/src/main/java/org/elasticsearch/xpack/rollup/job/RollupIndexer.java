@@ -17,10 +17,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.indexing.IterativeIndexer;
+import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 
@@ -33,9 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * An abstract implementation of {@link IterativeIndexer} that builds a rollup index incrementally.
+ * An abstract implementation of {@link AsyncTwoPhaseIndexer} that builds a rollup index incrementally.
  */
-public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object> > {
+public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Object> > {
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final RollupJob job;
@@ -53,7 +55,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
      */
     RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
             AtomicBoolean upgradedDocumentID) {
-        super(executor, initialState, initialPosition);
+        super(executor, initialState, initialPosition, new RollupIndexerJobStats());
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
         this.upgradedDocumentID = upgradedDocumentID;
@@ -116,7 +118,7 @@ public abstract class RollupIndexer extends IterativeIndexer<Map<String, Object>
     private CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
-      
+
         // Add all the agg builders to our request in order: date_histo -> histo -> terms
         if (groupConfig != null) {
             builders.addAll(groupConfig.getDateHistogram().toBuilders());

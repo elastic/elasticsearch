@@ -28,10 +28,18 @@ import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Request to create a new Machine Learning Job given a {@link Job} configuration
+ */
 public class PutJobRequest extends ActionRequest implements ToXContentObject {
 
     private final Job job;
 
+    /**
+     * Construct a new PutJobRequest
+     *
+     * @param job a {@link Job} configuration to create
+     */
     public PutJobRequest(Job job) {
         this.job = job;
     }

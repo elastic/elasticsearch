@@ -20,7 +20,7 @@ package org.elasticsearch.protocol.xpack.ml;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,21 +28,21 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Response indicating if the Job(s) closed or not
+ */
 public class CloseJobResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField CLOSED = new ParseField("closed");
 
-    public static final ObjectParser<CloseJobResponse, Void> PARSER =
-        new ObjectParser<>("close_job_response", true, CloseJobResponse::new);
+    public static final ConstructingObjectParser<CloseJobResponse, Void> PARSER =
+        new ConstructingObjectParser<>("close_job_response", true, (a) -> new CloseJobResponse((Boolean)a[0]));
 
     static {
-        PARSER.declareBoolean(CloseJobResponse::setClosed, CLOSED);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), CLOSED);
     }
 
     private boolean closed;
-
-    CloseJobResponse() {
-    }
 
     public CloseJobResponse(boolean closed) {
         this.closed = closed;
@@ -52,12 +52,12 @@ public class CloseJobResponse extends ActionResponse implements ToXContentObject
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Has the job closed or not
+     * @return boolean value indicating the job closed status
+     */
     public boolean isClosed() {
         return closed;
-    }
-
-    public void setClosed(boolean closed) {
-        this.closed = closed;
     }
 
     @Override

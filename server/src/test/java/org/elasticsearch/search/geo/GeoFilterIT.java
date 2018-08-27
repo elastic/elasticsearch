@@ -366,7 +366,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()

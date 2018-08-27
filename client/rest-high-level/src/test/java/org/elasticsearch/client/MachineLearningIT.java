@@ -19,6 +19,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
@@ -26,6 +27,8 @@ import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobsStatsResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -34,6 +37,8 @@ import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobState;
+import org.elasticsearch.protocol.xpack.ml.job.stats.JobStats;
 import org.junit.After;
 
 import java.io.IOException;
@@ -41,6 +46,7 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -136,6 +142,65 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::closeJob,
             machineLearningClient::closeJobAsync);
         assertTrue(response.isClosed());
+    }
+
+    public void testGetJobsStats() throws Exception {
+        String jobId1 = "ml-get-job-stats-test-id-1";
+        String jobId2 = "ml-get-job-stats-test-id-2";
+
+        Job job1 = buildJob(jobId1);
+        Job job2 = buildJob(jobId2);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
+        machineLearningClient.putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
+
+        machineLearningClient.openJob(new OpenJobRequest(jobId1), RequestOptions.DEFAULT);
+
+        GetJobsStatsRequest request = new GetJobsStatsRequest(jobId1, jobId2);
+
+        Thread.sleep(1000);
+        // Test getting specific jobs stats
+        GetJobsStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+
+        assertEquals(2, response.count());
+        assertThat(response.jobs(), hasSize(2));
+        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), containsInAnyOrder(jobId1, jobId2));
+        for (JobStats stats : response.jobs()) {
+            if (stats.getJobId().equals(jobId1)) {
+                assertEquals(JobState.OPENED, stats.getState());
+            } else {
+                assertEquals(JobState.CLOSED, stats.getState());
+            }
+        }
+
+        // Test getting all jobs explicitly
+        request = GetJobsStatsRequest.allJobsStats();
+        response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.jobs().size() >= 2L);
+        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+
+        // Test getting all jobs implicitly
+        response = execute(new GetJobsStatsRequest(), machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.jobs().size() >= 2L);
+        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+
+        // Test getting all jobs with wildcard
+        request = new GetJobsStatsRequest("ml-get-job-stats-test-id-*");
+        response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.jobs().size() >= 2L);
+        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+
+        // Test when allow no jobs is false
+        final GetJobsStatsRequest erroredRequest = new GetJobsStatsRequest("jobs-that-do-not-exist*");
+        erroredRequest.setAllowNoJobs(false);
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public static String randomValidJobId() {

@@ -27,6 +27,8 @@ import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
 import org.elasticsearch.protocol.xpack.ml.GetBucketsResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobsStatsResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
@@ -285,4 +287,45 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
      }
+
+    /**
+     * Gets one or more Machine Learning job statistics.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html"></a>
+     * </p>
+     * @param request {@link GetJobsStatsRequest} Request containing a list of jobId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetJobsStatsResponse} response object containing
+     * the {@link org.elasticsearch.protocol.xpack.ml.job.stats.JobStats} objects and the number of jobs found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetJobsStatsResponse getJobStats(GetJobsStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getJobsStats,
+            options,
+            GetJobsStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets one or more Machine Learning job configuration info, asynchronously.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
+     * </p>
+     * @param request {@link GetJobsStatsRequest} Request containing a list of jobId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetJobsStatsResponse} upon request completion
+     */
+    public void getJobStatsAsync(GetJobsStatsRequest request, RequestOptions options, ActionListener<GetJobsStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getJobsStats,
+            options,
+            GetJobsStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 }

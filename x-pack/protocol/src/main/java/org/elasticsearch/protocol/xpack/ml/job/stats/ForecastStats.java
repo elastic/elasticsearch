@@ -83,10 +83,54 @@ public class ForecastStats implements ToXContentObject {
                          Map<String, Long> statusCounts) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
-        this.memoryStats = Objects.requireNonNull(memoryStats);
-        this.recordStats = Objects.requireNonNull(recordStats);
-        this.runtimeStats = Objects.requireNonNull(runtimeStats);
-        this.statusCounts = Collections.unmodifiableMap(statusCounts);
+        if (total > 0) {
+            this.memoryStats = Objects.requireNonNull(memoryStats);
+            this.recordStats = Objects.requireNonNull(recordStats);
+            this.runtimeStats = Objects.requireNonNull(runtimeStats);
+            this.statusCounts = Collections.unmodifiableMap(statusCounts);
+        }
+    }
+
+    /**
+     * The number of forecasts currently available for this model.
+     */
+    public long getTotal() {
+        return total;
+    }
+
+    /**
+     * The number of jobs that have at least one forecast.
+     */
+    public long getForecastedJobs() {
+        return forecastedJobs;
+    }
+
+    /**
+     * Statistics about the memory usage: minimum, maximum, average and total.
+     */
+    public SimpleStats getMemoryStats() {
+        return memoryStats;
+    }
+
+    /**
+     * Statistics about the number of forecast records: minimum, maximum, average and total.
+     */
+    public SimpleStats getRecordStats() {
+        return recordStats;
+    }
+
+    /**
+     * Statistics about the forecast runtime in milliseconds: minimum, maximum, average and total
+     */
+    public SimpleStats getRuntimeStats() {
+        return runtimeStats;
+    }
+
+    /**
+     * Counts per forecast status, for example: {"finished" : 2}.
+     */
+    public Map<String, Long> getStatusCounts() {
+        return statusCounts;
     }
 
     @Override

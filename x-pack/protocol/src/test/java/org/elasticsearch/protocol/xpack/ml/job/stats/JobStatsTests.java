@@ -35,8 +35,8 @@ import java.io.IOException;
 
 public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
 
-    @Override
-    protected JobStats createTestInstance() {
+
+    public static JobStats createRandomInstance() {
         String jobId = JobTests.randomValidJobId();
         JobState state = randomFrom(JobState.CLOSING, JobState.CLOSED, JobState.OPENED, JobState.FAILED, JobState.OPENING);
         DataCounts dataCounts = DataCountsTests.createTestInstance(jobId);
@@ -48,6 +48,11 @@ public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
         TimeValue openTime = randomBoolean() ? TimeValue.timeValueMillis(randomIntBetween(1, 10000)) : null;
 
         return new JobStats(jobId, dataCounts, state, modelSizeStats, forecastStats, nodeAttributes, assigmentExplanation, openTime);
+    }
+
+    @Override
+    protected JobStats createTestInstance() {
+        return createRandomInstance();
     }
 
     @Override

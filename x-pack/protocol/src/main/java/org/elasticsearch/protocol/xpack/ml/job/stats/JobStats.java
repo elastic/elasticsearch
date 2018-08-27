@@ -16,6 +16,10 @@ import org.elasticsearch.protocol.xpack.ml.NodeAttributes;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Class containing the statistics for a Machine Learning job.
+ *
+ */
 public class JobStats implements ToXContentObject {
 
     private static final ParseField DATA_COUNTS = new ParseField("data_counts");
@@ -62,9 +66,9 @@ public class JobStats implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p) -> TimeValue.parseTimeValue(p.text(), OPEN_TIME.getPreferredName()),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), OPEN_TIME.getPreferredName()),
             OPEN_TIME,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.STRING_OR_NULL);
     }
 
 
@@ -90,34 +94,63 @@ public class JobStats implements ToXContentObject {
         this.openTime = opentime;
     }
 
+    /**
+     * The jobId referencing the job for these statistics
+     */
     public String getJobId() {
         return jobId;
     }
 
+    /**
+     * An object that describes the number of records processed and any related error counts
+     * See {@link DataCounts}
+     */
     public DataCounts getDataCounts() {
         return dataCounts;
     }
 
+    /**
+     * An object that provides information about the size and contents of the model.
+     * See {@link ModelSizeStats}
+     */
     public ModelSizeStats getModelSizeStats() {
         return modelSizeStats;
     }
 
+    /**
+     * An object that provides statistical information about forecasts of this job.
+     * See {@link ForecastStats}
+     */
     public ForecastStats getForecastStats() {
         return forecastStats;
     }
 
+    /**
+     * The status of the job
+     * See {@link JobState}
+     */
     public JobState getState() {
         return state;
     }
 
+    /**
+     * For open jobs only, contains information about the node where the job runs
+     * See {@link NodeAttributes}
+     */
     public NodeAttributes getNode() {
         return node;
     }
 
+    /**
+     * For open jobs only, contains messages relating to the selection of a node to run the job.
+     */
     public String getAssignmentExplanation() {
         return assignmentExplanation;
     }
 
+    /**
+     * For open jobs only, the elapsed time for which the job has been open
+     */
     public TimeValue getOpenTime() {
         return openTime;
     }

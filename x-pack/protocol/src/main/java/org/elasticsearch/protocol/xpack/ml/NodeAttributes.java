@@ -11,6 +11,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Class containing an Elastic Node's attributes
+ */
 public class NodeAttributes implements ToXContentObject {
 
     public static final ParseField ID = new ParseField("id");
@@ -57,22 +60,37 @@ public class NodeAttributes implements ToXContentObject {
         this.attributes = Collections.unmodifiableMap(attributes);
     }
 
+    /**
+     * The unique identifier of the node.
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * The node name.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * The ephemeral id of the node.
+     */
     public String getEphemeralId() {
         return ephemeralId;
     }
 
+    /**
+     * The host and port where transport HTTP connections are accepted.
+     */
     public String getTransportAddress() {
         return transportAddress;
     }
 
+    /**
+     * Additional attributes related to this node e.g., {"ml.max_open_jobs": "10"}.
+     */
     public Map<String, String> getAttributes() {
         return attributes;
     }

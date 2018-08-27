@@ -29,6 +29,7 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
+import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 
@@ -122,6 +123,23 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getJobsStats(GetJobsStatsRequest getJobsStatsRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(Strings.collectionToCommaDelimitedString(getJobsStatsRequest.getJobIds()))
+                .addPathPartAsIs("_stats")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getJobsStatsRequest.isAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobsStatsRequest.isAllowNoJobs()));
+        }
         return request;
     }
 }

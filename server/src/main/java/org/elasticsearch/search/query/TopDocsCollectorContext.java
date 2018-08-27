@@ -120,7 +120,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) {
             final int totalHitCount = hitCountSupplier.getAsInt();
-            result.topDocs(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, 0), null);
+            result.topDocs(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, Float.NaN), null);
         }
     }
 

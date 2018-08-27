@@ -36,7 +36,6 @@ for (Version version : bwcVersions.wireCompatible) {
         numBwcNodes = 3
         numNodes = 3
         minimumMasterNodes = { 3 }
-        jvmArgs += ' -da:org.elasticsearch.index.mapper.MapperAssertions'
         clusterName = 'rolling-upgrade-basic'
         setting 'xpack.security.enabled', 'false'
         setting 'xpack.monitoring.enabled', 'false'
@@ -53,7 +52,6 @@ for (Version version : bwcVersions.wireCompatible) {
     Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
         configure(extensions.findByName("${baseName}#${name}")) {
             dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
-            jvmArgs += ' -da:org.elasticsearch.index.mapper.MapperAssertions'
             clusterName = 'rolling-upgrade-basic'
             unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
             minimumMasterNodes = { 3 }

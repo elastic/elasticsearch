@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -72,7 +73,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.mapper.MapperServiceAssertions.assertMappingVersion;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -241,6 +241,43 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         return requireRefresh;
+    }
+
+    private void assertMappingVersion(
+            final IndexMetaData currentIndexMetaData,
+            final IndexMetaData newIndexMetaData,
+            final Map<String, DocumentMapper> updatedEntries) {
+        if (Assertions.ENABLED && currentIndexMetaData != null) {
+            if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
+                // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
+                assert updatedEntries.isEmpty() : updatedEntries;
+                for (final ObjectCursor<MappingMetaData> mapping : newIndexMetaData.getMappings().values()) {
+                    final CompressedXContent currentSource = currentIndexMetaData.mapping(mapping.value.type()).source();
+                    final CompressedXContent newSource = mapping.value.source();
+                    assert currentSource.equals(newSource) :
+                            "expected current mapping [" + currentSource + "] for type [" + mapping.value.type() + "] "
+                                    + "to be the same as new mapping [" + newSource + "]";
+                }
+            } else {
+                // if the mapping version is changed, it should increase, there should be updates, and the mapping should be different
+                final long currentMappingVersion = currentIndexMetaData.getMappingVersion();
+                final long newMappingVersion = newIndexMetaData.getMappingVersion();
+                assert currentMappingVersion < newMappingVersion :
+                        "expected current mapping version [" + currentMappingVersion + "] "
+                                + "to be less than new mapping version [" + newMappingVersion + "]";
+                assert updatedEntries.isEmpty() == false;
+                for (final DocumentMapper documentMapper : updatedEntries.values()) {
+                    final MappingMetaData currentMapping = currentIndexMetaData.mapping(documentMapper.type());
+                    if (currentMapping != null) {
+                        final CompressedXContent currentSource = currentMapping.source();
+                        final CompressedXContent newSource = documentMapper.mappingSource();
+                        assert currentSource.equals(newSource) == false :
+                                "expected current mapping [" + currentSource + "] for type [" + documentMapper.type() + "] " +
+                                        "to be different than new mapping";
+                    }
+                }
+            }
+        }
     }
 
     public void merge(Map<String, Map<String, Object>> mappings, MergeReason reason) {

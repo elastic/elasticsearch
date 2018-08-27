@@ -398,13 +398,15 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 subject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
+                }
+                if (roleNames != null && 0 != roleNames.length) {
+                    logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -421,13 +423,15 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 subject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
+                }
+                if (roleNames != null && 0 != roleNames.length) {
+                    logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -531,13 +535,15 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 runAsSubject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
+                }
+                if (roleNames != null && 0 != roleNames.length) {
+                    logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -554,13 +560,15 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 runAsSubject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
+                }
+                if (roleNames != null && 0 != roleNames.length) {
+                    logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -575,8 +583,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false) {
             final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                    .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
+                    .with(EVENT_ACTION_FIELD_NAME, "run_as_denied");
+            if (roleNames != null && 0 != roleNames.length) {
+                logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
+            }
             restUri(request, logEntry);
             runAsSubject(authentication, logEntry);
             restOrigin(request, logEntry);

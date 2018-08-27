@@ -20,6 +20,7 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.client.MasterTimeoutRequest;
+import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 
@@ -28,7 +29,10 @@ public class DeleteLifecycleRequest extends MasterTimeoutRequest<DeleteLifecycle
     private final String lifecycle;
 
     public DeleteLifecycleRequest(String lifecycle) {
-        this.lifecycle = Objects.requireNonNull(lifecycle, "lifecycle cannot be null");
+        if (Strings.isNullOrEmpty(lifecycle)) {
+            throw new IllegalArgumentException("lifecycle name must be present");
+        }
+        this.lifecycle = lifecycle;
     }
 
     public String getLifecycle() {

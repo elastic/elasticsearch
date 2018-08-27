@@ -35,9 +35,9 @@ public class DeleteLifecycleRequestTests extends ESTestCase {
 
     public void testValidationFailure() {
         try {
-            DeleteLifecycleRequest req = new DeleteLifecycleRequest(null);
+            DeleteLifecycleRequest req = new DeleteLifecycleRequest(randomFrom("", null));
             fail("should not be able to create a DeleteLifecycleRequest with null lifecycle name");
-        } catch (NullPointerException exception) {
+        } catch (IllegalArgumentException exception) {
             // ok
         }
     }

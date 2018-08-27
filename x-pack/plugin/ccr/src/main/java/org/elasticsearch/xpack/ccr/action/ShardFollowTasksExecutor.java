@@ -93,8 +93,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
         return new ShardFollowNodeTask(
-                id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler, System::nanoTime,
-                System::currentTimeMillis) {
+                id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler, System::nanoTime) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

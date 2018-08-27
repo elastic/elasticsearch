@@ -86,8 +86,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime,
-            System::currentTimeMillis) {
+                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
 
             private volatile long indexMetadataVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();

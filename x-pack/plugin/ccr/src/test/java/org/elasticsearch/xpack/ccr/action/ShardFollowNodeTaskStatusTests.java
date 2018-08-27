@@ -89,6 +89,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                     anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
             assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
+        assertThat(newInstance.timeSinceLastFetch(), equalTo(expectedInstance.timeSinceLastFetch()));
     }
 
     @Override

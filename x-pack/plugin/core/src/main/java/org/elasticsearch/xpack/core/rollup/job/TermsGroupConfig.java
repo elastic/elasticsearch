@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -92,15 +91,6 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
             vsBuilder.missingBucket(true);
             return vsBuilder;
         }).collect(Collectors.toList());
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public Map<String, Object> toAggCap() {
-        Map<String, Object> map = new HashMap<>(1);
-        map.put("agg", TermsAggregationBuilder.NAME);
-        return map;
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

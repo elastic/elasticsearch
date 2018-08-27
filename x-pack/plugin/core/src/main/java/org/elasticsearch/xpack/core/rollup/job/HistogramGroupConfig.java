@@ -16,18 +16,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -83,25 +78,6 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
     public String[] getFields() {
         return fields;
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of histograms.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<CompositeValuesSourceBuilder<?>> toBuilders() {
-        if (fields.length == 0) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.stream(fields).map(f -> {
-            HistogramValuesSourceBuilder vsBuilder
-                    = new HistogramValuesSourceBuilder(RollupField.formatIndexerAggName(f, HistogramAggregationBuilder.NAME));
-            vsBuilder.interval(interval);
-            vsBuilder.field(f);
-            vsBuilder.missingBucket(true);
-            return vsBuilder;
-        }).collect(Collectors.toList());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

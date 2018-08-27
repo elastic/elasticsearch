@@ -38,12 +38,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -60,15 +60,22 @@ public class ConnectionManager implements Closeable {
     private final Transport transport;
     private final ThreadPool threadPool;
     private final TimeValue pingSchedule;
+    private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
+        this(settings, transport, threadPool, buildDefaultConnectionProfile(settings));
+    }
+
+    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
+        this.defaultProfile = defaultProfile;
         this.lifecycle.moveToStarted();
 
         if (pingSchedule.millis() > 0) {
@@ -77,11 +84,16 @@ public class ConnectionManager implements Closeable {
     }
 
     public void addListener(TransportConnectionListener listener) {
-        this.connectionListener.listeners.add(listener);
+        this.connectionListener.listeners.addIfAbsent(listener);
     }
 
     public void removeListener(TransportConnectionListener listener) {
         this.connectionListener.listeners.remove(listener);
+    }
+
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
+        return internalOpenConnection(node, resolvedProfile);
     }
 
     /**
@@ -91,6 +103,7 @@ public class ConnectionManager implements Closeable {
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
         throws ConnectTransportException {
+        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
@@ -104,8 +117,8 @@ public class ConnectionManager implements Closeable {
                 }
                 boolean success = false;
                 try {
-                    connection = transport.openConnection(node, connectionProfile);
-                    connectionValidator.accept(connection, connectionProfile);
+                    connection = internalOpenConnection(node, resolvedProfile);
+                    connectionValidator.accept(connection, resolvedProfile);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, connection);
                     if (logger.isDebugEnabled()) {
@@ -174,46 +187,64 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    public int connectedNodeCount() {
+    /**
+     * Returns the number of nodes this manager is connected to.
+     */
+    public int size() {
         return connectedNodes.size();
     }
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        CountDownLatch latch = new CountDownLatch(1);
+        if (closed.compareAndSet(false, true)) {
+            lifecycle.moveToStopped();
+            CountDownLatch latch = new CountDownLatch(1);
 
-        // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
-        threadPool.generic().execute(() -> {
-            closeLock.writeLock().lock();
-            try {
-                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
-                // all instances and then clear them maps
-                Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
-                    try {
-                        IOUtils.closeWhileHandlingException(next.getValue());
-                    } finally {
-                        iterator.remove();
+            // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
+            threadPool.generic().execute(() -> {
+                closeLock.writeLock().lock();
+                try {
+                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // all instances and then clear them maps
+                    Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+                    while (iterator.hasNext()) {
+                        Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                        try {
+                            IOUtils.closeWhileHandlingException(next.getValue());
+                        } finally {
+                            iterator.remove();
+                        }
                     }
+                } finally {
+                    closeLock.writeLock().unlock();
+                    latch.countDown();
+                }
+            });
+
+            try {
+                try {
+                    latch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // ignore
                 }
             } finally {
-                closeLock.writeLock().unlock();
-                latch.countDown();
+                lifecycle.moveToClosed();
             }
-        });
-
-        try {
-            try {
-                latch.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                // ignore
-            }
-        } finally {
-            lifecycle.moveToClosed();
         }
+    }
+
+    private Transport.Connection internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+        Transport.Connection connection = transport.openConnection(node, connectionProfile);
+        try {
+            connectionListener.onConnectionOpened(connection);
+        } finally {
+            connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+        }
+        if (connection.isClosed()) {
+            throw new ConnectTransportException(node, "a channel closed while connecting");
+        }
+        return connection;
     }
 
     private void ensureOpen() {
@@ -263,7 +294,7 @@ public class ConnectionManager implements Closeable {
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {
@@ -278,5 +309,38 @@ public class ConnectionManager implements Closeable {
                 listener.onNodeConnected(node);
             }
         }
+
+        @Override
+        public void onConnectionOpened(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionOpened(connection);
+            }
+        }
+
+        @Override
+        public void onConnectionClosed(Transport.Connection connection) {
+            for (TransportConnectionListener listener : listeners) {
+                listener.onConnectionClosed(connection);
+            }
+        }
+    }
+
+    static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+        int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
+        int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
+        int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);
+        int connectionsPerNodeState = TransportService.CONNECTIONS_PER_NODE_STATE.get(settings);
+        int connectionsPerNodePing = TransportService.CONNECTIONS_PER_NODE_PING.get(settings);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
+        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
+        // if we are not master eligible we don't need a dedicated channel to publish the state
+        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        // if we are not a data-node we don't need any dedicated channels for recovery
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
+        return builder.build();
     }
 }

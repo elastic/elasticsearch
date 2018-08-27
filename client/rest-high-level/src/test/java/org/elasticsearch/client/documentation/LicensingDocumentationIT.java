@@ -22,12 +22,12 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
@@ -120,7 +120,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::delete-license-execute
             DeleteLicenseRequest request = new DeleteLicenseRequest();
 
-            DeleteLicenseResponse response = client.license().deleteLicense(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse response = client.license().deleteLicense(request, RequestOptions.DEFAULT);
             //end::delete-license-execute
 
             //tag::delete-license-response
@@ -132,9 +132,9 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             DeleteLicenseRequest request = new DeleteLicenseRequest();
             // tag::delete-license-execute-listener
-            ActionListener<DeleteLicenseResponse> listener = new ActionListener<DeleteLicenseResponse>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteLicenseResponse deleteLicenseResponse) {
+                public void onResponse(AcknowledgedResponse deleteLicenseResponse) {
                     // <1>
                 }
 

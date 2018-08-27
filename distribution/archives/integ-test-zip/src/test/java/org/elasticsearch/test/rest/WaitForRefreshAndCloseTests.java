@@ -53,7 +53,7 @@ public class WaitForRefreshAndCloseTests extends ESRestTestCase {
 
     @After
     public void cleanupIndex() throws IOException {
-        client().performRequest("DELETE", indexName());
+        client().performRequest(new Request("DELETE", indexName()));
     }
 
     private String indexName() {

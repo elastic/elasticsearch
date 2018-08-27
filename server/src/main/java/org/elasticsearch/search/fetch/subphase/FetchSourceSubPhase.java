@@ -29,7 +29,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 public final class FetchSourceSubPhase implements FetchSubPhase {

@@ -22,7 +22,7 @@ node-0 flush               0 0 0
 ...
 node-0 write               0 0 0
 --------------------------------------------------
-// TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)+/]
+// TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
 // TESTRESPONSE[s/\d+/\\d+/ _cat]
 // The substitutions do two things:
 // 1. Expect any number of extra thread pools. This allows us to only list a

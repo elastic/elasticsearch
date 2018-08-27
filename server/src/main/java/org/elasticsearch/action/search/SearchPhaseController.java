@@ -396,7 +396,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
                     + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
-                searchHit.score(shardDoc.score);
+                if (sorted == false) {
+                    searchHit.score(shardDoc.score);
+                }
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (sorted) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;

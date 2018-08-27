@@ -131,7 +131,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
                         intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     }
-                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, Float.NaN);
                 } else {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;

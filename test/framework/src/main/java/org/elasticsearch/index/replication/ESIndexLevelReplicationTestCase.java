@@ -629,7 +629,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
-            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater);
+            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
+                null);
         }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;
@@ -727,7 +728,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
-            executeResyncOnReplica(replica, request);
+            executeResyncOnReplica(replica, request, getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getGlobalCheckpoint());
         }
     }
 
@@ -740,8 +741,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return result;
     }
 
-    private void executeResyncOnReplica(IndexShard replica, ResyncReplicationRequest request) throws Exception {
-        final Translog.Location location = TransportResyncReplicationAction.performOnReplica(request, replica);
+    private void executeResyncOnReplica(IndexShard replica, ResyncReplicationRequest request,
+                                        long operationPrimaryTerm, long globalCheckpointOnPrimary) throws Exception {
+        final Translog.Location location;
+        final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
+        replica.acquireReplicaOperationPermit(
+            operationPrimaryTerm, globalCheckpointOnPrimary, acquirePermitFuture, ThreadPool.Names.SAME, request);
+        try (Releasable ignored = acquirePermitFuture.actionGet()) {
+            location = TransportResyncReplicationAction.performOnReplica(request, replica);
+        }
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 }

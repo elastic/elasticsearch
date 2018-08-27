@@ -61,7 +61,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDocValues(boolean singleType) throws IOException {
         Settings indexSettings = singleType ? Settings.EMPTY : Settings.builder()
-                .put("index.version.created", Version.V_5_6_0)
+                .put("index.version.created", Version.V_6_0_0)
                 .build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);

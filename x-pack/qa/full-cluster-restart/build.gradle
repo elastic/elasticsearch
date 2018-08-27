@@ -11,7 +11,8 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile (project(path: xpackModule('security'), configuration: 'runtime')) {
         // Need to drop the guava dependency here or we get a conflict with watcher's guava dependency.
         // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
@@ -249,7 +250,8 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-      testCompile project(path: xpackModule('core'), configuration: 'shadow')
+      // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+      testCompile project(path: xpackModule('core'), configuration: 'default')
       testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
       testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
       testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

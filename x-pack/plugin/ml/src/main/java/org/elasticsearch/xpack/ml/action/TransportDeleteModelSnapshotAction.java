@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 
 public class TransportDeleteModelSnapshotAction extends HandledTransportAction<DeleteModelSnapshotAction.Request,
-        DeleteModelSnapshotAction.Response> {
+    AcknowledgedResponse> {
 
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
@@ -50,7 +51,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
 
     @Override
     protected void doExecute(Task task, DeleteModelSnapshotAction.Request request,
-                             ActionListener<DeleteModelSnapshotAction.Response> listener) {
+                             ActionListener<AcknowledgedResponse> listener) {
         // Verify the snapshot exists
         jobResultsProvider.modelSnapshots(
                 request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),
@@ -86,7 +87,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                             auditor.info(request.getJobId(), msg);
                             logger.debug("[{}] {}", request.getJobId(), msg);
                             // We don't care about the bulk response, just that it succeeded
-                            listener.onResponse(new DeleteModelSnapshotAction.Response(true));
+                            listener.onResponse(new AcknowledgedResponse(true));
                         }
 
                         @Override

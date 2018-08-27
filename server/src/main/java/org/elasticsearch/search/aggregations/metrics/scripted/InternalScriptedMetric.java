@@ -96,7 +96,9 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             }
 
             // Add _aggs to params map for backwards compatibility (redundant with a context variable on the ReduceScript created below).
-            params.put("_aggs", aggregationObjects);
+            if (ScriptedMetricAggContexts.deprecatedAggParamEnabled()) {
+                params.put("_aggs", aggregationObjects);
+            }
 
             ScriptedMetricAggContexts.ReduceScript.Factory factory = reduceContext.scriptService().compile(
                 firstAggregation.reduceScript, ScriptedMetricAggContexts.ReduceScript.CONTEXT);

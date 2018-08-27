@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -13,12 +14,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
@@ -34,6 +35,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
 
 import javax.security.auth.login.LoginException;
@@ -108,37 +110,47 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         assertThat(future.actionGet(), is(nullValue()));
     }
 
-    public void testKerberosRealmWithInvalidKeytabPathConfigurations() throws IOException {
-        final String keytabPathCase = randomFrom("keytabPathAsDirectory", "keytabFileDoesNotExist", "keytabPathWithNoReadPermissions");
-        final String expectedErrorMessage;
-        final String keytabPath;
-        final Set<PosixFilePermission> filePerms;
-        switch (keytabPathCase) {
-        case "keytabPathAsDirectory":
-            final String dirName = randomAlphaOfLength(5);
-            Files.createDirectory(dir.resolve(dirName));
-            keytabPath = dir.resolve(dirName).toString();
-            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] is a directory";
-            break;
-        case "keytabFileDoesNotExist":
-            keytabPath = dir.resolve(randomAlphaOfLength(5) + ".keytab").toString();
-            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] does not exist";
-            break;
-        case "keytabPathWithNoReadPermissions":
-            filePerms = PosixFilePermissions.fromString("---------");
-            final String keytabFileName = randomAlphaOfLength(5) + ".keytab";
+    public void testKerberosRealmThrowsErrorWhenKeytabPathIsConfiguredAsDirectory() throws IOException {
+        final String dirName = randomAlphaOfLength(5);
+        Files.createDirectory(dir.resolve(dirName));
+        final String keytabPath = dir.resolve(dirName).toString();
+        final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] is a directory";
+
+        assertKerberosRealmConstructorFails(keytabPath, expectedErrorMessage);
+    }
+
+    public void testKerberosRealmThrowsErrorWhenKeytabFileDoesNotExist() throws IOException {
+        final String keytabPath = dir.resolve(randomAlphaOfLength(5) + ".keytab").toString();
+        final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] does not exist";
+
+        assertKerberosRealmConstructorFails(keytabPath, expectedErrorMessage);
+    }
+
+    public void testKerberosRealmThrowsErrorWhenKeytabFileHasNoReadPermissions() throws IOException {
+        assumeFalse("Not running this test on Windows, as it requires additional access permissions for test framework.",
+                Constants.WINDOWS);
+        final Set<String> supportedAttributes = dir.getFileSystem().supportedFileAttributeViews();
+        final String keytabFileName = randomAlphaOfLength(5) + ".keytab";
+        final Path keytabPath;
+        if (supportedAttributes.contains("posix")) {
+            final Set<PosixFilePermission> filePerms = PosixFilePermissions.fromString("---------");
             final FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(filePerms);
             try (SeekableByteChannel byteChannel = Files.newByteChannel(dir.resolve(keytabFileName),
                     EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), fileAttributes)) {
                 byteChannel.write(ByteBuffer.wrap(randomByteArrayOfLength(10)));
             }
-            keytabPath = dir.resolve(keytabFileName).toString();
-            expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";
-            break;
-        default:
-            throw new IllegalArgumentException("Unknown test case :" + keytabPathCase);
+            keytabPath = dir.resolve(keytabFileName);
+        } else {
+            throw new UnsupportedOperationException(
+                    String.format(Locale.ROOT, "Don't know how to make file [%s] non-readable on a file system with attributes [%s]",
+                            dir.resolve(keytabFileName), supportedAttributes));
         }
+        final String expectedErrorMessage = "configured service key tab file [" + keytabPath + "] must have read permission";
 
+        assertKerberosRealmConstructorFails(keytabPath.toString(), expectedErrorMessage);
+    }
+
+    private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
         settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
         config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));

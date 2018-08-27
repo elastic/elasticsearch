@@ -52,6 +52,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -421,6 +422,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
                 fullPathObjectMappers, fieldTypes);
 
+            ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
+
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
@@ -465,11 +468,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // commit the change
         if (defaultMappingSource != null) {
             this.defaultMappingSource = defaultMappingSource;
+            this.defaultMapper = defaultMapper;
         }
         if (newMapper != null) {
             this.mapper = newMapper;
         }
-        this.defaultMapper = defaultMapper;
         this.fieldTypes = fieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;

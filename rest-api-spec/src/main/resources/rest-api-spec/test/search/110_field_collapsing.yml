@@ -7,7 +7,6 @@ setup:
             test:
               properties:
                 numeric_group: { type: integer }
-                group_alias: { type: alias, path: numeric_group }
 
   - do:
       index:
@@ -246,6 +245,23 @@ setup:
   - length: { hits.hits: 0 }
 
 ---
+"no hits and inner_hits max_score null":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  max_score was set to 0 rather than null before 7.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 1} }
+          sort: [{ sort: desc }]
+
+  - match: { hits.max_score: null }
+
+---
 "field collapsing and multiple inner_hits":
 
   - do:
@@ -354,6 +370,14 @@ setup:
   - skip:
       version: " - 6.3.99"
       reason: Field aliases were introduced in 6.4.0.
+  - do:
+      indices.put_mapping:
+        index: test
+        type: test
+        body:
+          test:
+            properties:
+              group_alias: { type: alias, path: numeric_group }
   - do:
       search:
         index: test

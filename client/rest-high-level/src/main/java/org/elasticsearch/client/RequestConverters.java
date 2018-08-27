@@ -1597,7 +1597,7 @@ final class RequestConverters {
                 //paths that start with `-` or contain `:`
                 URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                 //manually encode any slash that each part may contain
-                return uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                return uri.getRawPath().substring(1).replaceAll("/", "%2F").replaceAll("\\+", "%2B");
             } catch (URISyntaxException e) {
                 throw new IllegalArgumentException("Path part [" + pathPart + "] couldn't be encoded", e);
             }

@@ -21,13 +21,16 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -117,6 +120,35 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             throw e;
         }
         assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
+    }
+
+    public void testIndexMetaDataUpdateDoesNotLoseDefaultMapper() throws IOException {
+        final IndexService indexService =
+                createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build());
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject(MapperService.DEFAULT_MAPPING);
+                {
+                    builder.field("date_detection", false);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            final PutMappingRequest putMappingRequest = new PutMappingRequest();
+            putMappingRequest.indices("test");
+            putMappingRequest.type(MapperService.DEFAULT_MAPPING);
+            putMappingRequest.source(builder);
+            client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(builder).get();
+        }
+        assertNotNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
+        final Settings zeroReplicasSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(zeroReplicasSettings).get();
+        /*
+         * This assertion is a guard against a previous bug that would lose the default mapper when applying a metadata update that did not
+         * update the default mapping.
+         */
+        assertNotNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
     public void testTotalFieldsExceedsLimit() throws Throwable {

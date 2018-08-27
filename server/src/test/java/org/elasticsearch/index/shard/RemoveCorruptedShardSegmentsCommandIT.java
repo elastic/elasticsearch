@@ -88,9 +88,7 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -145,7 +143,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
         // Try running it before the node is stopped (and shard is closed)
         try {
             command.execute(t, options, environment);
-            fail("expected the command to fail as there is no corruption file marker");
+            fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("Failed to lock node's directory"));
         }
@@ -161,7 +159,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
                     command.execute(t, options, environment);
                     fail("expected the command to fail as there is no corruption file marker");
                 } catch (Exception e) {
-                    assertThat(e.getMessage(), allOf(startsWith("Both Lucene index and traslog at"), endsWith(" are clean.")));
+                    assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
                 }
 
                 CorruptionUtils.corruptIndex(random(), indexDirs.iterator().next(), false);
@@ -185,7 +183,6 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                t.addTextInput("y");
                 t.addTextInput("y");
 
                 // Try running it before the shard is corrupted, it should flip out because there is no corruption file marker
@@ -353,7 +350,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
                         t.addTextInput("y");
                         OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
-                        logger.info("--> running truncate translog command for [{}]", translogDir.toAbsolutePath());
+                        logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
                         ttc.execute(t, options, environment);
                         logger.info("--> output:\n{}", t.getOutput());
                     }

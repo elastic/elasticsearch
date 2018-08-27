@@ -57,9 +57,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -145,11 +143,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             command.execute(t, options, environment);
             fail("expected the command to fail not being able to find a corrupt file marker");
         } catch (ElasticsearchException e) {
-            assertThat(e.getMessage(),
-                allOf(
-                    startsWith("Both Lucene index and traslog at"),
-                    endsWith(" are clean.")
-                ));
+            assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
             assertThat(t.getOutput(), containsString("Lucene index is clean at"));
         }
     }
@@ -192,8 +186,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
 
         if (corruptSegments == false) {
 
-            // // run command without dry-run
-            t.addTextInput("y");
+            // run command without dry-run
             t.addTextInput("y");
             command.execute(t, options, environment);
 
@@ -249,7 +242,7 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             fail();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("aborted by user"));
-            assertThat(t.getOutput(), containsString("Continue and DELETE files?"));
+            assertThat(t.getOutput(), containsString("Continue and remove corrupted data from the shard ?"));
         }
 
         logger.info("--> output:\n{}", t.getOutput());
@@ -304,14 +297,13 @@ public class RemoveCorruptedShardSegmentsCommandTests extends IndexShardTestCase
             fail();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("aborted by user"));
-            assertThat(t.getOutput(), containsString("Continue and remove docs from the index ?"));
+            assertThat(t.getOutput(), containsString("Continue and remove corrupted data from the shard ?"));
         }
 
         logger.info("--> output:\n{}", t.getOutput());
 
         // run command without dry-run
         t.reset();
-        t.addTextInput("y");
         t.addTextInput("y");
         command.execute(t, options, environment);
 

@@ -23,8 +23,10 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -39,13 +41,15 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setIndexDeletionPolicy
                 (deletionPolicy))) {
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, writer.w.getConfig().getSoftDeletesField());
+                boolean modifyDeletedDocs = true; randomBoolean();
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, writer.w.getConfig().getSoftDeletesField(),
+                    modifyDeletedDocs? () -> new DocValuesFieldExistsQuery("some_values") : null);
                 writer.commit();
                 int numDocs = scaledRandomIntBetween(100, 10000);
                 boolean appendOnly = randomBoolean();
                 for (int i = 0; i < numDocs; i++) {
                     int docId = appendOnly ? i : randomIntBetween(0, 100);
-                    Document d = newRandomDocument(i);
+                    Document d = newRandomDocument(docId);
                     if (appendOnly) {
                         writer.addDocument(d);
                     } else {
@@ -70,7 +74,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 try {
                     snapshoter.syncSnapshot(snapshot);
                     try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(targetDir));
-                         DirectoryReader reader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
+                         DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
+                         DirectoryReader reader = modifyDeletedDocs ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, "some_value") :
+                             wrappedReader;
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
@@ -93,6 +99,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
         }
         if (randomBoolean()) {
             doc.add(new FloatPoint("float_point", 1.3f, 3.4f));
+        }
+        if (randomBoolean()) {
+            doc.add(new NumericDocValuesField("some_value", randomLong()));
         }
         doc.add(new StoredField("_source", randomRealisticUnicodeOfCodepointLengthBetween(5, 10)));
         return doc;
@@ -216,5 +225,4 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             reader.close();
         }
     }
-
 }

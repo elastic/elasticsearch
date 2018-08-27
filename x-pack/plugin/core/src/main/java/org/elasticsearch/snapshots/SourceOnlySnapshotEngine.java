@@ -329,7 +329,7 @@ public class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog() {
+    public Engine recoverFromTranslog(long upto) {
         return this;
     }
 

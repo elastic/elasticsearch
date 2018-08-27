@@ -22,6 +22,12 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -29,6 +35,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -40,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_INDEX_EXTENSION;
@@ -48,10 +56,16 @@ public final class SourceOnlySnapshot {
     private final Directory targetDirectory;
     private final String softDeletesField;
     private final List<String> createdFiles = new ArrayList<>();
+    private final Supplier<Query> filterDocsQuerySupplier;
 
-    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField) {
+    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField, Supplier<Query> filterDocsQuerySupplier) {
         this.targetDirectory = targetDirectory;
         this.softDeletesField = softDeletesField;
+        this.filterDocsQuerySupplier = filterDocsQuerySupplier;
+    }
+
+    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField) {
+        this(targetDirectory, softDeletesField, null);
     }
 
     public List<String> getCreatedFiles() {
@@ -79,7 +93,7 @@ public final class SourceOnlySnapshot {
             for (LeafReaderContext ctx : wrapper.leaves()) {
                 SegmentCommitInfo info = segmentInfos.info(ctx.ord);
                 LeafReader leafReader = ctx.reader();
-                Bits liveDocs = leafReader.getLiveDocs();
+                LiveDocs liveDocs = getLiveDocs(leafReader);
                 SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments);
                 newInfos.add(newInfo);
             }
@@ -100,6 +114,48 @@ public final class SourceOnlySnapshot {
         assert assertCheckIndex();
     }
 
+    private LiveDocs getLiveDocs(LeafReader reader) throws IOException {
+        if (filterDocsQuerySupplier != null) {
+            Query query = filterDocsQuerySupplier.get();
+            IndexSearcher s = new IndexSearcher(reader);
+            s.setQueryCache(null);
+            Weight weight = s.createWeight(query, false, 1.0f);
+            Scorer scorer = weight.scorer(reader.getContext());
+            if (scorer != null) {
+                DocIdSetIterator iterator = scorer.iterator();
+                if (iterator != null) {
+                    Bits liveDocs = reader.getLiveDocs();
+                    final FixedBitSet bits;
+                    if (liveDocs != null) {
+                        bits = FixedBitSet.copyOf(liveDocs);
+                    } else {
+                        bits = new FixedBitSet(reader.maxDoc());
+                        bits.set(0, reader.maxDoc());
+                    }
+                    int newDeletes = apply(iterator, bits);
+                    if (newDeletes != 0) {
+                        int numDeletes = reader.numDeletedDocs() + newDeletes;
+                        return new LiveDocs(numDeletes, bits);
+                    }
+                }
+            }
+        }
+        return new LiveDocs(reader.numDeletedDocs(), reader.getLiveDocs());
+    }
+
+    private int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+        int docID = -1;
+        int newDeletes = 0;
+        while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (bits.get(docID)) {
+                bits.clear(docID);
+                newDeletes++;
+            }
+        }
+        return newDeletes;
+    }
+
+
     private boolean assertCheckIndex() throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream(1024);
         try (CheckIndex checkIndex = new CheckIndex(targetDirectory)) {
@@ -118,7 +174,7 @@ public final class SourceOnlySnapshot {
         return softDeletesField == null ? reader : new SoftDeletesDirectoryReaderWrapper(reader, softDeletesField);
     }
 
-    private SegmentCommitInfo syncSegment(SegmentCommitInfo segmentCommitInfo, Bits liveDocs, FieldInfos fieldInfos,
+    private SegmentCommitInfo syncSegment(SegmentCommitInfo segmentCommitInfo, LiveDocs liveDocs, FieldInfos fieldInfos,
                                           Map<BytesRef, SegmentCommitInfo> existingSegments) throws IOException {
         SegmentInfo si = segmentCommitInfo.info;
         Codec codec = si.getCodec();
@@ -154,14 +210,13 @@ public final class SourceOnlySnapshot {
             newInfo = existingSegments.get(segmentId);
             assert newInfo.info.getUseCompoundFile() == false;
         }
-        int deletes = segmentCommitInfo.getDelCount() + segmentCommitInfo.getSoftDelCount();
-        if (liveDocs != null && deletes != 0 && deletes != newInfo.getDelCount()) {
+        if (liveDocs.bits != null && liveDocs.numDeletes != 0 && liveDocs.numDeletes != newInfo.getDelCount()) {
             if (newInfo.getDelCount() != 0) {
-                assert assertLiveDocs(liveDocs, deletes);
+                assert assertLiveDocs(liveDocs.bits, liveDocs.numDeletes);
             }
-            codec.liveDocsFormat().writeLiveDocs(liveDocs, trackingDir, newInfo, deletes - newInfo.getDelCount(),
+            codec.liveDocsFormat().writeLiveDocs(liveDocs.bits, trackingDir, newInfo, liveDocs.numDeletes - newInfo.getDelCount(),
                 IOContext.DEFAULT);
-            SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, deletes, 0, newInfo.getNextDelGen(), -1, -1);
+            SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, liveDocs.numDeletes, 0, newInfo.getNextDelGen(), -1, -1);
             info.setFieldInfosFiles(newInfo.getFieldInfosFiles());
             info.info.setFiles(trackingDir.getCreatedFiles());
             newInfo = info;
@@ -184,5 +239,15 @@ public final class SourceOnlySnapshot {
         }
         assert actualDeletes == deletes : " actual: " + actualDeletes + " deletes: " + deletes;
         return true;
+    }
+
+    private static class LiveDocs {
+        final int numDeletes;
+        final Bits bits;
+
+        LiveDocs(int numDeletes, Bits bits) {
+            this.numDeletes = numDeletes;
+            this.bits = bits;
+        }
     }
 }

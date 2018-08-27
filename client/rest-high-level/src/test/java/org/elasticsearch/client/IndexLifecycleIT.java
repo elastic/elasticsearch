@@ -26,8 +26,10 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
@@ -40,6 +42,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -354,5 +357,19 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         } catch (ResponseException ex) {
             assertEquals(404, ex.getResponse().getStatusLine().getStatusCode());
         }
+    }
+
+    public void testPutLifecycle() throws IOException {
+        String name = randomAlphaOfLengthBetween(5, 20);
+        LifecyclePolicy policy = createRandomPolicy(name);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
+            highLevelClient().indexLifecycle()::putLifecycleAsync));
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        Request getLifecycle = new Request("GET", "/_ilm/" + name);
+        Response response = client().performRequest(getLifecycle);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

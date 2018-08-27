@@ -30,11 +30,12 @@ import java.util.Map;
 public final class DissectProcessor extends AbstractProcessor {
 
     public static final String TYPE = "dissect";
-    private final String field;
-    private final boolean ignoreMissing;
-    private final String pattern;
-    private final String appendSeparator;
-    private final DissectParser dissectParser;
+    //package private members for testing
+    final String field;
+    final boolean ignoreMissing;
+    final String pattern;
+    final String appendSeparator;
+    final DissectParser dissectParser;
 
     DissectProcessor(String tag, String field, String pattern, String appendSeparator, boolean ignoreMissing) {
         super(tag);
@@ -43,31 +44,6 @@ public final class DissectProcessor extends AbstractProcessor {
         this.pattern = pattern;
         this.appendSeparator = appendSeparator;
         this.dissectParser = new DissectParser(pattern, appendSeparator);
-    }
-
-    //package private for testing
-    String getField() {
-        return field;
-    }
-
-    //package private for testing
-    boolean isIgnoreMissing() {
-        return ignoreMissing;
-    }
-
-    //package private for testing
-    DissectParser getDissectParser() {
-        return dissectParser;
-    }
-
-    //package private for testing
-    String getPattern() {
-        return pattern;
-    }
-
-    //package private for testing
-    String getAppendSeparator() {
-        return appendSeparator;
     }
 
     @Override

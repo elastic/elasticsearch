@@ -49,11 +49,11 @@ public class DissectProcessorFactoryTests extends ESTestCase {
 
         DissectProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
-        assertThat(processor.getPattern(), equalTo(pattern));
-        assertThat(processor.getAppendSeparator(), equalTo(appendSeparator));
-        assertThat(processor.getDissectParser(), is(notNullValue()));
-        assertThat(processor.isIgnoreMissing(), is(true));
+        assertThat(processor.field, equalTo(fieldName));
+        assertThat(processor.pattern, equalTo(pattern));
+        assertThat(processor.appendSeparator, equalTo(appendSeparator));
+        assertThat(processor.dissectParser, is(notNullValue()));
+        assertThat(processor.ignoreMissing, is(true));
     }
 
     public void testCreateMissingField() {
@@ -78,8 +78,8 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         config.put("pattern", "%{a},%{b},%{c}");
         config.put("field", randomAlphaOfLength(10));
         DissectProcessor processor = factory.create(null, "_tag", config);
-        assertThat(processor.getAppendSeparator(), equalTo(""));
-        assertThat(processor.isIgnoreMissing(), is(false));
+        assertThat(processor.appendSeparator, equalTo(""));
+        assertThat(processor.ignoreMissing, is(false));
     }
 
     public void testCreateBadPattern() {

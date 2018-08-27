@@ -1132,7 +1132,7 @@ See <<dissect-key-modifiers, below>> for more information.
 [[dissect-key-modifiers]]
 ==== Dissect key modifiers
 Key modifiers can change the default behavior for dissection. Key modifiers may be found on the left or right
-of the `%{keyname}` always inside the `{%` and `}`. For example `%{+keyname ->}` has the append and right padding
+of the `%{keyname}` always inside the `%{` and `}`. For example `%{+keyname ->}` has the append and right padding
 modifiers.
 
 .Dissect Key Modifiers

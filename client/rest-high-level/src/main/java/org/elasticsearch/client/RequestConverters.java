@@ -88,6 +88,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -108,7 +109,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -1175,14 +1175,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteLifecycle(DeleteLifecycleRequest deleteLifecycleRequest) {
+    static Request deleteLifecycle(DeleteLifecyclePolicyRequest deleteLifecyclePolicyRequest) {
         Request request = new Request(HttpDelete.METHOD_NAME,
             new EndpointBuilder()
                 .addPathPartAsIs("_ilm")
-                .addPathPartAsIs(deleteLifecycleRequest.getLifecycle())
+                .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecycle())
                 .build());
         Params params = new Params(request);
-        params.withMasterTimeout(deleteLifecycleRequest.masterNodeTimeout());
+        params.withMasterTimeout(deleteLifecyclePolicyRequest.masterNodeTimeout());
         return request;
     }
 

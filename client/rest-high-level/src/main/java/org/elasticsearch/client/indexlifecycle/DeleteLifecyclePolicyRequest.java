@@ -24,11 +24,11 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 
-public class DeleteLifecycleRequest extends MasterTimeoutRequest<DeleteLifecycleRequest> {
+public class DeleteLifecyclePolicyRequest extends MasterTimeoutRequest<DeleteLifecyclePolicyRequest> {
 
     private final String lifecycle;
 
-    public DeleteLifecycleRequest(String lifecycle) {
+    public DeleteLifecyclePolicyRequest(String lifecycle) {
         if (Strings.isNullOrEmpty(lifecycle)) {
             throw new IllegalArgumentException("lifecycle name must be present");
         }
@@ -48,7 +48,7 @@ public class DeleteLifecycleRequest extends MasterTimeoutRequest<DeleteLifecycle
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        DeleteLifecycleRequest that = (DeleteLifecycleRequest) o;
+        DeleteLifecyclePolicyRequest that = (DeleteLifecyclePolicyRequest) o;
         return Objects.equals(getLifecycle(), that.getLifecycle());
     }
 

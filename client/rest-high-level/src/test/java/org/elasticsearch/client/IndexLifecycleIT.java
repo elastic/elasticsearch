@@ -26,8 +26,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
@@ -342,7 +342,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         request.setEntity(entity);
         client().performRequest(request);
 
-        DeleteLifecycleRequest deleteRequest = new DeleteLifecycleRequest(policy);
+        DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy);
         assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecycle,
             highLevelClient().indexLifecycle()::deleteLifecycleAsync));
 

@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -49,7 +49,7 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteLifecycle(DeleteLifecycleRequest request,
+    public AcknowledgedResponse deleteLifecycle(DeleteLifecyclePolicyRequest request,
                                                 RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLifecycle, options,
             AcknowledgedResponse::fromXContent, emptySet());
@@ -63,8 +63,8 @@ public class IndexLifecycleClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteLifecycleAsync(DeleteLifecycleRequest request, RequestOptions options,
-                                ActionListener<AcknowledgedResponse> listener) {
+    public void deleteLifecycleAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
+                                     ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLifecycle, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }

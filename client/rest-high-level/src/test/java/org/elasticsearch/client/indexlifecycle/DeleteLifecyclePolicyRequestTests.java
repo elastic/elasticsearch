@@ -21,22 +21,22 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class DeleteLifecycleRequestTests extends ESTestCase {
+public class DeleteLifecyclePolicyRequestTests extends ESTestCase {
 
-    private DeleteLifecycleRequest createTestInstance() {
-        return new DeleteLifecycleRequest(randomAlphaOfLengthBetween(2, 20));
+    private DeleteLifecyclePolicyRequest createTestInstance() {
+        return new DeleteLifecyclePolicyRequest(randomAlphaOfLengthBetween(2, 20));
     }
 
     public void testValidate() {
-        DeleteLifecycleRequest req = createTestInstance();
+        DeleteLifecyclePolicyRequest req = createTestInstance();
         assertTrue(req.validate() == null || req.validate().validationErrors().size() == 0);
 
     }
 
     public void testValidationFailure() {
         try {
-            DeleteLifecycleRequest req = new DeleteLifecycleRequest(randomFrom("", null));
-            fail("should not be able to create a DeleteLifecycleRequest with null lifecycle name");
+            DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(randomFrom("", null));
+            fail("should not be able to create a DeleteLifecyclePolicyRequest with null lifecycle name");
         } catch (IllegalArgumentException exception) {
             // ok
         }

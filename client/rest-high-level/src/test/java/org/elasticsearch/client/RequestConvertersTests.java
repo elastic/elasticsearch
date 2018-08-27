@@ -97,6 +97,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -127,7 +128,6 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
@@ -2638,7 +2638,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testDeleteLifecycle() {
         String lifecycleName = randomAlphaOfLengthBetween(2,20);
-        DeleteLifecycleRequest req = new DeleteLifecycleRequest(lifecycleName);
+        DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(lifecycleName);
         Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(req, expectedParams);
 

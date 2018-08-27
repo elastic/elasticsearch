@@ -1,8 +1,8 @@
 [role="xpack"]
 [[security-api-put-role]]
-=== Create roles API
+=== Create or update roles API
 
-Adds roles in the native realm.
+Adds and updates roles in the native realm.
 
 ==== Request
 
@@ -29,8 +29,19 @@ file-based role management. For more information about the native realm, see
 The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role:
 
+`applications`:: (list) A list of application privilege entries.
+`application` (required)::: (string) The name of the application to which this entry applies
+`privileges`::: (list) A list of strings, where each element is the name of an application
+privilege or action.
+`resources`::: (list) A list resources to which the privileges are applied. 
+
 `cluster`:: (list) A list of cluster privileges. These privileges define the
 cluster level actions that users with this role are able to execute.
+
+`global`:: (object) An object defining global privileges. A global privilege is
+a form of cluster privilege that is request-aware. Support for global privileges
+is currently limited to the management of application privileges.
+This field is optional.
 
 `indices`:: (list) A list of indices permissions entries.
 `field_security`::: (list) The document fields that the owners of the role have
@@ -77,6 +88,13 @@ POST /_xpack/security/role/my_admin_role
         "grant" : [ "title", "body" ]
       },
       "query": "{\"match\": {\"title\": \"foo\"}}" // optional
+    }
+  ],
+  "applications": [
+    {
+      "application": "myapp",
+      "privileges": [ "admin", "read" ],
+      "resources": [ "*" ]
     }
   ],
   "run_as": [ "other_user" ], // optional

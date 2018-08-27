@@ -5,6 +5,7 @@ This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.5.
 
 * <<breaking_65_logging_changes>>
+* <<breaking_65_sql_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -33,3 +34,12 @@ ignores the parameter.  In earlier 6.x releases, rescore on scroll queries was
 silently ignored.  In 7.0 and later, we will return a `400 - Bad Request` with
 a validation error.
 
+[[breaking_65_sql_changes]]
+=== SQL plugin changes
+
+==== Grouping by columns with missing values will create an additional group 
+
+An additional group will be present in the result of requests containing a
+`GROUP BY` for a column that has missing values in the returned documents.
+The records with missing values in the grouped by column will be collectively
+considered a single bucket.

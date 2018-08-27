@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-scm'
 esplugin {
     name 'x-pack-security'
     description 'Elasticsearch Expanded Pack Plugin - Security'

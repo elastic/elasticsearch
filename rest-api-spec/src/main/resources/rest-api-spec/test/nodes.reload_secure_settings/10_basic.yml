@@ -1,5 +1,8 @@
 ---
 "node_reload_secure_settings test":
+  - skip:
+      version: " - 6.3.99"
+      reason: "reload API available 6.4.0 onwards"
 
   - do:
       nodes.reload_secure_settings: {}

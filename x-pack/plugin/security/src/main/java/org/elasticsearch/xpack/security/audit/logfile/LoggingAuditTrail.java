@@ -37,6 +37,9 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
+
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.logging.log4j.LogManager;
 
 import java.net.InetAddress;
@@ -54,7 +57,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
@@ -228,7 +230,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 principal(user, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -249,7 +251,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -286,7 +288,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -321,7 +323,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -360,7 +362,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -396,13 +398,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
+                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 subject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -419,13 +421,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
+                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 subject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -460,7 +462,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -482,7 +484,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 restOrTransportOrigin(message, threadContext, logEntry);
                 principal(user, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -529,13 +531,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
+                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 runAsSubject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -552,13 +554,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
+                        .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames))
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, message.getClass().getSimpleName());
                 runAsSubject(authentication, logEntry);
                 restOrTransportOrigin(message, threadContext, logEntry);
                 if (indices.isPresent()) {
-                    logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
+                    logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
                 opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
@@ -574,7 +576,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                    .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames));
+                    .with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
             restUri(request, logEntry);
             runAsSubject(authentication, logEntry);
             restOrigin(request, logEntry);
@@ -638,6 +640,23 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // TODO this is probably wrong, params are decoded and they might contain the delimiter
             logEntry.with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
         }
+    }
+
+    private static String toQuotedJsonArray(String[] values) {
+        assert values != null && values.length != 0;
+        final StringBuilder stringBuilder = new StringBuilder();
+        final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
+        stringBuilder.append("[");
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                stringBuilder.append(",");
+            }
+            stringBuilder.append("\"");
+            jsonStringEncoder.quoteAsString(values[i], stringBuilder);
+            stringBuilder.append("\"");
+        }
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     private static void restOrTransportOrigin(TransportMessage message, ThreadContext threadContext, StringMapMessage logEntry) {

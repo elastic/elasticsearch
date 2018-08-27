@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
@@ -32,14 +33,15 @@ import java.util.Objects;
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
 
     public static final String TYPE = "ccr_auto_follow";
 
     private static final ParseField PATTERNS_FIELD = new ParseField("patterns");
     private static final ParseField FOLLOWED_LEADER_INDICES_FIELD = new ParseField("followed_leader_indices");
 
-    private static final ConstructingObjectParser<AutoFollowMetadata, Void> PARSER = new ConstructingObjectParser<>("autofollow",
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<AutoFollowMetadata, Void> PARSER = new ConstructingObjectParser<>("auto_follow",
         args -> new AutoFollowMetadata((Map<String, AutoFollowPattern>) args[0], (Map<String, List<String>>) args[1]));
 
     static {
@@ -112,7 +114,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+        return Version.V_6_5_0.minimumCompatibilityVersion();
     }
 
     @Override
@@ -169,6 +171,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField RETRY_TIMEOUT = new ParseField("retry_timeout");
         public static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
                 args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
@@ -214,7 +217,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.idleShardRetryDelay = idleShardRetryDelay;
         }
 
-        public AutoFollowPattern(StreamInput in) throws IOException {
+        AutoFollowPattern(StreamInput in) throws IOException {
             leaderIndexPatterns = in.readList(StreamInput::readString);
             followIndexPattern = in.readOptionalString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -328,8 +331,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         @Override
         public int hashCode() {
-
-            return Objects.hash(leaderIndexPatterns, followIndexPattern, maxBatchOperationCount, maxConcurrentReadBatches, maxOperationSizeInBytes, maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryDelay);
+            return Objects.hash(leaderIndexPatterns, followIndexPattern, maxBatchOperationCount, maxConcurrentReadBatches,
+                maxOperationSizeInBytes, maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryDelay);
         }
     }
 

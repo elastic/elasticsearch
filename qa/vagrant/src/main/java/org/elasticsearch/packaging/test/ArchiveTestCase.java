@@ -333,7 +333,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchShard + " help");
-            assertThat(result.stdout, containsString("A CLI tool to manage shard"));
+            assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
         if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {

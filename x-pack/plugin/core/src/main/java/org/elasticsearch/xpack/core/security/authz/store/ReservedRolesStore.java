@@ -112,6 +112,8 @@ public class ReservedRolesStore {
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.BEATS_ROLE, new RoleDescriptor(UsernamesField.BEATS_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
+                        new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*",
                                 ".ml-notifications").privileges("view_index_metadata", "read").build() },

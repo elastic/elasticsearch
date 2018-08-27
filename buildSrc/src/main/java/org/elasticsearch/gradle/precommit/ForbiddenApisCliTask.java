@@ -23,6 +23,8 @@ import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -41,6 +43,7 @@ import java.util.Set;
 
 public class ForbiddenApisCliTask extends DefaultTask {
 
+    private final Logger logger = Logging.getLogger(ForbiddenApisCliTask.class);
     private FileCollection signaturesFiles;
     private List<String> signatures = new ArrayList<>();
     private Set<String> bundledSignatures = new LinkedHashSet<>();
@@ -49,12 +52,21 @@ public class ForbiddenApisCliTask extends DefaultTask {
     private FileCollection classesDirs;
     private Action<JavaExecSpec> execAction;
 
+    @Input
     public JavaVersion getTargetCompatibility() {
         return targetCompatibility;
     }
 
     public void setTargetCompatibility(JavaVersion targetCompatibility) {
-        this.targetCompatibility = targetCompatibility;
+        if (targetCompatibility.compareTo(JavaVersion.VERSION_1_10) > 0) {
+            logger.warn(
+                "Target compatibility is set to {} but forbiddenapis only supports up to 10. Will cap at 10.",
+                targetCompatibility
+            );
+            this.targetCompatibility = JavaVersion.VERSION_1_10;
+        } else {
+            this.targetCompatibility = targetCompatibility;
+        }
     }
 
     public Action<JavaExecSpec> getExecAction() {

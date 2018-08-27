@@ -70,7 +70,7 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5,
                 Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build());
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
-            mapperService.updateMapping(followIMD);
+            mapperService.updateMapping(null, followIMD);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService));
             assertThat(e.getMessage(), equalTo("mapper [field] of different type, current_type [text], merged_type [keyword]"));
@@ -99,7 +99,7 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", 5, followingIndexSettings);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followingIndexSettings, "index2");
-            mapperService.updateMapping(followIMD);
+            mapperService.updateMapping(null, followIMD);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService));
             assertThat(error.getMessage(), equalTo("the following index [index2] is not ready to follow; " +
@@ -112,7 +112,7 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build());
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
-            mapperService.updateMapping(followIMD);
+            mapperService.updateMapping(null, followIMD);
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
@@ -128,7 +128,7 @@ public class FollowIndexActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build());
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
-            mapperService.updateMapping(followIMD);
+            mapperService.updateMapping(null, followIMD);
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
         {
@@ -146,7 +146,7 @@ public class FollowIndexActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build());
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
-            mapperService.updateMapping(followIMD);
+            mapperService.updateMapping(null, followIMD);
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
     }

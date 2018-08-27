@@ -136,6 +136,9 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
         });
+        IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+        assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
             GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings("test").get();
             String step = settingsResponse.getSetting("test", "index.lifecycle.step");
@@ -146,12 +149,24 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     public void testMasterDedicatedDataDedicated() throws Exception {
         settings = Settings.builder().put(settings).put("index.lifecycle.test.complete", true).build();
         // start master node
-        logger.info("Starting sever1");
-        internalCluster().startMasterOnlyNode();
+        logger.info("Starting master-only server1");
+        final String server_1 = internalCluster().startMasterOnlyNode();
         // start data node
-        logger.info("Starting sever1");
+        logger.info("Starting data-only server2");
         final String server_2 = internalCluster().startDataOnlyNode();
         final String node2 = getLocalNodeId(server_2);
+
+        // check that the scheduler was started on the appropriate node
+        {
+            IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+            assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+            assertNotNull(indexLifecycleService.getScheduledJob());
+        }
+        {
+            IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_2);
+            assertNull(indexLifecycleService.getScheduler());
+            assertNull(indexLifecycleService.getScheduledJob());
+        }
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
@@ -236,6 +251,27 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             String step = settingsResponse.getSetting("test", "index.lifecycle.step");
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testPollIntervalUpdate() {
+        TimeValue pollInterval = TimeValue.timeValueSeconds(randomLongBetween(1, 5));
+        final String server_1 = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, pollInterval.getStringRep()).build());
+        IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
+        assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
+        {
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            assertThat(schedule.getInterval(), equalTo(pollInterval));
+        }
+
+        // update the poll interval
+        TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 10));
+        Settings newIntervalSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(newIntervalSettings));
+        {
+            TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
+            assertThat(schedule.getInterval(), equalTo(newPollInterval));
+        }
     }
 
     private String getLocalNodeId(String name) {

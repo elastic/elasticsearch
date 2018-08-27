@@ -601,7 +601,6 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
-                    options.forkOptions.memoryMaximumSize = "512m"
                 }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default

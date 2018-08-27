@@ -105,12 +105,12 @@ route monitoring data:
 
 [options="header"]
 |=======================
-| Template               | Purpose
-| `.monitoring-alerts`   | All cluster alerts for monitoring data.
-| `.monitoring-beats`    | All Beats monitoring data.
-| `.monitoring-es`       | All {es} monitoring data.
-| `.monitoring-kibana`   | All {kib} monitoring data.
-| `.monitoring-logstash` | All Logstash monitoring data.
+| Template                    | Purpose
+| `.monitoring-alerts`        | All cluster alerts for monitoring data.
+| `.monitoring-beats`         | All Beats monitoring data.
+| `.monitoring-es`            | All {es} monitoring data.
+| `.monitoring-kibana`        | All {kib} monitoring data.
+| `.monitoring-logstash`      | All Logstash monitoring data.
 |=======================
 
 The templates are ordinary {es} templates that control the default settings and

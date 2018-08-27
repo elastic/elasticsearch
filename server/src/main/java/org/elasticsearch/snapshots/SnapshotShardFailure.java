@@ -102,7 +102,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         nodeId = in.readOptionalString();
         shardId = ShardId.readShardId(in);
         super.shardId = shardId.getId();
-        super.index = shardId.getIndexName();
+        index = shardId.getIndexName();
         reason = in.readString();
         status = RestStatus.readFrom(in);
     }

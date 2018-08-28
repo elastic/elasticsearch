@@ -30,9 +30,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCase {
 
     protected void assertAccessIsAllowed(String user, Request request) throws IOException {
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
-        request.setOptions(options);
+        setUser(request, user);
         Response response = getRestClient().performRequest(request);
         StatusLine statusLine = response.getStatusLine();
         String message = String.format(Locale.ROOT, "%s %s: Expected no error got %s %s with body %s",
@@ -52,13 +50,12 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
     }
 
     protected void assertAccessIsDenied(String user, Request request) throws IOException {
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
-        request.setOptions(options);
+        setUser(request, user);
         ResponseException responseException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         StatusLine statusLine = responseException.getResponse().getStatusLine();
+        String requestBody = request.getEntity() == null ? "" : "with body " + EntityUtils.toString(request.getEntity());
         String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s",
-                request.getMethod(), request.getEndpoint(), EntityUtils.toString(request.getEntity()),
+                request.getMethod(), request.getEndpoint(), requestBody,
                 statusLine.getStatusCode(), statusLine.getReasonPhrase(),
                 EntityUtils.toString(responseException.getResponse().getEntity()));
         assertThat(message, statusLine.getStatusCode(), is(403));
@@ -79,9 +76,7 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
      * request will not be failed, just the individual ones
      */
     protected void assertBodyHasAccessIsDenied(String user, Request request) throws IOException {
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
-        request.setOptions(options);
+        setUser(request, user);
         Response resp = getRestClient().performRequest(request);
         StatusLine statusLine = resp.getStatusLine();
         assertThat(statusLine.getStatusCode(), is(200));
@@ -94,5 +89,11 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
         Request request = new Request(method, uri);
         request.setJsonEntity(body);
         assertBodyHasAccessIsDenied(user, request);
+    }
+
+    private void setUser(Request request, String user) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
+        request.setOptions(options);
     }
 }

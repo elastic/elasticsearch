@@ -132,6 +132,9 @@ The following project appears to be abandoned:
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
   Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
+  
+* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper Client]: 
+  Kotlin extension functions and abstractions for the {client}/java-api/current/index.html[official Elasticsearch Highlevel Client]. Aims to reduce the amount of boilerplate needed to do searches, bulk indexing and other common things users do with the client.
 
 [[lua]]
 == Lua

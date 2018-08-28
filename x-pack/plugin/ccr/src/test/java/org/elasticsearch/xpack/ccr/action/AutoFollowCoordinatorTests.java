@@ -11,12 +11,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +42,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
+        ClusterState leaderState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().put(IndexMetaData.builder("logs-20190101")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
@@ -62,25 +66,25 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, nullValue());
         };
-        AutoFollowCoordinator.AutoFollower autoFollower = new AutoFollowCoordinator.AutoFollower(client, handler, autoFollowMetadata) {
+        AutoFollower autoFollower = new AutoFollower(client, handler, autoFollowMetadata) {
             @Override
-            void clusterStateApiCall(Client remoteClient, BiConsumer<ClusterState, Exception> handler) {
-                handler.accept(remoteState, null);
+            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+                handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollowApiCall(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 handler.accept(null);
             }
 
             @Override
-            void updateAutoMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
                 AutoFollowMetadata result = resultCs.metaData().custom(AutoFollowMetadata.TYPE);
-                assertThat(result.getFollowedLeaderIndexUUIDS().size(), equalTo(1));
-                assertThat(result.getFollowedLeaderIndexUUIDS().get("remote").size(), equalTo(1));
+                assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
+                assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
             }
         };
@@ -106,19 +110,19 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollowCoordinator.AutoFollower autoFollower = new AutoFollowCoordinator.AutoFollower(client, handler, autoFollowMetadata) {
+        AutoFollower autoFollower = new AutoFollower(client, handler, autoFollowMetadata) {
             @Override
-            void clusterStateApiCall(Client remoteClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
 
             @Override
-            void createAndFollowApiCall(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
                 fail("should not get here");
             }
 
             @Override
-            void updateAutoMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };
@@ -130,7 +134,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
+        ClusterState leaderState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().put(IndexMetaData.builder("logs-20190101")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
@@ -151,21 +155,21 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollowCoordinator.AutoFollower autoFollower = new AutoFollowCoordinator.AutoFollower(client, handler, autoFollowMetadata) {
+        AutoFollower autoFollower = new AutoFollower(client, handler, autoFollowMetadata) {
             @Override
-            void clusterStateApiCall(Client remoteClient, BiConsumer<ClusterState, Exception> handler) {
-                handler.accept(remoteState, null);
+            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+                handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollowApiCall(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 handler.accept(null);
             }
 
             @Override
-            void updateAutoMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 handler.accept(failure);
             }
         };
@@ -177,7 +181,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
+        ClusterState leaderState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().put(IndexMetaData.builder("logs-20190101")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
@@ -198,26 +202,82 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollowCoordinator.AutoFollower autoFollower = new AutoFollowCoordinator.AutoFollower(client, handler, autoFollowMetadata) {
+        AutoFollower autoFollower = new AutoFollower(client, handler, autoFollowMetadata) {
             @Override
-            void clusterStateApiCall(Client remoteClient, BiConsumer<ClusterState, Exception> handler) {
-                handler.accept(remoteState, null);
+            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+                handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollowApiCall(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 handler.accept(failure);
             }
 
             @Override
-            void updateAutoMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };
         autoFollower.autoFollowIndices();
         assertThat(invoked[0], is(true));
+    }
+
+    public void testGetLeaderIndicesToFollow() {
+        AutoFollowPattern autoFollowPattern =
+            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null);
+
+        MetaData.Builder imdBuilder = MetaData.builder();
+        for (int i = 0; i < 5; i++) {
+            Settings.Builder builder = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, "metrics-" + i);
+            imdBuilder.put(IndexMetaData.builder("metrics-" + i)
+                .settings(builder)
+                .numberOfShards(1)
+                .numberOfReplicas(0));
+        }
+        imdBuilder.put(IndexMetaData.builder("logs-0")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
+            .metaData(imdBuilder)
+            .build();
+
+        List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, clusterState, Collections.emptyList());
+        result.sort(Comparator.comparing(Index::getName));
+        assertThat(result.size(), equalTo(5));
+        assertThat(result.get(0).getName(), equalTo("metrics-0"));
+        assertThat(result.get(1).getName(), equalTo("metrics-1"));
+        assertThat(result.get(2).getName(), equalTo("metrics-2"));
+        assertThat(result.get(3).getName(), equalTo("metrics-3"));
+        assertThat(result.get(4).getName(), equalTo("metrics-4"));
+
+        List<String> followedIndexUUIDs = Collections.singletonList(clusterState.metaData().index("metrics-2").getIndexUUID());
+        result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, clusterState, followedIndexUUIDs);
+        result.sort(Comparator.comparing(Index::getName));
+        assertThat(result.size(), equalTo(4));
+        assertThat(result.get(0).getName(), equalTo("metrics-0"));
+        assertThat(result.get(1).getName(), equalTo("metrics-1"));
+        assertThat(result.get(2).getName(), equalTo("metrics-3"));
+        assertThat(result.get(3).getName(), equalTo("metrics-4"));
+    }
+
+    public void testGetFollowerIndexName() {
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null,
+            null, null, null, null, null, null);
+        assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("metrics-0"));
+
+        autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), "eu-metrics-0", null, null,
+            null, null, null, null, null);
+        assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
+
+        autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), "eu-{{leader_index}}", null,
+            null, null, null, null, null, null);
+        assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
     }
 
 }

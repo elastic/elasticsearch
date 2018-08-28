@@ -89,7 +89,7 @@ public class TransportDeleteAutoFollowPatternAction extends
 
         final Map<String, AutoFollowMetadata.AutoFollowPattern> configurationsCopy = new HashMap<>(configurations);
         final Map<String, List<String>> followedLeaderIndexUUIDSCopy =
-            new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDS());
+            new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
         for (String key : toRemove) {
             configurationsCopy.remove(key);
             followedLeaderIndexUUIDSCopy.remove(key);

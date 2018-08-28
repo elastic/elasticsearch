@@ -80,24 +80,24 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     }
 
     private final Map<String, AutoFollowPattern> patterns;
-    private final Map<String, List<String>> followedLeaderIndexUUIDS;
+    private final Map<String, List<String>> followedLeaderIndexUUIDs;
 
-    public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns, Map<String, List<String>> followedLeaderIndexUUIDS) {
+    public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns, Map<String, List<String>> followedLeaderIndexUUIDs) {
         this.patterns = patterns;
-        this.followedLeaderIndexUUIDS = followedLeaderIndexUUIDS;
+        this.followedLeaderIndexUUIDs = followedLeaderIndexUUIDs;
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
         patterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
-        followedLeaderIndexUUIDS = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+        followedLeaderIndexUUIDs = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
     }
 
     public Map<String, AutoFollowPattern> getPatterns() {
         return patterns;
     }
 
-    public Map<String, List<String>> getFollowedLeaderIndexUUIDS() {
-        return followedLeaderIndexUUIDS;
+    public Map<String, List<String>> getFollowedLeaderIndexUUIDs() {
+        return followedLeaderIndexUUIDs;
     }
 
     @Override
@@ -120,7 +120,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(patterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-        out.writeMapOfLists(followedLeaderIndexUUIDS, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMapOfLists(followedLeaderIndexUUIDs, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
@@ -134,7 +134,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         builder.endObject();
 
         builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
-        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDS.entrySet()) {
+        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();

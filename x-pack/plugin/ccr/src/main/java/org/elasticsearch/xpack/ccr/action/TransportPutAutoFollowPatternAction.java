@@ -96,7 +96,7 @@ public class TransportPutAutoFollowPatternAction extends
         Map<String, AutoFollowMetadata.AutoFollowPattern> configurations;
         if (currentAutoFollowMetadata != null) {
             configurations = new HashMap<>(currentAutoFollowMetadata.getPatterns());
-            followedLeaderIndices = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDS());
+            followedLeaderIndices = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
         } else {
             configurations = new HashMap<>();
             followedLeaderIndices = new HashMap<>();

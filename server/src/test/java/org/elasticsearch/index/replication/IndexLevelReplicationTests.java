@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -140,7 +142,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
-        try (ReplicationGroup shards = createGroup(0)) {
+        //TODO: Enables this test with soft-deletes once we have timestamp
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(0, settings)) {
             shards.startAll();
             final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
             indexRequest.onRetry(); // force an update of the timestamp
@@ -338,6 +342,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      * test document failures (failures after seq_no generation) are added as noop operation to the translog
      * for primary and replica shards
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33217")
     public void testDocumentFailureReplication() throws Exception {
         final IOException indexException = new IOException("simulated indexing failure");
         final IOException deleteException = new IOException("simulated deleting failure");
@@ -346,7 +351,13 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 final AtomicBoolean throwAfterIndexedOneDoc = new AtomicBoolean(); // need one document to trigger delete in IW.
                 @Override
                 public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                    if (throwAfterIndexedOneDoc.getAndSet(true)) {
+                    boolean isTombstone = false;
+                    for (IndexableField field : doc) {
+                        if (SeqNoFieldMapper.TOMBSTONE_NAME.equals(field.name())) {
+                            isTombstone = true;
+                        }
+                    }
+                    if (isTombstone == false && throwAfterIndexedOneDoc.getAndSet(true)) {
                         throw indexException;
                     } else {
                         return super.addDocument(doc);
@@ -355,6 +366,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 @Override
                 public long deleteDocuments(Term... terms) throws IOException {
                     throw deleteException;
+                }
+                @Override
+                public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field...fields) throws IOException {
+                    throw deleteException; // a delete uses softUpdateDocument API if soft-deletes enabled
                 }
             }, null, null, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
@@ -501,8 +516,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             recoverReplica(replica3, replica2, true);
             try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
-                assertThat(snapshot.next(), equalTo(op2));
-                assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
+                final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
+                expectedOps.add(op2);
+                assertThat(snapshot, containsOperationsInAnyOrder(expectedOps));
                 assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
             }
             // TODO: We should assert the content of shards in the ReplicationGroup.

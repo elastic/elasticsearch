@@ -2586,22 +2586,11 @@ public class IndexShardTests extends IndexShardTestCase {
         indexShard.flush(new FlushRequest());
         closeShards(indexShard);
 
-        // start shard with checksum - it has to pass successfully
-        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
-        );
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
-            .settings(Settings.builder()
-                .put(indexShard.indexSettings.getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
-            .build();
-
         final ShardPath shardPath = indexShard.shardPath();
 
         final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
         CorruptionUtils.corruptIndex(random(), indexPath, false);
 
-        // check that corrupt marker is *NOT* there
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
         final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
             @Override
@@ -2614,13 +2603,25 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         Files.walkFileTree(indexPath, corruptedVisitor);
 
-        assertThat("store is clean", corruptedMarkerCount.get(), equalTo(0));
+        assertThat("corruption marker should not be there", corruptedMarkerCount.get(), equalTo(0));
+
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
+            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
+        );
+        // start shard and perform index check on startup. It enforce shard to fail due to corrupted index files
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexShard.indexSettings.getSettings())
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
+            .build();
 
         IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
             null, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+        final IndexShardRecoveryException indexShardRecoveryException =
+            expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+        assertThat(indexShardRecoveryException.getMessage(), equalTo("failed recovery"));
 
         // check that corrupt marker is there
         Files.walkFileTree(indexPath, corruptedVisitor);
@@ -2654,7 +2655,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // create corrupted marker
         final String corruptionMessage = "fake ioexception";
-        try(Store store = createStore(indexShard.indexSettings(), shardPath)){
+        try(Store store = createStore(indexShard.indexSettings(), shardPath)) {
             store.markStoreCorrupted(new IOException(corruptionMessage));
         }
 
@@ -2668,7 +2669,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(exception1.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
         closeShards(corruptedShard);
 
-        // check that corrupt marker is there
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
         final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
             @Override
@@ -2761,6 +2761,16 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(stop.compareAndSet(false, true));
         snapshotter.join();
         closeShards(newShard);
+    }
+
+    public void testCheckOnStartupDeprecatedValue() throws Exception {
+        final Settings settings = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "fix").build();
+
+        final IndexShard newShard = newShard(true, settings);
+        closeShards(newShard);
+
+        assertWarnings("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
+            + "which has no effect and will not be accepted in future");
     }
 
     class Result {

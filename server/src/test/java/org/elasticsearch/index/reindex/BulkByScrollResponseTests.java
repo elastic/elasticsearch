@@ -24,7 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,8 +34,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.containsString;
 
-public class BulkByScrollResponseTests extends ESTestCase {
+public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
 
     public void testRountTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
@@ -93,5 +95,50 @@ public class BulkByScrollResponseTests extends ESTestCase {
             assertEquals(expectedFailure.getReason().getClass(), actualFailure.getReason().getClass());
             assertEquals(expectedFailure.getReason().getMessage(), actualFailure.getReason().getMessage());
         }
+    }
+
+    @Override
+    protected void assertEqualInstances(BulkByScrollResponse expected, BulkByScrollResponse actual) {
+        assertEquals(expected.getTook(), actual.getTook());
+        BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus());
+        assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
+        for (int i = 0; i < expected.getBulkFailures().size(); i++) {
+            Failure expectedFailure = expected.getBulkFailures().get(i);
+            Failure actualFailure = actual.getBulkFailures().get(i);
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getType(), actualFailure.getType());
+            assertEquals(expectedFailure.getId(), actualFailure.getId());
+            assertThat(expectedFailure.getMessage(), containsString(actualFailure.getMessage()));
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+        }
+        assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
+        for (int i = 0; i < expected.getSearchFailures().size(); i++) {
+            ScrollableHitSource.SearchFailure expectedFailure = expected.getSearchFailures().get(i);
+            ScrollableHitSource.SearchFailure actualFailure = actual.getSearchFailures().get(i);
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
+            assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
+            assertThat(expectedFailure.getReason().getMessage(), containsString(actualFailure.getReason().getMessage()));
+        }
+    }
+
+    @Override
+    protected BulkByScrollResponse createTestInstance() {
+        // failures are tested separately, so we can test XContent equivalence at least when we have no failures
+        return
+            new BulkByScrollResponse(
+                timeValueMillis(randomNonNegativeLong()), BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+                emptyList(), emptyList(), randomBoolean()
+            );
+    }
+
+    @Override
+    protected BulkByScrollResponse doParseInstance(XContentParser parser) throws IOException {
+        return BulkByScrollResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

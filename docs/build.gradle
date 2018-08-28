@@ -41,9 +41,6 @@ integTestCluster {
   // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
   systemProperty 'es.scripting.use_java_time', 'false'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
-
-  // TODO: remove this deprecation compatibility setting for 7.0
-  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
 
 // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed

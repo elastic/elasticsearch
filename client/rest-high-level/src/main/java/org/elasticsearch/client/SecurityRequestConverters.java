@@ -39,7 +39,7 @@ public final class SecurityRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params(request);
-        //params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
         return request;
     }
 }

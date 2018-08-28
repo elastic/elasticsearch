@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.RefreshPolicy;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.CharArrays;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Request object to create or update a user in the native realm.
@@ -45,9 +47,10 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
     private final Map<String, Object> metadata;
     private final char[] password;
     private final boolean enabled;
+    private final RefreshPolicy refreshPolicy;
 
     public PutUserRequest(String username, char[] password, List<String> roles, String fullName, String email, boolean enabled,
-                          Map<String, Object> metadata) {
+                          Map<String, Object> metadata, RefreshPolicy refreshPolicy) {
         this.username = Objects.requireNonNull(username, "username is required");
         this.password = password;
         this.roles = Collections.unmodifiableList(Objects.requireNonNull(roles, "roles must be specified"));
@@ -55,6 +58,7 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
         this.email = email;
         this.enabled = enabled;
         this.metadata = metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+        this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
     }
 
     public String getUsername() {
@@ -85,6 +89,10 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
         return enabled;
     }
 
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -96,12 +104,13 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
             Objects.equals(fullName, that.fullName) &&
             Objects.equals(email, that.email) &&
             Objects.equals(metadata, that.metadata) &&
-            Arrays.equals(password, that.password);
+            Arrays.equals(password, that.password) &&
+            refreshPolicy == that.refreshPolicy;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(username, roles, fullName, email, metadata, enabled);
+        int result = Objects.hash(username, roles, fullName, email, metadata, enabled, refreshPolicy);
         result = 31 * result + Arrays.hashCode(password);
         return result;
     }
@@ -114,13 +123,13 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
     }
 
     @Override
-    public ValidationException validate() {
-        ValidationException validationException = null;
+    public Optional<ValidationException> validate() {
         if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
-            validationException = new ValidationException();
+            ValidationException validationException = new ValidationException();
             validationException.addValidationError("metadata keys may not start with [_]");
+            return Optional.of(validationException);
         }
-        return validationException;
+        return Optional.empty();
     }
 
     @Override

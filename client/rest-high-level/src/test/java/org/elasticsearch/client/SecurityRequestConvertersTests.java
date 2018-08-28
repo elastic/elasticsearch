@@ -50,15 +50,16 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         } else {
             metadata = null;
         }
-        //putUserRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
-        final Map<String, String> expectedParams = Collections.emptyMap();
-        /*if (putUserRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            expectedParams = Collections.singletonMap("refresh", putUserRequest.getRefreshPolicy().getValue());
+
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
         } else {
             expectedParams = Collections.emptyMap();
-        }*/
+        }
 
-        PutUserRequest putUserRequest = new PutUserRequest(username, password, roles, fullName, email, enabled, metadata);
+        PutUserRequest putUserRequest =new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, refreshPolicy);
         Request request = SecurityRequestConverters.putUser(putUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());

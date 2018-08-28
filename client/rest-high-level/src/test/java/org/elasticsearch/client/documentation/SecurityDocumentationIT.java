@@ -22,6 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RefreshPolicy;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -40,7 +41,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-put-user-execute
             char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
             PutUserRequest request =
-                new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null);
+                new PutUserRequest("example", password, Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.NONE);
             PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
             //end::x-pack-put-user-execute
 
@@ -51,8 +52,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
-            PutUserRequest request =
-                new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true, null);
+            PutUserRequest request = new PutUserRequest("example2", password, Collections.singletonList("superuser"), null, null, true,
+                null, RefreshPolicy.NONE);
             // tag::x-pack-put-user-execute-listener
             ActionListener<PutUserResponse> listener = new ActionListener<PutUserResponse>() {
                 @Override

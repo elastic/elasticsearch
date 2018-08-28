@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
@@ -65,5 +66,50 @@ public class PipelineProcessorTests extends ESTestCase {
         config.put("pipeline", pipelineId);
         factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument);
         assertEquals(testIngestDocument, invoked.get());
+    }
+
+    public void testThrowsOnMissingPipeline() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+        IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+        Map<String, Object> config = new HashMap<>();
+        config.put("pipeline", "missingPipelineId");
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument)
+        );
+        assertEquals(
+            "Pipeline processor configured for non-existent pipeline [missingPipelineId]", e.getMessage()
+        );
+    }
+
+    public void testThrowsOnRecursivePipelineInvocations() throws Exception {
+        String innerPipelineId = "inner";
+        String outerPipelineId = "outer";
+        IngestService ingestService = mock(IngestService.class);
+        IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        Map<String, Object> outerConfig = new HashMap<>();
+        outerConfig.put("pipeline", innerPipelineId);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+        Pipeline outer = new Pipeline(
+            outerPipelineId, null, null,
+            new CompoundProcessor(factory.create(Collections.emptyMap(), null, outerConfig))
+        );
+        Map<String, Object> innerConfig = new HashMap<>();
+        innerConfig.put("pipeline", outerPipelineId);
+        Pipeline inner = new Pipeline(
+            innerPipelineId, null, null,
+            new CompoundProcessor(factory.create(Collections.emptyMap(), null, innerConfig))
+        );
+        when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
+        when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
+        outerConfig.put("pipeline", innerPipelineId);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
+        );
+        assertEquals(
+            "Recursive invocation of pipeline [inner] detected.", e.getRootCause().getMessage()
+        );
     }
 }

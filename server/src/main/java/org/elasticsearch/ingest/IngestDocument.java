@@ -642,7 +642,6 @@ public final class IngestDocument {
      * Executes the given pipeline with for this document unless the pipeline has already been executed
      * for this document.
      * @param pipeline Pipeline to execute
-     * @return true if pipeline was executed, false if it could not be executed because it was already executed for this document
      * @throws Exception On exception in pipeline execution
      */
     public void executePipeline(Pipeline pipeline) throws Exception {

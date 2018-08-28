@@ -58,7 +58,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -343,8 +342,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private Map<String, String> createCustom() {
-        // TODO: return an actual map of custom metadata
-        return new HashMap<>();
+        return Collections.singletonMap("a", "b");
     }
 
     private interface MetaDataBuilderConfigurator {

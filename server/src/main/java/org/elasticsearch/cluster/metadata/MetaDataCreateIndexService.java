@@ -520,7 +520,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
 
                 for (Map.Entry<String, Map<String, String>> customEntry : customs.entrySet()) {
-                    indexMetaDataBuilder.putCustom(customEntry.getKey(), new DiffableStringMap(customEntry.getValue()));
+                    indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                 }
 
                 indexMetaDataBuilder.state(request.state());

@@ -127,15 +127,24 @@ public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> imple
         if (obj == null) {
             return false;
         }
-        if (obj.getClass() != this.getClass()) {
+        if (obj instanceof DiffableStringMap) {
+            DiffableStringMap other = (DiffableStringMap) obj;
+            return innerMap.equals(other.innerMap);
+        } else if (obj instanceof Map) {
+            Map other = (Map) obj;
+            return innerMap.equals(other);
+        } else {
             return false;
         }
-        DiffableStringMap other = (DiffableStringMap) obj;
-        return innerMap.equals(other.innerMap);
     }
 
     @Override
     public int hashCode() {
         return innerMap.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "DiffableStringMap[" + innerMap.toString() + "]";
     }
 }

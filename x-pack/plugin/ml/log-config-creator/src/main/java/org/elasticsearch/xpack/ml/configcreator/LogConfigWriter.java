@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.xpack.ml.logstructure.AbstractLogFileStructureFinder;
-import org.elasticsearch.xpack.ml.logstructure.LogFileStructure;
+import org.elasticsearch.xpack.ml.logstructurefinder.LogStructure;
+import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -400,7 +400,7 @@ public final class LogConfigWriter {
         this.logstashFileTimezone = logstashFileTimezone;
     }
 
-    void createPreambleComment(LogFileStructure structure) {
+    void createPreambleComment(LogStructure structure) {
         String preamble = structure.getSampleStart();
         int lineCount = structure.getNumLinesAnalyzed();
         int messageCount = structure.getNumMessagesAnalyzed();
@@ -466,7 +466,7 @@ public final class LogConfigWriter {
 
         terminal.println(Terminal.Verbosity.VERBOSE, "---");
 
-        Map<String, Object> properties = Collections.singletonMap(AbstractLogFileStructureFinder.MAPPING_PROPERTIES_SETTING, fieldTypes);
+        Map<String, Object> properties = Collections.singletonMap(LogStructureUtils.MAPPING_PROPERTIES_SETTING, fieldTypes);
         Map<String, Object> docType = Collections.singletonMap("_doc", properties);
         Map<String, Object> mappings = Collections.singletonMap("mappings", docType);
 
@@ -493,7 +493,7 @@ public final class LogConfigWriter {
             }
 
             String convertTo = null;
-            switch (settings.get(AbstractLogFileStructureFinder.MAPPING_TYPE_SETTING)){
+            switch (settings.get(LogStructureUtils.MAPPING_TYPE_SETTING)){
 
                 case "boolean":
                     convertTo = "boolean";
@@ -561,7 +561,7 @@ public final class LogConfigWriter {
             multilineRegexQuote);
     }
 
-    private void createJsonConfigs(LogFileStructure structure) {
+    private void createJsonConfigs(LogStructure structure) {
 
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
@@ -590,11 +590,11 @@ public final class LogConfigWriter {
             ingestPipelineDateProcessor);
     }
 
-    private void createXmlConfigs(LogFileStructure structure) {
+    private void createXmlConfigs(LogStructure structure) {
 
         assert structure.getMappings().isEmpty() == false;
         String topLevelTag = structure.getMappings().keySet().stream()
-            .filter(k -> AbstractLogFileStructureFinder.DEFAULT_TIMESTAMP_FIELD.equals(k) == false).findFirst().get();
+            .filter(k -> LogStructureUtils.DEFAULT_TIMESTAMP_FIELD.equals(k) == false).findFirst().get();
 
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
@@ -616,7 +616,7 @@ public final class LogConfigWriter {
             elasticsearchHost, indexName);
     }
 
-    private void createSeparatedValuesConfigs(LogFileStructure structure) {
+    private void createSeparatedValuesConfigs(LogStructure structure) {
 
         char delimiter = structure.getSeparator();
         String logstashFromFilebeatDateFilter = "";
@@ -645,7 +645,7 @@ public final class LogConfigWriter {
             skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
-    private void createTextConfigs(LogFileStructure structure, List<String> sampleMessages) {
+    private void createTextConfigs(LogStructure structure, List<String> sampleMessages) {
 
         String grokPattern = structure.getGrokPattern();
         String grokQuote = bestLogstashQuoteFor(grokPattern);
@@ -686,7 +686,7 @@ public final class LogConfigWriter {
         }
     }
 
-    void createConfigs(LogFileStructure structure, List<String> sampleMessages) {
+    void createConfigs(LogStructure structure, List<String> sampleMessages) {
 
         switch (structure.getFormat()) {
             case JSON:
@@ -707,7 +707,7 @@ public final class LogConfigWriter {
         }
     }
 
-    public synchronized void writeConfigs(LogFileStructure structure, List<String> sampleMessages, Path directory) throws IOException {
+    public synchronized void writeConfigs(LogStructure structure, List<String> sampleMessages, Path directory) throws IOException {
 
         createConfigs(structure, sampleMessages);
         createPreambleComment(structure);

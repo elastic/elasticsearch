@@ -13,9 +13,9 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.xpack.ml.logstructure.LogFileStructure;
-import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinder;
-import org.elasticsearch.xpack.ml.logstructure.LogFileStructureFinderManager;
+import org.elasticsearch.xpack.ml.logstructurefinder.LogStructure;
+import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinder;
+import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinderManager;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -158,9 +158,9 @@ public class LogConfigCreator extends Command {
         try {
             LogConfigWriter logConfigWriter = new LogConfigWriter(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            LogFileStructureFinderManager structureFinderManager = new LogFileStructureFinderManager();
-            LogFileStructureFinder structureFinder = structureFinderManager.findLogFileStructure(sampleLines, Files.newInputStream(file));
-            LogFileStructure structure = structureFinder.getStructure();
+            LogStructureFinderManager structureFinderManager = new LogStructureFinderManager();
+            LogStructureFinder structureFinder = structureFinderManager.findLogStructure(sampleLines, Files.newInputStream(file));
+            LogStructure structure = structureFinder.getStructure();
             for (String reason : structure.getExplanation()) {
                 terminal.println(Verbosity.VERBOSE, reason);
             }

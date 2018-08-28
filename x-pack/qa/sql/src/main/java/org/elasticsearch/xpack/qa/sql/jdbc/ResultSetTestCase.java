@@ -5,9 +5,17 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +23,8 @@ import java.io.Reader;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,12 +37,17 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
@@ -44,7 +59,25 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 
-public class ResultSetTestCase extends ResultSetBaseTestCase {
+public class ResultSetTestCase extends JdbcIntegrationTestCase {
+    
+    static final Set<String> fieldsNames = Stream.of("test_byte", "test_integer", "test_long", "test_short", "test_double",
+            "test_float", "test_keyword")
+            .collect(Collectors.toCollection(HashSet::new));
+    static final Map<Tuple<String,Object>,JDBCType> dateTimeTestingFields = new HashMap<Tuple<String,Object>,JDBCType>();
+    static final String SELECT_ALL_FIELDS = "SELECT test_boolean, test_byte, test_integer,"
+            + "test_long, test_short, test_double, test_float, test_keyword, test_date FROM test";
+    static final String SELECT_WILDCARD = "SELECT * FROM test";
+    static {
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_boolean", true), DataType.BOOLEAN.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_byte", 1), DataType.BYTE.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_integer", 1), DataType.INTEGER.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_long", 1L), DataType.LONG.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_short", 1), DataType.SHORT.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_double", 1d), DataType.DOUBLE.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_float", 1f), DataType.FLOAT.jdbcType);
+        dateTimeTestingFields.put(new Tuple<String,Object>("test_keyword", "true"), DataType.KEYWORD.jdbcType);
+    }
     
     // Byte values testing
     public void testGettingValidByteWithoutCasting() throws Exception {
@@ -116,6 +149,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         double doubleNotByte = randomDoubleBetween(Byte.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotByte = randomFloatBetween(Byte.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
         
         String doubleErrorMessage = (doubleNotByte > Long.MAX_VALUE || doubleNotByte < Long.MIN_VALUE) ?
                 Double.toString(doubleNotByte) : Long.toString(Math.round(doubleNotByte));
@@ -127,7 +161,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotByte);
             builder.field("test_float", floatNotByte);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
@@ -159,14 +193,18 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Byte", randomString), 
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Byte.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Byte", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Byte", randomString), 
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
-            sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Byte] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Byte", randomDate), 
+                    sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Byte", randomDate), 
+                    sqle.getMessage());
         });
     }
     
@@ -240,6 +278,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         double doubleNotShort = randomDoubleBetween(Short.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotShort = randomFloatBetween(Short.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
         
         String doubleErrorMessage = (doubleNotShort > Long.MAX_VALUE || doubleNotShort < Long.MIN_VALUE) ?
                 Double.toString(doubleNotShort) : Long.toString(Math.round(doubleNotShort));
@@ -250,7 +289,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotShort);
             builder.field("test_float", floatNotShort);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
@@ -277,14 +316,18 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Short", randomString),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Short.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Short", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Short", randomString),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Short", randomDate),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Short] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Short", randomDate),
+                    sqle.getMessage());
         });
     }
     
@@ -356,6 +399,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         double doubleNotInt = randomDoubleBetween(getMaxIntPlusOne().doubleValue(), Double.MAX_VALUE, true);
         float floatNotInt = randomFloatBetween(getMaxIntPlusOne().floatValue(), Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
         
         String doubleErrorMessage = (doubleNotInt > Long.MAX_VALUE || doubleNotInt < Long.MIN_VALUE) ?
                 Double.toString(doubleNotInt) : Long.toString(Math.round(doubleNotInt));
@@ -365,7 +409,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", doubleNotInt);
             builder.field("test_float", floatNotInt);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
@@ -387,14 +431,18 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to an Integer", randomString),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Integer.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to an Integer", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to an Integer", randomString),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to an Integer", randomDate),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Integer] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to an Integer", randomDate),
+                    sqle.getMessage());
         });
     }
     
@@ -462,12 +510,13 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         double doubleNotLong = randomDoubleBetween(getMaxLongPlusOne().doubleValue(), Double.MAX_VALUE, true);
         float floatNotLong = randomFloatBetween(getMaxLongPlusOne().floatValue(), Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
 
         index("test", "1", builder -> {
             builder.field("test_double", doubleNotLong);
             builder.field("test_float", floatNotLong);
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
@@ -484,14 +533,18 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Long", randomString),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Long.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Long", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Long", randomString),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Long", randomDate),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Long] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Long", randomDate),
+                    sqle.getMessage());
         });
     }
     
@@ -552,24 +605,29 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         });
         
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
             results.next();
             
             SQLException sqle = expectThrows(SQLException.class, () -> results.getDouble("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Double", randomString),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Double.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Double", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Double", randomString),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Double", randomDate),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Double] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Double", randomDate),
+                    sqle.getMessage());
         });
     }
     
@@ -630,24 +688,29 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         });
         
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomLong();
 
         index("test", "1", builder -> {
             builder.field("test_keyword", randomString);
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate);
         });
         
         doWithQuery(SELECT_WILDCARD, (results) -> {
             results.next();
 
             SQLException sqle = expectThrows(SQLException.class, () -> results.getFloat("test_keyword"));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Float", randomString),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", Float.class));
-            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] to a Float", randomString), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Float", randomString),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Float", randomDate),
+                    sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Float] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Float", randomDate),
+                    sqle.getMessage());
         });
     }
     
@@ -658,9 +721,11 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
+        long randomDate1 = randomLong();
+        long randomDate2 = randomLong();
         
         // true values
-        indexSimpleDocumentWithTrueValues(randomLong());
+        indexSimpleDocumentWithTrueValues(randomDate1);
         
         // false values
         index("test", "2", builder -> {
@@ -672,7 +737,7 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
             builder.field("test_double", 0d);
             builder.field("test_float", 0f);
             builder.field("test_keyword", "false");
-            builder.field("test_date", randomLong());
+            builder.field("test_date", randomDate2);
         });
         
         // other (non 0 = true) values
@@ -702,7 +767,8 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
             SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Boolean", randomDate1),
+                    sqle.getMessage());
             
             results.next();
             assertEquals(false, results.getBoolean("test_boolean"));
@@ -711,10 +777,12 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
                 assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
             }
             sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Boolean", randomDate2),
+                    sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
-            assertEquals("Conversion from type [TIMESTAMP] to [Boolean] not supported", sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [TIMESTAMP] to a Boolean", randomDate2),
+                    sqle.getMessage());
             
             results.next();
             for(String fld : fieldsNames.stream()
@@ -1173,23 +1241,6 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
     }
     
-    
-    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
-        SQLException sqle;
-        for(String field : dateTimeTestingFields) {
-            sqle = expectThrows(SQLException.class, () -> method.apply(field));
-            assertEquals("unable to convert column " + (dateTimeTestingFields.indexOf(field) + 1) + " to a long", sqle.getMessage());
-        }
-    }
-    
-    private void validateErrorsForDateTimeTestsWithCalendar(Calendar c, CheckedBiFunction<String,Calendar,Object,SQLException> method) {
-        SQLException sqle;
-        for(String field : dateTimeTestingFields) {
-            sqle = expectThrows(SQLException.class, () -> method.apply(field, c));
-            assertEquals("unable to convert column " + (dateTimeTestingFields.indexOf(field) + 1) + " to a long", sqle.getMessage());
-        }
-    }
-    
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
@@ -1210,12 +1261,288 @@ public class ResultSetTestCase extends ResultSetBaseTestCase {
         }
     }
     
-    protected void assertThrowsUnsupportedAndExpectErrorMessage(ThrowingRunnable runnable, String message) {
+    private void createIndex(String index) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("doc");
+            {
+                createIndex.startObject("properties");
+                {}
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+    }
+
+    private void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
+        Request request = new Request("PUT", "/" + index + "/_mapping/doc");
+        XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
+        updateMapping.startObject("properties");
+        {
+            body.accept(updateMapping);
+        }
+        updateMapping.endObject().endObject();
+        
+        request.setJsonEntity(Strings.toString(updateMapping));
+        client().performRequest(request);
+    }
+
+    private void createTestDataForByteValueTests(byte random1, byte random2, byte random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_byte").field("type", "byte").endObject();
+            builder.startObject("test_null_byte").field("type", "byte").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_byte", random1);
+            builder.field("test_null_byte", (Byte) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_byte", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForShortValueTests(short random1, short random2, short random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_short").field("type", "short").endObject();
+            builder.startObject("test_null_short").field("type", "short").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_short", random1);
+            builder.field("test_null_short", (Short) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_short", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForIntegerValueTests(int random1, int random2, int random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_integer").field("type", "integer").endObject();
+            builder.startObject("test_null_integer").field("type", "integer").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_integer", random1);
+            builder.field("test_null_integer", (Integer) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_integer", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForLongValueTests(long random1, long random2, long random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_long").field("type", "long").endObject();
+            builder.startObject("test_null_long").field("type", "long").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_long", random1);
+            builder.field("test_null_long", (Long) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_long", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForDoubleValueTests(double random1, double random2, double random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_double").field("type", "double").endObject();
+            builder.startObject("test_null_double").field("type", "double").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_double", random1);
+            builder.field("test_null_double", (Double) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_double", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForFloatValueTests(float random1, float random2, float random3) throws Exception, IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_float").field("type", "float").endObject();
+            builder.startObject("test_null_float").field("type", "float").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+        
+        index("test", "1", builder -> {
+            builder.field("test_float", random1);
+            builder.field("test_null_float", (Double) null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_float", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+    
+    private void indexSimpleDocumentWithTrueValues(Long randomLongDate) throws IOException {
+        index("test", "1", builder -> {
+            builder.field("test_boolean", true);
+            builder.field("test_byte", 1);
+            builder.field("test_integer", 1);
+            builder.field("test_long", 1L);
+            builder.field("test_short", 1);
+            builder.field("test_double", 1d);
+            builder.field("test_float", 1f);
+            builder.field("test_keyword", "true");
+            builder.field("test_date", randomLongDate);
+        });
+    }
+
+    /**
+     * Creates test data for all numeric get* methods. All values random and different from the other numeric fields already generated.
+     * It returns a map containing the field name and its randomly generated value to be later used in checking the returned values.
+     */
+    private Map<String,Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws Exception, IOException {
+        Map<String,Number> map = new HashMap<String,Number>();
+        createIndex("test");
+        updateMappingForNumericValuesTests("test");
+    
+        index("test", "1", builder -> {
+            // random Byte
+            byte test_byte = randomValueOtherThanMany(map::containsValue, randomGenerator).byteValue();
+            builder.field("test_byte", test_byte);
+            map.put("test_byte", test_byte);
+            
+            // random Integer
+            int test_integer = randomValueOtherThanMany(map::containsValue, randomGenerator).intValue();
+            builder.field("test_integer", test_integer);
+            map.put("test_integer", test_integer);
+    
+            // random Short
+            int test_short = randomValueOtherThanMany(map::containsValue, randomGenerator).shortValue();
+            builder.field("test_short", test_short);
+            map.put("test_short", test_short);
+            
+            // random Long
+            long test_long = randomValueOtherThanMany(map::containsValue, randomGenerator).longValue();
+            builder.field("test_long", test_long);
+            map.put("test_long", test_long);
+            
+            // random Double
+            double test_double = randomValueOtherThanMany(map::containsValue, randomGenerator).doubleValue();
+            builder.field("test_double", test_double);
+            map.put("test_double", test_double);
+            
+            // random Float
+            float test_float = randomValueOtherThanMany(map::containsValue, randomGenerator).floatValue();
+            builder.field("test_float", test_float);
+            map.put("test_float", test_float);
+        });
+        return map;
+    }
+
+    private void updateMappingForNumericValuesTests(String indexName) throws Exception {
+        updateMapping(indexName, builder -> {
+            for(String field : fieldsNames) {
+                builder.startObject(field).field("type", field.substring(5)).endObject();
+            }
+        });
+    }
+    
+    private void assertThrowsUnsupportedAndExpectErrorMessage(ThrowingRunnable runnable, String message) {
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, runnable);
         assertEquals(message, sqle.getMessage());
     }
 
-    protected void assertThrowsWritesUnsupportedForUpdate(ThrowingRunnable r) {
+    private void assertThrowsWritesUnsupportedForUpdate(ThrowingRunnable r) {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
+    }
+    
+    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+        SQLException sqle;
+        for(Entry<Tuple<String,Object>,JDBCType> field : dateTimeTestingFields.entrySet()) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", 
+                            field.getKey().v2(), field.getValue()), sqle.getMessage());
+        }
+    }
+    
+    private void validateErrorsForDateTimeTestsWithCalendar(Calendar c, CheckedBiFunction<String,Calendar,Object,SQLException> method) {
+        SQLException sqle;
+        for(Entry<Tuple<String,Object>,JDBCType> field : dateTimeTestingFields.entrySet()) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1(), c));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", 
+                            field.getKey().v2(), field.getValue()), sqle.getMessage());
+        }
+    }
+    
+    private float randomFloatBetween(float start, float end) {
+        float result = 0.0f;
+        while (result < start || result > end || Float.isNaN(result)) {
+            result = start + randomFloat() * (end - start);
+        }
+        
+        return result;
+    }
+
+    private Long getMaxIntPlusOne() {
+        return Long.valueOf(Integer.MAX_VALUE) + 1L;
+    }
+
+    private Double getMaxLongPlusOne() {
+        return Double.valueOf(Long.MAX_VALUE) + 1d;
+    }
+
+    private Connection esJdbc(String timeZoneId) throws SQLException {
+        return randomBoolean() ? useDriverManager(timeZoneId) : useDataSource(timeZoneId);
+    }
+
+    private Connection useDriverManager(String timeZoneId) throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
+        String address = "jdbc:es://" + elasticsearchAddress;
+        Properties connectionProperties = connectionProperties();
+        connectionProperties.put(JdbcConfiguration.TIME_ZONE, timeZoneId);
+        Connection connection = DriverManager.getConnection(address, connectionProperties);
+        
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        return connection;
+    }
+
+    private Connection useDataSource(String timeZoneId) throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
+        JdbcDataSource dataSource = new JdbcDataSource();
+        String address = "jdbc:es://" + elasticsearchAddress;
+        dataSource.setUrl(address);
+        Properties connectionProperties = connectionProperties();
+        connectionProperties.put(JdbcConfiguration.TIME_ZONE, timeZoneId);
+        dataSource.setProperties(connectionProperties);
+        Connection connection = dataSource.getConnection();
+        
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty(JdbcConfiguration.TIME_ZONE));
+        return connection;
     }
 }

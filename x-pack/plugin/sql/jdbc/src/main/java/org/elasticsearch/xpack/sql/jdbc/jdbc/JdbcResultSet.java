@@ -245,11 +245,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
+        JDBCType type = cursor.columns().get(columnIndex - 1).type;
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
             // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
-            if (JDBCType.TIMESTAMP.equals(cursor.columns().get(columnIndex - 1).type)) {
+            if (JDBCType.TIMESTAMP.equals(type)) {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
@@ -257,7 +258,8 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             };
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
-            throw new SQLException("unable to convert column " + columnIndex + " to a long", cce);
+            throw new SQLException(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
         }
     }
 

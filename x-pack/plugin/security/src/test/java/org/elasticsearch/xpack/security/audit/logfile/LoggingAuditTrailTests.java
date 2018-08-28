@@ -991,7 +991,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (content.hasContent()) {
             builder.withContent(content.content(), XContentType.JSON);
         }
-        builder.withPath(uri);
+        if (params.isEmpty()) {
+            builder.withPath(uri);
+        } else {
+            final StringBuilder queryString = new StringBuilder("?");
+            for (final Map.Entry<String, String> entry : params.entrySet()) {
+                if (queryString.length() > 1) {
+                    queryString.append('&');
+                }
+                queryString.append(entry.getKey() + "=" + entry.getValue());
+            }
+            builder.withPath(uri + queryString.toString());
+        }
         builder.withRemoteAddress(remoteAddress);
         builder.withParams(params);
         return new Tuple<>(content, builder.build());

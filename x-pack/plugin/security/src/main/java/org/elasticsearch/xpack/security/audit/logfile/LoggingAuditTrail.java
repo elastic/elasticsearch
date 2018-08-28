@@ -643,12 +643,18 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     private static void restUri(RestRequest request, StringMapMessage logEntry) {
-        if (Strings.hasLength(request.path())) {
-            logEntry.with(URL_PATH_FIELD_NAME, request.path());
+        final int queryStringIndex = request.uri().indexOf('?');
+        int queryStringLength = request.uri().indexOf('#');
+        if (queryStringLength < 0) {
+            queryStringLength = request.uri().length();
         }
-        if (request.params().isEmpty() == false) {
-            // TODO this is probably wrong, params are decoded and they might contain the delimiter
-            logEntry.with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+        if (queryStringIndex < 0) {
+            logEntry.with(URL_PATH_FIELD_NAME, request.uri().substring(0, queryStringLength));
+        } else {
+            logEntry.with(URL_PATH_FIELD_NAME, request.uri().substring(0, queryStringIndex));
+        }
+        if (queryStringIndex > -1) {
+            logEntry.with(URL_QUERY_FIELD_NAME, request.uri().substring(queryStringIndex + 1, queryStringLength));
         }
     }
 

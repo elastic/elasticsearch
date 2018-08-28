@@ -33,7 +33,7 @@ dependencies {
 }
 
 forbiddenApisMain {
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 if (isEclipse) {

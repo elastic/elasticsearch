@@ -78,7 +78,3 @@ The parent circuit breaker defines a new setting `indices.breaker.total.use_real
 heap memory instead of only considering the reserved memory by child circuit breakers. When this
 setting is `true`, the default parent breaker limit also changes from 70% to 95% of the JVM heap size.
 The previous behavior can be restored by setting `indices.breaker.total.use_real_memory` to `false`.
-
-==== `elasticsearch-translog` tool merged into `elasticsearch-shard`
-
-Use the `elasticsearch-shard` tool to remove corrupted translog data.

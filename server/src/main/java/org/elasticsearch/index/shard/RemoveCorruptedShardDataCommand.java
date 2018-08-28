@@ -86,6 +86,10 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private final TruncateTranslogAction truncateTranslogAction;
 
     public RemoveCorruptedShardDataCommand() {
+        this(false);
+    }
+
+    public RemoveCorruptedShardDataCommand(boolean translogOnly) {
         super("Removes corrupted shard files");
 
         folderOption = parser.acceptsAll(Arrays.asList("d", "dir"),
@@ -99,13 +103,18 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             .withRequiredArg()
             .ofType(Integer.class);
 
-        removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
+        removeCorruptedLuceneSegmentsAction = translogOnly ? null : new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction();
     }
 
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
-        terminal.println("This tool attempts to detect and remove unrecoverable corrupted data in a shard.");
+        if (removeCorruptedLuceneSegmentsAction == null) {
+            // that's only for 6.x branch for bwc with elasticsearch-translog
+            terminal.println("This tool truncates the translog and translog checkpoint files to create a new translog");
+        } else {
+            terminal.println("This tool attempts to detect and remove unrecoverable corrupted data in a shard.");
+        }
     }
 
     // Visible for testing
@@ -299,11 +308,17 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private static void warnAboutESShouldBeStopped(Terminal terminal) {
+    private void warnAboutESShouldBeStopped(Terminal terminal) {
         terminal.println("-----------------------------------------------------------------------");
         terminal.println("");
         terminal.println("    WARNING: ElasticSearch MUST be stopped before running this tool.");
         terminal.println("");
+        // that's only for 6.x branch for bwc with elasticsearch-translog
+        if (removeCorruptedLuceneSegmentsAction == null) {
+            terminal.println("  This tool is deprecated and will be completely removed in 7.0.");
+            terminal.println("  Consider to use elasticsearch-shard tool instead of this one. ");
+            terminal.println("");
+        }
         terminal.println("  Please make a complete backup of your index before using this tool.");
         terminal.println("");
         terminal.println("-----------------------------------------------------------------------");
@@ -342,20 +357,25 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             try (Lock writeNodeIndexLock = nodeDir.obtainLock(NodeEnvironment.NODE_LOCK_FILENAME)) {
                 try (Lock writeIndexLock = indexDir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     ////////// Index
-                    terminal.println("");
-                    terminal.println("Opening Lucene index at " + indexPath);
-                    terminal.println("");
-                    try {
-                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(shardPath, indexDir,
-                            writeIndexLock, printStream, verbose);
-                    } catch (Exception e) {
-                        terminal.println(e.getMessage());
-                        throw e;
-                    }
+                    // that's only for 6.x branch for bwc with elasticsearch-translog
+                    if (removeCorruptedLuceneSegmentsAction != null) {
+                        terminal.println("");
+                        terminal.println("Opening Lucene index at " + indexPath);
+                        terminal.println("");
+                        try {
+                            indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(shardPath, indexDir,
+                                writeIndexLock, printStream, verbose);
+                        } catch (Exception e) {
+                            terminal.println(e.getMessage());
+                            throw e;
+                        }
 
-                    terminal.println("");
-                    terminal.println(" >> Lucene index is " + indexCleanStatus.v1().getMessage() + " at " + indexPath);
-                    terminal.println("");
+                        terminal.println("");
+                        terminal.println(" >> Lucene index is " + indexCleanStatus.v1().getMessage() + " at " + indexPath);
+                        terminal.println("");
+                    } else {
+                        indexCleanStatus = Tuple.tuple(CleanStatus.CLEAN, null);
+                    }
 
                     ////////// Translog
                     // as translog relies on data stored in an index commit - we have to have non unrecoverable index to truncate translog

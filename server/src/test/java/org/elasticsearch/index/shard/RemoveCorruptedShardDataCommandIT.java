@@ -292,7 +292,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand();
+        // that's only for 6.x branch for bwc with elasticsearch-translog
+        final boolean translogOnly = randomBoolean();
+        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand(translogOnly);
         MockTerminal t = new MockTerminal();
         OptionParser parser = ttc.getParser();
 

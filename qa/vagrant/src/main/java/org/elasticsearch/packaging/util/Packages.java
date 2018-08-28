@@ -187,7 +187,8 @@ public class Packages {
             "elasticsearch",
             "elasticsearch-plugin",
             "elasticsearch-keystore",
-            "elasticsearch-shard"
+            "elasticsearch-shard",
+            "elasticsearch-translog"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of(

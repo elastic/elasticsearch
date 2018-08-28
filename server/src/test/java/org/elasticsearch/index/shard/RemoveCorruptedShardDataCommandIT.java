@@ -78,7 +78,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -466,7 +468,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // sample the replica node translog dirs
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
+        final Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
 
         // stop the cluster nodes. we don't use full restart so the node start up order will be the same
         // and shard roles will be maintained
@@ -486,9 +488,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), totalDocs);
 
-        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand();
+        RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         MockTerminal t = new MockTerminal();
-        OptionParser parser = ttc.getParser();
+        OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
 
@@ -513,7 +515,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                     t.addTextInput("y");
                     OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
                     logger.info("--> running truncate translog command for [{}]", translogDir.toAbsolutePath());
-                    ttc.execute(t, options, environment);
+                    command.execute(t, options, environment);
                     logger.info("--> output:\n{}", t.getOutput());
                 }
 
@@ -538,6 +540,56 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final SeqNoStats seqNoStats = getSeqNoStats(indexName, 0);
         assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
         assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+    }
+
+    public void testResolvePath() throws Exception {
+        final int numOfNodes = randomIntBetween(1, 5);
+        final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
+
+        final String indexName = "test" + randomInt(100);
+        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfNodes - 1)
+        ));
+        flush(indexName);
+
+        ensureGreen(indexName);
+
+        final Map<String, String> nodeNameToNodeId = new HashMap<>();
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final DiscoveryNodes nodes = state.nodes();
+        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getNodes()) {
+            nodeNameToNodeId.put(cursor.value.getName(), cursor.key);
+        }
+
+        final GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
+        final List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
+        final ShardRouting shardRouting = iterators.iterator().next().nextOrNull();
+        assertThat(shardRouting, notNullValue());
+        final ShardId shardId = shardRouting.shardId();
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final OptionParser parser = command.getParser();
+
+        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+
+        final Map<String, Path> indexPathByNodeName = new HashMap<>();
+        for (String nodeName : nodeNames) {
+            final String nodeId = nodeNameToNodeId.get(nodeName);
+            final Set<Path> indexDirs = getDirs(nodeId, shardId, ShardPath.INDEX_FOLDER_NAME);
+            assertThat(indexDirs, hasSize(1));
+            indexPathByNodeName.put(nodeName, indexDirs.iterator().next());
+
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
+            logger.info(" -- stopped {}", nodeName);
+        }
+
+        for (String nodeName : nodeNames) {
+            final Path indexPath = indexPathByNodeName.get(nodeName);
+            final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
+            final ShardPath shardPath = command.getShardPath(options, environment);
+            assertThat(shardPath.resolveIndex(), equalTo(indexPath));
+        }
     }
 
     private Set<Path> getDirs(String indexName, String dirSuffix) {

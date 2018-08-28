@@ -343,8 +343,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         client().performRequest(request);
 
         DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy);
-        assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecycle,
-            highLevelClient().indexLifecycle()::deleteLifecycleAsync));
+        assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecyclePolicy,
+            highLevelClient().indexLifecycle()::deleteLifecyclePolicyAsync));
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         Request getLifecycle = new Request("GET", "/_ilm/" + policy);

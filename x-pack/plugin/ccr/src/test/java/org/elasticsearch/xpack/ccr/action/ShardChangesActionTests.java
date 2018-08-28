@@ -46,7 +46,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 .build();
         final IndexService indexService = createIndex("index", settings);
 
-        final int numWrites = randomIntBetween(2, 8192);
+        final int numWrites = randomIntBetween(2, 4096);
         for (int i = 0; i < numWrites; i++) {
             client().prepareIndex("index", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }

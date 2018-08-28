@@ -2141,3 +2141,8 @@ if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
     'javax.xml.bind.Unmarshaller'
   ]
 }
+
+if (project.inFipsJvm) {
+    // jar hell with JDK on FIPS 
+    thirdPartyAudit.enabled = false
+}

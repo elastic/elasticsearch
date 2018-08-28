@@ -39,3 +39,7 @@ test {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }
+
+if (project.inFipsJvm) {
+  thirdPartyAudit.enabled = false
+}

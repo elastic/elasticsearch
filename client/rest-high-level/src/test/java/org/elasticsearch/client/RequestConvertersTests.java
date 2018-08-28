@@ -2640,7 +2640,7 @@ public class RequestConvertersTests extends ESTestCase {
         String lifecycleName = randomAlphaOfLengthBetween(2,20);
         DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(lifecycleName);
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
+        setRandomMasterTimeout(req::masterNodeTimeout, MasterTimeoutRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
 
         Request request = RequestConverters.deleteLifecycle(req);
         assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
@@ -2852,13 +2852,13 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomMasterTimeout(MasterTimeoutRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomMasterTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
-            request.masterNodeTimeout(masterTimeout);
+            setter.accept(masterTimeout);
             expectedParams.put("master_timeout", masterTimeout);
         } else {
-            expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
         }
     }
 

@@ -23,6 +23,8 @@ import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsResponse;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
@@ -54,7 +56,7 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">ML PUT job documentation</a>
      *
-     * @param request the PutJobRequest containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
+     * @param request The PutJobRequest containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return PutJobResponse with enclosed {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} object
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -73,7 +75,7 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">ML PUT job documentation</a>
      *
-     * @param request  the request containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
+     * @param request  The request containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -93,7 +95,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
      * </p>
-     * @param request {@link GetJobRequest} request containing a list of jobId(s) and additional options
+     * @param request {@link GetJobRequest} Request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetJobResponse} response object containing
      * the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects and the number of jobs found
@@ -114,7 +116,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job.html"></a>
      * </p>
-     * @param request {@link GetJobRequest} request containing a list of jobId(s) and additional options
+     * @param request {@link GetJobRequest} Request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified with {@link GetJobResponse} upon request completion
      */
@@ -133,7 +135,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
      * </p>
-     * @param request the request to delete the job
+     * @param request The request to delete the job
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -152,7 +154,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
      * </p>
-     * @param request the request to delete the job
+     * @param request The request to delete the job
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -176,7 +178,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html"></a>
      * </p>
-     * @param request request containing job_id and additional optional options
+     * @param request Request containing job_id and additional optional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return response containing if the job was successfully opened or not.
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -199,7 +201,7 @@ public final class MachineLearningClient {
      *     For additional info
      *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html"></a>
      * </p>
-     * @param request request containing job_id and additional optional options
+     * @param request Request containing job_id and additional optional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -217,7 +219,7 @@ public final class MachineLearningClient {
      *
      * A closed job cannot receive data or perform analysis operations, but you can still explore and navigate results.
      *
-     * @param request request containing job_ids and additional options. See {@link CloseJobRequest}
+     * @param request Request containing job_ids and additional options. See {@link CloseJobRequest}
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return response containing if the job was successfully closed or not.
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -235,7 +237,7 @@ public final class MachineLearningClient {
      *
      * A closed job cannot receive data or perform analysis operations, but you can still explore and navigate results.
      *
-     * @param request request containing job_ids and additional options. See {@link CloseJobRequest}
+     * @param request Request containing job_ids and additional options. See {@link CloseJobRequest}
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -247,4 +249,40 @@ public final class MachineLearningClient {
             listener,
             Collections.emptySet());
     }
+
+    /**
+     * Gets the buckets for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html">ML GET buckets documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetBucketsResponse getBuckets(GetBucketsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getBuckets,
+                options,
+                GetBucketsResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the buckets for a Machine Learning Job, notifies listener once the requested buckets are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-bucket.html">ML GET buckets documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getBucketsAsync(GetBucketsRequest request, RequestOptions options, ActionListener<GetBucketsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getBuckets,
+                options,
+                GetBucketsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+     }
 }

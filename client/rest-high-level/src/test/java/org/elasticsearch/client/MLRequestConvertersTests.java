@@ -22,17 +22,20 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
 import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
+import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
 import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
 import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
 import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.util.PageParams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -49,6 +52,7 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         Request request = MLRequestConverters.putJob(putJobRequest);
 
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_xpack/ml/anomaly_detectors/foo"));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             Job parsedJob = Job.PARSER.apply(parser, null).build();
@@ -116,6 +120,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         deleteJobRequest.setForce(true);
         request = MLRequestConverters.deleteJob(deleteJobRequest);
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+    }
+
+    public void testGetBuckets() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetBucketsRequest getBucketsRequest = new GetBucketsRequest(jobId);
+        getBucketsRequest.setPageParams(new PageParams(100, 300));
+        getBucketsRequest.setAnomalyScore(75.0);
+        getBucketsRequest.setSort("anomaly_score");
+        getBucketsRequest.setDescending(true);
+
+        Request request = MLRequestConverters.getBuckets(getBucketsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/buckets", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetBucketsRequest parsedRequest = GetBucketsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getBucketsRequest));
+        }
     }
 
     private static Job createValidJob(String jobId) {

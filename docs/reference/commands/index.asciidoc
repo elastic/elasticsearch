@@ -1,10 +1,11 @@
 [[commands]]
-= Commands
+= Command line tools
 
 [partintro]
 --
 
-{es} includes the following commands that help you configure security:
+{es} provides the following tools for configuring security and performing other 
+tasks from the command line:
 
 * <<certgen>>
 * <<certutil>>

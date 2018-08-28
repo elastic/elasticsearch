@@ -67,6 +67,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
+    private final String leaderIndex;
     private final ShardFollowTask params;
     private final TimeValue retryTimeout;
     private final TimeValue idleShardChangesRequestDelay;
@@ -113,6 +114,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxConcurrentReadBatches();
             }
         };
+
+        if (params.getLeaderClusterAlias() != null) {
+            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
+        } else {
+            leaderIndex = params.getLeaderShardId().getIndexName();
+        }
     }
 
     void start(
@@ -416,12 +423,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public synchronized Status getStatus() {
-        final String leaderIndex;
-        if (params.getLeaderClusterAlias() != null) {
-            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
-        } else {
-            leaderIndex = params.getLeaderShardId().getIndexName();
-        }
         final long timeSinceLastFetchMillis;
         if (lastFetchTime != -1) {
              timeSinceLastFetchMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - lastFetchTime);
@@ -681,12 +682,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         private final long timeSinceLastFetchMillis;
 
-        public long timeSinceLastFetch() {
+        public long timeSinceLastFetchMillis() {
             return timeSinceLastFetchMillis;
         }
 
         Status(
-                String leaderIndex,
+                final String leaderIndex,
                 final int shardId,
                 final long leaderGlobalCheckpoint,
                 final long leaderMaxSeqNo,

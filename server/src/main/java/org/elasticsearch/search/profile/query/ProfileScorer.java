@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -75,6 +76,9 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public DocIdSetIterator iterator() {
+        if (profileWeight.getQuery() instanceof ConstantScoreQuery) {
+            return scorer.iterator();
+        }
         final DocIdSetIterator in = scorer.iterator();
         return new DocIdSetIterator() {
 

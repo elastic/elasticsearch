@@ -2736,7 +2736,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexShard.indexSettings().getIndexMetaData())
             .settings(Settings.builder()
                 .put(indexShard.indexSettings.getSettings())
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
                 null, null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);

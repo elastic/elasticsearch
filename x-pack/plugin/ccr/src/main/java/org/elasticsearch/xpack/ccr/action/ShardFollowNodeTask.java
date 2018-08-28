@@ -822,7 +822,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived == that.operationsReceived &&
                     totalTransferredBytes == that.totalTransferredBytes &&
                     numberOfSuccessfulBulkOperations == that.numberOfSuccessfulBulkOperations &&
-                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations;
+                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations &&
+                    fetchExceptions.equals(that.fetchExceptions);
         }
 
         @Override
@@ -844,7 +845,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived,
                     totalTransferredBytes,
                     numberOfSuccessfulBulkOperations,
-                    numberOfFailedBulkOperations);
+                    numberOfFailedBulkOperations,
+                    fetchExceptions);
 
         }
 

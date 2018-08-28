@@ -28,11 +28,13 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +44,8 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
@@ -161,11 +165,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
      * Represents a failure.
      */
     public static class Failure implements Writeable, ToXContentFragment {
-        static final String INDEX_FIELD = "index";
-        static final String TYPE_FIELD = "type";
-        static final String ID_FIELD = "id";
-        static final String CAUSE_FIELD = "cause";
-        static final String STATUS_FIELD = "status";
+        public static final String INDEX_FIELD = "index";
+        public static final String TYPE_FIELD = "type";
+        public static final String ID_FIELD = "id";
+        public static final String CAUSE_FIELD = "cause";
+        public static final String STATUS_FIELD = "status";
 
         private final String index;
         private final String type;
@@ -174,6 +178,23 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final RestStatus status;
         private final long seqNo;
         private final boolean aborted;
+
+        public static ConstructingObjectParser<Failure, Void> PARSER =
+            new ConstructingObjectParser<>(
+                "bulk_failures",
+                true,
+                a ->
+                    new Failure(
+                        (String)a[0], (String)a[1], (String)a[2], (Exception)a[3], RestStatus.fromCode((int)a[4])
+                    )
+            );
+        static {
+            PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
+            PARSER.declareString(constructorArg(), new ParseField(TYPE_FIELD));
+            PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
+            PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(STATUS_FIELD));
+        }
 
         /**
          * For write failures before operation was assigned a sequence number.
@@ -320,6 +341,10 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;
+        }
+
+        public static Failure fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override

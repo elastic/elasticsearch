@@ -162,12 +162,13 @@ public class RecoverySourceHandler {
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
-                // we set this to 0 to create a translog roughly according to the retention policy
-                // on the target. Note that it will still filter out legacy operations with no sequence numbers
-                startingSeqNo = 0; //TODO: A follow-up to send only ops above the local checkpoint if soft-deletes enabled.
-                // but we must have everything above the local checkpoint in the commit
+                // We must have everything above the local checkpoint in the commit
                 requiredSeqNoRangeStart =
                     Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+                // If soft-deletes enabled, we need to transfer only operations after the local_checkpoint of the commit to have
+                // the same history on the target. However, with translog, we need to set this to 0 to create a translog roughly
+                // according to the retention policy on the target. Note that it will still filter out legacy operations without seqNo.
+                startingSeqNo = shard.indexSettings().isSoftDeleteEnabled() ? requiredSeqNoRangeStart : 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
                     phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);

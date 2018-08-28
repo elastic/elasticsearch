@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -222,7 +222,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                 new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
 
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, tokenMetaData);
+        tokenService.createUserToken(authentication, authentication, future, tokenMetaData, true);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, client);
         final String tokenString = tokenService.getUserTokenString(userToken);

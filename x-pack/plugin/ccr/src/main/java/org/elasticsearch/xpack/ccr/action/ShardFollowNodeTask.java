@@ -90,7 +90,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfSuccessfulBulkOperations = 0;
     private long numberOfFailedBulkOperations = 0;
     private long numberOfOperationsIndexed = 0;
-    private long lastFetchTime = 0;
+    private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private final LinkedHashMap<Long, ElasticsearchException> fetchExceptions;
 
@@ -423,11 +423,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             leaderIndex = params.getLeaderShardId().getIndexName();
         }
         final long timeSinceLastFetchMillis;
-        if (lastFetchTime != 0) {
+        if (lastFetchTime != -1) {
              timeSinceLastFetchMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - lastFetchTime);
         } else {
             // To avoid confusion when ccr didn't yet execute a fetch:
-            timeSinceLastFetchMillis = 0;
+            timeSinceLastFetchMillis = -1;
         }
         return new Status(
                 leaderIndex,
@@ -754,7 +754,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfFailedBulkOperations = in.readVLong();
             this.numberOfOperationsIndexed = in.readVLong();
             this.fetchExceptions = new TreeMap<>(in.readMap(StreamInput::readVLong, StreamInput::readException));
-            this.timeSinceLastFetchMillis = in.readVLong();
+            this.timeSinceLastFetchMillis = in.readZLong();
         }
 
         @Override
@@ -785,7 +785,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVLong(numberOfFailedBulkOperations);
             out.writeVLong(numberOfOperationsIndexed);
             out.writeMap(fetchExceptions, StreamOutput::writeVLong, StreamOutput::writeException);
-            out.writeVLong(timeSinceLastFetchMillis);
+            out.writeZLong(timeSinceLastFetchMillis);
         }
 
         @Override

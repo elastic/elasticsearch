@@ -53,7 +53,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomReadExceptions(),
-                randomNonNegativeLong());
+                randomLong());
     }
 
     @Override

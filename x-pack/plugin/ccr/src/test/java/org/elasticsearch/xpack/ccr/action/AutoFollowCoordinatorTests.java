@@ -73,10 +73,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
-                handler.accept(null);
+                successHandler.run();
             }
 
             @Override
@@ -117,7 +117,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
                 fail("should not get here");
             }
 
@@ -162,10 +162,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
-                handler.accept(null);
+                successHandler.run();
             }
 
             @Override
@@ -209,10 +209,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
-                handler.accept(failure);
+                failureHandler.accept(failure);
             }
 
             @Override

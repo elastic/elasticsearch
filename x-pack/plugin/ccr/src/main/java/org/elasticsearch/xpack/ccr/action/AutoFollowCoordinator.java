@@ -99,9 +99,11 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 );
             }
 
-            void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler) {
+            void createAndFollow(FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
                 client.execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest),
-                    ActionListener.wrap(r -> handler.accept(null), handler));
+                    ActionListener.wrap(r -> successHandler.run(), failureHandler));
             }
 
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
@@ -191,32 +193,15 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getRetryTimeout(),
                             autoFollowPattern.getIdleShardRetryDelay());
 
-                    // This runs on the elected master node, so we can update cluster state here:
-                    Consumer<Exception> handler = followError -> {
-                        if (followError != null) {
-                            LOGGER.warn("Failed to auto follow leader index [" + leaderIndexName + "]", followError);
-                            if (countDown.countDown()) {
-                                finalise(followError);
-                            }
-                            return;
-                        }
+                    // Execute if the create and follow api call succeeds:
+                    Runnable successHandler = () -> {
                         LOGGER.info("Auto followed leader index [{}] as follow index [{}]", leaderIndexName, followIndexName);
-                        Function<ClusterState, ClusterState> clusterStateUpdateFunction = currentState -> {
-                            AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
 
-                            Map<String, List<String>> newFollowedIndexUUIDS =
-                                new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                            newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
-
-                            ClusterState.Builder newState = ClusterState.builder(currentState);
-                            AutoFollowMetadata newAutoFollowMetadata =
-                                new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(), newFollowedIndexUUIDS);
-                            newState.metaData(MetaData.builder(currentState.getMetaData())
-                                .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                                .build());
-                            return newState.build();
-                        };
-                        updateAutoFollowMetadata(clusterStateUpdateFunction, updateError -> {
+                        // This function updates the auto follow metadata in the cluster to record that the leader index has been followed:
+                        // (so that we do not try to follow it in subsequent auto follow runs)
+                        Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction(clusterAlias, indexToFollow);
+                        // The coordinator always runs on the elected master node, so we can update cluster state here:
+                        updateAutoFollowMetadata(function, updateError -> {
                             if (updateError != null) {
                                 LOGGER.error("Failed to mark leader index [" + leaderIndexName + "] as auto followed", updateError);
                             } else {
@@ -227,7 +212,15 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             }
                         });
                     };
-                    createAndFollow(followRequest, handler);
+                    // Execute if the create and follow apu call fails:
+                    Consumer<Exception> failureHandler = followError -> {
+                        assert followError != null;
+                        LOGGER.warn("Failed to auto follow leader index [" + leaderIndexName + "]", followError);
+                        if (countDown.countDown()) {
+                            finalise(followError);
+                        }
+                    };
+                    createAndFollow(followRequest, successHandler, failureHandler);
                 }
             }
         }
@@ -265,13 +258,36 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
+        static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String clusterAlias, Index indexToFollow) {
+            return currentState -> {
+                AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+
+                Map<String, List<String>> newFollowedIndexUUIDS =
+                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
+
+                ClusterState.Builder newState = ClusterState.builder(currentState);
+                AutoFollowMetadata newAutoFollowMetadata =
+                    new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(), newFollowedIndexUUIDS);
+                newState.metaData(MetaData.builder(currentState.getMetaData())
+                    .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
+                    .build());
+                return newState.build();
+            };
+        }
+
         // abstract methods to make unit testing possible:
 
-        abstract void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler);
+        abstract void getLeaderClusterState(Client leaderClient,
+                                            BiConsumer<ClusterState,
+                                            Exception> handler);
 
-        abstract void createAndFollow(FollowIndexAction.Request followRequest, Consumer<Exception> handler);
+        abstract void createAndFollow(FollowIndexAction.Request followRequest,
+                                      Runnable successHandler,
+                                      Consumer<Exception> failureHandler);
 
-        abstract void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler);
+        abstract void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                               Consumer<Exception> handler);
 
     }
 }

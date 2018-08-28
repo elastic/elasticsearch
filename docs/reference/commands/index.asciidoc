@@ -10,9 +10,9 @@ tasks from the command line:
 * <<certgen>>
 * <<certutil>>
 * <<migrate-tool>>
+* <<saml-metadata>>
 * <<setup-passwords>>
 * <<syskeygen>>
-* <<saml-metadata>>
 * <<users-command>>
 
 --
@@ -20,7 +20,7 @@ tasks from the command line:
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
 include::migrate-tool.asciidoc[]
+include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::syskeygen.asciidoc[]
-include::saml-metadata.asciidoc[]
 include::users-command.asciidoc[]

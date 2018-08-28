@@ -2705,6 +2705,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .filter(p -> {
                     final String name = p.getFileName().toString();
                     return Files.isRegularFile(p)
+                        && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
                         && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
                         && name.startsWith("segments_") == false && name.endsWith(".si") == false;
                 })

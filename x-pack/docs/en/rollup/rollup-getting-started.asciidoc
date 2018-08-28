@@ -37,8 +37,7 @@ PUT _xpack/rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
+        "interval": "60m"
       },
       "terms": {
         "fields": ["node"]
@@ -79,7 +78,7 @@ It also allows us to run terms aggregations on the `node` field.
 .Date histogram interval vs cron schedule
 **********************************
 You'll note that the job's cron is configured to run every 30 seconds, but the date_histogram is configured to
-rollup at hourly intervals.  How do these relate?
+rollup at 60 minute intervals.  How do these relate?
 
 The date_histogram controls the granularity of the saved data.  Data will be rolled up into hourly intervals, and you will be unable
 to query with finer granularity.  The cron simply controls when the process looks for new data to rollup.  Every 30 seconds it will see

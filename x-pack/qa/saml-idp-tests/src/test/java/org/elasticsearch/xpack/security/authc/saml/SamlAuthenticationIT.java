@@ -24,8 +24,6 @@ import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.cookie.Cookie;
 import org.apache.http.cookie.CookieOrigin;
 import org.apache.http.cookie.MalformedCookieException;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.cookie.DefaultCookieSpec;
@@ -39,6 +37,8 @@ import org.apache.http.util.CharArrayBuffer;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -85,7 +85,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
@@ -176,9 +175,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setKibanaPassword() throws IOException {
-        final HttpEntity json = new StringEntity("{ \"password\" : \"" + KIBANA_PASSWORD + "\" }", ContentType.APPLICATION_JSON);
-        final Response response = adminClient().performRequest("PUT", "/_xpack/security/user/kibana/_password", emptyMap(), json);
-        assertOK(response);
+        Request request = new Request("PUT", "/_xpack/security/user/kibana/_password");
+        request.setJsonEntity("{ \"password\" : \"" + KIBANA_PASSWORD + "\" }");
+        adminClient().performRequest(request);
     }
 
     /**
@@ -188,21 +187,19 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupRoleMapping() throws IOException {
-        final StringEntity json = new StringEntity(Strings // top-level
-                .toString(XContentBuilder.builder(XContentType.JSON.xContent())
-                        .startObject()
-                        .array("roles", new String[] { "kibana_user"} )
-                        .field("enabled", true)
-                        .startObject("rules")
+        Request request = new Request("PUT", "/_xpack/security/role_mapping/thor-kibana");
+        request.setJsonEntity(Strings.toString(XContentBuilder.builder(XContentType.JSON.xContent())
+                .startObject()
+                    .array("roles", new String[] { "kibana_user"} )
+                    .field("enabled", true)
+                    .startObject("rules")
                         .startArray("all")
-                        .startObject().startObject("field").field("username", "thor").endObject().endObject()
-                        .startObject().startObject("field").field("realm.name", "shibboleth").endObject().endObject()
+                            .startObject().startObject("field").field("username", "thor").endObject().endObject()
+                            .startObject().startObject("field").field("realm.name", "shibboleth").endObject().endObject()
                         .endArray() // "all"
-                        .endObject() // "rules"
-                        .endObject()), ContentType.APPLICATION_JSON);
-
-        final Response response = adminClient().performRequest("PUT", "/_xpack/security/role_mapping/thor-kibana", emptyMap(), json);
-        assertOK(response);
+                    .endObject() // "rules"
+                .endObject()));
+        adminClient().performRequest(request);
     }
 
     /**
@@ -251,10 +248,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * is for the expected user with the expected name and roles.
      */
     private void verifyElasticsearchAccessToken(String accessToken) throws IOException {
-        final BasicHeader authorization = new BasicHeader("Authorization", "Bearer " + accessToken);
-        final Response response = client().performRequest("GET", "/_xpack/security/_authenticate", authorization);
-        assertOK(response);
-        final Map<String, Object> map = parseResponseAsMap(response.getEntity());
+        Request request = new Request("GET", "/_xpack/security/_authenticate");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization", "Bearer " + accessToken);
+        request.setOptions(options);
+        final Map<String, Object> map = entityAsMap(client().performRequest(request));
         assertThat(map.get("username"), equalTo("thor"));
         assertThat(map.get("full_name"), equalTo("Thor Odinson"));
         assertSingletonList(map.get("roles"), "kibana_user");
@@ -272,12 +270,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * can be used to get a new valid access token and refresh token.
      */
     private void verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
-        final String body = "{ \"grant_type\":\"refresh_token\", \"refresh_token\":\"" + refreshToken + "\" }";
-        final Response response = client().performRequest("POST", "/_xpack/security/oauth2/token",
-                emptyMap(), new StringEntity(body, ContentType.APPLICATION_JSON), kibanaAuth());
-        assertOK(response);
+        Request request = new Request("POST", "/_xpack/security/oauth2/token");
+        request.setJsonEntity("{ \"grant_type\":\"refresh_token\", \"refresh_token\":\"" + refreshToken + "\" }");
+        kibanaAuth(request);
 
-        final Map<String, Object> result = parseResponseAsMap(response.getEntity());
+        final Map<String, Object> result = entityAsMap(client().performRequest(request));
         final Object newRefreshToken = result.get("refresh_token");
         assertThat(newRefreshToken, notNullValue());
         assertThat(newRefreshToken, instanceOf(String.class));
@@ -463,10 +460,10 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * sends a redirect to that page.
      */
     private void httpLogin(HttpExchange http) throws IOException {
-        final Response prepare = client().performRequest("POST", "/_xpack/security/saml/prepare",
-                emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON), kibanaAuth());
-        assertOK(prepare);
-        final Map<String, Object> body = parseResponseAsMap(prepare.getEntity());
+        Request request = new Request("POST", "/_xpack/security/saml/prepare");
+        request.setJsonEntity("{}");
+        kibanaAuth(request);
+        final Map<String, Object> body = entityAsMap(client().performRequest(request));
         logger.info("Created SAML authentication request {}", body);
         http.getResponseHeaders().add("Set-Cookie", REQUEST_ID_COOKIE + "=" + body.get("id"));
         http.getResponseHeaders().add("Location", (String) body.get("redirect"));
@@ -504,9 +501,10 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final String id = getCookie(REQUEST_ID_COOKIE, http);
         assertThat(id, notNullValue());
 
-        final String body = "{ \"content\" : \"" + saml + "\", \"ids\": [\"" + id + "\"] }";
-        return client().performRequest("POST", "/_xpack/security/saml/authenticate",
-                emptyMap(), new StringEntity(body, ContentType.APPLICATION_JSON), kibanaAuth());
+        Request request = new Request("POST", "/_xpack/security/saml/authenticate");
+        request.setJsonEntity("{ \"content\" : \"" + saml + "\", \"ids\": [\"" + id + "\"] }");
+        kibanaAuth(request);
+        return client().performRequest(request);
     }
 
     private List<NameValuePair> parseRequestForm(HttpExchange http) throws IOException {
@@ -542,9 +540,11 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat(((List<?>) value), contains(expectedElement));
     }
 
-    private static BasicHeader kibanaAuth() {
-        final String auth = UsernamePasswordToken.basicAuthHeaderValue("kibana", new SecureString(KIBANA_PASSWORD.toCharArray()));
-        return new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, auth);
+    private static void kibanaAuth(Request request) {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue("kibana", new SecureString(KIBANA_PASSWORD.toCharArray())));
+        request.setOptions(options);
     }
 
     private CloseableHttpClient getHttpClient() throws Exception {

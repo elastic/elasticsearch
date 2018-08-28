@@ -687,7 +687,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfSuccessfulBulkOperations = numberOfSuccessfulBulkOperations;
             this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
             this.numberOfOperationsIndexed = numberOfOperationsIndexed;
-            this.fetchExceptions = fetchExceptions;
+            this.fetchExceptions = Objects.requireNonNull(fetchExceptions);
         }
 
         public Status(final StreamInput in) throws IOException {
@@ -821,7 +821,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived == that.operationsReceived &&
                     totalTransferredBytes == that.totalTransferredBytes &&
                     numberOfSuccessfulBulkOperations == that.numberOfSuccessfulBulkOperations &&
-                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations;
+                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations &&
+                    numberOfOperationsIndexed == that.numberOfOperationsIndexed &&
+                    /*
+                     * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
+                     * up to the key set and their messages.  Note that we are relying on the fact that the fetch exceptions are ordered by
+                     * keys.
+                     */
+                    fetchExceptions.keySet().equals(that.fetchExceptions.keySet()) &&
+                    getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that));
         }
 
         @Override
@@ -843,8 +851,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     operationsReceived,
                     totalTransferredBytes,
                     numberOfSuccessfulBulkOperations,
-                    numberOfFailedBulkOperations);
+                    numberOfFailedBulkOperations,
+                    numberOfOperationsIndexed,
+                    /*
+                     * ElasticsearchException does not implement hash code so we will compute the hash code based on the key set and the
+                     * messages. Note that we are relying on the fact that the fetch exceptions are ordered by keys.
+                     */
+                    fetchExceptions.keySet(),
+                    getFetchExceptionMessages(this));
+        }
 
+        private static List<String> getFetchExceptionMessages(final Status status) {
+            return status.fetchExceptions().values().stream().map(ElasticsearchException::getMessage).collect(Collectors.toList());
         }
 
         public String toString() {

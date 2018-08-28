@@ -61,6 +61,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "awaiting confirmation of whether we should allow custom metadata in REST")
     public void testTopLevelKeys() {
         String createIndex =
                 "{\n"

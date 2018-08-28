@@ -700,6 +700,11 @@ public class RestHighLevelClientTests extends ESTestCase {
         Set<String> topLevelMethodsExclusions = new HashSet<>();
         topLevelMethodsExclusions.add("getLowLevelClient");
         topLevelMethodsExclusions.add("close");
+        topLevelMethodsExclusions.add("performRequestAsyncAndParseEntity");
+        topLevelMethodsExclusions.add("performRequestAndParseEntity");
+        topLevelMethodsExclusions.add("performRequestAsync");
+        topLevelMethodsExclusions.add("performRequest");
+        topLevelMethodsExclusions.add("convertExistsResponse");
 
         Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
                 .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)

@@ -131,14 +131,14 @@ import java.util.Locale;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
-final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+public final class RequestConverters {
+    public static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
     }
 
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
+    public static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
         Params params = new Params(request);
         params.withTimeout(cancelTasksRequest.getTimeout())
@@ -163,7 +163,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
+    public static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
         String endpoint = endpoint(deleteIndexRequest.indices());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
@@ -174,7 +174,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request openIndex(OpenIndexRequest openIndexRequest) {
+    public static Request openIndex(OpenIndexRequest openIndexRequest) {
         String endpoint = endpoint(openIndexRequest.indices(), "_open");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
@@ -186,7 +186,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request closeIndex(CloseIndexRequest closeIndexRequest) {
+    public static Request closeIndex(CloseIndexRequest closeIndexRequest) {
         String endpoint = endpoint(closeIndexRequest.indices(), "_close");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
@@ -197,7 +197,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+    public static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
         String endpoint = endpoint(createIndexRequest.indices());
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
@@ -210,7 +210,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
+    public static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_aliases");
 
         Params parameters = new Params(request);
@@ -221,7 +221,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+    public static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
         if (putMappingRequest.getConcreteIndex() != null) {
             throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
@@ -237,7 +237,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
+    public static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
         String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
 
@@ -250,7 +250,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
+    public static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
         String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
         String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
@@ -269,7 +269,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request refresh(RefreshRequest refreshRequest) {
+    public static Request refresh(RefreshRequest refreshRequest) {
         String[] indices = refreshRequest.indices() == null ? Strings.EMPTY_ARRAY : refreshRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_refresh"));
 
@@ -278,7 +278,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request flush(FlushRequest flushRequest) {
+    public static Request flush(FlushRequest flushRequest) {
         String[] indices = flushRequest.indices() == null ? Strings.EMPTY_ARRAY : flushRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush"));
 
@@ -289,7 +289,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
+    public static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
         String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
         Params parameters = new Params(request);
@@ -297,7 +297,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request forceMerge(ForceMergeRequest forceMergeRequest) {
+    public static Request forceMerge(ForceMergeRequest forceMergeRequest) {
         String[] indices = forceMergeRequest.indices() == null ? Strings.EMPTY_ARRAY : forceMergeRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_forcemerge"));
 
@@ -309,7 +309,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest) {
+    public static Request clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest) {
         String[] indices = clearIndicesCacheRequest.indices() == null ? Strings.EMPTY_ARRAY :clearIndicesCacheRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_cache/clear"));
 
@@ -642,7 +642,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request existsAlias(GetAliasesRequest getAliasesRequest) {
+    public static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
                 (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
             throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
@@ -690,14 +690,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request split(ResizeRequest resizeRequest) throws IOException {
+    public static Request split(ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
         }
         return resize(resizeRequest);
     }
 
-    static Request shrink(ResizeRequest resizeRequest) throws IOException {
+    public static Request shrink(ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
             throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
         }
@@ -719,7 +719,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+    public static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
 
         Params parameters = new Params(request);
@@ -730,7 +730,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
+    public static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
 
         Params parameters = new Params(request);
@@ -741,7 +741,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
+    public static Request getPipeline(GetPipelineRequest getPipelineRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
             .addCommaSeparatedPathParts(getPipelineRequest.getIds())
@@ -753,7 +753,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
+    public static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
             .addPathPart(putPipelineRequest.getId())
@@ -768,7 +768,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
+    public static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
             .addPathPart(deletePipelineRequest.getId())
@@ -782,7 +782,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request listTasks(ListTasksRequest listTaskRequest) {
+    public static Request listTasks(ListTasksRequest listTaskRequest) {
         if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
             throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
         }
@@ -798,7 +798,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterHealth(ClusterHealthRequest healthRequest) {
+    public static Request clusterHealth(ClusterHealthRequest healthRequest) {
         String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_cluster/health")
@@ -820,7 +820,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request rollover(RolloverRequest rolloverRequest) throws IOException {
+    public static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -837,7 +837,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getSettings(GetSettingsRequest getSettingsRequest) {
+    public static Request getSettings(GetSettingsRequest getSettingsRequest) {
         String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
         String[] names = getSettingsRequest.names() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.names();
 
@@ -853,7 +853,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getIndex(GetIndexRequest getIndexRequest) {
+    public static Request getIndex(GetIndexRequest getIndexRequest) {
         String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
 
         String endpoint = endpoint(indices);
@@ -869,7 +869,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request indicesExist(GetIndexRequest getIndexRequest) {
+    public static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
@@ -885,7 +885,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+    public static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
         String[] indices = updateSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : updateSettingsRequest.indices();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint(indices, "_settings"));
 
@@ -899,7 +899,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
+    public static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
         String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -910,7 +910,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
+    public static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_snapshot").addPathPart(putRepositoryRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
 
@@ -923,7 +923,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
+    public static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
@@ -933,7 +933,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
+    public static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(verifyRepositoryRequest.name())
             .addPathPartAsIs("_verify")
@@ -946,7 +946,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
+    public static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_snapshot")
             .addPathPart(createSnapshotRequest.repository())
             .addPathPart(createSnapshotRequest.snapshot())
@@ -959,7 +959,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
+    public static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
         EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(getSnapshotsRequest.repository());
         String endpoint;
@@ -979,7 +979,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
+    public static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(snapshotsStatusRequest.repository())
             .addCommaSeparatedPathParts(snapshotsStatusRequest.snapshots())
@@ -993,7 +993,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request restoreSnapshot(RestoreSnapshotRequest restoreSnapshotRequest) throws IOException {
+    public static Request restoreSnapshot(RestoreSnapshotRequest restoreSnapshotRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(restoreSnapshotRequest.repository())
             .addPathPart(restoreSnapshotRequest.snapshot())
@@ -1007,7 +1007,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
+    public static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(deleteSnapshotRequest.repository())
             .addPathPart(deleteSnapshotRequest.snapshot())
@@ -1019,7 +1019,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
+    public static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         Params params = new Params(request);
@@ -1034,7 +1034,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
+    public static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
         String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
         String endpoint = endpoint(indices, types, "_validate/query");
@@ -1048,7 +1048,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
+    public static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
         EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
         if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
             builder.addPathPart(simulatePipelineRequest.getId());
@@ -1062,7 +1062,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getAlias(GetAliasesRequest getAliasesRequest) {
+    public static Request getAlias(GetAliasesRequest getAliasesRequest) {
         String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
         String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
         String endpoint = endpoint(indices, "_alias", aliases);
@@ -1073,7 +1073,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
+    public static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
         String[] names = getIndexTemplatesRequest.names();
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -1083,7 +1083,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request analyze(AnalyzeRequest request) throws IOException {
+    public static Request analyze(AnalyzeRequest request) throws IOException {
         EndpointBuilder builder = new EndpointBuilder();
         String index = request.index();
         if (index != null) {
@@ -1112,7 +1112,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xPackInfo(XPackInfoRequest infoRequest) {
+    public static Request xPackInfo(XPackInfoRequest infoRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
         if (false == infoRequest.isVerbose()) {
             request.addParameter("human", "false");
@@ -1125,14 +1125,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
+    public static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
         String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));        
         return request;
     }    
     
-    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
+    public static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("watcher")
@@ -1151,7 +1151,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
+    public static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("watcher")
@@ -1163,14 +1163,14 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xpackUsage(XPackUsageRequest usageRequest) {
+    public static Request xpackUsage(XPackUsageRequest usageRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
         return request;
     }
 
-    static Request putLicense(PutLicenseRequest putLicenseRequest) {
+    public static Request putLicense(PutLicenseRequest putLicenseRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("license")
@@ -1186,7 +1186,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getLicense(GetLicenseRequest getLicenseRequest) {
+    public static Request getLicense(GetLicenseRequest getLicenseRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("license")
@@ -1197,7 +1197,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+    public static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
         Params parameters = new Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
@@ -1205,7 +1205,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
+    public static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         EndpointBuilder endpointBuilder = new EndpointBuilder()
             .addPathPartAsIs("_xpack/migration/assistance")
             .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
@@ -1216,7 +1216,7 @@ final class RequestConverters {
         return request;
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    public static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
@@ -1266,14 +1266,14 @@ final class RequestConverters {
      * Utility class to help with common parameter names and patterns. Wraps
      * a {@link Request} and adds the parameters to it directly.
      */
-    static class Params {
+    public static class Params {
         private final Request request;
 
-        Params(Request request) {
+        public Params(Request request) {
             this.request = request;
         }
 
-        Params putParam(String name, String value) {
+        public Params putParam(String name, String value) {
             if (Strings.hasLength(value)) {
                 request.addParameter(name, value);
             }
@@ -1561,11 +1561,11 @@ final class RequestConverters {
     /**
      * Utility class to build request's endpoint given its parts as strings
      */
-    static class EndpointBuilder {
+    public static class EndpointBuilder {
 
         private final StringJoiner joiner = new StringJoiner("/", "/", "");
 
-        EndpointBuilder addPathPart(String... parts) {
+        public EndpointBuilder addPathPart(String... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(encodePart(part));
@@ -1579,14 +1579,14 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String part) {
+        public EndpointBuilder addPathPartAsIs(String part) {
             if (Strings.hasLength(part)) {
                 joiner.add(part);
             }
             return this;
         }
 
-        String build() {
+        public String build() {
             return joiner.toString();
         }
 

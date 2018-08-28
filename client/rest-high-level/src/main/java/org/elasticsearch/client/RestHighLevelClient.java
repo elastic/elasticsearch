@@ -55,6 +55,17 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.cluster.ClusterClient;
+import org.elasticsearch.client.graph.GraphClient;
+import org.elasticsearch.client.index.IndicesClient;
+import org.elasticsearch.client.ingest.IngestClient;
+import org.elasticsearch.client.license.LicenseClient;
+import org.elasticsearch.client.migration.MigrationClient;
+import org.elasticsearch.client.ml.MachineLearningClient;
+import org.elasticsearch.client.snapshot.SnapshotClient;
+import org.elasticsearch.client.tasks.TasksClient;
+import org.elasticsearch.client.watcher.WatcherClient;
+import org.elasticsearch.client.xpack.XPackClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -965,11 +976,11 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
-                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                            RequestOptions options,
-                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                            Set<Integer> ignores) throws IOException {
+    public final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                         RequestOptions options,
+                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                         Set<Integer> ignores) throws IOException {
         return performRequest(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
@@ -991,11 +1002,11 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
-                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                           RequestOptions options,
-                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                                           Set<Integer> ignores) throws IOException {
+    public final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                                       CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                       RequestOptions options,
+                                                                       CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                       Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -1058,11 +1069,11 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                         RequestOptions options,
-                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                         ActionListener<Resp> listener, Set<Integer> ignores) {
+    public final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                          RequestOptions options,
+                                                                          CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                          ActionListener<Resp> listener, Set<Integer> ignores) {
         performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
@@ -1085,7 +1096,7 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+    public final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             RequestOptions options,
                                                                             CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -1227,7 +1238,7 @@ public class RestHighLevelClient implements Closeable {
         return options.build();
     }
 
-    static boolean convertExistsResponse(Response response) {
+    public static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 

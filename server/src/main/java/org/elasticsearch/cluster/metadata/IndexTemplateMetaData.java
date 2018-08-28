@@ -90,13 +90,13 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
-    private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
+    private final ImmutableOpenMap<String, Map<String, String>> customs;
 
     public IndexTemplateMetaData(String name, int order, Integer version,
                                  List<String> patterns, Settings settings,
                                  ImmutableOpenMap<String, CompressedXContent> mappings,
                                  ImmutableOpenMap<String, AliasMetaData> aliases,
-                                 ImmutableOpenMap<String, IndexMetaData.Custom> customs) {
+                                 ImmutableOpenMap<String, Map<String, String>> customs) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
@@ -168,17 +168,16 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.aliases;
     }
 
-    public ImmutableOpenMap<String, IndexMetaData.Custom> customs() {
+    public ImmutableOpenMap<String, Map<String, String>> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, IndexMetaData.Custom> getCustoms() {
+    public ImmutableOpenMap<String, Map<String, String>> getCustoms() {
         return this.customs;
     }
 
-    @SuppressWarnings("unchecked")
-    public <T extends IndexMetaData.Custom> T custom(String type) {
-        return (T) customs.get(type);
+    public Map<String, String> custom(String name) {
+        return customs.get(name);
     }
 
     public static Builder builder(String name) {
@@ -212,6 +211,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
@@ -232,8 +232,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);;
-            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
+            String name = in.readString();
+            builder.putCustom(name, (Map<String, String>)(Map) in.readMap());
         }
         builder.version(in.readOptionalVInt());
         return builder.build();
@@ -244,6 +244,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
@@ -263,8 +264,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             cursor.value.writeTo(out);
         }
         out.writeVInt(customs.size());
-        for (ObjectCursor<IndexMetaData.Custom> cursor : customs.values()) {
-            out.writeNamedWriteable(cursor.value);
+        for (ObjectCursor<Map<String, String>> cursor : customs.values()) {
+            out.writeMap((Map<String, Object>)(Map) cursor.value);
         }
         out.writeOptionalVInt(version);
     }
@@ -288,7 +289,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
+        private final ImmutableOpenMap.Builder<String, Map<String, String>> customs;
 
         public Builder(String name) {
             this.name = name;
@@ -360,7 +361,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public Builder putCustom(String type, IndexMetaData.Custom customIndexMetaData) {
+        public Builder putCustom(String type, Map<String, String> customIndexMetaData) {
             this.customs.put(type, customIndexMetaData);
             return this;
         }
@@ -370,7 +371,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public IndexMetaData.Custom getCustom(String type) {
+        public Map<String, String> getCustom(String type) {
             return this.customs.get(type);
         }
 
@@ -423,9 +424,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.endArray();
             }
 
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+            for (ObjectObjectCursor<String, Map<String, String>> cursor : indexTemplateMetaData.customs()) {
                 builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
+                builder.map(cursor.value);
                 builder.endObject();
             }
 
@@ -468,8 +469,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                     } else {
                         // check if its a custom index metadata
                         try {
-                            IndexMetaData.Custom custom = parser.namedObject(IndexMetaData.Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
+                            builder.putCustom(currentFieldName, parser.mapStrings());
                         } catch (UnknownNamedObjectException ex) {
                             logger.warn("skipping unknown custom index metadata object with type {}", currentFieldName);
                             // Skip children in case the plugin the provided the metadata got uninstalled

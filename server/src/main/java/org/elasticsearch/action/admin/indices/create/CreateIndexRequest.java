@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -88,7 +86,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+    private final Map<String, Map<String, String>> customs = new HashMap<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
@@ -416,18 +414,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else {
                 // maybe custom?
                 if (entry.getValue() instanceof Map) {
-                    if (customsRegistry == null) {
-                        throw new ElasticsearchParseException("unknown key [{}] for create index, and custom registry is not specified",
-                            name);
-                    }
-                    try {
-                        customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(), deprecationHandler,
-                            customsRegistry));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", e, name);
-                    } catch (NamedObjectNotFoundException e) {
-                        throw new ElasticsearchParseException("unknown key [{}] for create index", e, name);
-                    }
+                    Map<String, String> custom = (Map<String, String>) entry.getValue();
+                    customs.put(name, custom);
                 } else {
                     throw new ElasticsearchParseException("unknown key [{}] for create index", name);
                 }
@@ -447,12 +435,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Adds custom metadata to the index to be created.
      */
-    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.getWriteableName(), custom);
+    public CreateIndexRequest custom(String name, Map<String, String> custom) {
+        customs.put(name, custom);
         return this;
     }
 
-    public Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, Map<String, String>> customs() {
         return this.customs;
     }
 
@@ -490,6 +478,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
 
     @Override
+    @SuppressWarnings("unchecked")
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readString();
@@ -506,9 +495,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             mappings.put(type, source);
         }
         int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);;
-            customs.put(customIndexMetaData.getWriteableName(), customIndexMetaData);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            for (int i = 0; i < customSize; i++) {
+                String name = in.readString();
+                Map<String, String> custom = (Map<String, String>)(Map) in.readMap();
+                customs.put(name, custom);
+            }
+        } else {
+            assert customSize == 0 : "expected there to always be no custom metadata";
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -521,6 +515,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
@@ -532,8 +527,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (IndexMetaData.Custom custom : customs.values()) {
-            out.writeNamedWriteable(custom);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            for (Map.Entry<String, Map<String, String>> entry : customs.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeMap((Map<String, Object>)(Map) entry.getValue());
+            }
+        } else {
+            assert customs.size() == 0 : "expected no custom metadata for";
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -572,9 +572,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         builder.endObject();
 
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
+        builder.map(customs);
         return builder;
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -45,6 +46,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
@@ -71,6 +74,9 @@ public class IndexMetaDataTests extends ESTestCase {
     public void testIndexMetaDataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
         IndexMetaData metaData = IndexMetaData.builder("foo")
             .settings(Settings.builder()
                 .put("index.version.created", 1)
@@ -80,6 +86,7 @@ public class IndexMetaDataTests extends ESTestCase {
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
+            .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
                     Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
@@ -93,7 +100,8 @@ public class IndexMetaDataTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
-        assertEquals(metaData, fromXContentMeta);
+        assertEquals("expected: " + Strings.toString(metaData) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 
         assertEquals(metaData.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
@@ -103,6 +111,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(metaData.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metaData.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metaData.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        assertEquals(metaData.getCustomData(), fromXContentMeta.getCustomData());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
@@ -119,6 +128,7 @@ public class IndexMetaDataTests extends ESTestCase {
             assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
             assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
             assertEquals(metaData.getRolloverInfos(), deserialized.getRolloverInfos());
+            assertEquals(metaData.getCustomData(),  deserialized.getCustomData());
         }
     }
 

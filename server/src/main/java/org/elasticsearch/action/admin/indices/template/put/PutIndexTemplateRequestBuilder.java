@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -217,8 +216,8 @@ public class PutIndexTemplateRequestBuilder
      *
      * @param custom The custom index metadata object
      */
-    public PutIndexTemplateRequestBuilder setCustom(IndexMetaData.Custom custom) {
-        request.custom(custom);
+    public PutIndexTemplateRequestBuilder setCustom(String name, Map<String, String> custom) {
+        request.custom(name, custom);
         return this;
     }
 

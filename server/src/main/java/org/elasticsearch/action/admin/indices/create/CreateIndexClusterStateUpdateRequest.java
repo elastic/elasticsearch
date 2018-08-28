@@ -55,7 +55,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+    private final Map<String, Map<String, String>> customs = new HashMap<>();
 
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
@@ -83,7 +83,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest customs(Map<String, IndexMetaData.Custom> customs) {
+    public CreateIndexClusterStateUpdateRequest customs(Map<String, Map<String, String>> customs) {
         this.customs.putAll(customs);
         return this;
     }
@@ -146,7 +146,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return aliases;
     }
 
-    public Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, Map<String, String>> customs() {
         return customs;
     }
 

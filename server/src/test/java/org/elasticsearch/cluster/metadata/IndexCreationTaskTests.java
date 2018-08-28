@@ -56,11 +56,12 @@ import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -71,13 +72,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.anyMap;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class IndexCreationTaskTests extends ESTestCase {
 
@@ -134,7 +135,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
-        assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
+        assertThat(result.metaData().index("test").getCustomData(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
         assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
@@ -148,16 +149,15 @@ public class IndexCreationTaskTests extends ESTestCase {
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
-        assertThat(result.metaData().index("test").getCustoms(), hasKey("custom1"));
+        assertThat(result.metaData().index("test").getCustomData(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
         assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
 
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
-        final IndexMetaData.Custom tplCustom = createCustom();
-        final IndexMetaData.Custom reqCustom = createCustom();
-        final IndexMetaData.Custom mergedCustom = createCustom();
-        when(reqCustom.mergeWith(tplCustom)).thenReturn(mergedCustom);
+        final Map<String, String> tplCustom = createCustom();
+        final Map<String, String> reqCustom = createCustom();
+        final Map<String, String> mergedCustom = createCustom();
 
         final CompressedXContent tplMapping = createMapping("text");
         final CompressedXContent reqMapping = createMapping("keyword");
@@ -176,7 +176,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getCustoms().get("custom1"), equalTo(mergedCustom));
+        assertThat(result.metaData().index("test").getCustomData().get("custom1"), equalTo(mergedCustom));
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
         assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
@@ -279,7 +279,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias1")));
-        assertThat(result.metaData().index("test").getCustoms(), not(hasKey("custom1")));
+        assertThat(result.metaData().index("test").getCustomData(), not(hasKey("custom1")));
         assertThat(result.metaData().index("test").getSettings().keySet(), not(Matchers.contains("key1")));
         assertThat(getMappingsFromResponse(), not(Matchers.hasKey("mapping1")));
     }
@@ -342,8 +342,9 @@ public class IndexCreationTaskTests extends ESTestCase {
             .numberOfReplicas(numReplicas);
     }
 
-    private IndexMetaData.Custom createCustom() {
-        return mock(IndexMetaData.Custom.class);
+    private Map<String, String> createCustom() {
+        // TODO: return an actual map of custom metadata
+        return new HashMap<>();
     }
 
     private interface MetaDataBuilderConfigurator {
@@ -372,7 +373,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(request.mappings()).thenReturn(Collections.singletonMap(mappingKey, mapping.string()));
     }
 
-    private void setupRequestCustom(String customKey, IndexMetaData.Custom custom) throws IOException {
+    private void setupRequestCustom(String customKey, Map<String, String> custom) throws IOException {
         when(request.customs()).thenReturn(Collections.singletonMap(customKey, custom));
     }
 

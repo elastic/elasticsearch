@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -187,8 +186,8 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets custom metadata on index creation
      */
-    public CreateIndexRequestBuilder setCustom(IndexMetaData.Custom custom) {
-        request.custom(custom);
+    public CreateIndexRequestBuilder setCustom(String name, Map<String, String> custom) {
+        request.custom(name, custom);
         return this;
     }
 

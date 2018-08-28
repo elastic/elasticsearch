@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -89,7 +87,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+    private Map<String, Map<String, String>> customs = new HashMap<>();
 
     private Integer version;
 
@@ -372,18 +370,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else {
                 // maybe custom?
                 if (entry.getValue() instanceof Map) {
-                    if (customsRegistry == null) {
-                        throw new ElasticsearchParseException("unknown key [{}] for create index, and custom registry is not specified",
-                            name);
-                    }
-                    try {
-                        customs.put(name, IndexMetaData.parseCustom(name, (Map<String, Object>) entry.getValue(),
-                            LoggingDeprecationHandler.INSTANCE, customsRegistry));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", e, name);
-                    } catch (NamedObjectNotFoundException e) {
-                        throw new ElasticsearchParseException("unknown key [{}] in the template", e, name);
-                    }
+                    customs.put(name, (Map<String, String>) entry.getValue());
                 } else {
                     throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
                 }
@@ -427,12 +414,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
 
-    public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.getWriteableName(), custom);
+    public PutIndexTemplateRequest custom(String name, Map<String, String> custom) {
+        customs.put(name, custom);
         return this;
     }
 
-    public Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, Map<String, String>> customs() {
         return this.customs;
     }
 
@@ -528,8 +515,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            IndexMetaData.Custom customIndexMetaData = in.readNamedWriteable(IndexMetaData.Custom.class);
-            customs.put(customIndexMetaData.getWriteableName(), customIndexMetaData);
+            String name = in.readString();
+            Map<String, String> custom = (Map<String, String>)(Map) in.readMap();
+            customs.put(name, custom);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -539,6 +527,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
@@ -557,8 +546,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getValue());
         }
         out.writeVInt(customs.size());
-        for (IndexMetaData.Custom custom : customs.values()) {
-            out.writeNamedWriteable(custom);
+        for (Map.Entry<String, Map<String, String>> custom : customs.entrySet()) {
+            out.writeString(custom.getKey());
+            out.writeMap((Map<String, Object>)(Map) custom.getValue());
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -595,9 +585,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         builder.endObject();
 
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
+        builder.map(customs);
 
         return builder;
     }

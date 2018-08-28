@@ -37,7 +37,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -467,14 +466,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {
-                        // check if its a custom index metadata
-                        try {
-                            builder.putCustom(currentFieldName, parser.mapStrings());
-                        } catch (UnknownNamedObjectException ex) {
-                            logger.warn("skipping unknown custom index metadata object with type {}", currentFieldName);
-                            // Skip children in case the plugin the provided the metadata got uninstalled
-                            parser.skipChildren();
-                        }
+                        // otherwise treat it as custom index metadata
+                        builder.putCustom(currentFieldName, parser.mapStrings());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
@@ -519,8 +512,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentFieldName = parser.currentName();
-                    if (VALID_FIELDS.contains(currentFieldName) ||
-                        parser.getXContentRegistry().supportsNamedObject(IndexMetaData.Custom.class, currentFieldName)) {
+                    if (VALID_FIELDS.contains(currentFieldName)) {
                         return currentFieldName;
                     } else {
                         // we just hit the template name, which should be ignored and we move on

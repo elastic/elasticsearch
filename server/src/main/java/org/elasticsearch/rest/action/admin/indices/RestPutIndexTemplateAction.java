@@ -62,7 +62,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
-        putRequest.source(request.requiredContent(), request.getXContentType(), request.getXContentRegistry());
+        putRequest.source(request.requiredContent(), request.getXContentType());
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }
 

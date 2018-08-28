@@ -1,2 +1,1 @@
 org.elasticsearch.plugins.spi.NamedXContentProviderTests$TestNamedXContentProvider
-org.elasticsearch.action.admin.indices.create.CustomIndexMetadataIT$TestCustomIndexMetadataPlugin

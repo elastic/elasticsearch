@@ -307,24 +307,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(XContentBuilder templateBuilder, NamedXContentRegistry customsRegistry) {
-        try {
-            return source(BytesReference.bytes(templateBuilder), templateBuilder.contentType(), customsRegistry);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to build json for template request", e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
-        return source(templateSource, null);
-    }
-
-    /**
-     * The template source definition.
-     */
-    @SuppressWarnings("unchecked")
-    public PutIndexTemplateRequest source(Map<String, Object> templateSource, NamedXContentRegistry customsRegistry) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
@@ -398,13 +382,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
-    }
-
-    /**
-     * The template source definition that should be parsed using specified customs registry.
-     */
-    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType, NamedXContentRegistry customsRegistry) {
-        return source(XContentHelper.convertToMap(source, true, xContentType).v2(), customsRegistry);
     }
 
     /**

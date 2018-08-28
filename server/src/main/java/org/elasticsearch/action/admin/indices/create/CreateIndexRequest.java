@@ -347,14 +347,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return source(BytesReference.bytes(source), source.contentType());
     }
 
-
-    /**
-     * Sets the settings and mappings as a single source.
-     */
-    public CreateIndexRequest source(XContentBuilder source, NamedXContentRegistry xContentRegistry) {
-        return source(BytesReference.bytes(source), source.contentType(), xContentRegistry);
-    }
-
     /**
      * Sets the settings and mappings as a single source.
      */
@@ -378,28 +370,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    /**
-     * Sets the settings and mappings as a single source.
-     */
-    public CreateIndexRequest source(BytesReference source, XContentType xContentType, NamedXContentRegistry xContentRegistry) {
-        Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE, xContentRegistry);
-        return this;
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     */
-    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
-        return source(source, deprecationHandler, null);
-    }
-
 
     /**
      * Sets the settings, mappings and customs as a single source, using specified registry to parse customs
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler, NamedXContentRegistry customsRegistry) {
+    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
@@ -575,5 +551,4 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         builder.map(customs);
         return builder;
     }
-
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins.spi;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,7 +45,7 @@ public class NamedXContentProviderTests extends ESTestCase {
             Streams.readAllLines(input, implementations::add);
         }
 
-        assertEquals(2, implementations.size());
+        assertEquals(1, implementations.size());
         assertEquals(TestNamedXContentProvider.class.getName(), implementations.get(0));
     }
 
@@ -56,12 +55,11 @@ public class NamedXContentProviderTests extends ESTestCase {
             namedXContents.addAll(service.getNamedXContentParsers());
         }
 
-        assertEquals(3, namedXContents.size());
+        assertEquals(2, namedXContents.size());
 
         List<Predicate<NamedXContentRegistry.Entry>> predicates = new ArrayList<>(2);
         predicates.add(e -> Aggregation.class.equals(e.categoryClass) && "test_aggregation".equals(e.name.getPreferredName()));
         predicates.add(e -> Suggest.Suggestion.class.equals(e.categoryClass) && "test_suggestion".equals(e.name.getPreferredName()));
-        predicates.add(e -> IndexMetaData.Custom.class.equals(e.categoryClass) && "test_indexmeta".equals(e.name.getPreferredName()));
         predicates.forEach(predicate -> assertEquals(1, namedXContents.stream().filter(predicate).count()));
     }
 

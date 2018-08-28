@@ -447,7 +447,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGranted() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
+        final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = createAuthentication();
 
         auditTrail.accessGranted(authentication, "_action", message, roles);
@@ -477,7 +477,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGrantedInternalSystemAction() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
+        final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef("_reserved", "test", "foo"), null);
         auditTrail.accessGranted(authentication, "internal:_action", message, roles);
         assertEmptyLog(logger);
@@ -506,7 +506,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessGrantedInternalSystemActionNonSystemUser() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
+        final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = createAuthentication();
 
         auditTrail.accessGranted(authentication, "internal:_action", message, roles);
@@ -536,7 +536,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testAccessDenied() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
+        final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = createAuthentication();
 
         auditTrail.accessDenied(authentication, "_action/bar", message, roles);
@@ -717,7 +717,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testRunAsGranted() throws Exception {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String[] roles = randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4));
+        final String[] roles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final Authentication authentication = new Authentication(
                 new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
                 new RealmRef("authRealm", "test", "foo"),
@@ -954,16 +954,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
             }
         }
         for (final Map.Entry<String, String[]> checkArrayField : checkArrayFields.entrySet()) {
-            if (null == checkArrayField.getValue() || 0 == checkArrayField.getValue().length) {
+            if (null == checkArrayField.getValue()) {
                 // null checkField means that the field does not exist
                 assertThat("Field: " + checkArrayField.getKey() + " should be missing.",
                         logLine.contains(Pattern.quote("\"" + checkArrayField.getKey() + "\":")), is(false));
             } else {
                 final String quotedValue = "[" + Arrays.asList(checkArrayField.getValue())
                         .stream()
+                        .filter(s -> s != null)
                         .map(s -> "\"" + s.replaceAll("\"", "\\\\\"") + "\"")
                         .reduce((x, y) -> x + "," + y)
-                        .get() + "]";
+                        .orElse("") + "]";
                 final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkArrayField.getKey() + "\":" + quotedValue));
                 assertThat("Field " + checkArrayField.getKey() + " value mismatch. Expected " + quotedValue,
                         logEntryFieldPattern.matcher(logLine).find(), is(true));
@@ -1042,7 +1043,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         MockIndicesRequest(ThreadContext threadContext) throws IOException {
             super(IndicesOptions.strictExpandOpenAndForbidClosed(),
-                    randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 4)));
+                    randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)));
             if (randomBoolean()) {
                 remoteAddress(buildNewFakeTransportAddress());
             }

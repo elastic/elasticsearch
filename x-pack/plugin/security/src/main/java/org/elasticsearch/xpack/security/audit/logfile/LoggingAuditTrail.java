@@ -405,7 +405,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
-                if (roleNames != null && 0 != roleNames.length) {
+                if (roleNames != null) {
                     logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
@@ -430,7 +430,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
-                if (roleNames != null && 0 != roleNames.length) {
+                if (roleNames != null) {
                     logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
@@ -542,7 +542,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
-                if (roleNames != null && 0 != roleNames.length) {
+                if (roleNames != null) {
                     logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
@@ -567,7 +567,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, toQuotedJsonArray(indices.get()));
                 }
-                if (roleNames != null && 0 != roleNames.length) {
+                if (roleNames != null) {
                     logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
                 }
                 opaqueId(threadContext, logEntry);
@@ -584,7 +584,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied");
-            if (roleNames != null && 0 != roleNames.length) {
+            if (roleNames != null) {
                 logEntry.with(PRINCIPAL_ROLES_FIELD_NAME, toQuotedJsonArray(roleNames));
             }
             restUri(request, logEntry);
@@ -653,17 +653,19 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     private static String toQuotedJsonArray(String[] values) {
-        assert values != null && values.length != 0;
+        assert values != null;
         final StringBuilder stringBuilder = new StringBuilder();
         final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
         stringBuilder.append("[");
-        for (int i = 0; i < values.length; i++) {
-            if (i > 0) {
-                stringBuilder.append(",");
+        for (final String value : values) {
+            if (value != null) {
+                if (stringBuilder.length() > 1) {
+                    stringBuilder.append(",");
+                }
+                stringBuilder.append("\"");
+                jsonStringEncoder.quoteAsString(value, stringBuilder);
+                stringBuilder.append("\"");
             }
-            stringBuilder.append("\"");
-            jsonStringEncoder.quoteAsString(values[i], stringBuilder);
-            stringBuilder.append("\"");
         }
         stringBuilder.append("]");
         return stringBuilder.toString();
@@ -688,7 +690,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     private static Optional<String[]> indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
             final String[] indices = ((IndicesRequest) message).indices();
-            if (indices != null && indices.length != 0) {
+            if (indices != null) {
                 return Optional.of(((IndicesRequest) message).indices());
             }
         }

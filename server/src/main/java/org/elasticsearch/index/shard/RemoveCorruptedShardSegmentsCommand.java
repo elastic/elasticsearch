@@ -222,7 +222,7 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
         // have to iterate over possibleLockId as NodeEnvironment - but fail if node owns lock
         final Settings settings = environment.settings();
         final Path[] dataFiles = environment.dataFiles();
-        // try to resolve shard path in case of multi-node layout per environment (hope it's only integration tests)
+        // try to resolve shard path in case of multi-node layout per environment
         final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         for (int dirIndex = 0; dirIndex < dataFiles.length; dirIndex++) {
             final Path dataDir = dataFiles[dirIndex];
@@ -446,26 +446,26 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
                     terminal.println(msg);
                     throw new ElasticsearchException(msg);
                 }
+
+                final CleanStatus indexStatus = indexCleanStatus.v1();
+                final CleanStatus translogStatus = translogCleanStatus.v1();
+                // newHistoryCommit obtains its own lock
+                if (dryRun == false && (indexStatus != CleanStatus.CLEAN || translogStatus != CleanStatus.CLEAN)) {
+                    addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
+                    newAllocationId(environment, shardPath, terminal);
+                    if (indexStatus != CleanStatus.CLEAN) {
+                        dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
+                    }
+                }
             } catch (LockObtainFailedException lofe) {
                 final String msg = "Failed to lock node's directory at [" + nodeDir + "], is Elasticsearch still running?";
                 terminal.println(msg);
                 throw new ElasticsearchException(msg);
             }
-
-            final CleanStatus indexStatus = indexCleanStatus.v1();
-            final CleanStatus translogStatus = translogCleanStatus.v1();
-            // newHistoryCommit obtains its own lock
-            if (dryRun == false && (indexStatus != CleanStatus.CLEAN || translogStatus != CleanStatus.CLEAN)) {
-                addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
-                newAllocationId(environment, shardPath, terminal);
-                if (indexStatus != CleanStatus.CLEAN) {
-                    dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
-                }
-            }
         }
     }
 
-    Directory getDirectory(Path indexPath) {
+    private Directory getDirectory(Path indexPath) {
         Directory directory;
         try {
             directory = FSDirectory.open(indexPath, NativeFSLockFactory.INSTANCE);

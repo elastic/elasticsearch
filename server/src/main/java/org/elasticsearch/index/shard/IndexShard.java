@@ -301,7 +301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         if ("fix".equals(checkIndexOnStartup)) {
             deprecationLogger.deprecated("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
-                + "which will be unsupported in future");
+                + "which has no effect and will not be accepted in future");
         }
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();

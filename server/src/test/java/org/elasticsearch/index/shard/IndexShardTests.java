@@ -2785,7 +2785,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
 
         assertWarnings("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
-            + "which will be unsupported in future");
+            + "which has no effect and will not be accepted in future");
     }
 
     class Result {

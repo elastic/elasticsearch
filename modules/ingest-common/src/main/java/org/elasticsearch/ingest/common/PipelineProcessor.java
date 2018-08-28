@@ -35,7 +35,7 @@ public class PipelineProcessor extends AbstractProcessor {
 
     private final IngestService ingestService;
 
-    PipelineProcessor(String tag, String pipelineName, IngestService ingestService) {
+    private PipelineProcessor(String tag, String pipelineName, IngestService ingestService) {
         super(tag);
         this.pipelineName = pipelineName;
         this.ingestService = ingestService;

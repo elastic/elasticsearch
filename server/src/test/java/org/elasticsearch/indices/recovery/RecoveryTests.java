@@ -226,7 +226,9 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             IndexShard newReplica = shards.addReplicaWithExistingPath(orgPrimary.shardPath(), orgPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
-            assertThat(newReplica.estimateNumberOfHistoryOperations("test", 0), equalTo(6));
+            try (Translog.Snapshot snapshot = newReplica.getHistoryOperations("test", 0)) {
+                assertThat(snapshot, SnapshotMatchers.size(6));
+            }
         }
     }
 

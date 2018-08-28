@@ -81,9 +81,7 @@ As of version 6.3.0, X-Pack is now https://www.elastic.co/products/x-pack/open[b
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
 
-NOTE: X-Pack includes a choice of a Trial license (valid for 30 days) or Basic license (valid perpetually). After that, you can obtain one of the
-https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security].
-The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: X-Pack includes a choice of a Trial or Basic license. A Trial license is valid for 30 days, after which you can obtain one of the available subscriptions. The Basic license is free and perpetual. Consult the https://www.elastic.co/subscriptions[available subscriptions] for further details on which features are available under which license.
 
 After clicking the install button, the installation will begin:
 
@@ -467,9 +465,8 @@ start /wait msiexec.exe /i elasticsearch-{version}.msi /qn /l upgrade.log
 
 The `.msi` package handles uninstallation of all directories and files added as part of installation.
 
-WARNING: Uninstallation will remove **all** directories and their contents created as part of
-installation, **except for data, config or logs directories**. If you wish to retain your data upon
-uninstallation, it is recommended that you make a copy of your data directory beforehand or consider using the snapshot API.
+WARNING: Uninstallation will remove **all** contents created as part of
+installation, **except for data, config or logs directories**. It is recommended that you make a copy of your data directory before upgrading or consider using the snapshot API.
 
 MSI installer packages do not provide a GUI for uninstallation. An installed program can be uninstalled
 by pressing the Windows key and typing `add or remove programs` to open the system settings.

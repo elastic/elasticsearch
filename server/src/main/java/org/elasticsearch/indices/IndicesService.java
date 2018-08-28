@@ -38,6 +38,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedFunction;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -1347,5 +1349,24 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetaDataField(String field) {
         return mapperRegistry.isMetaDataField(field);
+    }
+
+    public static Optional<String> getShardLimitError(int newShards, ClusterState state, ClusterSettings settings) {
+        int nodeCount = state.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0) {
+            return Optional.empty();
+        }
+        int maxShardsPerNode = settings.get(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE);
+        int maxShardsInCluster = maxShardsPerNode * nodeCount;
+        int currentOpenShards = state.getMetaData().getTotalOpenIndexShards();
+
+        if ((currentOpenShards + newShards) > maxShardsInCluster) {
+            return Optional.of("this action would add " + newShards + " total shards, but this cluster currently has "
+                + currentOpenShards + "/" + maxShardsInCluster + " maximum shards open");
+        }
+        return Optional.empty();
     }
 }

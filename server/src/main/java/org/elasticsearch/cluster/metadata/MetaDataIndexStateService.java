@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -175,6 +177,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     }
                 }
 
+                validateShardLimit(currentState, request);
+
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
                 }
@@ -215,6 +219,25 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         "indices opened [" + indicesAsString + "]");
             }
         });
+    }
+
+    private void validateShardLimit(ClusterState currentState, OpenIndexClusterStateUpdateRequest request) {
+        int shardsToOpen = Arrays.stream(request.indices())
+            .mapToInt(index -> getTotalShardCount(currentState, index))
+            .sum();
+
+        Optional<String> error = IndicesService.getShardLimitError(shardsToOpen, currentState, clusterService.getClusterSettings());
+        if (error.isPresent()) {
+            ValidationException ex = new ValidationException();
+            ex.addValidationError(error.get());
+            throw ex;
+        }
+    }
+
+
+    private int getTotalShardCount(ClusterState state, Index index) {
+        IndexMetaData indexMetaData = state.metaData().index(index);
+        return indexMetaData.getNumberOfShards() * (1 + indexMetaData.getNumberOfReplicas());
     }
 
 }

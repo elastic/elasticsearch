@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -38,6 +40,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class JobConfigProviderIT extends MlSingleNodeTestCase {
@@ -389,7 +392,34 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(expandedIds, empty());
     }
 
-    private Job.Builder createJob(String jobId, List<String> groups) {
+    public void testFindJobsWithCustomRules_GivenNoJobs() throws Exception {
+        List<Job> foundJobs = blockingCall(listener -> jobConfigProvider.findJobsWithCustomRules(listener));
+        assertThat(foundJobs.isEmpty(), is(true));
+    }
+
+    public void testFindJobsWithCustomRules() throws Exception {
+        putJob(createJob("job-without-rules", Collections.emptyList()));
+
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 0.0))).build();
+
+        Job.Builder jobWithRules1 = createJob("job-with-rules-1", Collections.emptyList());
+        jobWithRules1 = addCustomRule(jobWithRules1, rule);
+        putJob(jobWithRules1);
+        Job.Builder jobWithRules2 = createJob("job-with-rules-2", Collections.emptyList());
+        jobWithRules2 = addCustomRule(jobWithRules2, rule);
+        putJob(jobWithRules2);
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        List<Job> foundJobs = blockingCall(listener -> jobConfigProvider.findJobsWithCustomRules(listener));
+
+        Set<String> foundJobIds = foundJobs.stream().map(Job::getId).collect(Collectors.toSet());
+        assertThat(foundJobIds.size(), equalTo(2));
+        assertThat(foundJobIds, containsInAnyOrder(jobWithRules1.getId(), jobWithRules2.getId()));
+    }
+
+    private static Job.Builder createJob(String jobId, List<String> groups) {
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("client");
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));
@@ -402,6 +432,13 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
             builder.setGroups(groups);
         }
         return builder;
+    }
+
+    private static Job.Builder addCustomRule(Job.Builder job, DetectionRule rule) {
+        JobUpdate.Builder update1 = new JobUpdate.Builder(job.getId());
+        update1.setDetectorUpdates(Collections.singletonList(new JobUpdate.DetectorUpdate(0, null, Collections.singletonList(rule))));
+        Job updatedJob = update1.build().mergeWithJob(job.build(new Date()), null);
+        return new Job.Builder(updatedJob);
     }
 
     private Job putJob(Job.Builder job) throws Exception {

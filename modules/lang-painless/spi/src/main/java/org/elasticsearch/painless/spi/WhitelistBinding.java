@@ -23,12 +23,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A binding represents a static method call that stores state.  Each binding must have exactly
- * one public constructor and one public method excluding those inherited directly from {@link Object}.
+ * A binding represents a method call that stores state. Each binding class must have exactly one
+ * public constructor and one public method excluding those inherited directly from {@link Object}.
  * The canonical type name parameters provided must match those of the constructor and method combined.
- * The constructor for a binding will be called when the binding is called for the first time at which
- * point state may be stored for the arguments passed into the constructor.  The method for a binding
- * will be called each time the binding is called and may use the previously stored state.
+ * The constructor for a binding class will be called when the binding method is called for the first
+ * time at which point state may be stored for the arguments passed into the constructor. The method
+ * for a binding class will be called each time the binding method is called and may use the previously
+ * stored state.
  */
 public class WhitelistBinding {
 

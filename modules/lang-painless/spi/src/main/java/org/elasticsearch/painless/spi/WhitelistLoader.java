@@ -196,7 +196,7 @@ public final class WhitelistLoader {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
                             throw new IllegalArgumentException(
-                                    "invalid class definition: failed to parse class opening bracket [" + line + "]");
+                                    "invalid static definition: failed to parse static opening bracket [" + line + "]");
                         }
 
                         if (parseType != null) {

@@ -60,7 +60,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             assertThat(status.numberOfFailedFetches(), equalTo(numberOfFailedFetches));
             // the failures were able to be retried so fetch failures should have cleared
             assertThat(status.fetchExceptions().entrySet(), hasSize(0));
-            assertThat(status.indexMetadataVersion(), equalTo(testRun.finalIndexMetaDataVerion));
+            assertThat(status.mappingVersion(), equalTo(testRun.finalMappingVersion));
         });
 
         task.markAsCompleted();
@@ -88,12 +88,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
 
-            private volatile long indexMetadataVersion = 0L;
+            private volatile long mappingVersion = 0L;
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
-                handler.accept(indexMetadataVersion);
+                handler.accept(mappingVersion);
             }
 
             @Override
@@ -134,7 +134,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             fromToSlot.put(from, ++slot);
                             // if too many invocations occur with the same from then AOBE occurs, this ok and then something is wrong.
                         }
-                        indexMetadataVersion = testResponse.indexMetadataVersion;
+                        mappingVersion = testResponse.mappingVersion;
                         if (testResponse.exception != null) {
                             errorHandler.accept(testResponse.exception);
                         } else {
@@ -187,15 +187,15 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         };
     }
 
-    private static TestRun createTestRun(long startSeqNo, long startIndexMetadataVersion, int maxOperationCount) {
+    private static TestRun createTestRun(long startSeqNo, long startMappingVersion, int maxOperationCount) {
         long prevGlobalCheckpoint = startSeqNo;
-        long indexMetaDataVersion = startIndexMetadataVersion;
+        long mappingVersion = startMappingVersion;
         int numResponses = randomIntBetween(16, 256);
         Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
         for (int i = 0; i < numResponses; i++) {
             long nextGlobalCheckPoint = prevGlobalCheckpoint + maxOperationCount;
             if (sometimes()) {
-                indexMetaDataVersion++;
+                mappingVersion++;
             }
 
             if (sometimes()) {
@@ -203,7 +203,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 // Sometimes add a random retryable error
                 if (sometimes()) {
                     Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                    item.add(new TestResponse(error, indexMetaDataVersion, null));
+                    item.add(new TestResponse(error, mappingVersion, null));
                 }
                 List<Translog.Operation> ops = new ArrayList<>();
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
@@ -211,8 +211,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
                     ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                 }
-                item.add(new TestResponse(null, indexMetaDataVersion,
-                    new ShardChangesAction.Response(indexMetaDataVersion, nextGlobalCheckPoint, nextGlobalCheckPoint, ops.toArray(EMPTY))));
+                item.add(new TestResponse(null, mappingVersion,
+                    new ShardChangesAction.Response(mappingVersion, nextGlobalCheckPoint, nextGlobalCheckPoint, ops.toArray(EMPTY))));
                 responses.put(prevGlobalCheckpoint, item);
             } else {
                 // Simulates a leader shard copy not having all the operations the shard follow task thinks it has by
@@ -224,13 +224,13 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     // Sometimes add a random retryable error
                     if (sometimes()) {
                         Exception error = new UnavailableShardsException(new ShardId("test", "test", 0), "");
-                        item.add(new TestResponse(error, indexMetaDataVersion, null));
+                        item.add(new TestResponse(error, mappingVersion, null));
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
                     if (sometimes()) {
                         ShardChangesAction.Response response =
-                            new ShardChangesAction.Response(indexMetaDataVersion, prevGlobalCheckpoint, prevGlobalCheckpoint, EMPTY);
-                        item.add(new TestResponse(null, indexMetaDataVersion, response));
+                            new ShardChangesAction.Response(mappingVersion, prevGlobalCheckpoint, prevGlobalCheckpoint, EMPTY);
+                        item.add(new TestResponse(null, mappingVersion, response));
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
                     for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
@@ -241,14 +241,14 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;
                     ShardChangesAction.Response response =
-                            new ShardChangesAction.Response(indexMetaDataVersion, localLeaderGCP, localLeaderGCP, ops.toArray(EMPTY));
-                    item.add(new TestResponse(null, indexMetaDataVersion, response));
+                            new ShardChangesAction.Response(mappingVersion, localLeaderGCP, localLeaderGCP, ops.toArray(EMPTY));
+                    item.add(new TestResponse(null, mappingVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }
             }
             prevGlobalCheckpoint = nextGlobalCheckPoint + 1;
         }
-        return new TestRun(maxOperationCount, startSeqNo, startIndexMetadataVersion, indexMetaDataVersion,
+        return new TestRun(maxOperationCount, startSeqNo, startMappingVersion, mappingVersion,
             prevGlobalCheckpoint - 1, responses);
     }
 
@@ -261,18 +261,18 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         final int maxOperationCount;
         final long startSeqNo;
-        final long startIndexMetadataVersion;
+        final long startMappingVersion;
 
-        final long finalIndexMetaDataVerion;
+        final long finalMappingVersion;
         final long finalExpectedGlobalCheckpoint;
         final Map<Long, List<TestResponse>> responses;
 
-        private TestRun(int maxOperationCount, long startSeqNo, long startIndexMetadataVersion, long finalIndexMetaDataVerion,
+        private TestRun(int maxOperationCount, long startSeqNo, long startMappingVersion, long finalMappingVersion,
                         long finalExpectedGlobalCheckpoint, Map<Long, List<TestResponse>> responses) {
             this.maxOperationCount = maxOperationCount;
             this.startSeqNo = startSeqNo;
-            this.startIndexMetadataVersion = startIndexMetadataVersion;
-            this.finalIndexMetaDataVerion = finalIndexMetaDataVerion;
+            this.startMappingVersion = startMappingVersion;
+            this.finalMappingVersion = finalMappingVersion;
             this.finalExpectedGlobalCheckpoint = finalExpectedGlobalCheckpoint;
             this.responses = Collections.unmodifiableMap(responses);
         }
@@ -281,12 +281,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     private static class TestResponse {
 
         final Exception exception;
-        final long indexMetadataVersion;
+        final long mappingVersion;
         final ShardChangesAction.Response response;
 
-        private TestResponse(Exception exception, long indexMetadataVersion, ShardChangesAction.Response response) {
+        private TestResponse(Exception exception, long mappingVersion, ShardChangesAction.Response response) {
             this.exception = exception;
-            this.indexMetadataVersion = indexMetadataVersion;
+            this.mappingVersion = mappingVersion;
             this.response = response;
         }
     }

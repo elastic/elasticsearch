@@ -168,10 +168,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     public static final class Response extends ActionResponse {
 
-        private long indexMetadataVersion;
+        private long mappingVersion;
 
-        public long getIndexMetadataVersion() {
-            return indexMetadataVersion;
+        public long getMappingVersion() {
+            return mappingVersion;
         }
 
         private long globalCheckpoint;
@@ -195,8 +195,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         Response() {
         }
 
-        Response(final long indexMetadataVersion, final long globalCheckpoint, final long maxSeqNo, final Translog.Operation[] operations) {
-            this.indexMetadataVersion = indexMetadataVersion;
+        Response(final long mappingVersion, final long globalCheckpoint, final long maxSeqNo, final Translog.Operation[] operations) {
+            this.mappingVersion = mappingVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.operations = operations;
@@ -205,7 +205,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            indexMetadataVersion = in.readVLong();
+            mappingVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
@@ -214,7 +214,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(indexMetadataVersion);
+            out.writeVLong(mappingVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeArray(Translog.Operation::writeOperation, operations);
@@ -225,7 +225,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response that = (Response) o;
-            return indexMetadataVersion == that.indexMetadataVersion &&
+            return mappingVersion == that.mappingVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     Arrays.equals(operations, that.operations);
@@ -233,7 +233,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexMetadataVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
+            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
         }
     }
 
@@ -266,7 +266,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats =  indexShard.seqNoStats();
-            final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
+            final long mappingVersion = clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
 
             final Translog.Operation[] operations = getOperations(
                     indexShard,
@@ -274,7 +274,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                     request.fromSeqNo,
                     request.maxOperationCount,
                     request.maxOperationSizeInBytes);
-            return new Response(indexMetaDataVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
+            return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
         }
 
         @Override

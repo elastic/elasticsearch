@@ -52,12 +52,15 @@ public final class CorruptionUtils {
         // corrupt files
         final Path[] filesToCorrupt =
             Files.walk(indexPath)
-                .filter(p -> Files.isRegularFile(p) && IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString()) == false)
                 .filter(p -> {
                     final String name = p.getFileName().toString();
-                    final boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
-                    return corruptSegments ? segmentFile : segmentFile == false;
-                })
+                    boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
+                        return Files.isRegularFile(p)
+                            && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                            && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+                            && (corruptSegments ? segmentFile : segmentFile == false);
+                    }
+                )
                 .toArray(Path[]::new);
         corruptFile(random, filesToCorrupt);
     }

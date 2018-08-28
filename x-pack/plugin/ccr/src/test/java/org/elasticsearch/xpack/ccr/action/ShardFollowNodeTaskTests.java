@@ -51,7 +51,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private Queue<Exception> readFailures;
     private Queue<Exception> writeFailures;
     private Queue<Exception> mappingUpdateFailures;
-    private Queue<Long> imdVersions;
+    private Queue<Long> mappingVersions;
     private Queue<Long> leaderGlobalCheckpoints;
     private Queue<Long> followerGlobalCheckpoints;
     private Queue<Long> maxSeqNos;
@@ -180,7 +180,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         leaderGlobalCheckpoints.add(63L);
         maxSeqNos.add(63L);
         simulateResponse.set(true);
@@ -327,7 +327,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
@@ -433,7 +433,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
         startTask(task, 63, -1);
 
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
@@ -442,7 +442,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(1L));
+        assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -458,7 +458,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             mappingUpdateFailures.add(new ConnectException());
         }
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
@@ -467,7 +467,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(task.isStopped(), equalTo(false));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(1L));
+        assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -483,17 +483,17 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             mappingUpdateFailures.add(new ConnectException());
         }
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 64L);
         task.handleReadResponse(0L, 64L, response);
 
         assertThat(mappingUpdateFailures.size(), equalTo(max - 11));
-        assertThat(imdVersions.size(), equalTo(1));
+        assertThat(mappingVersions.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
         assertThat(task.isStopped(), equalTo(true));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -512,7 +512,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
         assertThat(task.isStopped(), equalTo(true));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -723,7 +723,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         readFailures = new LinkedList<>();
         writeFailures = new LinkedList<>();
         mappingUpdateFailures = new LinkedList<>();
-        imdVersions = new LinkedList<>();
+        mappingVersions = new LinkedList<>();
         leaderGlobalCheckpoints = new LinkedList<>();
         followerGlobalCheckpoints = new LinkedList<>();
         maxSeqNos = new LinkedList<>();
@@ -738,9 +738,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     return;
                 }
 
-                Long imdVersion = imdVersions.poll();
-                if (imdVersion != null) {
-                    handler.accept(imdVersion);
+                final Long mappingVersion = mappingVersions.poll();
+                if (mappingVersion != null) {
+                    handler.accept(mappingVersion);
                 }
             }
 
@@ -779,7 +779,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     }
                     final ShardChangesAction.Response response =
                             new ShardChangesAction.Response(
-                                    imdVersions.poll(),
+                                    mappingVersions.poll(),
                                     leaderGlobalCheckpoints.poll(),
                                     maxSeqNos.poll(),
                                     operations);
@@ -805,7 +805,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         };
     }
 
-    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, long toSeqNo, long imdVersion,
+    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, long toSeqNo, long mappingVersion,
                                                                             long leaderGlobalCheckPoint) {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
@@ -814,7 +814,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             ops.add(new Translog.Index("doc", id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
-                imdVersion, leaderGlobalCheckPoint, leaderGlobalCheckPoint, ops.toArray(new Translog.Operation[0]));
+                mappingVersion, leaderGlobalCheckPoint, leaderGlobalCheckPoint, ops.toArray(new Translog.Operation[0]));
     }
 
     void startTask(ShardFollowNodeTask task, long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {

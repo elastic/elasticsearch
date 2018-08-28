@@ -115,7 +115,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     putMappingRequest.type(mappingMetaData.type());
                     putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
                     followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                        putMappingResponse -> handler.accept(indexMetaData.getVersion()),
+                        putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
                         errorHandler));
                 }, errorHandler));
             }

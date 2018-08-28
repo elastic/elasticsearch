@@ -65,7 +65,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         assertThat(newInstance.numberOfConcurrentReads(), equalTo(expectedInstance.numberOfConcurrentReads()));
         assertThat(newInstance.numberOfConcurrentWrites(), equalTo(expectedInstance.numberOfConcurrentWrites()));
         assertThat(newInstance.numberOfQueuedWrites(), equalTo(expectedInstance.numberOfQueuedWrites()));
-        assertThat(newInstance.indexMetadataVersion(), equalTo(expectedInstance.indexMetadataVersion()));
+        assertThat(newInstance.mappingVersion(), equalTo(expectedInstance.mappingVersion()));
         assertThat(newInstance.totalFetchTimeMillis(), equalTo(expectedInstance.totalFetchTimeMillis()));
         assertThat(newInstance.numberOfSuccessfulFetches(), equalTo(expectedInstance.numberOfSuccessfulFetches()));
         assertThat(newInstance.numberOfFailedFetches(), equalTo(expectedInstance.numberOfFailedFetches()));

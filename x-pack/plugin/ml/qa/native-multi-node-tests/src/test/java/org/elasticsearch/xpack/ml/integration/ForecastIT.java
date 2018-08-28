@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -274,6 +276,55 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             assertThat(forecasts.size(), equalTo(8000));
         }
 
+    }
+
+    public void testDelete() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+
+        Job.Builder job = new Job.Builder("forecast-it-test-delete");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        List<String> data = new ArrayList<>();
+        while (timestamp < now) {
+            data.add(createJsonRecord(createRecord(timestamp, 10.0)));
+            data.add(createJsonRecord(createRecord(timestamp, 30.0)));
+            timestamp += bucketSpan.seconds();
+        }
+
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
+        flushJob(job.getId(), false);
+
+        String forecastIdDefaultDurationDefaultExpiry = forecast(job.getId(), null, null);
+
+        waitForecastToFinish(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        closeJob(job.getId());
+        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        assertNotNull(forecastStats);
+
+        DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+        assertTrue(response.isAcknowledged());
+
+        forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        assertNull(forecastStats);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(),
+            equalTo(String.format("No forecast with id [%s] exists for job [%s]", forecastIdDefaultDurationDefaultExpiry, job.getId())));
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {

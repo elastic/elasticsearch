@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -212,12 +211,12 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static class JobWrapper implements Writeable, ToXContentObject {
         private final RollupJobConfig job;
-        private final IndexerJobStats stats;
+        private final RollupIndexerJobStats stats;
         private final RollupJobStatus status;
 
         public static final ConstructingObjectParser<JobWrapper, Void> PARSER
                 = new ConstructingObjectParser<>(NAME, a -> new JobWrapper((RollupJobConfig) a[0],
-                (IndexerJobStats) a[1], (RollupJobStatus)a[2]));
+                (RollupIndexerJobStats) a[1], (RollupJobStatus)a[2]));
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
@@ -225,7 +224,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }
 
-        public JobWrapper(RollupJobConfig job, IndexerJobStats stats, RollupJobStatus status) {
+        public JobWrapper(RollupJobConfig job, RollupIndexerJobStats stats, RollupJobStatus status) {
             this.job = job;
             this.stats = stats;
             this.status = status;
@@ -248,7 +247,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             return job;
         }
 
-        public IndexerJobStats getStats() {
+        public RollupIndexerJobStats getStats() {
             return stats;
         }
 

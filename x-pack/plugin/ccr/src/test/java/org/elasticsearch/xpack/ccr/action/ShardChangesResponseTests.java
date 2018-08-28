@@ -12,7 +12,7 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
 
     @Override
     protected ShardChangesAction.Response createTestInstance() {
-        final long indexMetadataVersion = randomNonNegativeLong();
+        final long mappingVersion = randomNonNegativeLong();
         final long leaderGlobalCheckpoint = randomNonNegativeLong();
         final long leaderMaxSeqNo = randomLongBetween(leaderGlobalCheckpoint, Long.MAX_VALUE);
         final int numOps = randomInt(8);
@@ -20,7 +20,7 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
         for (int i = 0; i < numOps; i++) {
             operations[i] = new Translog.NoOp(i, 0, "test");
         }
-        return new ShardChangesAction.Response(indexMetadataVersion, leaderGlobalCheckpoint, leaderMaxSeqNo, operations);
+        return new ShardChangesAction.Response(mappingVersion, leaderGlobalCheckpoint, leaderMaxSeqNo, operations);
     }
 
     @Override

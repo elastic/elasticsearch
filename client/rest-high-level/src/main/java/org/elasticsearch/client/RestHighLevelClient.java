@@ -176,6 +176,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
@@ -1010,9 +1011,9 @@ public class RestHighLevelClient implements Closeable {
                                                              RequestOptions options,
                                                              CheckedFunction<Response, Resp, IOException> responseConverter,
                                                              Set<Integer> ignores) throws IOException {
-        ValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
         }
         return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
     }
@@ -1105,9 +1106,9 @@ public class RestHighLevelClient implements Closeable {
                                                                           RequestOptions options,
                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                           ActionListener<Resp> listener, Set<Integer> ignores) {
-        ValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
-            listener.onFailure(validationException);
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
             return;
         }
         internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);

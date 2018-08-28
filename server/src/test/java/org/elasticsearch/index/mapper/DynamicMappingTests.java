@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -745,4 +746,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
+
+    public void testMappingVersionAfterDynamicMappingUpdate() {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+        client().prepareIndex("test", "type", "1").setSource("field", "text").get();
+        assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+    }
+
 }

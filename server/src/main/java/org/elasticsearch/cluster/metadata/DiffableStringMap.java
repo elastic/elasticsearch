@@ -29,6 +29,10 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * This is a {@code Map<String, String>} that implements AbstractDiffable so it
+ * can be used for cluster state purposes
+ */
 public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> implements Map<String, String> {
 
     private final Map<String, String> innerMap;
@@ -84,7 +88,7 @@ public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> imple
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException("diffable maps are immutable");
+        this.innerMap.clear();
     }
 
     @Override
@@ -115,8 +119,7 @@ public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> imple
     }
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
-        // TODO: implement this
-        return null;
+        return readDiffFrom(DiffableStringMap::new, in);
     }
 
     @Override

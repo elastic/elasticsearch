@@ -548,7 +548,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         builder.endObject();
 
-        builder.map(customs);
+        for (Map.Entry<String, Map<String, String>> custom : customs.entrySet()) {
+            builder.field(custom.getKey());
+            builder.map(custom.getValue());
+        }
         return builder;
     }
 }

@@ -81,7 +81,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
     private final OptionSpec<Integer> shardIdOption;
-    private final OptionSpec<String> dryRunOption;
 
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
@@ -99,9 +98,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         shardIdOption = parser.accepts("shard-id", "Shard id")
             .withRequiredArg()
             .ofType(Integer.class);
-
-        dryRunOption = parser.accepts("dry-run", "Only perform analysis")
-            .withOptionalArg();
 
         removeCorruptedLuceneSegmentsAction = new RemoveCorruptedLuceneSegmentsAction();
         truncateTranslogAction = new TruncateTranslogAction();
@@ -320,8 +316,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final ShardPath shardPath = getShardPath(options, environment);
 
-        final boolean dryRun = options.has(dryRunOption);
-
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
         final Path nodePath = getNodePath(shardPath);
@@ -383,63 +377,47 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                         translogCleanStatus = Tuple.tuple(CleanStatus.UNRECOVERABLE, null);
                     }
 
-                    ////////// Drop corrupted parts
+                    ////////// Drop corrupted data
                     final CleanStatus indexStatus = indexCleanStatus.v1();
                     final CleanStatus translogStatus = translogCleanStatus.v1();
-                    if (dryRun) {
-                        if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                            terminal.println("Shard does not seem to be corrupted at " + shardPath.getDataPath());
-                        } else {
-                            terminal.println("-----------------------------------------------------------------------");
-                            if (indexStatus != CleanStatus.CLEAN) {
-                                loseDataDetailsBanner(terminal, indexCleanStatus);
-                            }
 
-                            if (translogStatus != CleanStatus.CLEAN) {
-                                loseDataDetailsBanner(terminal, translogCleanStatus);
-                            }
-                            terminal.println("-----------------------------------------------------------------------");
-                        }
-                    } else {
+                    if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
+                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath());
+                    }
 
-                        if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                            throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath());
+                    if (indexStatus == CleanStatus.UNRECOVERABLE) {
+                        if (indexCleanStatus.v2() != null) {
+                            terminal.println("Details: " + indexCleanStatus.v2());
                         }
 
-                        if (indexStatus == CleanStatus.UNRECOVERABLE) {
-                            if (indexCleanStatus.v2() != null) {
-                                terminal.println("Details: " + indexCleanStatus.v2());
-                            }
+                        terminal.println("You can allocate completely empty primary shard with command: ");
 
-                            terminal.println("You can allocate completely empty primary shard with command: ");
+                        printRerouteCommand(shardPath, terminal, false);
 
-                            printRerouteCommand(shardPath, terminal, false);
-
-                            throw new ElasticsearchException("Index is unrecoverable - there are missing segments");
-                        }
+                        throw new ElasticsearchException("Index is unrecoverable - there are missing segments");
+                    }
 
 
-                        terminal.println("-----------------------------------------------------------------------");
-                        if (indexStatus != CleanStatus.CLEAN) {
-                            loseDataDetailsBanner(terminal, indexCleanStatus);
-                        }
-                        if (translogStatus != CleanStatus.CLEAN) {
-                            loseDataDetailsBanner(terminal, translogCleanStatus);
-                        }
-                        terminal.println("            WARNING:              YOU MAY LOSE DATA.");
-                        terminal.println("-----------------------------------------------------------------------");
+                    terminal.println("-----------------------------------------------------------------------");
+                    if (indexStatus != CleanStatus.CLEAN) {
+                        loseDataDetailsBanner(terminal, indexCleanStatus);
+                    }
+                    if (translogStatus != CleanStatus.CLEAN) {
+                        loseDataDetailsBanner(terminal, translogCleanStatus);
+                    }
+                    terminal.println("            WARNING:              YOU MAY LOSE DATA.");
+                    terminal.println("-----------------------------------------------------------------------");
 
 
-                        confirm("Continue and remove corrupted data from the shard ?", terminal);
+                    confirm("Continue and remove corrupted data from the shard ?", terminal);
 
-                        if (indexStatus != CleanStatus.CLEAN) {
-                            removeCorruptedLuceneSegmentsAction.execute(terminal, shardPath, indexDir,
-                                writeIndexLock, printStream, verbose);
-                        }
+                    if (indexStatus != CleanStatus.CLEAN) {
+                        removeCorruptedLuceneSegmentsAction.execute(terminal, shardPath, indexDir,
+                            writeIndexLock, printStream, verbose);
+                    }
 
-                        if (translogStatus != CleanStatus.CLEAN) {
-                            truncateTranslogAction.execute(terminal, shardPath, indexDir);
-                        }
+                    if (translogStatus != CleanStatus.CLEAN) {
+                        truncateTranslogAction.execute(terminal, shardPath, indexDir);
                     }
                 } catch (LockObtainFailedException lofe) {
                     final String msg = "Failed to lock shard's directory at [" + indexPath + "], is Elasticsearch still running?";
@@ -449,13 +427,12 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
                 final CleanStatus indexStatus = indexCleanStatus.v1();
                 final CleanStatus translogStatus = translogCleanStatus.v1();
+
                 // newHistoryCommit obtains its own lock
-                if (dryRun == false && (indexStatus != CleanStatus.CLEAN || translogStatus != CleanStatus.CLEAN)) {
-                    addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
-                    newAllocationId(environment, shardPath, terminal);
-                    if (indexStatus != CleanStatus.CLEAN) {
-                        dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
-                    }
+                addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
+                newAllocationId(environment, shardPath, terminal);
+                if (indexStatus != CleanStatus.CLEAN) {
+                    dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
             } catch (LockObtainFailedException lofe) {
                 final String msg = "Failed to lock node's directory at [" + nodeDir + "], is Elasticsearch still running?";

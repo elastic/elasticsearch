@@ -19,44 +19,17 @@ to remove only the corrupted data and restore access to the data in unaffected s
 [WARNING]
 Stop Elasticsearch before running `elasticsearch-shard`.
 
-To remove corrupted Lucene index segments and/or corrupted translog files, use the `remove-corrupted-data` subcommand.
+To remove corrupted shard data use the `remove-corrupted-data` subcommand.
 
 There are two ways to specify the path:
 
 * Specify the index name and shard name with the `--index` and `--shard-id` options.
 * Use the `-dir` option to specify the full path to the corrupted index or translog files.
 
-=== Listing corrupted Lucene index files and/or corrupted translog files
-
-You can get an overview of the corruption with `--dry-run` option :
-
-[source,txt]
---------------------------------------------------
-$ bin/elasticsearch-shard remove-corrupted-data --dry-run --index twitter --shard-id 0
-
-
-    WARNING: ElasticSearch MUST be stopped before running this tool.
-
-  Please make a complete backup of your index before using this tool.
-
-
-Opening Lucene index at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
-
- >> Lucene index is corrupted at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
-
-Opening translog at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
-
- >> Translog is clean at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
-
-
-  Corrupted Lucene index segments found - 32 documents will be lost.
-
-
---------------------------------------------------
-
 === Removing a corrupted Lucene index files and/or corrupted translog files
 
-You must confirm that you want to remove the corrupted segments when run `elasticsearch-shard` without `--dry-run`:
+`elasticsearch-shard` provides an overview of the corruption. To proceed you must confirm that you want
+to remove the corrupted data.
 
 [WARNING]
 Back up your data before running `elasticsearch-shard`. This is a destructive operation that removes corrupted data from the shard.

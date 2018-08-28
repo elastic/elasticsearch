@@ -101,8 +101,7 @@ public class FollowIndexIT extends ESRestTestCase {
         }
 
         assertBusy(() -> {
-            Request indexExists = new Request("HEAD", "/logs-20190101");
-            assertOK(client().performRequest(indexExists));
+            ensureYellow("logs-20190101");
             verifyDocuments("logs-20190101", 5);
         });
     }
@@ -162,6 +161,15 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+    }
+
+    private static void ensureYellow(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client().performRequest(request);
     }
 
     private RestClient buildLeaderClient() throws IOException {

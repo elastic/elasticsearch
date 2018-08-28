@@ -487,7 +487,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);

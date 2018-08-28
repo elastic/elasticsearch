@@ -368,9 +368,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-
     /**
-     * Sets the settings, mappings and customs as a single source, using specified registry to parse customs
+     * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {

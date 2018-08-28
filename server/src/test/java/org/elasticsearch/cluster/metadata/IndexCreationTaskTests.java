@@ -145,16 +145,11 @@ public class IndexCreationTaskTests extends ESTestCase {
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
-        assertThat(result.metaData().index("test").getCustomData(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
         assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
 
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
-        final Map<String, String> tplCustom = createCustom();
-        final Map<String, String> reqCustom = createCustom();
-        final Map<String, String> mergedCustom = createCustom();
-
         final CompressedXContent tplMapping = createMapping("text");
         final CompressedXContent reqMapping = createMapping("keyword");
 
@@ -170,7 +165,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask();
 
-        assertThat(result.metaData().index("test").getCustomData().get("custom1"), equalTo(mergedCustom));
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
         assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));

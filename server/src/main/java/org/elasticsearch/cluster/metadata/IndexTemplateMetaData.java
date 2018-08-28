@@ -192,7 +192,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
@@ -225,7 +224,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);

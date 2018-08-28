@@ -179,9 +179,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                     templateBuilder.putAlias(aliasMetaData);
                 }
-                for (Map.Entry<String, Map<String, String>> entry : request.customs.entrySet()) {
-                    templateBuilder.putCustom(entry.getKey(), entry.getValue());
-                }
                 IndexTemplateMetaData template = templateBuilder.build();
 
                 MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
@@ -339,7 +336,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
-        Map<String, Map<String, String>> customs = new HashMap<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 
@@ -375,11 +371,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
-            return this;
-        }
-
-        public PutRequest customs(Map<String, Map<String, String>> customs) {
-            this.customs.putAll(customs);
             return this;
         }
 

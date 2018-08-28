@@ -86,8 +86,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private final Map<String, Map<String, String>> customs = new HashMap<>();
-
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     public CreateIndexRequest() {
@@ -388,13 +386,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                if (entry.getValue() instanceof Map) {
-                    Map<String, String> custom = (Map<String, String>) entry.getValue();
-                    customs.put(name, custom);
-                } else {
-                    throw new ElasticsearchParseException("unknown key [{}] for create index", name);
-                }
+                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;
@@ -406,18 +398,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     public Set<Alias> aliases() {
         return this.aliases;
-    }
-
-    /**
-     * Adds custom metadata to the index to be created.
-     */
-    public CreateIndexRequest custom(String name, Map<String, String> custom) {
-        customs.put(name, custom);
-        return this;
-    }
-
-    public Map<String, Map<String, String>> customs() {
-        return this.customs;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -454,7 +434,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
 
     @Override
-    @SuppressWarnings("unchecked")
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         cause = in.readString();
@@ -470,15 +449,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             mappings.put(type, source);
         }
-        int customSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            for (int i = 0; i < customSize; i++) {
-                String name = in.readString();
-                Map<String, String> custom = (Map<String, String>)(Map) in.readMap();
-                customs.put(name, custom);
-            }
-        } else {
-            assert customSize == 0 : "expected there to always be no custom metadata";
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // This used to be the size of custom metadata classes
+            int customSize = in.readVInt();
+            assert customSize == 0 : "unexpected custom metadata when none is supported";
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -491,7 +465,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
@@ -502,14 +475,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            for (Map.Entry<String, Map<String, String>> entry : customs.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeMap((Map<String, Object>)(Map) entry.getValue());
-            }
-        } else {
-            assert customs.size() == 0 : "expected no custom metadata for";
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // Size of custom index metadata, which is removed
+            out.writeVInt(0);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -547,11 +515,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, Map<String, String>> custom : customs.entrySet()) {
-            builder.field(custom.getKey());
-            builder.map(custom.getValue());
-        }
         return builder;
     }
 }

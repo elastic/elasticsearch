@@ -299,10 +299,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                 }
 
-                for (Map.Entry<String, Map<String, String>> entry : request.customs().entrySet()) {
-                    customs.put(entry.getKey(), entry.getValue());
-                }
-
                 final Index recoverFromIndex = request.recoverFrom();
 
                 if (recoverFromIndex == null) {
@@ -317,19 +313,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            }
-                        }
-                        // handle custom
-                        for (ObjectObjectCursor<String, Map<String, String>> cursor : template.customs()) {
-                            String type = cursor.key;
-                            Map<String, String> custom = cursor.value;
-                            Map<String, String> existing = customs.get(type);
-                            if (existing == null) {
-                                customs.put(type, custom);
-                            } else {
-                                Map<String, String> merged = new HashMap<>(existing);
-                                merged.putAll(custom);
-                                customs.put(type, merged);
                             }
                         }
                         //handle aliases

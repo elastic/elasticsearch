@@ -212,16 +212,6 @@ public class PutIndexTemplateRequestBuilder
     }
 
     /**
-     * Sets custom metadata object.
-     *
-     * @param custom The custom index metadata object
-     */
-    public PutIndexTemplateRequestBuilder setCustom(String name, Map<String, String> custom) {
-        request.custom(name, custom);
-        return this;
-    }
-
-    /**
      * The template source definition.
      */
     public PutIndexTemplateRequestBuilder setSource(XContentBuilder templateBuilder) {

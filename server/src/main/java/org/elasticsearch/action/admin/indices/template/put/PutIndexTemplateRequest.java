@@ -87,8 +87,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private final Set<Alias> aliases = new HashSet<>();
 
-    private Map<String, Map<String, String>> customs = new HashMap<>();
-
     private Integer version;
 
     public PutIndexTemplateRequest() {
@@ -352,12 +350,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                if (entry.getValue() instanceof Map) {
-                    customs.put(name, (Map<String, String>) entry.getValue());
-                } else {
-                    throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
-                }
+                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
             }
         }
         return this;
@@ -389,15 +382,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
-    }
-
-    public PutIndexTemplateRequest custom(String name, Map<String, String> custom) {
-        customs.put(name, custom);
-        return this;
-    }
-
-    public Map<String, Map<String, String>> customs() {
-        return this.customs;
     }
 
     public Set<Alias> aliases() {
@@ -490,11 +474,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String mappingSource = in.readString();
             mappings.put(type, mappingSource);
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String name = in.readString();
-            Map<String, String> custom = (Map<String, String>)(Map) in.readMap();
-            customs.put(name, custom);
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // Used to be used for custom index metadata
+            int customSize = in.readVInt();
+            assert customSize == 0 : "expected not to have any custom metadata";
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -522,10 +505,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        for (Map.Entry<String, Map<String, String>> custom : customs.entrySet()) {
-            out.writeString(custom.getKey());
-            out.writeMap((Map<String, Object>)(Map) custom.getValue());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(0);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -561,11 +542,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, Map<String, String>> custom : customs.entrySet()) {
-            builder.field(custom.getKey());
-            builder.map(custom.getValue());
-        }
 
         return builder;
     }

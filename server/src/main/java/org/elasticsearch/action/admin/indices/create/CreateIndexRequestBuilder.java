@@ -184,14 +184,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * Sets custom metadata on index creation
-     */
-    public CreateIndexRequestBuilder setCustom(String name, Map<String, String> custom) {
-        request.custom(name, custom);
-        return this;
-    }
-
-    /**
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(String source, XContentType xContentType) {

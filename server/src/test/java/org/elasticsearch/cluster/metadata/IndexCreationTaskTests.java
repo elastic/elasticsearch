@@ -127,14 +127,12 @@ public class IndexCreationTaskTests extends ESTestCase {
         addMatchingTemplate(builder -> builder
                 .putAlias(AliasMetaData.builder("alias1"))
                 .putMapping("mapping1", createMapping())
-                .putCustom("custom1", createCustom())
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
-        assertThat(result.metaData().index("test").getCustomData(), hasKey("custom1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
         assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
     }
@@ -142,7 +140,6 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testApplyDataFromRequest() throws Exception {
         setupRequestAlias(new Alias("alias1"));
         setupRequestMapping("mapping1", createMapping());
-        setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
@@ -164,13 +161,11 @@ public class IndexCreationTaskTests extends ESTestCase {
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
                     .putMapping("mapping1", tplMapping)
-                    .putCustom("custom1", tplCustom)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
         setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
         setupRequestMapping("mapping1", reqMapping);
-        setupRequestCustom("custom1", reqCustom);
         reqSettings.put("key1", "reqValue");
 
         final ClusterState result = executeTask();
@@ -271,7 +266,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         addMatchingTemplate(builder -> builder
             .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
             .putMapping("mapping1", createMapping())
-            .putCustom("custom1", createCustom())
             .settings(Settings.builder().put("key1", "tplValue"))
         );
 
@@ -295,7 +289,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         Boolean writeIndex = randomBoolean() ? null : randomBoolean();
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
         setupRequestMapping("mapping1", createMapping());
-        setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
@@ -309,7 +302,6 @@ public class IndexCreationTaskTests extends ESTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         idxBuilder.put("test2", existingWriteIndex);
         setupRequestMapping("mapping1", createMapping());
-        setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
         setupRequestAlias(new Alias("alias1").writeIndex(true));
 
@@ -369,10 +361,6 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     private void setupRequestMapping(String mappingKey, CompressedXContent mapping) throws IOException {
         when(request.mappings()).thenReturn(Collections.singletonMap(mappingKey, mapping.string()));
-    }
-
-    private void setupRequestCustom(String customKey, Map<String, String> custom) throws IOException {
-        when(request.customs()).thenReturn(Collections.singletonMap(customKey, custom));
     }
 
     private CompressedXContent createMapping() throws IOException {

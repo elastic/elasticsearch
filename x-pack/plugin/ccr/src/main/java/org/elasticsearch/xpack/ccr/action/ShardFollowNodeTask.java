@@ -688,7 +688,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfSuccessfulBulkOperations = numberOfSuccessfulBulkOperations;
             this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
             this.numberOfOperationsIndexed = numberOfOperationsIndexed;
-            this.fetchExceptions = fetchExceptions;
+            this.fetchExceptions = Objects.requireNonNull(fetchExceptions);
         }
 
         public Status(final StreamInput in) throws IOException {

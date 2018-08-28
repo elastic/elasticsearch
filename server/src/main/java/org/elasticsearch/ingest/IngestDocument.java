@@ -645,12 +645,11 @@ public final class IngestDocument {
      * @return true if pipeline was executed, false if it could not be executed because it was already executed for this document
      * @throws Exception On exception in pipeline execution
      */
-    public boolean executePipeline(Pipeline pipeline) throws Exception {
+    public void executePipeline(Pipeline pipeline) throws Exception {
         if (this.executedPipelines.add(pipeline) == false) {
-            return false;
+            throw new IllegalStateException("Recursive invocation of pipeline [" + pipeline.getId() + "] detected.");
         }
         pipeline.execute(this);
-        return true;
     }
 
     @Override

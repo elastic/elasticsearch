@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -94,7 +96,16 @@ public class JobConfigProvider extends AbstractComponent {
                     .setOpType(DocWriteRequest.OpType.CREATE)
                     .request();
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                    listener::onResponse,
+                    e -> {
+                        if (e instanceof VersionConflictEngineException) {
+                            // the job already exists
+                            listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + job.getId() + "]", e));
@@ -338,10 +349,13 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Expands an expression into the set of matching names. {@code expresssion}
-     * may be a wildcard, a job group, a job ID or a list of those.
+     * may be a wildcard, a job group, a job Id or a list of those.
      * If {@code expression} == 'ALL', '*' or the empty string then all
-     * job IDs are returned.
-     * Job groups are expanded to all the jobs IDs in that group.
+     * job Ids are returned.
+     * Job groups are expanded to all the jobs Ids in that group.
+     *
+     * If {@code expression} contains a job Id or a Group name then it
+     * is an error if the job or group do not exist.
      *
      * For example, given a set of names ["foo-1", "foo-2", "bar-1", bar-2"],
      * expressions resolve follows:
@@ -359,14 +373,15 @@ public class JobConfigProvider extends AbstractComponent {
      * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
-     * @param listener The expanded job IDs listener
+     * @param listener The expanded job Ids listener
      */
     public void expandJobsIds(String expression, boolean allowNoJobs, ActionListener<Set<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
         sourceBuilder.sort(Job.ID.getPreferredName());
-        String [] includes = new String[] {Job.ID.getPreferredName(), Job.GROUPS.getPreferredName()};
-        sourceBuilder.fetchSource(includes, null);
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(Job.ID.getPreferredName());
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -381,10 +396,10 @@ public class JobConfigProvider extends AbstractComponent {
                             Set<String> groupsIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
-                                List<String> groups = (List<String>)hit.getSourceAsMap().get(Job.GROUPS.getPreferredName());
+                                jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
+                                List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
                                 if (groups != null) {
-                                    groupsIds.addAll(groups);
+                                    groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
                                 }
                             }
 
@@ -463,6 +478,8 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
+     * Unlike {@link #expandJobsIds(String, boolean, ActionListener)} it is not an error
+     * if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
      * @param groupIds Group Ids to expand
@@ -472,8 +489,8 @@ public class JobConfigProvider extends AbstractComponent {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
         sourceBuilder.sort(Job.ID.getPreferredName());
-        String [] includes = new String[] {Job.ID.getPreferredName()};
-        sourceBuilder.fetchSource(includes, null);
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(Job.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -485,7 +502,7 @@ public class JobConfigProvider extends AbstractComponent {
                             Set<String> jobIds = new HashSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
+                                jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                             }
 
                             listener.onResponse(jobIds);

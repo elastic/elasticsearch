@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -202,7 +203,7 @@ public class JobManagerTests extends ESTestCase {
         assertNotNull(jobsHolder.get());
         assertThat(jobsHolder.get().results(), hasSize(4));
         List<String> jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
-        assertThat(jobIds, containsInAnyOrder("foo-cs-1", "foo-cs-2", "bar-cs", "foo-index"));
+        assertThat(jobIds, contains("bar-cs", "foo-cs-1", "foo-cs-2", "foo-index"));
 
         jobsHolder.set(null);
         jobManager.expandJobs("foo*", true, ActionListener.wrap(
@@ -213,7 +214,7 @@ public class JobManagerTests extends ESTestCase {
         assertNotNull(jobsHolder.get());
         assertThat(jobsHolder.get().results(), hasSize(3));
         jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
-        assertThat(jobIds, containsInAnyOrder("foo-cs-1", "foo-cs-2", "foo-index"));
+        assertThat(jobIds, contains("foo-cs-1", "foo-cs-2", "foo-index"));
     }
 
     @SuppressWarnings("unchecked")

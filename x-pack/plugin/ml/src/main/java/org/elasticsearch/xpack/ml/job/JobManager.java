@@ -60,6 +60,8 @@ import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -120,7 +122,7 @@ public class JobManager extends AbstractComponent {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
-    public void jobExist(String jobId, ActionListener<Boolean> listener) {
+    public void jobExists(String jobId, ActionListener<Boolean> listener) {
         jobConfigProvider.checkJobExists(jobId, listener);
     }
 
@@ -146,7 +148,9 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Even this this uses a listener the job is returned on the same thread
+     * Read a job from the cluster state.
+     * The job is returned on the same thread even though a listener is used.
+     *
      * @param jobId the jobId
      * @param jobListener the Job listener. If no job matches {@code jobId}
      *                    a ResourceNotFoundException is returned
@@ -189,6 +193,7 @@ public class JobManager extends AbstractComponent {
                     }
 
                     jobs.addAll(clusterStateJobs.values());
+                    Collections.sort(jobs, Comparator.comparing(Job::getId));
                     jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
                 },
                 jobsListener::onFailure
@@ -252,14 +257,7 @@ public class JobManager extends AbstractComponent {
                             auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
                             actionListener.onResponse(new PutJobAction.Response(job));
                         },
-                        e -> {
-                            if (e instanceof VersionConflictEngineException) {
-                                // the job already exists
-                                actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
-                            } else {
-                                actionListener.onFailure(e);
-                            }
-                        }
+                        actionListener::onFailure
                 ));
             }
 
@@ -487,7 +485,7 @@ public class JobManager extends AbstractComponent {
                 expandedIds -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                         // Merge the expended group members with the request Ids.
-                        // Ids that aren't jobs will be filtered by by isJobOpen()
+                        // Ids that aren't jobs will be filtered by isJobOpen()
                         expandedIds.addAll(calendarJobIds);
 
                         for (String jobId : expandedIds) {

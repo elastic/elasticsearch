@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -101,7 +101,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> jobConfigProvider.putJob(jobWithSameId, actionListener), indexResponseHolder, exceptionHolder);
         assertNull(indexResponseHolder.get());
         assertNotNull(exceptionHolder.get());
-        assertThat(exceptionHolder.get(), instanceOf(VersionConflictEngineException.class));
+        assertThat(exceptionHolder.get(), instanceOf(ResourceAlreadyExistsException.class));
+        assertEquals("The job cannot be created with the Id 'same-id'. The Id is already used.", exceptionHolder.get().getMessage());
     }
 
     public void testCrud() throws InterruptedException {

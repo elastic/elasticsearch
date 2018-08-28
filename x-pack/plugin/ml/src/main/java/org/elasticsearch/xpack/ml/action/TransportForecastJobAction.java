@@ -89,29 +89,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     ForecastParams params = paramsBuilder.build();
                     processManager.forecastJob(task, params, e -> {
                         if (e == null) {
-                            Consumer<ForecastRequestStats> forecastRequestStatsHandler = forecastRequestStats -> {
-                                if (forecastRequestStats == null) {
-                                    // paranoia case, it should not happen that we do not retrieve a result
-                                    listener.onFailure(new ElasticsearchException(
-                                            "Cannot run forecast: internal error, please check the logs"));
-                                } else if (forecastRequestStats.getStatus() == ForecastRequestStats.ForecastRequestStatus.FAILED) {
-                                    List<String> messages = forecastRequestStats.getMessages();
-                                    if (messages.size() > 0) {
-                                        listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "
-                                                + messages.get(0)));
-                                    } else {
-                                        // paranoia case, it should not be possible to have an empty message list
-                                        listener.onFailure(
-                                                new ElasticsearchException(
-                                                        "Cannot run forecast: internal error, please check the logs"));
-                                    }
-                                } else {
-                                    listener.onResponse(new ForecastJobAction.Response(true, params.getForecastId()));
-                                }
-                            };
-
-                            jobResultsProvider.getForecastRequestStats(request.getJobId(), params.getForecastId(),
-                                    forecastRequestStatsHandler, listener::onFailure);
+;                           getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
                         } else {
                             listener.onFailure(e);
                         }
@@ -119,6 +97,31 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                 },
                 listener::onFailure
         ));
+    }
+
+    private void getForecastRequestStats(String jobId, String forecastId, ActionListener<ForecastJobAction.Response> listener) {
+        Consumer<ForecastRequestStats> forecastRequestStatsHandler = forecastRequestStats -> {
+            if (forecastRequestStats == null) {
+                // paranoia case, it should not happen that we do not retrieve a result
+                listener.onFailure(new ElasticsearchException(
+                        "Cannot run forecast: internal error, please check the logs"));
+            } else if (forecastRequestStats.getStatus() == ForecastRequestStats.ForecastRequestStatus.FAILED) {
+                List<String> messages = forecastRequestStats.getMessages();
+                if (messages.size() > 0) {
+                    listener.onFailure(ExceptionsHelper.badRequestException("Cannot run forecast: "
+                            + messages.get(0)));
+                } else {
+                    // paranoia case, it should not be possible to have an empty message list
+                    listener.onFailure(
+                            new ElasticsearchException(
+                                    "Cannot run forecast: internal error, please check the logs"));
+                }
+            } else {
+                listener.onResponse(new ForecastJobAction.Response(true, forecastId));
+            }
+        };
+
+        jobResultsProvider.getForecastRequestStats(jobId, forecastId, forecastRequestStatsHandler, listener::onFailure);
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {

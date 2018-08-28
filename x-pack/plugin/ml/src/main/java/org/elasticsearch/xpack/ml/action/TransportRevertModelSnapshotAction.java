@@ -71,7 +71,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
-        jobManager.jobExist(request.getJobId(), ActionListener.wrap(
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
                 exists -> {
                     PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                     JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);

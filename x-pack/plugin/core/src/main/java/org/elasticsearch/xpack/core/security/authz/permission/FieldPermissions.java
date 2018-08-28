@@ -163,7 +163,7 @@ public final class FieldPermissions implements Accountable {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
     }
 
-    FieldPermissionsDefinition getFieldPermissionsDefinition() {
+    public FieldPermissionsDefinition getFieldPermissionsDefinition() {
         return fieldPermissionsDefinition;
     }
 

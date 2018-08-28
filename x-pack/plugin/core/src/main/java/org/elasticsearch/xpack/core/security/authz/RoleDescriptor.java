@@ -763,6 +763,10 @@ public class RoleDescriptor implements ToXContentObject {
                 return this;
             }
 
+            public Builder privileges(Collection<String> privileges) {
+                return privileges(privileges.toArray(new String[privileges.size()]));
+            }
+
             public Builder grantedFields(String... grantedFields) {
                 indicesPrivileges.grantedFields = grantedFields;
                 return this;
@@ -919,7 +923,7 @@ public class RoleDescriptor implements ToXContentObject {
                 return this;
             }
 
-            public Builder resources(List<String> resources) {
+            public Builder resources(Collection<String> resources) {
                 return resources(resources.toArray(new String[resources.size()]));
             }
 

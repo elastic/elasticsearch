@@ -75,7 +75,7 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">ML PUT job documentation</a>
      *
-     * @param request  The request containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.job.config.Job} settings
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -98,7 +98,7 @@ public final class MachineLearningClient {
      * @param request {@link GetJobRequest} Request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetJobResponse} response object containing
-     * the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects and the number of jobs found
+     * the {@link org.elasticsearch.client.ml.job.config.Job} objects and the number of jobs found
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetJobResponse getJob(GetJobRequest request, RequestOptions options) throws IOException {

@@ -28,7 +28,7 @@ public class ShardToolCli extends LoggingAwareMultiCommand {
 
     private ShardToolCli() {
         super("A CLI tool to remove corrupted parts of unrecoverable shards");
-        subcommands.put("remove-corrupted-data", new RemoveCorruptedShardSegmentsCommand());
+        subcommands.put("remove-corrupted-data", new RemoveCorruptedShardDataCommand());
     }
 
     public static void main(String[] args) throws Exception {

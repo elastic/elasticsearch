@@ -72,9 +72,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand {
+public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
-    private static final Logger logger = Loggers.getLogger(RemoveCorruptedShardSegmentsCommand.class);
+    private static final Logger logger = Loggers.getLogger(RemoveCorruptedShardDataCommand.class);
 
     private static final int MISCONFIGURATION = 1;
 
@@ -86,7 +86,7 @@ public class RemoveCorruptedShardSegmentsCommand extends EnvironmentAwareCommand
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
 
-    public RemoveCorruptedShardSegmentsCommand() {
+    public RemoveCorruptedShardDataCommand() {
         super("Removes corrupted shard files");
 
         folderOption = parser.acceptsAll(Arrays.asList("d", "dir"),

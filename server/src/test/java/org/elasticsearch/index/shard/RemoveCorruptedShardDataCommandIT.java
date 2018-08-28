@@ -96,7 +96,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
-public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
+public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -133,7 +133,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
 
         logger.info("--> indexed {} docs", numDocs);
 
-        final RemoveCorruptedShardSegmentsCommand command = new RemoveCorruptedShardSegmentsCommand();
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();
         final OptionParser parser = command.getParser();
 
@@ -290,7 +290,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
-        RemoveCorruptedShardSegmentsCommand ttc = new RemoveCorruptedShardSegmentsCommand();
+        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand();
         MockTerminal t = new MockTerminal();
         OptionParser parser = ttc.getParser();
 
@@ -486,7 +486,7 @@ public class RemoveCorruptedShardSegmentsCommandIT extends ESIntegTestCase {
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), totalDocs);
 
-        RemoveCorruptedShardSegmentsCommand ttc = new RemoveCorruptedShardSegmentsCommand();
+        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand();
         MockTerminal t = new MockTerminal();
         OptionParser parser = ttc.getParser();
 

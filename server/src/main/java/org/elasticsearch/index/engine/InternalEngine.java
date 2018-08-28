@@ -493,11 +493,6 @@ public class InternalEngine extends Engine {
         revisitIndexDeletionPolicyOnTranslogSynced();
     }
 
-    @Override
-    public Translog.Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
-    }
-
     /**
      * Creates a new history snapshot for reading operations since the provided seqno.
      * The returned snapshot can be retrieved from either Lucene index or translog files.

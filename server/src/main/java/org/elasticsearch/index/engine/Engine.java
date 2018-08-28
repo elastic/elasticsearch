@@ -592,12 +592,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
-    /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.
-     * The caller has to close the returned snapshot after finishing the reading.
-     */
-    public abstract Translog.Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
-
     public abstract TranslogStats getTranslogStats();
 
     /**

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -1216,15 +1215,6 @@ public class RestHighLevelClient implements Closeable {
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
-    }
-
-    private static RequestOptions optionsForHeaders(Header[] headers) {
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        for (Header header : headers) {
-            Objects.requireNonNull(header, "header cannot be null");
-            options.addHeader(header.getName(), header.getValue());
-        }
-        return options.build();
     }
 
     static boolean convertExistsResponse(Response response) {

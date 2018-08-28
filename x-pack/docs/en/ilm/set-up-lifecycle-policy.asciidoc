@@ -103,8 +103,8 @@ PUT test-index
 -----------------------
 // CONSOLE
 
-NOTE: it is not recommended to set the policy on the index creation request if
-you are using the rollover action as the indexes created by the rollover action
-will not have the policy set. IF you are using the rollover action in your 
-policy its recommended to set the policy in an index template.
+IMPORTANT: Its recommended not to use the create index API with a policy that
+defines a rollover action. If you do so, the new index as the result of the
+rollover will not carry forward the policy. Always use index templates to
+define policies with rollover actions.
 

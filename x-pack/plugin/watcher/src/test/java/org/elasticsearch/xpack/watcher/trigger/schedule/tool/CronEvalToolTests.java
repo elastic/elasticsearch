@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.Calendar;
 import java.util.Locale;
@@ -47,5 +50,14 @@ public class CronEvalToolTests extends CommandTestCase {
             assertThat(message, containsString("Could not compute future times since"));
             assertThat(message, containsString("(perhaps the cron expression only points to times in the past?)"));
         }
+    }
+
+    // randomized testing sets arbitrary locales and timezones, and we do not care
+    // we always have to output in standard locale and independent from timezone
+    public void testEnsureThatExternalLocaleIsIgnored() throws Exception {
+        String id = DateTimeFormat.forPattern("Z").print(DateTime.now(DateTimeZone.UTC));
+        String output = execute("-c","1", "0 0 11 ? * MON-SAT 2040");
+        assertThat(output, containsString("Mon, 2 Jan 2040 11:00:00"));
+        assertThat(output, containsString(id));
     }
 }

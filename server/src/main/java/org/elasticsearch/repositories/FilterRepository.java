@@ -136,11 +136,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void applyPostRestoreOps(IndexShard shard) throws IOException {
-        in.applyPostRestoreOps(shard);
-    }
-
-    @Override
     public Lifecycle.State lifecycleState() {
         return in.lifecycleState();
     }

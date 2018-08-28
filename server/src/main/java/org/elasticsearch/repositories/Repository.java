@@ -219,11 +219,6 @@ public interface Repository extends LifecycleComponent {
     void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
-     * This allows a repository to apply operations after the snapshot has been restored as part of the translog recovery phase.
-     */
-    default void applyPostRestoreOps(IndexShard shard) throws IOException {}
-
-    /**
      * Retrieve shard snapshot status for the stored snapshot
      *
      * @param snapshotId snapshot id

@@ -34,6 +34,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
     public void testSourceOnlyRandom() throws IOException {
@@ -41,9 +42,11 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setIndexDeletionPolicy
                 (deletionPolicy))) {
-                boolean modifyDeletedDocs = true; randomBoolean();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, writer.w.getConfig().getSoftDeletesField(),
-                    modifyDeletedDocs? () -> new DocValuesFieldExistsQuery("some_values") : null);
+                String softDeletesField = writer.w.getConfig().getSoftDeletesField();
+                // we either use the soft deletes directly or manually delete them to test the additional delete functionality
+                boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, modifyDeletedDocs ? null : softDeletesField,
+                    modifyDeletedDocs? () -> new DocValuesFieldExistsQuery(softDeletesField) : null);
                 writer.commit();
                 int numDocs = scaledRandomIntBetween(100, 10000);
                 boolean appendOnly = randomBoolean();
@@ -75,8 +78,8 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     snapshoter.syncSnapshot(snapshot);
                     try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(targetDir));
                          DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
-                         DirectoryReader reader = modifyDeletedDocs ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, "some_value") :
-                             wrappedReader;
+                         DirectoryReader reader = modifyDeletedDocs
+                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) : wrappedReader;
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
@@ -158,8 +161,8 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             }
 
             snapshoter = new SourceOnlySnapshot(targetDir, "id");
-            snapshoter.syncSnapshot(snapshot);
-            assertEquals(0, snapshoter.getCreatedFiles().size());
+            List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
+            assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
             // now add another doc
             doc = new Document();
@@ -178,9 +181,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             {
                 snapshot = deletionPolicy.snapshot();
                 snapshoter = new SourceOnlySnapshot(targetDir, "id");
-                snapshoter.syncSnapshot(snapshot);
-                assertEquals(4, snapshoter.getCreatedFiles().size());
-                for (String file : snapshoter.getCreatedFiles()) {
+                createdFiles = snapshoter.syncSnapshot(snapshot);
+                assertEquals(4, createdFiles.size());
+                for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
                     switch (extension) {
                         case "fdt":
@@ -203,9 +206,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             {
                 snapshot = deletionPolicy.snapshot();
                 snapshoter = new SourceOnlySnapshot(targetDir, "id");
-                snapshoter.syncSnapshot(snapshot);
-                assertEquals(1, snapshoter.getCreatedFiles().size());
-                for (String file : snapshoter.getCreatedFiles()) {
+                createdFiles = snapshoter.syncSnapshot(snapshot);
+                assertEquals(1, createdFiles.size());
+                for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
                     switch (extension) {
                         case "liv":

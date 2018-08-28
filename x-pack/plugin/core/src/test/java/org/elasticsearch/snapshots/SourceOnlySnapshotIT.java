@@ -1,19 +1,20 @@
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -29,10 +30,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.engine.MockEngineFactory;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -54,7 +57,6 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
         Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.getMockPlugins());
         classes.remove(MockEngineFactoryPlugin.class);
         return classes;
@@ -80,94 +82,110 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY_ENGINE);
             return settings;
         }
-
     }
 
-    /**
-     * Tests that a source only index snapshot
-     */
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
-        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, false, false);
+        try {
+            boolean requireRouting = randomBoolean();
+            boolean useNested = randomBoolean();
+            IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
+            assertHits(sourceIdx, builders.length);
+            assertMappings(sourceIdx, requireRouting, useNested);
+            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
+                .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
+            // ensure we can not find hits it's a minimal restore
+            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+            // make sure deletes work
+            String idToDelete = "" + randomIntBetween(0, builders.length);
+            expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+                .setRouting("r" + idToDelete).get());
+            internalCluster().ensureAtLeastNumDataNodes(2);
+                client().admin().indices().prepareUpdateSettings(sourceIdx)
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
+            ensureGreen(sourceIdx);
+            assertHits(sourceIdx, builders.length);
+        } finally {
+            client().admin().indices().prepareDelete(sourceIdx).get();
+        }
+    }
 
-        SearchResponse searchResponse = client().prepareSearch(sourceIdx).setSize(builders.length)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).get();
+    public void testSnapshotAndRestoreWithNested() throws Exception {
+        final String sourceIdx = "test-idx";
+        try {
+            boolean requireRouting = randomBoolean();
+            IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
+            assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0l));
+            assertHits(sourceIdx, builders.length);
+            assertMappings(sourceIdx, requireRouting, true);
+            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
+                .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
+            // ensure we can not find hits it's a minimal restore
+            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+            // make sure deletes work
+            String idToDelete = "" + randomIntBetween(0, builders.length);
+            expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+                .setRouting("r" + idToDelete).get());
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
+                .get();
+            ensureGreen(sourceIdx);
+            assertHits(sourceIdx, builders.length);
+        } finally {
+            client().admin().indices().prepareDelete(sourceIdx).get();
+        }
+    }
+
+    private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+        ImmutableOpenMap<String, MappingMetaData> mapping = getMappingsResponse
+            .getMappings().get(sourceIdx);
+        assertTrue(mapping.containsKey("_doc"));
+        String nested = useNested ?
+            ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
+        if (requireRouting) {
+            assertEquals("{\"_doc\":{\"enabled\":false," +
+                "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
+                "\"properties\":{\"field1\":{\"type\":\"text\"," +
+                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}," +
+                "\"_routing\":{\"required\":true}}}", mapping.get("_doc").source().string());
+        } else {
+            assertEquals("{\"_doc\":{\"enabled\":false," +
+                "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
+                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
+                mapping.get("_doc").source().string());
+        }
+    }
+
+    private void assertHits(String index, int numDocsExpected) {
+        SearchResponse searchResponse = client().prepareSearch(index)
+            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            .setSize(numDocsExpected).get();
         SearchHits hits = searchResponse.getHits();
-        assertEquals(builders.length, hits.totalHits);
+        assertEquals(numDocsExpected, hits.totalHits);
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
+        long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
+        boolean allowHoles = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
         long i = 0;
         for (SearchHit hit : hits) {
             String id = hit.getId();
             Map<String, Object> sourceAsMap = hit.getSourceAsMap();
             assertTrue(sourceAsMap.containsKey("field1"));
-            assertEquals(i++, hit.getSortValues()[0]);
-            assertEquals("bar "+id, sourceAsMap.get("field1"));
-            assertEquals("r"+id, hit.field("_routing").getValue());
-        }
-        // ensure we can find hits
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-            .addIds("" + randomIntBetween(0, builders.length))).get(), 1);
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), builders.length);
-    }
-
-    /**
-     * Tests that a source only index snapshot
-     */
-    public void testSnapshotAndRestoreMinimal() throws Exception {
-        final String sourceIdx = "test-idx";
-        try {
-            boolean requireRouting = randomBoolean();
-            IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting);
-
-            SearchResponse searchResponse = client().prepareSearch(sourceIdx)
-                .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-                .setSize(builders.length).get();
-            SearchHits hits = searchResponse.getHits();
-            assertEquals(builders.length, hits.totalHits);
-            long i = 0;
-            for (SearchHit hit : hits) {
-                String id = hit.getId();
-                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-                assertTrue(sourceAsMap.containsKey("field1"));
-                assertEquals(i++, hit.getSortValues()[0]);
-                assertEquals("bar " + id, sourceAsMap.get("field1"));
-                assertEquals("r" + id, hit.field("_routing").getValue());
-            }
-            GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
-            ImmutableOpenMap<String, MappingMetaData> mapping = getMappingsResponse
-                .getMappings().get(sourceIdx);
-            assertTrue(mapping.containsKey("_doc"));
-            if (requireRouting) {
-                assertEquals("{\"_doc\":{\"enabled\":false," +
-                    "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
-                    "\"properties\":{\"field1\":{\"type\":\"text\"," +
-                    "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}," +
-                    "\"_routing\":{\"required\":true}}}", mapping.get("_doc").source().string());
+            if (allowHoles) {
+                long seqId = ((Number)hit.getSortValues()[0]).longValue();
+                assertThat(i, Matchers.lessThanOrEqualTo(seqId));
+                i = seqId + 1;
             } else {
-                assertEquals("{\"_doc\":{\"enabled\":false," +
-                    "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
-                    "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}", mapping.get("_doc").source().string());
+                assertEquals(i++, hit.getSortValues()[0]);
             }
-//        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-//            .addIds("" + randomIntBetween(0, builders.length))).get(), 1);
-//        // ensure we can not find hits it's a minimal restore
-//        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
-//        // make sure deletes work
-//        String idToDelete = "" + randomIntBetween(0, builders.length);
-//        DeleteResponse deleteResponse = client().prepareDelete(sourceIdx, "_doc", idToDelete).setRouting("r" + idToDelete).get();
-//        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-//        refresh(sourceIdx);
-//        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds(idToDelete)).get(), 0);
-            internalCluster().ensureAtLeastNumDataNodes(2);
-            client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get();
-            ensureGreen(sourceIdx);
-        } finally {
-            client().admin().indices().prepareDelete(sourceIdx).get();
+            assertEquals("bar " + id, sourceAsMap.get("field1"));
+            assertEquals("r" + id, hit.field("_routing").getValue());
         }
-
     }
 
-    private IndexRequestBuilder[] snashotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting)
+    private IndexRequestBuilder[] snashotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting, boolean
+        useNested)
         throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  starting a master node and a data node");
         internalCluster().startMasterOnlyNode();
@@ -186,8 +204,16 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
             .put("number_of_shards", numShards).put("number_of_replicas", 0));
+        List<Object> mappings = new ArrayList<>();
         if (requireRouting) {
-            createIndexRequestBuilder.addMapping("_doc", "_routing", "required=true");
+            mappings.addAll(Arrays.asList("_routing", "required=true"));
+        }
+
+        if (useNested) {
+            mappings.addAll(Arrays.asList("nested", "type=nested", "incorrect", "type=object"));
+        }
+        if (mappings.isEmpty() == false) {
+            createIndexRequestBuilder.addMapping("_doc", mappings.toArray());
         }
         assertAcked(createIndexRequestBuilder);
         ensureGreen();
@@ -195,8 +221,19 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         logger.info("--> indexing some data");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 100)];
         for (int i = 0; i < builders.length; i++) {
+            XContentBuilder source = jsonBuilder()
+                .startObject()
+                .field("field1", "bar " + i);
+            if (useNested) {
+                source.startArray("nested");
+                for (int j = 0; j < 2; ++j) {
+                    source = source.startObject().field("value", i + 1 + j).endObject();
+                }
+                source.endArray();
+            }
+            source.endObject();
             builders[i] = client().prepareIndex(sourceIdx, "_doc",
-                Integer.toString(i)).setSource("field1", "bar " + i).setRouting("r" + i);
+                Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

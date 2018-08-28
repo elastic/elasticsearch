@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -47,7 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
-public class SourceOnlySnapshotEngine extends Engine {
+public final class SourceOnlySnapshotEngine extends Engine {
 
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;

@@ -7,6 +7,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.store.IOContext;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +48,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -80,16 +83,10 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 public final class SourceOnlySnapshotRepository extends FilterRepository {
     public static final Setting<String> DELEGATE_TYPE =
         new Setting<>("delegate_type", "", Function.identity(), Setting.Property.NodeScope);
-
-    public static final Setting<Boolean> RESTORE_MINIMAL = Setting.boolSetting("restore_minimal",
-        false, Setting.Property.NodeScope);
-
     public static final Setting<Boolean> SOURCE_ONLY_ENGINE = Setting.boolSetting("index.require_source_only_engine", false, Setting
         .Property.IndexScope, Setting.Property.InternalIndex, Setting.Property.Final);
 
     public static final String SNAPSHOT_DIR_NAME = "_snapshot";
-    public static final String RESTORE_DIR_NAME = "_restore";
-    private final boolean restoreMinimal;
 
     public static Repository.Factory newFactory() {
         return new Repository.Factory() {
@@ -105,49 +102,44 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
-                boolean restoreMinimal = RESTORE_MINIMAL.get(metaData.settings());
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetaData(metaData.name(),
-                    delegateType, metaData.settings()), typeLookup), restoreMinimal);
+                    delegateType, metaData.settings()), typeLookup));
             }
         };
     }
 
-    public SourceOnlySnapshotRepository(Repository in, boolean restoreMinimal) {
+    public SourceOnlySnapshotRepository(Repository in) {
         super(in);
-        this.restoreMinimal = restoreMinimal;
     }
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
         IndexMetaData snapshotIndexMetaData = super.getSnapshotIndexMetaData(snapshotId, index);
-        if (restoreMinimal) {
-            // TODO: can we lie about the index.version.created here and produce an index with a new version since we reindex anyway?
+        // TODO: can we lie about the index.version.created here and produce an index with a new version since we reindex anyway?
 
-            // for a minimal restore we basically disable indexing on all fields and only create an index
-            // that is fully functional from an operational perspective. ie. it will have all metadata fields like version/
-            // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
-            ImmutableOpenMap<String, MappingMetaData> mappings = snapshotIndexMetaData.getMappings();
-            Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
-            IndexMetaData.Builder builder = IndexMetaData.builder(snapshotIndexMetaData);
-            while (iterator.hasNext()) {
-                ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
-                MappingMetaData.Routing routing = next.value.routing();
-                final String mapping;
-                if (routing.required()) { // we have to respect the routing to be on the safe side so we pass this one on.
-                    mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + ", " +
-                        "\"_routing\" : { \"required\" : true } } }";
-                } else {
-                    mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
-                }
-                builder.putMapping(next.key, mapping);
+        // for a minimal restore we basically disable indexing on all fields and only create an index
+        // that is fully functional from an operational perspective. ie. it will have all metadata fields like version/
+        // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
+        ImmutableOpenMap<String, MappingMetaData> mappings = snapshotIndexMetaData.getMappings();
+        Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
+        IndexMetaData.Builder builder = IndexMetaData.builder(snapshotIndexMetaData);
+        while (iterator.hasNext()) {
+            ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
+            MappingMetaData.Routing routing = next.value.routing();
+            final String mapping;
+            if (routing.required()) { // we have to respect the routing to be on the safe side so we pass this one on.
+                mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + ", " +
+                    "\"_routing\" : { \"required\" : true } } }";
+            } else {
+                mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
             }
-            builder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(SOURCE_ONLY_ENGINE.getKey(), true));
-            return builder.build();
-        } else {
-            return snapshotIndexMetaData;
+            builder.putMapping(next.key, mapping);
         }
-
+        builder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings())
+            .put(SOURCE_ONLY_ENGINE.getKey(), true)
+            .put("index.blocks.write", true)); // read-only!
+        return builder.build();
     }
 
     @Override
@@ -169,7 +161,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     // do nothing;
                 }
             }, Store.OnClose.EMPTY);
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), null);
+            Supplier<Query> querySupplier = shard.mapperService().hasNested() ? () -> Queries.newNestedFilter() : null;
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), null, querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             store.incRef();
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory());
@@ -182,85 +175,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         } catch (IOException e) {
             // why on earth does this super method not declare IOException
             throw new UncheckedIOException(e);
-        }
-    }
-
-    @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        super.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
-        if (restoreMinimal == false) {
-            ShardPath shardPath = shard.shardPath();
-            try {
-                Path restoreSourceCopy = shardPath.getDataPath().resolve(RESTORE_DIR_NAME);
-                try (HardlinkCopyDirectoryWrapper wrapper = new HardlinkCopyDirectoryWrapper(FSDirectory.open(restoreSourceCopy))) {
-                    Lucene.cleanLuceneIndex(wrapper);
-                    SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
-                    for (String file : segmentInfos.files(true)) {
-                        wrapper.copyFrom(shard.store().directory(), file, file, IOContext.DEFAULT);
-                    }
-                }
-                Lucene.cleanLuceneIndex(shard.store().directory()); // wipe the old index
-                shard.store().createEmpty();
-            } catch (IOException ex) {
-                // why on earth does this super method not declare IOException
-                throw new UncheckedIOException(ex);
-            }
-        }
-    }
-
-    @Override
-    public void applyPostRestoreOps(IndexShard shard) throws IOException {
-        if (restoreMinimal) {
-            return;
-        }
-
-        ShardPath shardPath = shard.shardPath();
-        Path restoreSourceCopy = shardPath.getDataPath().resolve(RESTORE_DIR_NAME);
-        RecoveryState.Translog state = shard.recoveryState().getTranslog();
-        assert state.totalOperations() == 0 : "translog state should have 0 total ops but got: " + state.totalOperations();
-        state.reset();
-        String index = shard.shardId().getIndexName();
-        try (FSDirectory dir = FSDirectory.open(restoreSourceCopy)) {
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                state.totalOperationsOnStart(reader.numDocs());
-                state.totalOperations(reader.numDocs());
-                long primaryTerm = shard.getPendingPrimaryTerm();
-                FieldsVisitor rootFieldsVisitor = new FieldsVisitor(true);
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    LeafReader leafReader = ctx.reader();
-                    Bits liveDocs = leafReader.getLiveDocs();
-                    // TODO: we could do this in parallel per segment here or even per docID
-                    // there is a lot of room for doing this multi-threaded but not for the first iteration
-                    for (int i = 0; i < leafReader.maxDoc(); i++) {
-                        if (liveDocs == null || liveDocs.get(i)) {
-                            rootFieldsVisitor.reset();
-                            leafReader.document(i, rootFieldsVisitor);
-                            rootFieldsVisitor.postProcess(shard.mapperService());
-                            Uid uid = rootFieldsVisitor.uid();
-                            BytesReference source = rootFieldsVisitor.source();
-                            if (source != null) { // nested fields don't have source. in this case we should be fine.
-                                // we can use append-only optimization here since we know there won't be any duplicates!
-                                Engine.Result result = shard.applyIndexOperation(SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm,
-                                    Versions.MATCH_ANY, VersionType.INTERNAL, 1, false, Engine.Operation.Origin.LOCAL_REINDEX,
-                                    source(index, uid.type(), uid.id(), source,
-                                        XContentHelper.xContentType(source), false).routing(rootFieldsVisitor.routing()));
-                                if (result.getResultType() != Engine.Result.Type.SUCCESS) {
-                                    throw new IllegalStateException("failed applying post restore operation result: " + result
-                                        .getResultType(), result.getFailure());
-                                }
-
-                                state.incrementRecoveredOperations();
-                            } else {
-                                assert restoreMinimal // in this case we don't have nested in the mapping.
-                                    || shard.mapperService().hasNested() : "_source is null but shard has no nested docs";
-                            }
-                        }
-                    }
-                }
-                shard.flush(new FlushRequest());
-            }
-            Lucene.cleanLuceneIndex(dir); // clear the tmp index;
         }
     }
 }

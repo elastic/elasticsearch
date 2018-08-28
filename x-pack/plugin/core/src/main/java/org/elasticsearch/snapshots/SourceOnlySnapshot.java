@@ -23,7 +23,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -55,24 +54,19 @@ import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter
 public final class SourceOnlySnapshot {
     private final Directory targetDirectory;
     private final String softDeletesField;
-    private final List<String> createdFiles = new ArrayList<>();
-    private final Supplier<Query> filterDocsQuerySupplier;
+    private final Supplier<Query> deleteByQuerySupplier;
 
-    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField, Supplier<Query> filterDocsQuerySupplier) {
+    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField, Supplier<Query> deleteByQuerySupplier) {
         this.targetDirectory = targetDirectory;
         this.softDeletesField = softDeletesField;
-        this.filterDocsQuerySupplier = filterDocsQuerySupplier;
+        this.deleteByQuerySupplier = deleteByQuerySupplier;
     }
 
     public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField) {
         this(targetDirectory, softDeletesField, null);
     }
 
-    public List<String> getCreatedFiles() {
-        return createdFiles;
-    }
-
-    public synchronized void syncSnapshot(IndexCommit commit) throws IOException {
+    public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
         long generation;
         Map<BytesRef, SegmentCommitInfo> existingSegments = new HashMap<>();
         if (Lucene.indexExists(targetDirectory)) {
@@ -84,6 +78,7 @@ public final class SourceOnlySnapshot {
         } else {
             generation = 1;
         }
+        List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
@@ -94,7 +89,7 @@ public final class SourceOnlySnapshot {
                 SegmentCommitInfo info = segmentInfos.info(ctx.ord);
                 LeafReader leafReader = ctx.reader();
                 LiveDocs liveDocs = getLiveDocs(leafReader);
-                SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments);
+                SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
                 newInfos.add(newInfo);
             }
             segmentInfos.clear();
@@ -112,14 +107,18 @@ public final class SourceOnlySnapshot {
         }
         Lucene.pruneUnreferencedFiles(segmentFileName, targetDirectory);
         assert assertCheckIndex();
+        return Collections.unmodifiableList(createdFiles);
     }
 
     private LiveDocs getLiveDocs(LeafReader reader) throws IOException {
-        if (filterDocsQuerySupplier != null) {
-            Query query = filterDocsQuerySupplier.get();
+        if (deleteByQuerySupplier != null) {
+            // we have this additional delete by query functionality to filter out documents before we snapshot them
+            // we can't filter after the fact since we don't have an index anymore.
+            Query query = deleteByQuerySupplier.get();
             IndexSearcher s = new IndexSearcher(reader);
             s.setQueryCache(null);
-            Weight weight = s.createWeight(query, false, 1.0f);
+            Query rewrite = s.rewrite(query);
+            Weight weight = s.createWeight(rewrite, false, 1.0f);
             Scorer scorer = weight.scorer(reader.getContext());
             if (scorer != null) {
                 DocIdSetIterator iterator = scorer.iterator();
@@ -175,7 +174,7 @@ public final class SourceOnlySnapshot {
     }
 
     private SegmentCommitInfo syncSegment(SegmentCommitInfo segmentCommitInfo, LiveDocs liveDocs, FieldInfos fieldInfos,
-                                          Map<BytesRef, SegmentCommitInfo> existingSegments) throws IOException {
+                                          Map<BytesRef, SegmentCommitInfo> existingSegments, List<String> createdFiles) throws IOException {
         SegmentInfo si = segmentCommitInfo.info;
         Codec codec = si.getCodec();
         final String segmentSuffix = "";
@@ -227,7 +226,6 @@ public final class SourceOnlySnapshot {
         }
         createdFiles.addAll(trackingDir.getCreatedFiles());
         return newInfo;
-
     }
 
     private boolean assertLiveDocs(Bits liveDocs, int deletes) {

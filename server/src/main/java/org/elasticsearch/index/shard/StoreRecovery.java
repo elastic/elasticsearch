@@ -464,7 +464,6 @@ final class StoreRecovery {
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-            repository.applyPostRestoreOps(indexShard);
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
         } catch (Exception e) {

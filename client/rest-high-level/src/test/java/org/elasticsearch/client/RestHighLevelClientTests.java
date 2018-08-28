@@ -685,6 +685,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -757,7 +758,9 @@ public class RestHighLevelClientTests extends ESTestCase {
                         if (apiName.startsWith("xpack.") == false &&
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
-                            apiName.startsWith("watcher.") == false) {
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

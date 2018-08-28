@@ -210,7 +210,7 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         return new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
     }
 
-    public static Job createRandomizedJob() {
+    public static Job.Builder createRandomizedJobBuilder() {
         String jobId = randomValidJobId();
         Job.Builder builder = new Job.Builder(jobId);
         if (randomBoolean()) {
@@ -265,7 +265,11 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());
         }
-        return builder.build();
+        return builder;
+    }
+
+    public static Job createRandomizedJob() {
+        return createRandomizedJobBuilder().build();
     }
 
     @Override

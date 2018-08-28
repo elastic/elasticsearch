@@ -1,6 +1,5 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
+
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
@@ -41,6 +40,6 @@ jar {
 
 forbiddenApisMain {
     // log-config-creator does not depend on server, so cannot forbid server methods
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 

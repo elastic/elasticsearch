@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 

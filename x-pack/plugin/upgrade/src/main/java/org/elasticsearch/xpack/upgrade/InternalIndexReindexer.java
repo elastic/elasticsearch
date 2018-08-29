@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -116,10 +114,10 @@ public class InternalIndexReindexer<T> {
 
     private void reindex(ParentTaskAssigningClient parentAwareClient, String index, String newIndex,
                          ActionListener<BulkByScrollResponse> listener) {
-        SearchRequest sourceRequest = new SearchRequest(index);
-        sourceRequest.types(types);
-        IndexRequest destinationRequest = new IndexRequest(newIndex);
-        ReindexRequest reindexRequest = new ReindexRequest(sourceRequest, destinationRequest);
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices(index);
+        reindexRequest.setSourceDocTypes(types);
+        reindexRequest.setDestIndex(newIndex);
         reindexRequest.setRefresh(true);
         reindexRequest.setScript(transformScript);
         parentAwareClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);

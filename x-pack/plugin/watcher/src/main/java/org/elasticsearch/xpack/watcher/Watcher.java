@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -348,38 +347,33 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                // TODO FIXME
                 if (response.hasFailures()) {
-                    List<Tuple<String, String>> triggeredWatches = Arrays.stream(response.getItems())
+                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .filter(r -> TriggeredWatchStoreField.INDEX_NAME.equals(r.getIndex()))
-                        .map(r -> Tuple.tuple(r.getId(), r.getFailureMessage()))
-                        .collect(Collectors.toList());
+                        .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (triggeredWatches.isEmpty() == false) {
-                        List<String> ids = triggeredWatches.stream().map(Tuple::v1).collect(Collectors.toList());
-                        String failure = triggeredWatches.stream().map(Tuple::v2).collect(Collectors.joining(", "));
+                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
-                            ids, Strings.substring(failure, 0, 2000));
+                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
                     }
 
-                    List<Tuple<String, String>> overwrittenIds = Arrays.stream(response.getItems())
+                    Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
                         .filter(r -> r.getVersion() > 1)
-                        .map(r -> Tuple.tuple(r.getId(), r.getFailureMessage()))
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (overwrittenIds.isEmpty() == false) {
-                        List<String> ids = triggeredWatches.stream().map(Tuple::v1).collect(Collectors.toList());
-                        String failure = triggeredWatches.stream().map(Tuple::v2).collect(Collectors.joining(", "));
+                        String failure = overwrittenIds.values().stream().collect(Collectors.joining(", "));
                         logger.info("overwrote watch history entries {}, possible second execution of a triggered watch, failure [{}]",
-                            ids, Strings.substring(failure, 0, 2000));
+                            overwrittenIds.keySet(), Strings.substring(failure, 0, 2000));
                     }
                 }
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error("error deleting triggered watches", failure);
+                logger.error("error executing bulk", failure);
             }
         })
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))

@@ -8,9 +8,15 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -67,6 +73,9 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,6 +102,22 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     private Client client;
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
+    private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
+    private BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+        @Override
+        public void beforeBulk(long executionId, BulkRequest request) {
+        }
+
+        @Override
+        public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+            bulks.put(request, response);
+        }
+
+        @Override
+        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            throw new ElasticsearchException(failure);
+        }
+    };
 
     @Before
     public void init() {
@@ -103,7 +128,6 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
         BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
@@ -384,6 +408,65 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         parsedTriggeredWatch.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
 
         assertThat(BytesReference.bytes(jsonBuilder).utf8ToString(), equalTo(BytesReference.bytes(jsonBuilder2).utf8ToString()));
+    }
+
+    public void testPutTriggeredWatches() throws Exception {
+        DateTime now = DateTime.now(UTC);
+        int numberOfTriggeredWatches = randomIntBetween(1, 100);
+
+        List<TriggeredWatch> triggeredWatches = new ArrayList<>(numberOfTriggeredWatches);
+        for (int i = 0; i < numberOfTriggeredWatches; i++) {
+            triggeredWatches.add(new TriggeredWatch(new Wid("watch_id_", now), new ScheduleTriggerEvent("watch_id", now, now)));
+        }
+
+        doAnswer(invocation -> {
+            BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[1];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
+
+            int size = bulkRequest.requests().size();
+            BulkItemResponse[] bulkItemResponse = new BulkItemResponse[size];
+            for (int i = 0; i < size; i++) {
+                DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
+                ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
+            }
+
+            listener.onResponse(new BulkResponse(bulkItemResponse, 123));
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+
+
+        BulkResponse response = triggeredWatchStore.putAll(triggeredWatches);
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems().length, is(numberOfTriggeredWatches));
+    }
+
+    public void testDeleteTriggeredWatches() throws Exception {
+        DateTime now = DateTime.now(UTC);
+
+        doAnswer(invocation -> {
+            BulkRequest bulkRequest = (BulkRequest) invocation.getArguments()[0];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
+
+            int size = bulkRequest.requests().size();
+            BulkItemResponse[] bulkItemResponse = new BulkItemResponse[size];
+            for (int i = 0; i < size; i++) {
+                DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
+                ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
+            }
+
+            listener.onResponse(new BulkResponse(bulkItemResponse, 123));
+            return null;
+        }).when(client).bulk(any(), any());
+
+        triggeredWatchStore.delete(new Wid("watch_id_", now));
+        assertThat(bulks.keySet(), hasSize(1));
+        BulkResponse response = bulks.values().iterator().next();
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems().length, is(1));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

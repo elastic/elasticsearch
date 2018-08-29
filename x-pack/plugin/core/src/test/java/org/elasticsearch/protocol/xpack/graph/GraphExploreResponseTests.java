@@ -76,7 +76,7 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[]{"vertices"};
+        return new String[]{"vertices", "connections"};
     }    
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {

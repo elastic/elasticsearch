@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-get-role]]
 === Get roles API
 
@@ -41,7 +41,7 @@ the native realm:
 GET /_xpack/security/role/my_admin_role
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:admin_role]
+// TEST[skip:setup:admin_role]
 
 A successful call returns an array of roles with the JSON representation of the
 role. If the role is not defined in the native realm, the request returns 404.
@@ -79,7 +79,7 @@ To retrieve all roles, omit the role name:
 GET /_xpack/security/role
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 
 NOTE: If single role is requested, that role is returned as the response. When 
 requesting multiple roles, an object is returned holding the found roles, each 

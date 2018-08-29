@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-get-token]]
 === Get token API
 
@@ -75,6 +75,7 @@ POST /_xpack/security/oauth2/token
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example output contains the access token, the amount of time (in
 seconds) that the token expires in, and the type:
@@ -112,6 +113,7 @@ POST /_xpack/security/oauth2/token
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example output contains the access token, the amount of time (in
 seconds) that the token expires in, the type, and the refresh token:
@@ -143,7 +145,7 @@ POST /_xpack/security/oauth2/token
 --------------------------------------------------
 // CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
-// TEST[continued]
+// TEST[skip:continued]
 
 The API will return a new token and refresh token. Each refresh token may only 
 be used one time.

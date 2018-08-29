@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-clear-cache]]
 === Clear Cache API
 
@@ -41,6 +41,7 @@ For example, to evict all users cached by the `file` realm:
 POST _xpack/security/realm/default_file/_clear_cache
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 To evict selected users, specify the `usernames` parameter:
 
@@ -49,6 +50,7 @@ To evict selected users, specify the `usernames` parameter:
 POST _xpack/security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 To clear the caches for multiple realms, specify the realms as a comma-delimited
 list:
@@ -58,3 +60,4 @@ list:
 POST _xpack/security/realm/default_file,ldap1/_clear_cache
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]

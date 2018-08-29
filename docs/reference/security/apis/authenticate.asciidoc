@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-authenticate]]
 === Authenticate API
 
@@ -29,6 +29,7 @@ To authenticate a user, submit a GET request to the
 GET _xpack/security/_authenticate
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example output provides information about the "rdeniro" user:
 

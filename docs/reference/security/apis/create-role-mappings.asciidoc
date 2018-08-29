@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-put-role-mapping]]
 === Create or update role mappings API
 
@@ -82,6 +82,7 @@ POST /_xpack/security/role_mapping/mapping1
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 <1> Mappings that have `enabled` set to `false` are ignored when role mapping
     is performed.
 <2> Metadata is optional.
@@ -114,6 +115,7 @@ POST /_xpack/security/role_mapping/mapping2
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example matches any user where either the username is `esadmin`
 or the user is in the `cn=admin,dc=example,dc=com` group:
@@ -141,6 +143,7 @@ POST /_xpack/security/role_mapping/mapping3
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example matches users who authenticated against a specific realm:
 [source, js]
@@ -155,6 +158,7 @@ POST /_xpack/security/role_mapping/mapping4
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example matches users within a specific LDAP sub-tree:
 
@@ -170,6 +174,7 @@ POST /_xpack/security/role_mapping/mapping5
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example matches users within a particular LDAP sub-tree in a
 specific realm:
@@ -189,6 +194,7 @@ POST /_xpack/security/role_mapping/mapping6
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The rules can be more complex and include wildcard matching. For example, the
 following mapping matches any user where *all* of these conditions are met:
@@ -238,3 +244,4 @@ POST /_xpack/security/role_mapping/mapping7
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]

@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-disable-user]]
 === Disable users API
 
@@ -41,4 +41,4 @@ The following example disables the user `jacknich`:
 PUT /_xpack/security/user/jacknich/_disable
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:jacknich_user]
+// TEST[skip:setup:jacknich_user]

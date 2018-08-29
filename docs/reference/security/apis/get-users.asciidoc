@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-get-user]]
 === Get users API
 
@@ -40,7 +40,7 @@ endpoint:
 GET /_xpack/security/user/jacknich
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:jacknich_user]
+// TEST[skip:setup:jacknich_user]
 
 A successful call returns an array of users with the JSON representation of the
 user. Note that user passwords are not included.
@@ -72,4 +72,4 @@ Omit the username to retrieve all users:
 GET /_xpack/security/user
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]

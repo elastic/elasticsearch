@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-delete-role-mapping]]
 === Delete role mappings API
 
@@ -37,7 +37,7 @@ The following example delete a role mapping:
 DELETE /_xpack/security/role_mapping/mapping1
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:role_mapping]
+// TEST[skip:setup:role_mapping]
 
 If the mapping is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.

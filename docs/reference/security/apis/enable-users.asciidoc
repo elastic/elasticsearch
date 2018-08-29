@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-enable-user]]
 === Enable users API
 
@@ -40,4 +40,4 @@ The following example enables the user `jacknich`:
 PUT /_xpack/security/user/jacknich/_enable
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:jacknich_user]
+// TEST[skip:setup:jacknich_user]

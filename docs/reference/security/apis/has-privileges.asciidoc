@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-has-privileges]]
 === Has Privileges API
 
@@ -77,6 +77,7 @@ GET _xpack/security/user/_has_privileges
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 The following example output indicates which privileges the "rdeniro" user has:
 

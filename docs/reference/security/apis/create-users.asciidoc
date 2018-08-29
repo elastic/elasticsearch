@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-put-user]]
 === Create or update users API
 
@@ -84,6 +84,7 @@ POST /_xpack/security/user/jacknich
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 A successful call returns a JSON structure that shows whether the user has been
 created or updated.

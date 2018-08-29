@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-clear-role-cache]]
 === Clear roles cache API
 
@@ -38,3 +38,4 @@ to clear the cache for `my_admin_role`:
 POST /_xpack/security/role/my_admin_role/_clear_cache
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]

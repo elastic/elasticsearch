@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-get-role-mapping]]
 === Get role mappings API
 
@@ -52,7 +52,7 @@ The following example retrieves information about the `mapping1` role mapping:
 GET /_xpack/security/role_mapping/mapping1
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:role_mapping]
+// TEST[skip:setup:role_mapping]
 
 
 [source,js]

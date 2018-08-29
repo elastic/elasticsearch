@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold+"]
+[testenv="gold"]
 [[security-api-put-privileges]]
 === Create or update application privileges API
 
@@ -90,6 +90,7 @@ PUT /_xpack/security/privilege
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 <1> These strings have significance within the "myapp" application. {es} does not 
     assign any meaning to them.
 <2> The use of a wildcard here (`*`) means that this privilege grants access to 
@@ -139,6 +140,7 @@ PUT /_xpack/security/privilege
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 A successful call returns a JSON structure that shows whether the privileges 
 have been created or updated.

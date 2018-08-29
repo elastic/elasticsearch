@@ -26,13 +26,10 @@ PUT _snapshot/my_src_only_repository
 // CONSOLE
 
 Since the `_source` only repository doesn't snapshot any index or doc-values structures but only stored
-fields and index metadata, it's required to reindex the data during the restore process. This can either happen
-as a full re-index based on the mapping of the original index or in a minimal form were only the internal data-structures
-are recreated like the `_id` field in order to update the index. The latter can be configured in the repository settings
-by setting `"minimal": true`. This allows updates and get operations but won't allow for aggregations or searches.
+fields and index metadata, it's required to reindex the data after the restore process. The restored index is read-only
+and can only serve scroll requests in oder to reindex. Individual queries will succeed but won't match or filter any
+documents except of a `match_all` query. The restored will also have an empty mapping but allows access to the original
+mapping via the types top level `meta` element.
 
-A minimal restore is useful if the data is only needed to be re-indexed into another index or if individual documents should be
-modified or deleted.
-
-During restore the re-indexing progress can be monitored via <<indices-recovery,recovery>> API that shows the per-document progress
-under the `translog` recovery phase.
+Source only snapshots take approximately 30% to 50% of the size on disk compared to a full snapshot. A source only snapshot
+can only be taken if the original document source is maintained in the index and no source-filtering is applied.

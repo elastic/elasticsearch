@@ -349,7 +349,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
     private static final class SeqIdGeneratingDirectoryReader extends FilterDirectoryReader {
         private final long primaryTerm;
 
-        public SeqIdGeneratingDirectoryReader(DirectoryReader in, SeqIdGeneratingSubReaderWrapper wrapper) throws IOException {
+        SeqIdGeneratingDirectoryReader(DirectoryReader in, SeqIdGeneratingSubReaderWrapper wrapper) throws IOException {
             super(in, wrapper);
             primaryTerm = wrapper.primaryTerm;
         }
@@ -372,11 +372,11 @@ public final class SourceOnlySnapshotEngine extends Engine {
             return in.getReaderCacheHelper();
         }
 
-        private static abstract class FakeNumericDocValues extends NumericDocValues {
+        private abstract static class FakeNumericDocValues extends NumericDocValues {
             private final int maxDoc;
             int docID = -1;
 
-            public FakeNumericDocValues(int maxDoc) {
+            FakeNumericDocValues(int maxDoc) {
                 this.maxDoc = maxDoc;
             }
 
@@ -421,7 +421,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
             private final Map<LeafReader, LeafReaderContext> ctxMap;
             private final long primaryTerm;
 
-            public SeqIdGeneratingSubReaderWrapper(Map<LeafReader, LeafReaderContext> ctxMap, long primaryTerm) {
+            SeqIdGeneratingSubReaderWrapper(Map<LeafReader, LeafReaderContext> ctxMap, long primaryTerm) {
                 this.ctxMap = ctxMap;
                 this.primaryTerm = primaryTerm;
             }

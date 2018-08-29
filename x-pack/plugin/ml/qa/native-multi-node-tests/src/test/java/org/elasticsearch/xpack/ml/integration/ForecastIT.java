@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -306,25 +307,57 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         postData(job.getId(), data.stream().collect(Collectors.joining()));
         flushJob(job.getId(), false);
-
         String forecastIdDefaultDurationDefaultExpiry = forecast(job.getId(), null, null);
-
+        String forecastIdDuration1HourNoExpiry = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
         waitForecastToFinish(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+        waitForecastToFinish(job.getId(), forecastIdDuration1HourNoExpiry);
         closeJob(job.getId());
-        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
-        assertNotNull(forecastStats);
 
-        DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), forecastIdDefaultDurationDefaultExpiry);
-        AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
-        assertTrue(response.isAcknowledged());
+        {
+            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+            assertNotNull(forecastStats);
+            ForecastRequestStats otherStats = getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry);
+            assertNotNull(otherStats);
+        }
 
-        forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
-        assertNull(forecastStats);
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(),
+                forecastIdDefaultDurationDefaultExpiry + "," + forecastIdDuration1HourNoExpiry);
+            AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+            assertTrue(response.isAcknowledged());
+        }
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(),
-            equalTo(String.format("No forecast with id [%s] exists for job [%s]", forecastIdDefaultDurationDefaultExpiry, job.getId())));
+        {
+            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastIdDefaultDurationDefaultExpiry);
+            assertNull(forecastStats);
+            ForecastRequestStats otherStats = getForecastStats(job.getId(), forecastIdDuration1HourNoExpiry);
+            assertNull(otherStats);
+        }
+
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), "forecast-does-not-exist");
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
+            assertThat(e.getMessage(),
+                equalTo(String.format("No forecast(s) [forecast-does-not-exist] exists for job [%s]", job.getId())));
+        }
+
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
+                "forecasts-delete-with-all-and-allow-no-forecasts", MetaData.ALL);
+            AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+            assertTrue(response.isAcknowledged());
+        }
+
+        {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
+                "forecasts-delete-with-all-and-NOT-allow-no-forecasts", MetaData.ALL);
+            request.setAllowNoForecasts(false);
+            ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
+            assertThat(e.getMessage(),
+                equalTo(String.format("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-NOT-allow-no-forecasts]")));
+        }
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {

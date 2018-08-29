@@ -9,12 +9,14 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,17 +35,18 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private String jobId;
         private String forecastId;
+        private boolean allowNoForecasts = true;
 
         public Request() {
         }
 
         public Request(String jobId, String forecastId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            this.forecastId = ExceptionsHelper.requireNonNull(forecastId, ModelSnapshotField.SNAPSHOT_ID.getPreferredName());
+            this.forecastId = ExceptionsHelper.requireNonNull(forecastId, ForecastRequestStats.FORECAST_ID.getPreferredName());
         }
 
         public String getJobId() {
@@ -52,6 +55,14 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
 
         public String getForecastId() {
             return forecastId;
+        }
+
+        public boolean isAllowNoForecasts() {
+            return allowNoForecasts;
+        }
+
+        public void setAllowNoForecasts(boolean allowNoForecasts) {
+            this.allowNoForecasts = allowNoForecasts;
         }
 
         @Override
@@ -64,6 +75,7 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
             super.readFrom(in);
             jobId = in.readString();
             forecastId = in.readString();
+            allowNoForecasts = in.readBoolean();
         }
 
         @Override
@@ -71,6 +83,7 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeString(forecastId);
+            out.writeBoolean(allowNoForecasts);
         }
     }
 

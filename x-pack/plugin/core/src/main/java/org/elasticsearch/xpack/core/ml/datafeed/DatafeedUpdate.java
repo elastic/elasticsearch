@@ -204,7 +204,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
     }
 
-    String getJobId() {
+    public String getJobId() {
         return jobId;
     }
 

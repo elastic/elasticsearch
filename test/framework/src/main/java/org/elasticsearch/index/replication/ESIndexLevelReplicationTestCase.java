@@ -37,6 +37,7 @@ import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -193,14 +194,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public BulkItemResponse index(IndexRequest indexRequest) throws Exception {
+            return executeWriteRequest(indexRequest, indexRequest.getRefreshPolicy());
+        }
+
+        public BulkItemResponse delete(DeleteRequest deleteRequest) throws Exception {
+            return executeWriteRequest(deleteRequest, deleteRequest.getRefreshPolicy());
+        }
+
+        private BulkItemResponse executeWriteRequest(
+            DocWriteRequest<?> writeRequest, WriteRequest.RefreshPolicy refreshPolicy) throws Exception {
             PlainActionFuture<BulkItemResponse> listener = new PlainActionFuture<>();
             final ActionListener<BulkShardResponse> wrapBulkListener = ActionListener.wrap(
-                    bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
-                    listener::onFailure);
+                bulkShardResponse -> listener.onResponse(bulkShardResponse.getResponses()[0]),
+                listener::onFailure);
             BulkItemRequest[] items = new BulkItemRequest[1];
-            items[0] = new BulkItemRequest(0, indexRequest);
-            BulkShardRequest request = new BulkShardRequest(shardId, indexRequest.getRefreshPolicy(), items);
-            new IndexingAction(request, wrapBulkListener, this).execute();
+            items[0] = new BulkItemRequest(0, writeRequest);
+            BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
+            new WriteReplicationAction(request, wrapBulkListener, this).execute();
             return listener.get();
         }
 
@@ -598,9 +608,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     }
 
-    class IndexingAction extends ReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+    class WriteReplicationAction extends ReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-        IndexingAction(BulkShardRequest request, ActionListener<BulkShardResponse> listener, ReplicationGroup replicationGroup) {
+        WriteReplicationAction(BulkShardRequest request, ActionListener<BulkShardResponse> listener, ReplicationGroup replicationGroup) {
             super(request, listener, replicationGroup, "indexing");
         }
 

@@ -13,7 +13,7 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execut
 --------------------------------------------------
 <1> Enable verbose mode. The default is `false` but `true` will return
 more information.
-<2> Set the categories of information to retrieve. The the default is to
+<2> Set the categories of information to retrieve. The default is to
 return no information which is useful for checking if {xpack} is installed
 but not much else.
 

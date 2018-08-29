@@ -57,7 +57,7 @@ POST _xpack/ml/anomaly_detectors/total-requests/_open
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_job]
+// TEST[skip:setup:server_metrics_job]
 
 When the job opens, you receive the following results:
 [source,js]
@@ -66,5 +66,3 @@ When the job opens, you receive the following results:
   "opened": true
 }
 ----
-//CONSOLE
-// TESTRESPONSE

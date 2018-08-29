@@ -48,7 +48,7 @@ The following example deletes the `datafeed-total-requests` {dfeed}:
 DELETE _xpack/ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_datafeed]
+// TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is deleted, you receive the following results:
 [source,js]
@@ -57,4 +57,4 @@ When the {dfeed} is deleted, you receive the following results:
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
+

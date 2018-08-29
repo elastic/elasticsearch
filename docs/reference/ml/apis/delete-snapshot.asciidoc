@@ -33,7 +33,6 @@ the `model_snapshot_id` in the results from the get jobs API.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Examples

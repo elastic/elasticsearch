@@ -122,7 +122,7 @@ POST _xpack/ml/anomaly_detectors/total-requests/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_job]
+// TEST[skip:setup:server_metrics_job]
 
 When the job is updated, you receive a summary of the job configuration
 information, including the updated property values. For example:
@@ -177,5 +177,8 @@ information, including the updated property values. For example:
   "results_index_name": "shared"
 }
 ----
+
+////
 // TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
 // TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]
+////

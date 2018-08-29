@@ -45,7 +45,7 @@ calendar:
 DELETE _xpack/ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:missing]
+// TEST[skip:catch:missing]
 
 When the event is removed, you receive the following results:
 [source,js]
@@ -54,4 +54,3 @@ When the event is removed, you receive the following results:
   "acknowledged": true
 }
 ----
-// NOTCONSOLE

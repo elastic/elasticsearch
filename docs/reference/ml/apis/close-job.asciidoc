@@ -81,7 +81,7 @@ The following example closes the `total-requests` job:
 POST _xpack/ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_openjob]
+// TEST[skip:setup:server_metrics_openjob]
 
 When the job is closed, you receive the following results:
 [source,js]
@@ -90,4 +90,4 @@ When the job is closed, you receive the following results:
   "closed": true
 }
 ----
-// TESTRESPONSE
+

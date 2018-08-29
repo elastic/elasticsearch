@@ -107,7 +107,7 @@ POST _xpack/ml/datafeeds/datafeed-total-requests/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_datafeed]
+// TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
 with the updated values:
@@ -134,4 +134,7 @@ with the updated values:
   }
 }
 ----
+
+////
 // TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]
+////

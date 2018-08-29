@@ -39,7 +39,7 @@ calendar and `total-requests` job:
 DELETE _xpack/ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:calendar_outages_addjob]
+// TEST[skip:setup:calendar_outages_addjob]
 
 When the job is removed from the calendar, you receive the following
 results:
@@ -51,4 +51,4 @@ results:
    "job_ids": []
 }
 ----
-//TESTRESPONSE
+

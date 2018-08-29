@@ -19,7 +19,6 @@ Retrieves job results for one or more categories.
 
 For more information about categories, see
 {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
-//<<ml-configuring-categories>>.
 
 ==== Path Parameters
 
@@ -57,7 +56,6 @@ that stores the results. The `machine_learning_admin` and `machine_learning_user
 roles provide these privileges. For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges] and
 {xpack-ref}/built-in-roles.html[Built-in Roles].
-//<<security-privileges>> and <<built-in-roles>>.
 
 
 ==== Examples

@@ -53,7 +53,7 @@ POST _xpack/ml/calendars/planned-outages/events
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:calendar_outages_addjob]
+// TEST[skip:setup:calendar_outages_addjob]
 
 The API returns the following results:
 
@@ -82,7 +82,7 @@ The API returns the following results:
   ]
 }
 ----
-//TESTRESPONSE
+
 
 For more information about these properties, see
 <<ml-event-resource,Scheduled Event Resources>>.

@@ -63,7 +63,7 @@ filter:
 GET _xpack/ml/filters/safe_domains
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:ml_filter_safe_domains]
+// TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:
 [source,js]
@@ -82,4 +82,4 @@ The API returns the following results:
   ]
 }
 ----
-//TESTRESPONSE
+

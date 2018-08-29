@@ -45,6 +45,7 @@ The following example creates the `planned-outages` calendar:
 PUT _xpack/ml/calendars/planned-outages
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:need-license]
 
 When the calendar is created, you receive the following results:
 [source,js]
@@ -54,4 +55,4 @@ When the calendar is created, you receive the following results:
   "job_ids": []
 }
 ----
-//TESTRESPONSE
+

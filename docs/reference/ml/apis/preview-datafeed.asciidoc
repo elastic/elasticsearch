@@ -54,7 +54,7 @@ The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 GET _xpack/ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:farequote_datafeed]
+// TEST[skip:setup:farequote_datafeed]
 
 The data that is returned for this example is as follows:
 [source,js]
@@ -80,4 +80,4 @@ The data that is returned for this example is as follows:
   }
 ]
 ----
-// TESTRESPONSE
+

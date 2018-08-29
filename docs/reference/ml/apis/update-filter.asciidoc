@@ -53,7 +53,7 @@ POST _xpack/ml/filters/safe_domains/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:ml_filter_safe_domains]
+// TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:
 
@@ -65,4 +65,4 @@ The API returns the following results:
   "items": ["*.google.com", "*.myorg.com"]
 }
 ----
-//TESTRESPONSE
+

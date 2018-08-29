@@ -18,6 +18,7 @@ advanced {ml} job configuration options.
 
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
+include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]

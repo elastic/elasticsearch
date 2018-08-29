@@ -67,7 +67,7 @@ The following example gets information about the scheduled events in the
 GET _xpack/ml/calendars/planned-outages/events
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:calendar_outages_addevent]
+// TEST[skip:setup:calendar_outages_addevent]
 
 The API returns the following results:
 
@@ -100,8 +100,11 @@ The API returns the following results:
   ]
 }
 ----
+
+////
 // TESTRESPONSE[s/LS8LJGEBMTCMA-qz49st/$body.$_path/]
 // TESTRESPONSE[s/Li8LJGEBMTCMA-qz49st/$body.$_path/]
 // TESTRESPONSE[s/Ly8LJGEBMTCMA-qz49st/$body.$_path/]
+////
 
 For more information about these properties, see <<ml-event-resource>>.

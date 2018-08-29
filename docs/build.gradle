@@ -19,10 +19,49 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
-/* List of files that have snippets that require a gold or platinum licence 
-and therefore cannot be tested yet... */
+/* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
         'reference/ml/transforms.asciidoc',
+        'reference/ml/apis/close-job.asciidoc',
+        'reference/ml/apis/delete-calendar-event.asciidoc',
+        'reference/ml/apis/delete-calendar-job.asciidoc',
+        'reference/ml/apis/delete-calendar.asciidoc',
+        'reference/ml/apis/delete-datafeed.asciidoc',
+        'reference/ml/apis/delete-filter.asciidoc',
+        'reference/ml/apis/delete-job.asciidoc',
+        'reference/ml/apis/delete-snapshot.asciidoc',
+        'reference/ml/apis/flush-job.asciidoc',
+        'reference/ml/apis/get-bucket.asciidoc',
+        'reference/ml/apis/get-calendar-event.asciidoc',
+        'reference/ml/apis/get-calendar.asciidoc',
+        'reference/ml/apis/get-category.asciidoc',
+        'reference/ml/apis/get-datafeed-stats.asciidoc',
+        'reference/ml/apis/get-datafeed.asciidoc',
+        'reference/ml/apis/get-filter.asciidoc',
+        'reference/ml/apis/get-influencer.asciidoc',
+        'reference/ml/apis/get-job-stats.asciidoc',
+        'reference/ml/apis/get-job.asciidoc',
+        'reference/ml/apis/get-overall-buckets.asciidoc',
+        'reference/ml/apis/get-record.asciidoc',
+        'reference/ml/apis/get-snapshot.asciidoc',
+        'reference/ml/apis/open-job.asciidoc',
+        'reference/ml/apis/post-calendar-event.asciidoc',
+        'reference/ml/apis/post-data.asciidoc',
+        'reference/ml/apis/preview-datafeed.asciidoc',
+        'reference/ml/apis/put-calendar-job.asciidoc',
+        'reference/ml/apis/put-calendar.asciidoc',
+        'reference/ml/apis/put-datafeed.asciidoc',
+        'reference/ml/apis/put-filter.asciidoc',
+        'reference/ml/apis/put-job.asciidoc',
+        'reference/ml/apis/revert-snapshot.asciidoc',
+        'reference/ml/apis/start-datafeed.asciidoc',
+        'reference/ml/apis/stop-datafeed.asciidoc',
+        'reference/ml/apis/stop-datafeed.asciidoc',
+        'reference/ml/apis/update-filter.asciidoc',
+        'reference/ml/apis/update-job.asciidoc',
+        'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/ml/apis/validate-detector.asciidoc',
+        'reference/ml/apis/validate-job.asciidoc',
 ]
 
 integTestCluster {

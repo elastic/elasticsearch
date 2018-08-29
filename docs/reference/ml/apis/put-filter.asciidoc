@@ -56,6 +56,7 @@ PUT _xpack/ml/filters/safe_domains
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:need-licence]
 
 When the filter is created, you receive the following response:
 [source,js]
@@ -66,4 +67,4 @@ When the filter is created, you receive the following response:
   "items": ["*.google.com", "wikipedia.org"]
 }
 ----
-//TESTRESPONSE
+

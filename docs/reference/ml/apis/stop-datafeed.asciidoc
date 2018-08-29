@@ -19,7 +19,6 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 `POST _xpack/ml/datafeeds/_all/_stop`
 
-//TBD: Can there be spaces between the items in the list?
 
 ===== Description
 
@@ -64,7 +63,7 @@ POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_startdf]
+// TEST[skip:setup:server_metrics_startdf]
 
 When the {dfeed} stops, you receive the following results:
 [source,js]
@@ -73,5 +72,4 @@ When the {dfeed} stops, you receive the following results:
   "stopped": true
 }
 ----
-// CONSOLE
-// TESTRESPONSE
+

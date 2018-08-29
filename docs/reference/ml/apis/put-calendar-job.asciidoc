@@ -39,7 +39,7 @@ The following example associates the `planned-outages` calendar with the
 PUT _xpack/ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:calendar_outages_openjob]
+// TEST[skip:setup:calendar_outages_openjob]
 
 The API returns the following results:
 
@@ -52,4 +52,4 @@ The API returns the following results:
   ]
 }
 ----
-//TESTRESPONSE
+

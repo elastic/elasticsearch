@@ -57,7 +57,7 @@ The following example deletes the `total-requests` job:
 DELETE _xpack/ml/anomaly_detectors/total-requests
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_job]
+// TEST[skip:setup:server_metrics_job]
 
 When the job is deleted, you receive the following results:
 [source,js]
@@ -66,4 +66,3 @@ When the job is deleted, you receive the following results:
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

@@ -80,7 +80,6 @@ of the latest processed record.
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Security Integration
@@ -102,7 +101,7 @@ POST _xpack/ml/datafeeds/datafeed-total-requests/_start
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_openjob]
+// TEST[skip:setup:server_metrics_openjob]
 
 When the {dfeed} starts, you receive the following results:
 [source,js]
@@ -111,5 +110,3 @@ When the {dfeed} starts, you receive the following results:
   "started": true
 }
 ----
-// CONSOLE
-// TESTRESPONSE

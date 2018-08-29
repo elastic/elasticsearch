@@ -63,7 +63,7 @@ calendar:
 GET _xpack/ml/calendars/planned-outages
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:calendar_outages_addjob]
+// TEST[skip:setup:calendar_outages_addjob]
 
 The API returns the following results:
 [source,js]
@@ -80,4 +80,4 @@ The API returns the following results:
   ]
 }
 ----
-//TESTRESPONSE
+

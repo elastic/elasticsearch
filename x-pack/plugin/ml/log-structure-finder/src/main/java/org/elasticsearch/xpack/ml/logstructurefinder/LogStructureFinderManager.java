@@ -163,9 +163,15 @@ public final class LogStructureFinderManager {
                 // deduction algorithms on binary files is very slow as the binary files generally appear to
                 // have very long lines.
                 boolean spaceEncodingContainsZeroByte = false;
-                byte[] spaceBytes = " ".getBytes(name);
-                for (int i = 0; i < spaceBytes.length && spaceEncodingContainsZeroByte == false; ++i) {
-                    spaceEncodingContainsZeroByte = (spaceBytes[i] == 0);
+                Charset charset = Charset.forName(name);
+                // Some character sets cannot be encoded.  These are extremely rare so it's likely that
+                // they've been chosen based on incorrectly provided binary data.  Therefore, err on
+                // the side of rejecting binary data.
+                if (charset.canEncode()) {
+                    byte[] spaceBytes = " ".getBytes(charset);
+                    for (int i = 0; i < spaceBytes.length && spaceEncodingContainsZeroByte == false; ++i) {
+                        spaceEncodingContainsZeroByte = (spaceBytes[i] == 0);
+                    }
                 }
                 if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
                     explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +

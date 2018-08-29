@@ -72,7 +72,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         builder.add(retainSourceQuerySupplier.get(), BooleanClause.Occur.FILTER);
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
-        Weight weight = s.createWeight(builder.build(), false, 1.0f);
+        Weight weight = s.createWeight(s.rewrite(builder.build()), false, 1.0f);
         Scorer scorer = weight.scorer(reader.getContext());
         if (scorer != null) {
             return new SourcePruningFilterCodecReader(recoverySourceField, reader, BitSet.of(scorer.iterator(), reader.maxDoc()));

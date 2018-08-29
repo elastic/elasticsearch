@@ -487,7 +487,7 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
+            return newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
         } else {
             return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
         }
@@ -499,12 +499,8 @@ public class InternalEngine extends Engine {
     @Override
     public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            try (Translog.Snapshot snapshot =
-                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
                 return snapshot.totalOperations();
-            } catch (IOException ex) {
-                maybeFailEngine(source, ex);
-                throw ex;
             }
         } else {
             return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
@@ -1042,7 +1038,9 @@ public class InternalEngine extends Engine {
 
     private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
-        docs.forEach(d -> d.add(softDeletesField));
+        for (ParseContext.Document doc : docs) {
+            doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
+        }
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
@@ -2423,19 +2421,26 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
-                                                      long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
-        if (lastRefreshedCheckpoint() < maxSeqNo) {
+        if (lastRefreshedCheckpoint() < toSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, minSeqNo, maxSeqNo, requiredFullRange);
+                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("acquire changes snapshot", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         } finally {
             IOUtils.close(searcher);
         }
@@ -2471,9 +2476,11 @@ public class InternalEngine extends Engine {
 
     @Override
     public Closeable acquireRetentionLockForPeerRecovery() {
-        final Closeable translogLock = translog.acquireRetentionLock();
-        final Releasable softDeletesLock = softDeletesPolicy.acquireRetentionLock();
-        return () -> IOUtils.close(translogLock, softDeletesLock);
+        if (softDeleteEnabled) {
+            return softDeletesPolicy.acquireRetentionLock();
+        } else {
+            return translog.acquireRetentionLock();
+        }
     }
 
     @Override

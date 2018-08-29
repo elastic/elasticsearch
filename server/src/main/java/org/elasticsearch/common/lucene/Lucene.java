@@ -884,7 +884,7 @@ public class Lucene {
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
-                    // TODO: Avoid recalculate numDocs everytime.
+                    // TODO: Can we avoid calculate numDocs by using SegmentReader#getSegmentInfo with LUCENE-8458?
                     int numDocs = 0;
                     for (int i = 0; i < hardLiveDocs.length(); i++) {
                         if (hardLiveDocs.get(i)) {

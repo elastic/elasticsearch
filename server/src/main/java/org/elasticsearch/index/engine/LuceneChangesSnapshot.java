@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,8 +85,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        if (searchBatchSize < 0) {
-            throw new IllegalArgumentException("Search_batch_size must not be negative [" + searchBatchSize + "]");
+        if (searchBatchSize <= 0) {
+            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
         }
         final AtomicBoolean closed = new AtomicBoolean();
         this.onClose = () -> {
@@ -213,10 +212,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
-        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
+        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, lastSeenSeqNo + 1, toSeqNo);
         final Sort sortedBySeqNoThenByTerm = new Sort(
-            new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
-            new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
+            new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
+            new SortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
         );
         return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNoThenByTerm);
     }

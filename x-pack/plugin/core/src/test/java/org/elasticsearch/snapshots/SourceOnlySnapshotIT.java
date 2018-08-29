@@ -116,7 +116,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             boolean requireRouting = randomBoolean();
             IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
-            assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0l));
+            assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
             assertHits(sourceIdx, builders.length);
             assertMappings(sourceIdx, requireRouting, true);
             assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()

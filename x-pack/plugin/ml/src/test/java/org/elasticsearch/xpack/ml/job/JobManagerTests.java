@@ -65,7 +65,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;

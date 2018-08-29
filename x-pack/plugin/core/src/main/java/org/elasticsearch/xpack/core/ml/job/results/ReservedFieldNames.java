@@ -209,7 +209,6 @@ public final class ReservedFieldNames {
             AnalysisConfig.OVERLAPPING_BUCKETS.getPreferredName(),
             AnalysisConfig.RESULT_FINALIZATION_WINDOW.getPreferredName(),
             AnalysisConfig.MULTIVARIATE_BY_FIELDS.getPreferredName(),
-            AnalysisConfig.USE_PER_PARTITION_NORMALIZATION.getPreferredName(),
 
             AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),
             AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(),

@@ -67,16 +67,24 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         }
     }
 
-    protected void assertTaskSuccessfull(BuildResult result, String taskName) {
+    protected void assertTaskFailed(BuildResult result, String taskName) {
+        assertTaskOutcome(result, taskName, TaskOutcome.FAILED);
+    }
+
+    protected void assertTaskSuccessful(BuildResult result, String taskName) {
+        assertTaskOutcome(result, taskName, TaskOutcome.SUCCESS);
+    }
+
+    private void assertTaskOutcome(BuildResult result, String taskName, TaskOutcome taskOutcome) {
         BuildTask task = result.task(taskName);
         if (task == null) {
-            fail("Expected task `" + taskName + "` to be successful, but it did not run" +
+            fail("Expected task `" + taskName + "` to be " + taskOutcome +", but it did not run" +
                 "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
             "Expected task to be successful but it was: " + task.getOutcome() +
-                "\n\nOutput is:\n" + result.getOutput() ,
-            TaskOutcome.SUCCESS,
+                taskOutcome + "\n\nOutput is:\n" + result.getOutput() ,
+            taskOutcome,
             task.getOutcome()
         );
     }

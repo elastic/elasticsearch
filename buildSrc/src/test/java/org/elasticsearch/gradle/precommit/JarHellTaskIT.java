@@ -24,23 +24,14 @@ import org.gradle.testkit.runner.GradleRunner;
  */
 public class JarHellTaskIT extends GradleIntegrationTestCase {
 
-    public void testDoesNotFailOnModuleInfo() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("jarHell"))
-            .withArguments("clean", "jarHellModuleInfo", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
-            .withPluginClasspath()
-            .build();
-
-        assertTaskSuccessfull(result, ":jarHellModuleInfo");
-    }
-
     public void testJarHellDetected() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("jarHell"))
-            .withArguments("clean", "jarHell", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .withArguments("clean", "precommit", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .withPluginClasspath()
             .buildAndFail();
 
+        assertTaskFailed(result, ":jarHell");
         assertOutputContains(
             result.getOutput(),
             "Exception in thread \"main\" java.lang.IllegalStateException: jar hell!",

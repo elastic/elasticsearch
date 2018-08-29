@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.ingest;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,24 +29,9 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
-
-import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
 
 public class ConditionalProcessor extends AbstractProcessor {
 
@@ -59,7 +43,7 @@ public class ConditionalProcessor extends AbstractProcessor {
 
     private final Processor processor;
 
-    private ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
+    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
         super(tag);
         this.condition = script;
         this.scriptService = scriptService;
@@ -78,51 +62,6 @@ public class ConditionalProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    public static final class Factory implements Processor.Factory {
-
-        private final ScriptService scriptService;
-
-        public Factory(ScriptService scriptService) {
-            this.scriptService = scriptService;
-        }
-
-        @Override
-        public ConditionalProcessor create(Map<String, Processor.Factory> factories, String tag,
-            Map<String, Object> config) throws Exception {
-            Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
-            final Script script;
-            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)
-                .map(normalizeScript(config.get("script")));
-                 InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
-                script = Script.parse(parser);
-                config.remove("script");
-                // verify script is able to be compiled before successfully creating processor.
-                try {
-                    scriptService.compile(script, IngestConditionalScript.CONTEXT);
-                } catch (ScriptException e) {
-                    throw newConfigurationException(TYPE, tag, null, e);
-                }
-            }
-            Map.Entry<String, Map<String, Object>> entry = processorConfig.entrySet().iterator().next();
-            Processor processor = ConfigurationUtils.readProcessor(factories, entry.getKey(), entry.getValue());
-            return new ConditionalProcessor(tag, script, scriptService, processor);
-        }
-
-        @SuppressWarnings("unchecked")
-        private static Map<String, Object> normalizeScript(Object scriptConfig) {
-            if (scriptConfig instanceof Map<?, ?>) {
-                return (Map<String, Object>) scriptConfig;
-            } else if (scriptConfig instanceof String) {
-                return Collections.singletonMap("source", scriptConfig);
-            } else {
-                throw newConfigurationException(TYPE, null, "script",
-                    "property isn't a map or string, but of type [" + scriptConfig.getClass().getName() + "]");
-            }
-        }
     }
 
     private static Object wrapUnmodifiable(Object raw) {

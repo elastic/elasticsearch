@@ -32,6 +32,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     protected ShardFollowNodeTask.Status createTestInstance() {
         // if you change this constructor, reflect the changes in the hand-written assertions below
         return new ShardFollowNodeTask.Status(
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -51,12 +52,14 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomReadExceptions());
+                randomReadExceptions(),
+                randomLong());
     }
 
     @Override
     protected void assertEqualInstances(final ShardFollowNodeTask.Status expectedInstance, final ShardFollowNodeTask.Status newInstance) {
         assertNotSame(expectedInstance, newInstance);
+        assertThat(newInstance.leaderIndex(), equalTo(expectedInstance.leaderIndex()));
         assertThat(newInstance.getShardId(), equalTo(expectedInstance.getShardId()));
         assertThat(newInstance.leaderGlobalCheckpoint(), equalTo(expectedInstance.leaderGlobalCheckpoint()));
         assertThat(newInstance.leaderMaxSeqNo(), equalTo(expectedInstance.leaderMaxSeqNo()));
@@ -87,6 +90,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                     anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
             assertThat(entry.getValue().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
+        assertThat(newInstance.timeSinceLastFetchMillis(), equalTo(expectedInstance.timeSinceLastFetchMillis()));
     }
 
     @Override

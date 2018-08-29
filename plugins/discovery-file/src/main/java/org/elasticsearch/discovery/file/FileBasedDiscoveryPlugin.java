@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     private final DeprecationLogger deprecationLogger;
-    final static String DEPRECATION_MESSAGE
+    static final String DEPRECATION_MESSAGE
         = "File-based discovery is now built into Elasticsearch and does not require the discovery-file plugin";
 
     public FileBasedDiscoveryPlugin(Settings settings) {

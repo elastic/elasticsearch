@@ -24,8 +24,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.env.Environment;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

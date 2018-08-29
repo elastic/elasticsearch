@@ -85,7 +85,7 @@ class VersionCollection {
             if (match.matches()) {
                 final Version foundVersion = new Version(
                         Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', '-'), false)
+                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', ''), false)
                 safeAddToSet(foundVersion)
             }
         }

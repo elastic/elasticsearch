@@ -19,45 +19,36 @@ public final class Version implements Comparable<Version> {
     private final String qualifier;
 
     private static final Pattern pattern =
-            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)-?(alpha\\d+|beta\\d+|rc\\d+)?(-SNAPSHOT)?");
 
     Version(int major, int minor, int revision, String qualifier, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
+        Objects.requireNonNull(qualifier, "qualifier can't be null");
         this.major = major;
         this.minor = minor;
         this.revision = revision;
         this.snapshot = snapshot;
-        if (qualifier == null || qualifier.isEmpty()) {
-            this.qualifier = "";
-        } else if (qualifier.startsWith("-")) {
-            this.qualifier = qualifier;
-        } else {
-            this.qualifier = "-" + qualifier;
-        }
+        this.qualifier = qualifier;
 
-        int suffixOffset = 0;
+        final int suffixOffset;
         if (this.qualifier.isEmpty()) {
-            // no qualifier will be considered smaller, uncomment to change that
-            // suffixOffset = 100;
+            suffixOffset = 0;
+        } else if (this.qualifier.startsWith("alpha")) {
+            suffixOffset = parseSuffixNumber(this.qualifier.substring(5));
+        } else if (this.qualifier.startsWith("beta")) {
+            suffixOffset = 25 + parseSuffixNumber(this.qualifier.substring(4));
+        } else if (this.qualifier.startsWith("rc")) {
+            suffixOffset = 50 + parseSuffixNumber(this.qualifier.substring(2));
         } else {
-            if (this.qualifier.contains("alpha")) {
-                suffixOffset += parseSuffixNumber(this.qualifier.substring(6));
-            } else if (this.qualifier.contains("beta")) {
-                suffixOffset += 25 + parseSuffixNumber(this.qualifier.substring(5));
-            } else if (this.qualifier.contains("rc")) {
-                suffixOffset += 50 + parseSuffixNumber(this.qualifier.substring(3));
-            }
-            else {
-                throw new IllegalArgumentException(
-                    "Suffix must contain one of: alpha, beta or rc instead of: " + this.qualifier
-                );
-            }
+            throw new IllegalArgumentException(
+                "Suffix must contain one of: alpha, beta or rc instead of: " + this.qualifier
+            );
         }
 
         // currently snapshot is not taken into account
-        this.id = major * 10000000 + minor * 100000 + revision * 1000 + suffixOffset * 10 /*+ (snapshot ? 1 : 0)*/;
+        this.id = major * 10000000 + minor * 100000 + revision * 1000 + suffixOffset * 10;
     }
 
     private static int parseSuffixNumber(String substring) {
@@ -80,7 +71,7 @@ public final class Version implements Comparable<Version> {
                 Integer.parseInt(matcher.group(1)),
                 parseSuffixNumber(matcher.group(2)),
                 parseSuffixNumber(matcher.group(3)),
-                matcher.group(4),
+                matcher.group(4) == null ? "" : matcher.group(4),
                 matcher.group(5) != null
         );
     }
@@ -89,7 +80,7 @@ public final class Version implements Comparable<Version> {
     public String toString() {
         final String snapshotStr = snapshot ? "-SNAPSHOT" : "";
         return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision()) +
-                (qualifier == null ? "" : qualifier) + snapshotStr;
+                (qualifier.isEmpty() ? "" : "-" + qualifier) + snapshotStr;
     }
 
     public boolean before(Version compareTo) {
@@ -163,7 +154,7 @@ public final class Version implements Comparable<Version> {
     }
 
     public Version withoutQualifier() {
-        return new Version(major, minor, revision, null, snapshot);
+        return new Version(major, minor, revision, "", snapshot);
     }
 
     public Version withoutSnapshot() {

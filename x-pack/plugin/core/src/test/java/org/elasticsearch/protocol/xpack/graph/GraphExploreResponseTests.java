@@ -8,7 +8,6 @@ package org.elasticsearch.protocol.xpack.graph;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -63,7 +62,7 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        return new String[]{"vertices"};
+        return new String[]{"vertices", "connections"};
     }
     
     private static   GraphExploreResponse createTestInstanceWithFailures() {
@@ -115,7 +114,8 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         boolean supportsUnknownFields = true;
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
+        AbstractXContentTestCase.testFromXContent(
+                NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, getShuffleFieldsExceptions(),
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
     }    

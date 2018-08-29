@@ -47,8 +47,8 @@ import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.ml.FlushJobRequest;
-import org.elasticsearch.protocol.xpack.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
 
 import java.io.IOException;
@@ -472,7 +472,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-ml-flush-job-request
             FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-first-machine-learning-job"); //<1>
             flushJobRequest.setCalcInterim(true); //<2>
-            flushJobRequest.setAdvanceTime("1000"); //<3>
+            flushJobRequest.setAdvanceTime("1400"); //<3>
             flushJobRequest.setStart("1500"); //<4>
             flushJobRequest.setEnd("2000"); //<5>
             flushJobRequest.setSkipTime("1100"); //<6>

@@ -34,8 +34,8 @@ import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.protocol.xpack.ml.FlushJobRequest;
-import org.elasticsearch.protocol.xpack.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
 
 import java.io.IOException;

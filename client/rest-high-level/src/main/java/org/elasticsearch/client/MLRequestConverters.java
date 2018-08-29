@@ -31,7 +31,7 @@ import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.protocol.xpack.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobRequest;
 
 import java.io.IOException;
 

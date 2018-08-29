@@ -16,40 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml;
+package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Date;
 
-public class FlushJobRequestTests extends AbstractXContentTestCase<FlushJobRequest> {
+public class FlushJobResponseTests extends AbstractXContentTestCase<FlushJobResponse> {
 
     @Override
-    protected FlushJobRequest createTestInstance() {
-        FlushJobRequest request = new FlushJobRequest(randomAlphaOfLengthBetween(1, 20));
-
-        if (randomBoolean()) {
-            request.setCalcInterim(randomBoolean());
-        }
-        if (randomBoolean()) {
-            request.setAdvanceTime(String.valueOf(randomLong()));
-        }
-        if (randomBoolean()) {
-            request.setStart(String.valueOf(randomLong()));
-        }
-        if (randomBoolean()) {
-            request.setEnd(String.valueOf(randomLong()));
-        }
-        if (randomBoolean()) {
-            request.setSkipTime(String.valueOf(randomLong()));
-        }
-        return request;
+    protected FlushJobResponse createTestInstance() {
+        return new FlushJobResponse(randomBoolean(),
+            randomBoolean() ? null : new Date(randomNonNegativeLong()));
     }
 
     @Override
-    protected FlushJobRequest doParseInstance(XContentParser parser) throws IOException {
-        return FlushJobRequest.PARSER.apply(parser, null);
+    protected FlushJobResponse doParseInstance(XContentParser parser) throws IOException {
+        return FlushJobResponse.PARSER.apply(parser, null);
     }
 
     @Override

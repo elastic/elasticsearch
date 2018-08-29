@@ -26,6 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
@@ -36,8 +37,10 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -285,5 +288,71 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertNotNull(squashResponse);
         assertFalse(squashResponse.managedByILM());
         assertEquals("squash", squashResponse.getIndex());
+    }
+
+    public void testDeleteLifecycle() throws IOException {
+        String policy = randomAlphaOfLength(10);
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        String jsonString = "{\n" +
+            "   \"policy\": {\n" +
+            "     \"phases\": {\n" +
+            "       \"hot\": {\n" +
+            "         \"actions\": {\n" +
+            "          \"rollover\": {\n" +
+            "            \"max_age\": \"50d\"\n" +
+            "          }        \n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"warm\": {\n" +
+            "         \"after\": \"1000s\",\n" +
+            "         \"actions\": {\n" +
+            "           \"allocate\": {\n" +
+            "             \"require\": { \"_name\": \"node-1\" },\n" +
+            "             \"include\": {},\n" +
+            "             \"exclude\": {}\n" +
+            "           },\n" +
+            "           \"shrink\": {\n" +
+            "             \"number_of_shards\": 1\n" +
+            "           },\n" +
+            "           \"forcemerge\": {\n" +
+            "             \"max_num_segments\": 1000\n" +
+            "           }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"cold\": {\n" +
+            "         \"after\": \"2000s\",\n" +
+            "         \"actions\": {\n" +
+            "          \"allocate\": {\n" +
+            "            \"number_of_replicas\": 0\n" +
+            "          }\n" +
+            "         }\n" +
+            "       },\n" +
+            "       \"delete\": {\n" +
+            "         \"after\": \"3000s\",\n" +
+            "         \"actions\": {\n" +
+            "           \"delete\": {}\n" +
+            "         }\n" +
+            "       }\n" +
+            "     }\n" +
+            "   }\n" +
+            "}";
+        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "/_ilm/" + policy);
+        request.setEntity(entity);
+        client().performRequest(request);
+
+        DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy);
+        assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecyclePolicy,
+            highLevelClient().indexLifecycle()::deleteLifecyclePolicyAsync));
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        Request getLifecycle = new Request("GET", "/_ilm/" + policy);
+        try {
+            client().performRequest(getLifecycle);
+            fail("index should not exist after being deleted");
+        } catch (ResponseException ex) {
+            assertEquals(404, ex.getResponse().getStatusLine().getStatusCode());
+        }
     }
 }

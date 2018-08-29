@@ -97,6 +97,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -2698,6 +2699,19 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(graphExploreRequest, request.getEntity());
     }    
 
+    public void testDeleteLifecycle() {
+        String lifecycleName = randomAlphaOfLengthBetween(2,20);
+        DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(lifecycleName);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.deleteLifecyclePolicy(req);
+        assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
+        assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
+        assertEquals(request.getParameters(), expectedParams);
+    }
+
     public void testSetIndexLifecyclePolicy() throws Exception {
         SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
         String policyName = randomAlphaOfLength(10);
@@ -2892,6 +2906,17 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    private static void setRandomTimeoutTimeValue(Consumer<TimeValue> setter, TimeValue defaultTimeout,
+                                                  Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "random_timeout");
+            setter.accept(timeout);
+            expectedParams.put("timeout", timeout.getStringRep());
+        } else {
+            expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
     private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
@@ -2899,6 +2924,16 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout.getStringRep());
+        } else {
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
         }
     }
 

@@ -167,7 +167,6 @@ Closure commonPackageConfig(String type, boolean oss) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
-    configurationFile '/etc/elasticsearch/discovery-file/unicast_hosts.txt'
     into('/etc/elasticsearch') {
       dirMode 0750
       fileMode 0660

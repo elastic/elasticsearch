@@ -479,12 +479,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-ml-get-job-stats-execute
             GetJobsStatsResponse response = client.machineLearning().getJobStats(request, RequestOptions.DEFAULT);
             long numberOfJobsStats = response.count(); //<1>
-            List<JobStats> jobsStats = response.jobs(); //<2>
+            List<JobStats> jobsStats = response.jobStats(); //<2>
             //end::x-pack-ml-get-job-stats-execute
 
             assertEquals(2, response.count());
-            assertThat(response.jobs(), hasSize(2));
-            assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()),
+            assertThat(response.jobStats(), hasSize(2));
+            assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()),
                 containsInAnyOrder(job.getId(), secondJob.getId()));
         }
         {

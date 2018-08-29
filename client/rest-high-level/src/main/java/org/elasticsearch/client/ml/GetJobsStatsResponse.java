@@ -54,7 +54,7 @@ public class GetJobsStatsResponse extends AbstractResultResponse<JobStats>  {
     /**
      * The collection of {@link JobStats} objects found in the query
      */
-    public List<JobStats> jobs() {
+    public List<JobStats> jobStats() {
         return results;
     }
 

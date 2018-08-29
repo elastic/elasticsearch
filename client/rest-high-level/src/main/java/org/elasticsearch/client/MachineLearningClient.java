@@ -292,7 +292,7 @@ public final class MachineLearningClient {
      }
 
     /**
-     * Gets one or more Machine Learning job statistics.
+     * Gets usage statistics for one or more Machine Learning jobs
      *
      * <p>
      *     For additional info

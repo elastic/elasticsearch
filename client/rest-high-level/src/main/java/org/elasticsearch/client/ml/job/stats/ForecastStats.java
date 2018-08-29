@@ -37,10 +37,10 @@ public class ForecastStats implements ToXContentObject {
 
     public static final ParseField TOTAL = new ParseField("total");
     public static final ParseField FORECASTED_JOBS = new ParseField("forecasted_jobs");
-    public static final ParseField MEMORY = new ParseField("memory_bytes");
-    public static final ParseField RUNTIME = new ParseField("processing_time_ms");
+    public static final ParseField MEMORY_BYTES = new ParseField("memory_bytes");
+    public static final ParseField PROCESSING_TIME_MS = new ParseField("processing_time_ms");
     public static final ParseField RECORDS = new ParseField("records");
-    public static final ParseField STATUSES = new ParseField("status");
+    public static final ParseField STATUS = new ParseField("status");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ForecastStats, Void> PARSER =
@@ -58,19 +58,19 @@ public class ForecastStats implements ToXContentObject {
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, MEMORY);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, MEMORY_BYTES);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, RECORDS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, RUNTIME);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, PROCESSING_TIME_MS);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             p -> {
                 Map<String, Long> counts = new HashMap<>();
                 p.map().forEach((key, value) -> counts.put(key, ((Number)value).longValue()));
                 return counts;
-            }, STATUSES, ObjectParser.ValueType.OBJECT);
+            }, STATUS, ObjectParser.ValueType.OBJECT);
     }
 
-    private long total;
-    private long forecastedJobs;
+    private final long total;
+    private final long forecastedJobs;
     private SimpleStats memoryStats;
     private SimpleStats recordStats;
     private SimpleStats runtimeStats;
@@ -140,10 +140,10 @@ public class ForecastStats implements ToXContentObject {
         builder.field(FORECASTED_JOBS.getPreferredName(), forecastedJobs);
 
         if (total > 0) {
-            builder.field(MEMORY.getPreferredName(), memoryStats);
+            builder.field(MEMORY_BYTES.getPreferredName(), memoryStats);
             builder.field(RECORDS.getPreferredName(), recordStats);
-            builder.field(RUNTIME.getPreferredName(), runtimeStats);
-            builder.field(STATUSES.getPreferredName(), statusCounts);
+            builder.field(PROCESSING_TIME_MS.getPreferredName(), runtimeStats);
+            builder.field(STATUS.getPreferredName(), statusCounts);
         }
         return builder.endObject();
     }

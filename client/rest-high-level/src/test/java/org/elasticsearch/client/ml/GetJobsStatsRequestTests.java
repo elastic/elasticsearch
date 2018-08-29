@@ -28,7 +28,7 @@ import java.util.List;
 public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsStatsRequest> {
 
     public void testAllJobsRequest() {
-        GetJobsStatsRequest request = GetJobsStatsRequest.allJobsStats();
+        GetJobsStatsRequest request = GetJobsStatsRequest.getAllJobsStatsRequest();
 
         assertEquals(request.getJobIds().size(), 1);
         assertEquals(request.getJobIds().get(0), "_all");
@@ -64,6 +64,6 @@ public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsSt
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

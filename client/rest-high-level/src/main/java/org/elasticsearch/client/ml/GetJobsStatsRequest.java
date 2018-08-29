@@ -20,6 +20,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -35,25 +36,23 @@ import java.util.Objects;
 
 
 /**
- * Request object to get {@link org.elasticsearch.client.ml.job.stats.JobStats} objects with the matching `jobId`s
+ * Request object to get {@link org.elasticsearch.client.ml.job.stats.JobStats} by their respective jobIds
  *
  * `_all` explicitly gets all the jobs' statistics in the cluster
  * An empty request (no `jobId`s) implicitly gets all the jobs' statistics in the cluster
  */
 public class GetJobsStatsRequest extends ActionRequest implements ToXContentObject {
 
-    public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobsStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_jobs_stats_request",
-        true, a -> new GetJobsStatsRequest((List<String>) a[0]));
+        "get_jobs_stats_request", a -> new GetJobsStatsRequest((List<String>) a[0]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            JOB_ID, ObjectParser.ValueType.STRING_ARRAY);
+            Job.ID, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareBoolean(GetJobsStatsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
     }
 
@@ -67,7 +66,7 @@ public class GetJobsStatsRequest extends ActionRequest implements ToXContentObje
      *
      * @return a {@link GetJobsStatsRequest} for all existing jobs
      */
-    public static GetJobsStatsRequest allJobsStats(){
+    public static GetJobsStatsRequest getAllJobsStatsRequest(){
         return new GetJobsStatsRequest(ALL_JOBS);
     }
 
@@ -137,7 +136,7 @@ public class GetJobsStatsRequest extends ActionRequest implements ToXContentObje
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(JOB_ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
+        builder.field(Job.ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
         if (allowNoJobs != null) {
             builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
         }

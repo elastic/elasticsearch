@@ -53,10 +53,10 @@ public class SimpleStats implements ToXContentObject {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), AVG);
     }
 
-    private double total;
-    private double min;
-    private double max;
-    private double avg;
+    private final double total;
+    private final double min;
+    private final double max;
+    private final double avg;
 
     SimpleStats(double total, double min, double max, double avg) {
         this.total = total;

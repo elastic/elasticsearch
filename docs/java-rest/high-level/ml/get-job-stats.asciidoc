@@ -32,7 +32,7 @@ in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` 
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-execute]
 --------------------------------------------------
 <1> `getCount()` from the `GetJobsStatsResponse` indicates the number of jobs statistics found
-<2> `getJobs()` is the collection of {ml} `JobStats` objects found
+<2> `getJobStats()` is the collection of {ml} `JobStats` objects found
 
 [[java-rest-high-x-pack-ml-get-job-stats-execution-async]]
 ==== Asynchronous Execution

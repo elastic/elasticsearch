@@ -91,13 +91,13 @@ public class JobStats implements ToXContentObject {
 
 
     private final String jobId;
-    private DataCounts dataCounts;
-    private JobState state;
-    private ModelSizeStats modelSizeStats;
-    private ForecastStats forecastStats;
-    private NodeAttributes node;
-    private String assignmentExplanation;
-    private TimeValue openTime;
+    private final DataCounts dataCounts;
+    private final JobState state;
+    private final ModelSizeStats modelSizeStats;
+    private final ForecastStats forecastStats;
+    private final NodeAttributes node;
+    private final String assignmentExplanation;
+    private final TimeValue openTime;
 
     JobStats(String jobId, DataCounts dataCounts, JobState state, @Nullable ModelSizeStats modelSizeStats,
                     @Nullable ForecastStats forecastStats, @Nullable NodeAttributes node,

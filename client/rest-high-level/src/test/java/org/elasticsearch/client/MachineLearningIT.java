@@ -163,9 +163,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         GetJobsStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertEquals(2, response.count());
-        assertThat(response.jobs(), hasSize(2));
-        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), containsInAnyOrder(jobId1, jobId2));
-        for (JobStats stats : response.jobs()) {
+        assertThat(response.jobStats(), hasSize(2));
+        assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), containsInAnyOrder(jobId1, jobId2));
+        for (JobStats stats : response.jobStats()) {
             if (stats.getJobId().equals(jobId1)) {
                 assertEquals(JobState.OPENED, stats.getState());
             } else {
@@ -174,26 +174,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
 
         // Test getting all explicitly
-        request = GetJobsStatsRequest.allJobsStats();
+        request = GetJobsStatsRequest.getAllJobsStatsRequest();
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertTrue(response.count() >= 2L);
-        assertTrue(response.jobs().size() >= 2L);
-        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+        assertTrue(response.jobStats().size() >= 2L);
+        assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test getting all implicitly
         response = execute(new GetJobsStatsRequest(), machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertTrue(response.count() >= 2L);
-        assertTrue(response.jobs().size() >= 2L);
-        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+        assertTrue(response.jobStats().size() >= 2L);
+        assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test getting all with wildcard
         request = new GetJobsStatsRequest("ml-get-job-stats-test-id-*");
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
         assertTrue(response.count() >= 2L);
-        assertTrue(response.jobs().size() >= 2L);
-        assertThat(response.jobs().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
+        assertTrue(response.jobStats().size() >= 2L);
+        assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test when allow_no_jobs is false
         final GetJobsStatsRequest erroredRequest = new GetJobsStatsRequest("jobs-that-do-not-exist*");

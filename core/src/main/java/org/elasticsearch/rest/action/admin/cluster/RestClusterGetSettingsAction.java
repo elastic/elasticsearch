@@ -63,7 +63,9 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
+                return new BytesRestResponse(
+                        RestStatus.OK,
+                        renderResponse(response.getState(), renderDefaults, settingsFilter, clusterSettings, settings, builder, request));
             }
         });
     }
@@ -78,25 +80,76 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return false;
     }
 
-    private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
+    static XContentBuilder renderResponse(
+            final ClusterState state,
+            final boolean renderDefaults,
+            final SettingsFilter settingsFilter,
+            final ClusterSettings clusterSettings,
+            final Settings settings,
+            final XContentBuilder builder,
+            final ToXContent.Params params)
             throws IOException {
+        final ClusterGetSettingsResponse response =
+                new ClusterGetSettingsResponse(state, renderDefaults, settingsFilter, clusterSettings, settings);
         builder.startObject();
-
-        builder.startObject("persistent");
-        state.metaData().persistentSettings().toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject("transient");
-        state.metaData().transientSettings().toXContent(builder, params);
-        builder.endObject();
-
-        if (renderDefaults) {
-            builder.startObject("defaults");
-            settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)).toXContent(builder, params);
+        {
+            builder.startObject("persistent");
+            {
+                response.persistentSettings().toXContent(builder, params);
+            }
             builder.endObject();
-        }
 
+            builder.startObject("transient");
+            {
+                response.transientSettings().toXContent(builder, params);
+            }
+            builder.endObject();
+
+            if (renderDefaults) {
+                builder.startObject("defaults");
+                {
+                    response.defaultSettings().toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+        }
         builder.endObject();
         return builder;
     }
+
+    static final class ClusterGetSettingsResponse {
+
+        private final Settings persistentSettings;
+
+        Settings persistentSettings() {
+            return persistentSettings;
+        }
+
+        private final Settings transientSettings;
+
+        Settings transientSettings() {
+            return transientSettings;
+        }
+
+        private final Settings defaultSettings;
+
+        Settings defaultSettings() {
+            return defaultSettings;
+        }
+
+        ClusterGetSettingsResponse(
+                final ClusterState state,
+                final boolean renderDefaults,
+                final SettingsFilter settingsFilter,
+                final ClusterSettings clusterSettings,
+                final Settings settings) {
+            this.persistentSettings = settingsFilter.filter(state.metaData().persistentSettings());
+            this.transientSettings = settingsFilter.filter(state.metaData().transientSettings());
+            this.defaultSettings = renderDefaults ?
+                    settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) :
+                    Settings.EMPTY;
+        }
+
+    }
+
 }

@@ -148,14 +148,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         private final Consumer<Exception> handler;
         private final AutoFollowMetadata autoFollowMetadata;
 
-        private final CountDown countDown;
+        private final CountDown autoFollowPatternsCountDown;
         private final AtomicReference<Exception> errorHolder = new AtomicReference<>();
 
         AutoFollower(Client client, Consumer<Exception> handler, AutoFollowMetadata autoFollowMetadata) {
             this.client = client;
             this.handler = handler;
             this.autoFollowMetadata = autoFollowMetadata;
-            this.countDown = new CountDown(autoFollowMetadata.getPatterns().size());
+            this.autoFollowPatternsCountDown = new CountDown(autoFollowMetadata.getPatterns().size());
         }
 
         void autoFollowIndices() {
@@ -182,7 +182,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             if (leaderIndicesToFollow.isEmpty()) {
                 finalise(null);
             } else {
-                CountDown countDown = new CountDown(leaderIndicesToFollow.size());
+                CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
                 for (Index indexToFollow : leaderIndicesToFollow) {
                     final String leaderIndexName = indexToFollow.getName();
                     final String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndexName);
@@ -210,7 +210,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             } else {
                                 LOGGER.debug("Successfully marked leader index [{}] as auto followed", leaderIndexName);
                             }
-                            if (countDown.countDown()) {
+                            if (leaderIndicesCountDown.countDown()) {
                                 finalise(updateError);
                             }
                         });
@@ -219,7 +219,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     Consumer<Exception> failureHandler = followError -> {
                         assert followError != null;
                         LOGGER.warn("Failed to auto follow leader index [" + leaderIndexName + "]", followError);
-                        if (countDown.countDown()) {
+                        if (leaderIndicesCountDown.countDown()) {
                             finalise(followError);
                         }
                     };
@@ -233,7 +233,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 errorHolder.get().addSuppressed(failure);
             }
 
-            if (countDown.countDown()) {
+            if (autoFollowPatternsCountDown.countDown()) {
                 handler.accept(errorHolder.get());
             }
         }

@@ -370,7 +370,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         Auditor auditor = new Auditor(client, clusterService.nodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, client, notifier);
+        JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
 
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);

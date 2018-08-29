@@ -127,7 +127,8 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         boolean supportsUnknownFields = true;
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, getShuffleFieldsExceptions(),
+        AbstractXContentTestCase.testFromXContent(
+                NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, getShuffleFieldsExceptions(),
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
     }    

@@ -25,7 +25,7 @@ So let's start from the bottom; these roughly are:
 
 |`column`
 |`field`
-|In both cases, at the lowest level, data is stored in in _named_ entries, of a variety of <<sql-data-types, data types>>, containing _one_ value. SQL calls such an entry a _column_ while {es} a _field_.
+|In both cases, at the lowest level, data is stored in _named_ entries, of a variety of <<sql-data-types, data types>>, containing _one_ value. SQL calls such an entry a _column_ while {es} a _field_.
 Notice that in {es} a field can contain _multiple_ values of the same type (esentially a list) while in SQL, a _column_ can contain _exactly_ one value of said type.
 {es-sql} will do its best to preserve the SQL semantic and, depending on the query, reject those that return fields with more than one value.
 

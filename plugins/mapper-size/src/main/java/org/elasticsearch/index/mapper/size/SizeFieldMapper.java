@@ -82,10 +82,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            if (context.indexCreatedVersion().onOrBefore(Version.V_5_0_0_alpha4)) {
-                // Make sure that the doc_values are disabled on indices created before V_5_0_0_alpha4
-                fieldType.setHasDocValues(false);
-            }
             return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
     }

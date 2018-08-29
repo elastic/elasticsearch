@@ -176,7 +176,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards()));
+                    context.numberOfShards() == 1));
         }
 
 //        TODO - need to check with mapping that this is indeed a text field....

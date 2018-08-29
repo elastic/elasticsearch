@@ -17,24 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.lookup;
+package org.elasticsearch.painless;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.reflect.Field;
+public class BindingTest {
+    public int state;
 
-public final class PainlessField {
+    public BindingTest(int state0, int state1) {
+        this.state = state0 + state1;
+    }
 
-    public final Field javaField;
-    public final Class<?> typeParameter;
-
-    public final MethodHandle getterMethodHandle;
-    public final MethodHandle setterMethodHandle;
-
-    PainlessField(Field javaField, Class<?> typeParameter, MethodHandle getterMethodHandle, MethodHandle setterMethodHandle) {
-        this.javaField = javaField;
-        this.typeParameter = typeParameter;
-
-        this.getterMethodHandle = getterMethodHandle;
-        this.setterMethodHandle = setterMethodHandle;
+    public int testAddWithState(int stateless) {
+        return stateless + state;
     }
 }

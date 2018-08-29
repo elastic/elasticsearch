@@ -19,8 +19,9 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobsStatsResponse;
+import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.GetJobsStatsRequest;
+import org.elasticsearch.client.ml.GetJobsStatsResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -298,7 +299,7 @@ public final class MachineLearningClient {
      * @param request {@link GetJobsStatsRequest} Request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetJobsStatsResponse} response object containing
-     * the {@link org.elasticsearch.protocol.xpack.ml.job.stats.JobStats} objects and the number of jobs found
+     * the {@link JobStats} objects and the number of jobs found
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetJobsStatsResponse getJobStats(GetJobsStatsRequest request, RequestOptions options) throws IOException {

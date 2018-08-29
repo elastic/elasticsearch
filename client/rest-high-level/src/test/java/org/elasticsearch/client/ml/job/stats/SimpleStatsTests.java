@@ -16,38 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml;
+package org.elasticsearch.client.ml.job.stats;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.ml.job.stats.JobStats;
-import org.elasticsearch.protocol.xpack.ml.job.stats.JobStatsTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
-public class GetJobsStatsResponseTests extends AbstractXContentTestCase<GetJobsStatsResponse> {
+
+public class SimpleStatsTests extends AbstractXContentTestCase<SimpleStats> {
 
     @Override
-    protected GetJobsStatsResponse createTestInstance() {
-
-        int count = randomIntBetween(1, 5);
-        List<JobStats> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
-            results.add(JobStatsTests.createRandomInstance());
-        }
-
-        return new GetJobsStatsResponse(results, count);
+    protected SimpleStats createTestInstance() {
+        return new SimpleStats(randomDouble(), randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override
-    protected GetJobsStatsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetJobsStatsResponse.fromXContent(parser);
+    protected SimpleStats doParseInstance(XContentParser parser) throws IOException {
+        return SimpleStats.PARSER.parse(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

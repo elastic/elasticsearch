@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml.job.stats;
+package org.elasticsearch.client.ml.job.stats;
 
+import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.config.JobState;
+import org.elasticsearch.client.ml.job.process.DataCounts;
+import org.elasticsearch.client.ml.job.process.ModelSizeStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,11 +29,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.protocol.xpack.ml.job.config.Job;
-import org.elasticsearch.protocol.xpack.ml.job.config.JobState;
-import org.elasticsearch.protocol.xpack.ml.job.process.DataCounts;
-import org.elasticsearch.protocol.xpack.ml.job.process.ModelSizeStats;
-import org.elasticsearch.protocol.xpack.ml.NodeAttributes;
+import org.elasticsearch.client.ml.NodeAttributes;
 
 import java.io.IOException;
 import java.util.Objects;

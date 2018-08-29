@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml;
+package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,7 +44,7 @@ public class GetJobsStatsResponse extends AbstractResultResponse<JobStats>  {
 
     static {
         PARSER.declareObjectArray(constructorArg(), JobStats.PARSER, RESULTS_FIELD);
-        PARSER.declareLong(constructorArg(), AbstractResultResponse.COUNT);
+        PARSER.declareLong(constructorArg(), COUNT);
     }
 
     GetJobsStatsResponse(List<JobStats> jobStats, long count) {

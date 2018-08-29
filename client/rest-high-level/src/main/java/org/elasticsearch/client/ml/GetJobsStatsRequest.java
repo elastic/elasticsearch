@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml;
+package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,7 +35,7 @@ import java.util.Objects;
 
 
 /**
- * Request object to get {@link org.elasticsearch.protocol.xpack.ml.job.stats.JobStats} objects with the matching `jobId`s
+ * Request object to get {@link org.elasticsearch.client.ml.job.stats.JobStats} objects with the matching `jobId`s
  *
  * `_all` explicitly gets all the jobs' statistics in the cluster
  * An empty request (no `jobId`s) implicitly gets all the jobs' statistics in the cluster

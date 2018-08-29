@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.ml.job.config;
+package org.elasticsearch.client.ml.job.config;
 
 import java.util.Locale;
 

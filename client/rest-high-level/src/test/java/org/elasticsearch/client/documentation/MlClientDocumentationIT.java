@@ -47,9 +47,9 @@ import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobsStatsResponse;
-import org.elasticsearch.protocol.xpack.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.GetJobsStatsRequest;
+import org.elasticsearch.client.ml.GetJobsStatsResponse;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.junit.After;
 
 import java.io.IOException;

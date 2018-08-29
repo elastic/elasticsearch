@@ -36,7 +36,7 @@ import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.protocol.xpack.ml.GetJobsStatsRequest;
+import org.elasticsearch.client.ml.GetJobsStatsRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;

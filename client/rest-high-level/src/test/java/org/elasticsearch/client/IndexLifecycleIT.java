@@ -60,8 +60,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
-        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
-            highLevelClient().indexLifecycle()::putLifecycleAsync));
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
@@ -81,8 +81,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
-        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
-            highLevelClient().indexLifecycle()::putLifecycleAsync));
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
@@ -141,8 +141,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
-        AcknowledgedResponse putResponse = execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
-            highLevelClient().indexLifecycle()::putLifecycleAsync);
+        AcknowledgedResponse putResponse = execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
         assertTrue(putResponse.isAcknowledged());
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
@@ -187,8 +187,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         String policyName = randomAlphaOfLength(10);
         LifecyclePolicy policy = createRandomPolicy(policyName);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
-        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
-            highLevelClient().indexLifecycle()::putLifecycleAsync));
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy.getName());
         assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecyclePolicy,
@@ -209,8 +209,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         LifecyclePolicy policy = createRandomPolicy(name);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
 
-        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecycle,
-            highLevelClient().indexLifecycle()::putLifecycleAsync));
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
         Request getLifecycle = new Request("GET", "/_ilm/" + name);

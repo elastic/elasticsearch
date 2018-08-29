@@ -35,21 +35,11 @@ public class PutLifecyclePolicyRequestTests extends ESTestCase {
     }
 
     public void testNullPolicy() {
-        try {
-            new PutLifecyclePolicyRequest(null);
-            fail("should not have been able to create a PutLifecyclePolicyRequest with null policy");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("policy definition cannot be null", ex.getMessage());
-        }
+        expectThrows(IllegalArgumentException.class, () -> new PutLifecyclePolicyRequest(null));
     }
 
     public void testNullPolicyName() {
-        try {
-            PutLifecyclePolicyRequest req = new PutLifecyclePolicyRequest(createRandomPolicy(randomFrom("", null)));
-            fail("should not be able to create a PutLifecyclePolicyRequest with a null/empty policy name");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("policy name must be present", ex.getMessage());
-        }
+        expectThrows(IllegalArgumentException.class, () -> new PutLifecyclePolicyRequest(createRandomPolicy(randomFrom("", null))));
     }
 
 }

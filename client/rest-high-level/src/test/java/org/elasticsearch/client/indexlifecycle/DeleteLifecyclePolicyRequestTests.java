@@ -29,7 +29,7 @@ public class DeleteLifecyclePolicyRequestTests extends ESTestCase {
 
     public void testValidate() {
         DeleteLifecyclePolicyRequest req = createTestInstance();
-        assertTrue(req.validate() == null || req.validate().validationErrors().size() == 0);
+        assertFalse(req.validate().isPresent());
 
     }
 

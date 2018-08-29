@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -65,6 +64,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -177,6 +178,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
@@ -405,6 +407,33 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void bulkAsync(BulkRequest bulkRequest, RequestOptions options, ActionListener<BulkResponse> listener) {
         performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Executes a reindex request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes a reindex request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void reindexAsync(ReindexRequest reindexRequest, RequestOptions options, ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
     }
 
     /**
@@ -1023,9 +1052,9 @@ public class RestHighLevelClient implements Closeable {
                                                              RequestOptions options,
                                                              CheckedFunction<Response, Resp, IOException> responseConverter,
                                                              Set<Integer> ignores) throws IOException {
-        ValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
         }
         return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
     }
@@ -1118,9 +1147,9 @@ public class RestHighLevelClient implements Closeable {
                                                                           RequestOptions options,
                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                           ActionListener<Resp> listener, Set<Integer> ignores) {
-        ValidationException validationException = request.validate();
-        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
-            listener.onFailure(validationException);
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
             return;
         }
         internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
@@ -1228,15 +1257,6 @@ public class RestHighLevelClient implements Closeable {
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
         }
-    }
-
-    private static RequestOptions optionsForHeaders(Header[] headers) {
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        for (Header header : headers) {
-            Objects.requireNonNull(header, "header cannot be null");
-            options.addHeader(header.getName(), header.getValue());
-        }
-        return options.build();
     }
 
     static boolean convertExistsResponse(Response response) {

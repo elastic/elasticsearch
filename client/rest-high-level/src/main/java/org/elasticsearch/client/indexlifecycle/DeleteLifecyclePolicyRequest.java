@@ -19,12 +19,12 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.client.MasterTimeoutRequest;
+import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.Strings;
 
 import java.util.Objects;
 
-public class DeleteLifecyclePolicyRequest extends MasterTimeoutRequest<DeleteLifecyclePolicyRequest> {
+public class DeleteLifecyclePolicyRequest extends TimedRequest {
 
     private final String lifecycle;
 

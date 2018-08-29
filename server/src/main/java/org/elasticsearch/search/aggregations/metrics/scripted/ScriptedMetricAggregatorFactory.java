@@ -80,20 +80,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             aggParams = new HashMap<>();
         }
 
-        // Add _agg to params map for backwards compatibility (redundant with context variables on the scripts created below).
-        // When this is removed, aggState (as passed to ScriptedMetricAggregator) can be changed to Map<String, Object>, since
-        // it won't be possible to completely replace it with another type as is possible when it's an entry in params.
-        Object aggState = new HashMap<String, Object>();
-        if (ScriptedMetricAggContexts.deprecatedAggParamEnabled()) {
-            if (aggParams.containsKey("_agg") == false) {
-                // Add _agg if it wasn't added manually
-                aggParams.put("_agg", aggState);
-            } else {
-                // If it was added manually, also use it for the agg context variable to reduce the likelihood of
-                // weird behavior due to multiple different variables.
-                aggState = aggParams.get("_agg");
-            }
-        }
+        Map<String, Object> aggState = new HashMap<String, Object>();
 
         final ScriptedMetricAggContexts.InitScript initScript = this.initScript.newInstance(
             mergeParams(aggParams, initScriptParams), aggState);

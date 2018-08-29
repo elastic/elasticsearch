@@ -107,6 +107,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
@@ -825,6 +826,21 @@ final class RequestConverters {
         return request;
     }
 
+    static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRefresh(reindexRequest.isRefresh())
+            .withTimeout(reindexRequest.getTimeout())
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
+
+        if (reindexRequest.getScrollTime() != null) {
+            params.putParam("scroll", reindexRequest.getScrollTime());
+        }
+        request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
@@ -1183,6 +1199,7 @@ final class RequestConverters {
                 .build());
         Params params = new Params(request);
         params.withMasterTimeout(deleteLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(deleteLifecyclePolicyRequest.timeout());
         return request;
     }
 

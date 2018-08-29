@@ -95,7 +95,7 @@ PUT /my_index/my_type/1
 }
 ----------------------------------
 // CONSOLE
-// TESTSETUP
+// TEST[skip:SETUP]
 <1> In this example, string fields are mapped as `keyword` fields to support
 aggregation. If you want both a full text (`text`) and a keyword (`keyword`)
 version of the same field, use multi-fields. For more information, see
@@ -144,7 +144,7 @@ PUT _xpack/ml/datafeeds/datafeed-test1
 }
 ----------------------------------
 // CONSOLE
-// TEST[skip:broken]
+// TEST[skip:needs-licence]
 <1> A script field named `total_error_count` is referenced in the detector
 within the job.
 <2> The script field is defined in the {dfeed}.
@@ -163,7 +163,7 @@ You can preview the contents of the {dfeed} by using the following API:
 GET _xpack/ml/datafeeds/datafeed-test1/_preview
 ----------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 
 In this example, the API returns the following results, which contain a sum of
 the `error_count` and `aborted_count` values:
@@ -177,8 +177,6 @@ the `error_count` and `aborted_count` values:
   }
 ]
 ----------------------------------
-// TESTRESPONSE
-
 
 NOTE: This example demonstrates how to use script fields, but it contains
 insufficient data to generate meaningful results. For a full demonstration of
@@ -254,7 +252,7 @@ PUT _xpack/ml/datafeeds/datafeed-test2
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:broken]
+// TEST[skip:needs-licence]
 <1> The script field has a rather generic name in this case, since it will
 be used for various tests in the subsequent examples.
 <2> The script field uses the plus (+) operator to concatenate strings.
@@ -271,7 +269,6 @@ and "SMITH  " have been concatenated and an underscore was added:
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform3]]
 .Example 3: Trimming strings
@@ -292,7 +289,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 <1> This script field uses the `trim()` function to trim extra white space from a
 string.
 
@@ -308,7 +305,6 @@ has been trimmed to "SMITH":
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform4]]
 .Example 4: Converting strings to lowercase
@@ -329,7 +325,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 <1> This script field uses the `toLowerCase` function to convert a string to all
 lowercase letters. Likewise, you can use the `toUpperCase{}` function to convert
 a string to uppercase letters.
@@ -346,7 +342,6 @@ has been converted to "joe":
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform5]]
 .Example 5: Converting strings to mixed case formats
@@ -367,7 +362,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 <1> This script field is a more complicated example of case manipulation. It uses
 the `subString()` function to capitalize the first letter of a string and
 converts the remaining characters to lowercase.
@@ -384,7 +379,6 @@ has been converted to "Joe":
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform6]]
 .Example 6: Replacing tokens
@@ -405,7 +399,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 <1> This script field uses regular expressions to replace white
 space with underscores.
 
@@ -421,7 +415,6 @@ The preview {dfeed} API returns the following results, which show that
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform7]]
 .Example 7: Regular expression matching and concatenation
@@ -442,7 +435,7 @@ POST _xpack/ml/datafeeds/datafeed-test2/_update
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:continued]
 <1> This script field looks for a specific regular expression pattern and emits the
 matched groups as a concatenated string. If no match is found, it emits an empty
 string.
@@ -459,7 +452,6 @@ The preview {dfeed} API returns the following results, which show that
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform8]]
 .Example 8: Splitting strings by domain name
@@ -509,7 +501,7 @@ PUT _xpack/ml/datafeeds/datafeed-test3
 GET _xpack/ml/datafeeds/datafeed-test3/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:broken]
+// TEST[skip:needs-licence]
 
 If you have a single field that contains a well-formed DNS domain name, you can
 use the `domainSplit()` function to split the string into its highest registered
@@ -537,7 +529,6 @@ The preview {dfeed} API returns the following results, which show that
   }
 ]
 ----------------------------------
-// TESTRESPONSE
 
 [[ml-configuring-transform9]]
 .Example 9: Transforming geo_point data
@@ -583,7 +574,7 @@ PUT _xpack/ml/datafeeds/datafeed-test4
 GET _xpack/ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:broken]
+// TEST[skip:needs-licence]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
 not supported natively in {xpackml} analytics. This example of a script field
@@ -602,4 +593,4 @@ The preview {dfeed} API returns the following results, which show that
   }
 ]
 ----------------------------------
-// TESTRESPONSE
+

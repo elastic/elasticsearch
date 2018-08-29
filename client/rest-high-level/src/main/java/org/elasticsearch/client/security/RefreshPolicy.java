@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.security;
 
 /**
  * Enumeration of values that control the refresh policy for a request that

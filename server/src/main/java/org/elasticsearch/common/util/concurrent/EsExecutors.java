@@ -160,11 +160,13 @@ public class EsExecutors {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
         } else {
+            // TODO this should only be allowed in tests
             return threadName("", namePrefix);
         }
     }
 
     public static String threadName(final String nodeName, final String namePrefix) {
+        // TODO missing node names should only be allowed in tests
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 

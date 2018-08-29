@@ -76,6 +76,21 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
+    public void testDifferentJars() throws Exception {
+        Path dir = createTempDir();
+        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "meta-info.class"),
+            makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
+        try {
+            JarHell.checkJarHell(jars, logger::debug);
+            fail("did not get expected exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("jar hell!"));
+            assertTrue(e.getMessage().contains("DuplicateClass"));
+            assertTrue(e.getMessage().contains("foo.jar"));
+            assertTrue(e.getMessage().contains("bar.jar"));
+        }
+    }
+
     public void testDirsOnClasspath() throws Exception {
         Path dir1 = createTempDir();
         Path dir2 = createTempDir();

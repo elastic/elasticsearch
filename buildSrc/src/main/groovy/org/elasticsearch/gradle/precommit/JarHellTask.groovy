@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.precommit
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Classpath
@@ -42,6 +43,11 @@ public class JarHellTask extends LoggedExec {
     public JarHellTask() {
         successMarker = new File(project.buildDir, 'markers/jarHell-' + getName())
         project.afterEvaluate {
+            FileCollection classpath = project.sourceSets.test.runtimeClasspath
+            if (project.plugins.hasPlugin(ShadowPlugin)) {
+                classpath += project.configurations.bundle
+            }
+            inputs.files(classpath)
             dependsOn(classpath)
             description = "Runs CheckJarHell on ${classpath}"
             executable = new File(project.runtimeJavaHome, 'bin/java')

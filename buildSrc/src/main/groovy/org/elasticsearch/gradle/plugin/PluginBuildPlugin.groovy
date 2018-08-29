@@ -157,11 +157,10 @@ public class PluginBuildPlugin extends BuildPlugin {
             from pluginMetadata // metadata (eg custom security policy)
             /*
              * If the plugin is using the shadow plugin then we need to bundle
-             * "shadow" things rather than the default jar and dependencies so
-             * we don't hit jar hell.
+             * that shadow jar.
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
-            from { project.plugins.hasPlugin(ShadowPlugin) ? project.configurations.shadow : project.configurations.runtime - project.configurations.compileOnly }
+            from project.configurations.runtime - project.configurations.compileOnly
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

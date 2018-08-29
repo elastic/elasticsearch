@@ -140,8 +140,3 @@ When the job is created, you receive the following results:
   "results_index_name": "shared"
 }
 ----
-
-////
-// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
-// TESTRESPONSE[s/"create_time": 1517011406091/"create_time": $body.create_time/]
-////

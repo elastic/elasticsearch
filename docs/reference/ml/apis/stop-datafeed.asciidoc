@@ -66,10 +66,10 @@ POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
 // TEST[skip:setup:server_metrics_startdf]
 
 When the {dfeed} stops, you receive the following results:
+
 [source,js]
 ----
 {
   "stopped": true
 }
 ----
-

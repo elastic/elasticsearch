@@ -100,8 +100,3 @@ The API returns the following results:
   ]
 }
 ----
-
-////
-// TESTRESPONSE[s/"7.0.0-alpha1"/$body.$_path/]
-// TESTRESPONSE[s/1517011406091/$body.$_path/]
-////

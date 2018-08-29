@@ -101,10 +101,5 @@ The API returns the following results:
 }
 ----
 
-////
-// TESTRESPONSE[s/LS8LJGEBMTCMA-qz49st/$body.$_path/]
-// TESTRESPONSE[s/Li8LJGEBMTCMA-qz49st/$body.$_path/]
-// TESTRESPONSE[s/Ly8LJGEBMTCMA-qz49st/$body.$_path/]
-////
 
 For more information about these properties, see <<ml-event-resource>>.

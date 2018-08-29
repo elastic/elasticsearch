@@ -94,11 +94,3 @@ The API returns the following results:
   ]
 }
 ----
-
-////
-// TESTRESPONSE[s/"2spCyo1pRi2Ajo-j-_dnPX"/$body.$_path/]
-// TESTRESPONSE[s/"node-0"/$body.$_path/]
-// TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
-// TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]
-// TESTRESPONSE[s/"17179869184"/$body.datafeeds.0.node.attributes.ml\\.machine_memory/]
-////

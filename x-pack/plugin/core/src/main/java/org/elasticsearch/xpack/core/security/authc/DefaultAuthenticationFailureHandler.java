@@ -73,8 +73,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * @param headerValue string starting with auth-scheme name
      * @return integer value denoting priority for given auth scheme.
      */
-    // package scope for testing
-    static Integer authSchemePriority(final String headerValue) {
+    private static Integer authSchemePriority(final String headerValue) {
         if (headerValue.regionMatches(true, 0, "negotiate", 0, "negotiate".length())) {
             return 0;
         } else if (headerValue.regionMatches(true, 0, "bearer", 0, "bearer".length())) {

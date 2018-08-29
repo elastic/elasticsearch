@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler.authSchemePriority;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,7 +50,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         if (testDefault) {
             assertWWWAuthenticateWithSchemes(ese, basicAuthScheme);
         } else {
-            assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme);
+            assertWWWAuthenticateWithSchemes(ese, bearerAuthScheme, basicAuthScheme);
         }
     }
 
@@ -84,12 +83,12 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
                 assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
                 if (withAuthenticateHeader == false) {
-                    assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+                    assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
                 } else {
                     if (selectedScheme.contains("Negotiate ")) {
                         assertWWWAuthenticateWithSchemes(ese, selectedScheme);
                     } else {
-                        assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+                        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
                     }
                 }
                 assertThat(ese.getMessage(), equalTo("unauthorized"));
@@ -103,7 +102,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             assertThat(ese, is(notNullValue()));
             assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
             assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
-            assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+            assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
         }
 
     }
@@ -122,13 +121,11 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         assertThat(ese, is(notNullValue()));
         assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
         assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
-        assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+        assertWWWAuthenticateWithSchemes(ese, negotiateAuthScheme, bearerAuthScheme, basicAuthScheme);
     }
 
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {
         assertThat(ese.getHeader("WWW-Authenticate").size(), is(schemes.length));
-        // Auth scheme are ordered as more secure to least secure
-        Arrays.sort(schemes, (o1, o2) -> authSchemePriority(o1).compareTo(authSchemePriority(o2)));
         assertThat(ese.getHeader("WWW-Authenticate"), contains(schemes));
     }
 }

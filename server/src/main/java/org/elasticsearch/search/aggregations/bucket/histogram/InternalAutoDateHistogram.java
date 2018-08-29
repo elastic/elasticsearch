@@ -209,9 +209,8 @@ public final class InternalAutoDateHistogram extends
     private final BucketInfo bucketInfo;
     private final int targetBuckets;
 
-
     InternalAutoDateHistogram(String name, List<Bucket> buckets, int targetBuckets, BucketInfo emptyBucketInfo, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
         this.bucketInfo = emptyBucketInfo;
@@ -236,6 +235,22 @@ public final class InternalAutoDateHistogram extends
         out.writeNamedWriteable(format);
         out.writeList(buckets);
         out.writeVInt(targetBuckets);
+    }
+
+    public DateHistogramInterval getInterval() {
+        RoundingInfo roundingInfo = this.bucketInfo.roundingInfos[this.bucketInfo.roundingIdx];
+        String unitAbbreviation = roundingInfo.unitAbbreviation;
+        if (buckets.size() <= 1) {
+            int innerInterval = roundingInfo.innerIntervals[0];
+            return new DateHistogramInterval(Integer.toString(innerInterval) + unitAbbreviation);
+        }
+        long intervalInMillis = buckets.get(1).key - buckets.get(0).key;
+        for (int interval : roundingInfo.innerIntervals) {
+            if (roundingInfo.getRoughEstimateDurationMillis() * interval == intervalInMillis) {
+                return new DateHistogramInterval(Integer.toString(interval) + unitAbbreviation);
+            }
+        }
+        return new DateHistogramInterval(Integer.toString(roundingInfo.innerIntervals[0]) + unitAbbreviation);
     }
 
     @Override
@@ -279,7 +294,6 @@ public final class InternalAutoDateHistogram extends
             this.iterator = iterator;
             current = iterator.next();
         }
-
     }
 
     /**
@@ -408,7 +422,6 @@ public final class InternalAutoDateHistogram extends
             this.buckets = buckets;
             this.roundingInfo = roundingInfo;
             this.roundingIdx = roundingIdx;
-
         }
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -111,6 +112,10 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(metaData.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metaData.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metaData.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
+        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
+        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
+        assertEquals(metaData.getCustomData(), expectedCustom);
         assertEquals(metaData.getCustomData(), fromXContentMeta.getCustomData());
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -128,6 +133,7 @@ public class IndexMetaDataTests extends ESTestCase {
             assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
             assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
             assertEquals(metaData.getRolloverInfos(), deserialized.getRolloverInfos());
+            assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metaData.getCustomData(),  deserialized.getCustomData());
         }
     }

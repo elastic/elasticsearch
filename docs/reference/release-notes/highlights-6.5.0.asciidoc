@@ -1,0 +1,7 @@
+[[release-highlights-6.5.0]]
+== 6.5.0 release highlights
+++++
+<titleabbrev>6.5.0</titleabbrev>
+++++
+
+coming[6.5.0]

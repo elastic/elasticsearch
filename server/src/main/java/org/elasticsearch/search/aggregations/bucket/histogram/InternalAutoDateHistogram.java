@@ -570,6 +570,7 @@ public final class InternalAutoDateHistogram extends
             bucket.toXContent(builder, params);
         }
         builder.endArray();
+        builder.field("interval", getInterval().toString());
         return builder;
     }
 

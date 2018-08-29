@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.file;
+package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -48,15 +49,15 @@ import java.util.stream.Stream;
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
-    static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
+    public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
 
-    FileBasedUnicastHostsProvider(Environment environment) {
-        super(environment.settings());
-        this.unicastHostsFilePath = environment.configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+    public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
+        super(settings);
+        this.unicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }
 
     @Override
@@ -79,5 +80,4 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", dynamicHosts);
         return dynamicHosts;
     }
-
 }

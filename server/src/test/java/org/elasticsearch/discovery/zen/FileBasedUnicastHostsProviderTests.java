@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.file;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -26,9 +26,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -50,11 +48,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.discovery.file.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
+import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
 
-/**
- * Tests for {@link FileBasedUnicastHostsProvider}.
- */
 public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -124,8 +119,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                       .build();
-        final Environment environment = TestEnvironment.newEnvironment(settings);
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment);
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, createTempDir().toAbsolutePath());
         final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
@@ -166,8 +160,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(
-                new Environment(settings, configPath)).buildDynamicHosts((hosts, limitPortCounts) ->
+        return new FileBasedUnicastHostsProvider(settings, configPath).buildDynamicHosts((hosts, limitPortCounts) ->
                     UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                         TimeValue.timeValueSeconds(10)));
     }

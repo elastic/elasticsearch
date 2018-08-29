@@ -248,9 +248,6 @@ public class ElasticsearchMappings {
                 .startObject(AnalysisConfig.MULTIVARIATE_BY_FIELDS.getPreferredName())
                     .field(TYPE, BOOLEAN)
                 .endObject()
-                .startObject(AnalysisConfig.USE_PER_PARTITION_NORMALIZATION.getPreferredName())
-                    .field(TYPE, BOOLEAN)
-                .endObject()
             .endObject()
         .endObject()
 

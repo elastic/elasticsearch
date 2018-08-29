@@ -116,8 +116,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems());
-                listener.onResponse(new PutFilterAction.Response(filter));
+                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems(), ActionListener.wrap(
+                        response -> listener.onResponse(new PutFilterAction.Response(filter)),
+                        listener::onFailure
+                ));
             }
 
             @Override

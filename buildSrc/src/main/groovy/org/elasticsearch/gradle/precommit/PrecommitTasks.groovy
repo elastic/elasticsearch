@@ -87,6 +87,7 @@ class PrecommitTasks {
             dependsOn(buildResources)
             signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
             javaHome = project.runtimeJavaHome
+            targetCompatibility = project.runtimeJavaVersion
         }
         return thirdPartyAuditTask
     }

@@ -1191,11 +1191,11 @@ final class RequestConverters {
         return request;
     }
 
-    static Request deleteLifecycle(DeleteLifecyclePolicyRequest deleteLifecyclePolicyRequest) {
+    static Request deleteLifecyclePolicy(DeleteLifecyclePolicyRequest deleteLifecyclePolicyRequest) {
         Request request = new Request(HttpDelete.METHOD_NAME,
             new EndpointBuilder()
                 .addPathPartAsIs("_ilm")
-                .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecycle())
+                .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecyclePolicy())
                 .build());
         Params params = new Params(request);
         params.withMasterTimeout(deleteLifecyclePolicyRequest.masterNodeTimeout());

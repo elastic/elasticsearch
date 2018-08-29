@@ -51,7 +51,7 @@ public class IndexLifecycleClient {
      */
     public AcknowledgedResponse deleteLifecyclePolicy(DeleteLifecyclePolicyRequest request,
                                                       RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLifecycle, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::deleteLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -65,7 +65,7 @@ public class IndexLifecycleClient {
      */
     public void deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
                                            ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLifecycle, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

@@ -2706,7 +2706,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
 
-        Request request = RequestConverters.deleteLifecycle(req);
+        Request request = RequestConverters.deleteLifecyclePolicy(req);
         assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
         assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
         assertEquals(request.getParameters(), expectedParams);

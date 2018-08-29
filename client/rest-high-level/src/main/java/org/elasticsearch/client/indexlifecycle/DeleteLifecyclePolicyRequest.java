@@ -26,17 +26,17 @@ import java.util.Objects;
 
 public class DeleteLifecyclePolicyRequest extends TimedRequest {
 
-    private final String lifecycle;
+    private final String lifecyclePolicy;
 
-    public DeleteLifecyclePolicyRequest(String lifecycle) {
-        if (Strings.isNullOrEmpty(lifecycle)) {
+    public DeleteLifecyclePolicyRequest(String lifecyclePolicy) {
+        if (Strings.isNullOrEmpty(lifecyclePolicy)) {
             throw new IllegalArgumentException("lifecycle name must be present");
         }
-        this.lifecycle = lifecycle;
+        this.lifecyclePolicy = lifecyclePolicy;
     }
 
-    public String getLifecycle() {
-        return lifecycle;
+    public String getLifecyclePolicy() {
+        return lifecyclePolicy;
     }
 
 
@@ -49,11 +49,11 @@ public class DeleteLifecyclePolicyRequest extends TimedRequest {
             return false;
         }
         DeleteLifecyclePolicyRequest that = (DeleteLifecyclePolicyRequest) o;
-        return Objects.equals(getLifecycle(), that.getLifecycle());
+        return Objects.equals(getLifecyclePolicy(), that.getLifecyclePolicy());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getLifecycle());
+        return Objects.hash(getLifecyclePolicy());
     }
 }

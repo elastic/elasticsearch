@@ -304,21 +304,6 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2LatLng',
 ]
 
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-          // Used by Log4J 2.11.1
-            'java.io.ObjectInputFilter',
-            'java.io.ObjectInputFilter$Config',
-            'java.io.ObjectInputFilter$FilterInfo',
-            'java.io.ObjectInputFilter$Status',
-          // added in 9
-            'java.lang.ProcessHandle',
-            'java.lang.StackWalker',
-            'java.lang.StackWalker$Option',
-            'java.lang.StackWalker$StackFrame'
-  ]
-}
-
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
 }

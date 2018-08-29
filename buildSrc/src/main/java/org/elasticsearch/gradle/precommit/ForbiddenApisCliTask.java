@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import de.thetaphi.forbiddenapis.cli.CliMain;
-import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -29,6 +28,7 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.JavaExecSpec;
 
@@ -50,7 +50,8 @@ public class ForbiddenApisCliTask extends DefaultTask {
     private Set<String> suppressAnnotations = new LinkedHashSet<>();
     private JavaVersion targetCompatibility;
     private FileCollection classesDirs;
-    private Action<JavaExecSpec> execAction;
+    private SourceSet sourceSet;
+    private String javaHome;
 
     @Input
     public JavaVersion getTargetCompatibility() {
@@ -67,14 +68,6 @@ public class ForbiddenApisCliTask extends DefaultTask {
         } else {
             this.targetCompatibility = targetCompatibility;
         }
-    }
-
-    public Action<JavaExecSpec> getExecAction() {
-        return execAction;
-    }
-
-    public void setExecAction(Action<JavaExecSpec> execAction) {
-        this.execAction = execAction;
     }
 
     @OutputFile
@@ -131,11 +124,41 @@ public class ForbiddenApisCliTask extends DefaultTask {
         this.suppressAnnotations = suppressAnnotations;
     }
 
+    @InputFiles
+    public FileCollection getClassPathFromSourceSet() {
+        return getProject().files(
+            sourceSet.getCompileClasspath(),
+            sourceSet.getRuntimeClasspath()
+        );
+    }
+
+    public void setSourceSet(SourceSet sourceSet) {
+        this.sourceSet = sourceSet;
+    }
+
+    @InputFiles
+    public Configuration getForbiddenAPIsConfiguration() {
+        return getProject().getConfigurations().getByName("forbiddenApisCliJar");
+    }
+
+    @Input
+    public String getJavaHome() {
+        return javaHome;
+    }
+
+    public void setJavaHome(String javaHome) {
+        this.javaHome = javaHome;
+    }
+
     @TaskAction
     public void runForbiddenApisAndWriteMarker() throws IOException {
         getProject().javaexec((JavaExecSpec spec) -> {
-            execAction.execute(spec);
-            spec.setMain(CliMain.class.getName());
+            spec.classpath(
+                getForbiddenAPIsConfiguration(),
+                getClassPathFromSourceSet()
+            );
+            spec.setExecutable(getJavaHome() + "/bin/java");
+            spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             // build the command line
             getSignaturesFiles().forEach(file -> spec.args("-f", file.getAbsolutePath()));
             getSuppressAnnotations().forEach(annotation -> spec.args("--suppressannotation", annotation));

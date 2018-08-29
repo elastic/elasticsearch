@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Field;
 
 public final class PainlessField {
+
     public final Field javaField;
     public final Class<?> typeParameter;
 

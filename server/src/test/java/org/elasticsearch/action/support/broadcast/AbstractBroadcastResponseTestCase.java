@@ -33,7 +33,6 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -130,29 +129,6 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         assertThat(parsedFailures[1].shardId(), equalTo(2));
         assertThat(parsedFailures[1].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(parsedFailures[1].getCause().getMessage(), containsString("fizz"));
-
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("group_shard_failures", "false"));
-        BytesReference bytesReferenceWithoutDedup = toShuffledXContent(response, xContentType, params, humanReadable);
-        try(XContentParser parser = createParser(xContentType.xContent(), bytesReferenceWithoutDedup)) {
-            parsedResponse = doParseInstance(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertThat(parsedResponse.getShardFailures().length, equalTo(3));
-        parsedFailures = parsedResponse.getShardFailures();
-        for (int i = 0; i < 3; i++) {
-            if (i < 2) {
-                assertThat(parsedFailures[i].index(), equalTo("test"));
-                assertThat(parsedFailures[i].shardId(), equalTo(i));
-                assertThat(parsedFailures[i].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                assertThat(parsedFailures[i].getCause().getMessage(), containsString("foo"));
-            } else {
-                assertThat(parsedFailures[i].index(), equalTo("test"));
-                assertThat(parsedFailures[i].shardId(), equalTo(i));
-                assertThat(parsedFailures[i].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                assertThat(parsedFailures[i].getCause().getMessage(), containsString("fizz"));
-            }
-        }
     }
 
     public void testToXContent() {

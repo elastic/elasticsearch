@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -72,22 +71,26 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
-        Job job = JobManager.getJobOrThrowIfUnknown(request.getJobId(), state);
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        JobState jobState = MlTasks.getJobState(job.getId(), tasks);
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                exists -> {
+                    PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
 
-        if (jobState.equals(JobState.CLOSED) == false) {
-            throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
-        }
+                    if (jobState.equals(JobState.CLOSED) == false) {
+                        throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+                    }
 
-        getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
-            ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
-            if (request.getDeleteInterveningResults()) {
-                wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
-                wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
-            }
-            jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
-        }, listener::onFailure);
+                    getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
+                        ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
+                        if (request.getDeleteInterveningResults()) {
+                            wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
+                            wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
+                        }
+                        jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+                    }, listener::onFailure);
+                },
+                listener::onFailure
+        ));
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

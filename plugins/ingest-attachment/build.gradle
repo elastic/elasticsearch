@@ -2143,6 +2143,7 @@ if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
 }
 
 if (project.inFipsJvm) {
-    // jar hell with JDK on FIPS 
+    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+    // rather than provide a long list of exclusions, disable the check on FIPS.
     thirdPartyAudit.enabled = false
 }

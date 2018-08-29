@@ -142,6 +142,8 @@ thirdPartyAudit.excludes = [
         'org.conscrypt.HandshakeListener'
 ]
 if (project.inFipsJvm == false) {
+    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+    // a FIPS JVM with BouncyCastleFIPS Provider
     thirdPartyAudit.excludes += [
             'org.bouncycastle.asn1.x500.X500Name'
     ]

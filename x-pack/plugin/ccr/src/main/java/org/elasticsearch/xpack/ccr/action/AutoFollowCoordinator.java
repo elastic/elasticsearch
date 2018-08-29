@@ -87,6 +87,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         };
         AutoFollower operation = new AutoFollower(client, handler, autoFollowMetadata) {
 
+            @Override
             void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
                 ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
@@ -99,6 +100,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 );
             }
 
+            @Override
             void createAndFollow(FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
@@ -106,6 +108,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     ActionListener.wrap(r -> successHandler.run(), failureHandler));
             }
 
+            @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 

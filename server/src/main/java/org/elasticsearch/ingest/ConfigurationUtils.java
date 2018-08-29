@@ -384,7 +384,7 @@ public final class ConfigurationUtils {
                                            ScriptService scriptService,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-        Script conditionalScript = maybeExtractConditional(config);
+        Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
@@ -418,7 +418,7 @@ public final class ConfigurationUtils {
         throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
     }
 
-    private static Script maybeExtractConditional(Map<String, Object> config) throws IOException {
+    private static Script extractConditional(Map<String, Object> config) throws IOException {
         Object scriptSource = config.remove("if");
         if (scriptSource != null) {
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)
@@ -428,9 +428,8 @@ public final class ConfigurationUtils {
                      LoggingDeprecationHandler.INSTANCE, stream)) {
                 return Script.parse(parser);
             }
-        } else {
-            return null;
         }
+        return null;
     }
 
     @SuppressWarnings("unchecked")

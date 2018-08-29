@@ -1,4 +1,3 @@
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,7 +22,7 @@ package org.elasticsearch.script;
 import java.util.Map;
 
 /**
- * A script used by the Ingest Script Processor.
+ * A script used by {@link org.elasticsearch.ingest.ConditionalProcessor}.
  */
 public abstract class IngestConditionalScript {
 

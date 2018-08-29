@@ -236,13 +236,33 @@ Which returns a corresponding response:
        "meta" : { },
        "buckets" : [
          {
-           "key_as_string" : "2018-01-15T00:00:00.000Z",
-           "key" : 1515974400000,
-           "doc_count" : 4,
+           "key_as_string" : "2018-01-18T00:00:00.000Z",
+           "key" : 1516233600000,
+           "doc_count" : 6,
            "nodes" : {
              "doc_count_error_upper_bound" : 0,
              "sum_other_doc_count" : 0,
              "buckets" : [
+               {
+                 "key" : "a",
+                 "doc_count" : 2,
+                 "max_temperature" : {
+                   "value" : 202.0
+                 },
+                 "avg_voltage" : {
+                   "value" : 5.1499998569488525
+                 }
+               },
+               {
+                 "key" : "b",
+                 "doc_count" : 2,
+                 "max_temperature" : {
+                   "value" : 201.0
+                 },
+                 "avg_voltage" : {
+                   "value" : 5.700000047683716
+                 }
+               },
                {
                  "key" : "c",
                  "doc_count" : 2,
@@ -252,57 +272,6 @@ Which returns a corresponding response:
                  "avg_voltage" : {
                    "value" : 4.099999904632568
                  }
-               },
-               {
-                 "key" : "a",
-                 "doc_count" : 1,
-                 "max_temperature" : {
-                   "value" : 202.0
-                 },
-                 "avg_voltage" : {
-                   "value" : 5.099999904632568
-                 }
-               },
-               {
-                 "key" : "b",
-                 "doc_count" : 1,
-                 "max_temperature" : {
-                   "value" : 198.0
-                 },
-                 "avg_voltage" : {
-                   "value" : 5.599999904632568
-                 }
-               }
-             ]
-           }
-         },
-         {
-           "key_as_string" : "2018-01-22T00:00:00.000Z",
-           "key" : 1516579200000,
-           "doc_count" : 2,
-           "nodes" : {
-             "doc_count_error_upper_bound" : 0,
-             "sum_other_doc_count" : 0,
-             "buckets" : [
-               {
-                 "key" : "a",
-                 "doc_count" : 1,
-                 "max_temperature" : {
-                   "value" : 200.0
-                 },
-                 "avg_voltage" : {
-                   "value" : 5.199999809265137
-                 }
-               },
-               {
-                 "key" : "b",
-                 "doc_count" : 1,
-                 "max_temperature" : {
-                   "value" : 201.0
-                 },
-                 "avg_voltage" : {
-                   "value" : 5.800000190734863
-                 }
                }
              ]
            }
@@ -311,6 +280,7 @@ Which returns a corresponding response:
      }
    }
 }
+
 ----
 // TESTRESPONSE[s/"took" : 93/"took" : $body.$_path/]
 // TESTRESPONSE[s/"_shards" : \.\.\. /"_shards" : $body.$_path/]

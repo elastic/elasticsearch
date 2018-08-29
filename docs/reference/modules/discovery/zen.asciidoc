@@ -72,7 +72,7 @@ To enable file-based discovery, configure the `file` hosts provider as follows:
 discovery.zen.hosts_provider: file
 ```
 
-Then create a file at `$CONFIG_DIR/discovery-file/unicast_hosts.txt` in
+Then create a file at `$ES_PATH_CONF/discovery-file/unicast_hosts.txt` in
 <<discovery-file-format,the format described below>>. Any time a change is made
 to the `unicast_hosts.txt` file the new changes will be picked up by
 Elasticsearch and the new hosts list will be used.

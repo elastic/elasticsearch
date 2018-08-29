@@ -136,7 +136,7 @@ public class AnalysisModuleTests extends ESTestCase {
             .put("index.analysis.analyzer.foobar.type", "standard")
             .put("index.analysis.analyzer.foobar.alias","foobaz")
             // analyzer aliases were removed in v5.0.0 alpha6
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_beta1, null))
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, null))
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         AnalysisRegistry registry = getNewRegistry(settings);
@@ -149,7 +149,7 @@ public class AnalysisModuleTests extends ESTestCase {
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -162,9 +162,9 @@ public class AnalysisModuleTests extends ESTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_5_0_0.luceneVersion,
+        assertEquals(Version.V_6_0_0.luceneVersion,
                 indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(Version.V_5_0_0.luceneVersion,
+        assertEquals(Version.V_6_0_0.luceneVersion,
                 indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));

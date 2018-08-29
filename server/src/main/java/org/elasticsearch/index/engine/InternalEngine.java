@@ -1420,6 +1420,7 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
+        final long localCheckpointBeforeRefresh = getLocalCheckpoint();
 
         // this will also cause version map ram to be freed hence we always account for it.
         final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
@@ -1445,6 +1446,7 @@ public class InternalEngine extends Engine {
                 } finally {
                     store.decRef();
                 }
+                lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1459,7 +1461,8 @@ public class InternalEngine extends Engine {
         }  finally {
             writingBytes.addAndGet(-bytes);
         }
-
+        assert lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
+            "local_checkpoint=" + localCheckpointBeforeRefresh + " refresh_checkpoint=" + lastRefreshedCheckpoint();
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
@@ -2526,21 +2529,31 @@ public class InternalEngine extends Engine {
     final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
+
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
         private long pendingCheckpoint;
+
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
         }
+
         @Override
         public void beforeRefresh() {
-            pendingCheckpoint = localCheckpointTracker.getCheckpoint(); // All change until this point should be visible after refresh
+            // all changes until this point should be visible after refresh
+            pendingCheckpoint = localCheckpointTracker.getCheckpoint();
         }
+
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
-                refreshedCheckpoint.set(pendingCheckpoint);
+                updateRefreshedCheckpoint(pendingCheckpoint);
             }
+        }
+
+        void updateRefreshedCheckpoint(long checkpoint) {
+            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
 }

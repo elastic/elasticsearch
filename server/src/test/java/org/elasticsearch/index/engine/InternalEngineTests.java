@@ -4994,6 +4994,32 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testLastRefreshCheckpoint() throws Exception {
+        AtomicBoolean done = new AtomicBoolean();
+        Thread[] refreshThreads = new Thread[between(1, 8)];
+        CountDownLatch latch = new CountDownLatch(refreshThreads.length);
+        for (int i = 0; i < refreshThreads.length; i++) {
+            latch.countDown();
+            refreshThreads[i] = new Thread(() -> {
+                while (done.get() == false) {
+                    long checkPointBeforeRefresh = engine.getLocalCheckpoint();
+                    engine.refresh("test", randomFrom(Engine.SearcherScope.values()));
+                    assertThat(engine.lastRefreshedCheckpoint(), greaterThanOrEqualTo(checkPointBeforeRefresh));
+                }
+            });
+            refreshThreads[i].start();
+        }
+        latch.await();
+        List<Engine.Operation> ops = generateSingleDocHistory(true, VersionType.EXTERNAL, 1, 10, 1000, "1");
+        concurrentlyApplyOps(ops, engine);
+        done.set(true);
+        for (Thread thread : refreshThreads) {
+            thread.join();
+        }
+        engine.refresh("test");
+        assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getLocalCheckpoint()));
+    }
+
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();

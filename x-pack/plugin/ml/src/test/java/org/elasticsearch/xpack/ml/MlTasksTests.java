@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+
 public class MlTasksTests extends ESTestCase {
     public void testGetJobState() {
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
@@ -64,5 +67,20 @@ public class MlTasksTests extends ESTestCase {
 
         assertNotNull(MlTasks.getDatafeedTask("foo", tasksBuilder.build()));
         assertNull(MlTasks.getDatafeedTask("other", tasksBuilder.build()));
+    }
+
+    public void testOpenJobIds() {
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), empty());
+
+        tasksBuilder.addTask(MlTasks.jobTaskId("foo-1"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("foo-1"),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.jobTaskId("bar"), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams("bar"),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("df"), StartDatafeedAction.TASK_NAME,
+                new StartDatafeedAction.DatafeedParams("df", 0L),
+                new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
+
+        assertThat(MlTasks.openJobIds(tasksBuilder.build()), containsInAnyOrder("foo-1", "bar"));
     }
 }

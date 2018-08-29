@@ -76,19 +76,26 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testDifferentJars() throws Exception {
+    public void testModuleInfo() throws Exception {
         Path dir = createTempDir();
-        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "meta-info.class"),
-            makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
-        try {
-            JarHell.checkJarHell(jars, logger::debug);
-            fail("did not get expected exception");
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("jar hell!"));
-            assertTrue(e.getMessage().contains("DuplicateClass"));
-            assertTrue(e.getMessage().contains("foo.jar"));
-            assertTrue(e.getMessage().contains("bar.jar"));
-        }
+        JarHell.checkJarHell(
+            asSet(
+                makeJar(dir, "foo.jar", null, "module-info.class"),
+                makeJar(dir, "bar.jar", null, "module-info.class")
+            ),
+            logger::debug
+        );
+    }
+
+    public void testModuleInfoPackage() throws Exception {
+        Path dir = createTempDir();
+        JarHell.checkJarHell(
+            asSet(
+                makeJar(dir, "foo.jar", null, "foo/bar/module-info.class"),
+                makeJar(dir, "bar.jar", null, "foo/bar/module-info.class")
+            ),
+            logger::debug
+        );
     }
 
     public void testDirsOnClasspath() throws Exception {

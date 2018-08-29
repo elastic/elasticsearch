@@ -303,7 +303,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         analyzers.add(new PreBuiltAnalyzerProviderFactory("bulgarian", CachingStrategy.LUCENE, BulgarianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("catalan", CachingStrategy.LUCENE, CatalanAnalyzer::new));
         // chinese analyzer: only for old indices, best effort
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.ONE, StandardAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("chinese", CachingStrategy.ONE,
+            () -> new StandardAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("cjk", CachingStrategy.LUCENE, CJKAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("czech", CachingStrategy.LUCENE, CzechAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, DanishAnalyzer::new));

@@ -15,19 +15,35 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.IndexerState;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +53,10 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 
 /**
  * An abstract class that builds a rollup index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
@@ -392,21 +412,12 @@ public abstract class RollupIndexer {
      */
     private CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
-        List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
-
-        // Add all the agg builders to our request in order: date_histo -> histo -> terms
-        if (groupConfig != null) {
-            builders.addAll(groupConfig.getDateHistogram().toBuilders());
-            if (groupConfig.getHistogram() != null) {
-                builders.addAll(groupConfig.getHistogram().toBuilders());
-            }
-            if (groupConfig.getTerms() != null) {
-                builders.addAll(groupConfig.getTerms().toBuilders());
-            }
-        }
+        List<CompositeValuesSourceBuilder<?>> builders = createValueSourceBuilders(groupConfig);
 
         CompositeAggregationBuilder composite = new CompositeAggregationBuilder(AGGREGATION_NAME, builders);
-        config.getMetricsConfig().forEach(m -> m.toBuilders().forEach(composite::subAggregation));
+
+        List<AggregationBuilder> aggregations = createAggregationBuilders(config.getMetricsConfig());
+        aggregations.forEach(composite::subAggregation);
 
         final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
@@ -455,6 +466,113 @@ public abstract class RollupIndexer {
             }
         }
         return metadata;
+    }
+
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final GroupConfig groupConfig) {
+        final List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+        // Add all the agg builders to our request in order: date_histo -> histo -> terms
+        if (groupConfig != null) {
+            final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
+            builders.addAll(createValueSourceBuilders(dateHistogram));
+
+            final HistogramGroupConfig histogram = groupConfig.getHistogram();
+            builders.addAll(createValueSourceBuilders(histogram));
+
+            final TermsGroupConfig terms = groupConfig.getTerms();
+            builders.addAll(createValueSourceBuilders(terms));
+        }
+        return unmodifiableList(builders);
+    }
+
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final DateHistogramGroupConfig dateHistogram) {
+        final String dateHistogramField = dateHistogram.getField();
+        final String dateHistogramName = RollupField.formatIndexerAggName(dateHistogramField, DateHistogramAggregationBuilder.NAME);
+        final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramName);
+        dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        dateHistogramBuilder.field(dateHistogramField);
+        dateHistogramBuilder.timeZone(toDateTimeZone(dateHistogram.getTimeZone()));
+        return singletonList(dateHistogramBuilder);
+    }
+
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final HistogramGroupConfig histogram) {
+        final List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+        if (histogram != null) {
+            for (String field : histogram.getFields()) {
+                final String histogramName = RollupField.formatIndexerAggName(field, HistogramAggregationBuilder.NAME);
+                final HistogramValuesSourceBuilder histogramBuilder = new HistogramValuesSourceBuilder(histogramName);
+                histogramBuilder.interval(histogram.getInterval());
+                histogramBuilder.field(field);
+                histogramBuilder.missingBucket(true);
+                builders.add(histogramBuilder);
+            }
+        }
+        return unmodifiableList(builders);
+    }
+
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final TermsGroupConfig terms) {
+        final List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+        if (terms != null) {
+            for (String field : terms.getFields()) {
+                final String termsName = RollupField.formatIndexerAggName(field, TermsAggregationBuilder.NAME);
+                final TermsValuesSourceBuilder termsBuilder = new TermsValuesSourceBuilder(termsName);
+                termsBuilder.field(field);
+                termsBuilder.missingBucket(true);
+                builders.add(termsBuilder);
+            }
+        }
+        return unmodifiableList(builders);
+    }
+
+    /**
+     * This returns a set of aggregation builders which represent the configured
+     * set of metrics. Used to iterate over historical data.
+     */
+    static List<AggregationBuilder> createAggregationBuilders(final List<MetricConfig> metricsConfigs) {
+        final List<AggregationBuilder> builders = new ArrayList<>();
+        if (metricsConfigs != null) {
+            for (MetricConfig metricConfig : metricsConfigs) {
+                final List<String> metrics = metricConfig.getMetrics();
+                if (metrics.isEmpty() == false) {
+                    final String field = metricConfig.getField();
+                    for (String metric : metrics) {
+                        ValuesSourceAggregationBuilder.LeafOnly newBuilder;
+                        if (metric.equals(MetricConfig.MIN.getPreferredName())) {
+                            newBuilder = new MinAggregationBuilder(formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
+                        } else if (metric.equals(MetricConfig.MAX.getPreferredName())) {
+                            newBuilder = new MaxAggregationBuilder(formatFieldName(field, MaxAggregationBuilder.NAME, RollupField.VALUE));
+                        } else if (metric.equals(MetricConfig.AVG.getPreferredName())) {
+                            // Avgs are sum + count
+                            newBuilder = new SumAggregationBuilder(formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
+                            ValuesSourceAggregationBuilder.LeafOnly countBuilder
+                                = new ValueCountAggregationBuilder(
+                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
+                            countBuilder.field(field);
+                            builders.add(countBuilder);
+                        } else if (metric.equals(MetricConfig.SUM.getPreferredName())) {
+                            newBuilder = new SumAggregationBuilder(formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
+                        } else if (metric.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
+                            // TODO allow non-numeric value_counts.
+                            // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
+                            newBuilder = new ValueCountAggregationBuilder(
+                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
+                        } else {
+                            throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
+                        }
+                        newBuilder.field(field);
+                        builders.add(newBuilder);
+                    }
+                }
+            }
+        }
+        return unmodifiableList(builders);
+    }
+
+    private static DateTimeZone toDateTimeZone(final String timezone) {
+        try {
+            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
+        } catch (NumberFormatException e) {
+            return DateTimeZone.forID(timezone);
+        }
     }
 }
 

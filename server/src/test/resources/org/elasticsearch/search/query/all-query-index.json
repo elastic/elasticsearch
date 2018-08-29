@@ -46,10 +46,6 @@
           "format": "yyyy/MM/dd||epoch_millis"
         },
         "f_bool": {"type": "boolean"},
-        "f_bool_alias": {
-          "type": "alias",
-          "path": "f_bool"
-        },
         "f_byte": {"type": "byte"},
         "f_short": {"type": "short"},
         "f_int": {"type": "integer"},
@@ -60,6 +56,10 @@
         "f_binary": {"type": "binary"},
         "f_suggest": {"type": "completion"},
         "f_geop": {"type": "geo_point"},
+        "f_geop_alias": {
+          "type": "alias",
+          "path": "f_geop"
+        },
         "f_geos": {"type": "geo_shape"}
       }
     }

@@ -531,12 +531,16 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
             // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
             // just make a copy.
-            generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-${project.version}.pom"
+            generatePOMTask.ext.pomFileName = null
             doLast {
                 project.copy {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
-                    rename { generatePOMTask.ext.pomFileName }
+                    rename {
+                        generatePOMTask.ext.pomFileName == null ? 
+                            "${project.archivesBaseName}-${project.version}.pom" : 
+                            generatePOMTask.ext.pomFileName 
+                    }
                 }
             }
             // build poms with assemble (if the assemble task exists)
@@ -597,7 +601,6 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
-                    options.forkOptions.memoryMaximumSize = "512m"
                 }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
@@ -794,8 +797,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // TODO: remove this deprecation compatibility setting for 7.0
-            systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
             systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
             if (project.ext.inFipsJvm) {
                 systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"

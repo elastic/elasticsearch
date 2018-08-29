@@ -271,7 +271,7 @@ public class ReplicationResponse extends ActionResponse {
             public void readFrom(StreamInput in) throws IOException {
                 shardId = ShardId.readShardId(in);
                 super.shardId = shardId.getId();
-                super.index = shardId.getIndexName();
+                index = shardId.getIndexName();
                 nodeId = in.readOptionalString();
                 cause = in.readException();
                 status = RestStatus.readFrom(in);

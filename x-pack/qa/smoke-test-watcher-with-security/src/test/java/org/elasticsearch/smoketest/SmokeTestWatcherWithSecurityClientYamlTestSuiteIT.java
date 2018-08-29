@@ -7,9 +7,7 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,9 +47,9 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
                 emptyList(), emptyMap());
 
         // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
-        Response resp = adminClient().performRequest("PUT", "/index_not_allowed_to_read/doc/1", Collections.emptyMap(),
-                new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
-        assertThat(resp.getStatusLine().getStatusCode(), is(201));
+        Request request = new Request("PUT", "/index_not_allowed_to_read/doc/1");
+        request.setJsonEntity("{\"foo\":\"bar\"}");
+        adminClient().performRequest(request);
 
         assertBusy(() -> {
             ClientYamlTestResponse response =
@@ -129,4 +127,3 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
             .build();
     }
 }
-

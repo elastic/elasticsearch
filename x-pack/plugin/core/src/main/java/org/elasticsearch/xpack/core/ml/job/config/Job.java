@@ -214,11 +214,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public Job(StreamInput in) throws IOException {
         jobId = in.readString();
         jobType = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        } else {
-            jobVersion = null;
-        }
+        jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
@@ -482,13 +478,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeString(jobType);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            if (jobVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(jobVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeStringList(groups);
@@ -666,9 +660,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      */
     public static Set<String> getCompatibleJobTypes(Version nodeVersion) {
         Set<String> compatibleTypes = new HashSet<>();
-        if (nodeVersion.onOrAfter(Version.V_5_4_0)) {
-            compatibleTypes.add(ANOMALY_DETECTOR_JOB_TYPE);
-        }
+        compatibleTypes.add(ANOMALY_DETECTOR_JOB_TYPE);
         return compatibleTypes;
     }
 
@@ -732,9 +724,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Builder(StreamInput in) throws IOException {
             id = in.readOptionalString();
             jobType = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-                jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-            }
+            jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
                 groups = in.readList(StreamInput::readString);
             } else {
@@ -921,13 +911,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
             out.writeString(jobType);
-            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-                if (jobVersion != null) {
-                    out.writeBoolean(true);
-                    Version.writeVersion(jobVersion, out);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (jobVersion != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(jobVersion, out);
+            } else {
+                out.writeBoolean(false);
             }
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
                 out.writeStringList(groups);

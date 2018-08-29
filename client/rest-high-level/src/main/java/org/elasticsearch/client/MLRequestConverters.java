@@ -24,12 +24,13 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 
 import java.io.IOException;
 
@@ -78,11 +79,11 @@ final class MLRequestConverters {
                 .addPathPartAsIs("_open")
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setJsonEntity(openJobRequest.toString());
+        request.setEntity(createEntity(openJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
-    static Request closeJob(CloseJobRequest closeJobRequest) {
+    static Request closeJob(CloseJobRequest closeJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
@@ -91,18 +92,7 @@ final class MLRequestConverters {
             .addPathPartAsIs("_close")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        if (closeJobRequest.isForce() != null) {
-            params.putParam("force", Boolean.toString(closeJobRequest.isForce()));
-        }
-        if (closeJobRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(closeJobRequest.isAllowNoJobs()));
-        }
-        if (closeJobRequest.getTimeout() != null) {
-            params.putParam("timeout", closeJobRequest.getTimeout().getStringRep());
-        }
-
+        request.setEntity(createEntity(closeJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -118,6 +108,20 @@ final class MLRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.putParam("force", Boolean.toString(deleteJobRequest.isForce()));
 
+        return request;
+    }
+
+    static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(getBucketsRequest.getJobId())
+                .addPathPartAsIs("results")
+                .addPathPartAsIs("buckets")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

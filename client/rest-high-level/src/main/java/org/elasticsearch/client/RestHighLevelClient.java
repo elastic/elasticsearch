@@ -174,6 +174,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
@@ -1286,6 +1287,11 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             RequestOptions options,
@@ -1293,6 +1299,18 @@ public class RestHighLevelClient implements Closeable {
                                                                             Set<Integer> ignores) throws IOException {
         return performRequest(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    /**
+     * Defines a helper method for performing a request and then parsing the returned entity using the provided entityParser.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                          RequestOptions options,
+                                                                          CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                          Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, options,
+            response -> parseEntity(response.getEntity(), entityParser), ignores);
     }
 
     @Deprecated
@@ -1303,15 +1321,46 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, optionsForHeaders(headers), responseConverter, ignores);
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
-                                                          CheckedFunction<Req, Request, IOException> requestConverter,
-                                                          RequestOptions options,
-                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                          Set<Integer> ignores) throws IOException {
+                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                           RequestOptions options,
+                                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                           Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Defines a helper method for performing a request.
+     */
+    protected final <Req extends Validatable, Resp> Resp performRequest(Req request,
+                                                             CheckedFunction<Req, Request, IOException> requestConverter,
+                                                             RequestOptions options,
+                                                             CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                             Set<Integer> ignores) throws IOException {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
+        }
+        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
+    }
+
+    /**
+     * Provides common functionality for performing a request.
+     */
+    private <Req, Resp> Resp internalPerformRequest(Req request,
+                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                            RequestOptions options,
+                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                            Set<Integer> ignores) throws IOException {
         Request req = requestConverter.apply(request);
         req.setOptions(options);
         Response response;
@@ -1348,13 +1397,30 @@ public class RestHighLevelClient implements Closeable {
                 listener, ignores, headers);
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                 RequestOptions options,
-                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+                                                                         CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                         RequestOptions options,
+                                                                         CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                         ActionListener<Resp> listener, Set<Integer> ignores) {
         performRequestAsync(request, requestConverter, options,
                 response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                           CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                           RequestOptions options,
+                                                                           CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                           ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, options,
+            response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
     }
 
     @Deprecated
@@ -1365,16 +1431,48 @@ public class RestHighLevelClient implements Closeable {
         performRequestAsync(request, requestConverter, optionsForHeaders(headers), responseConverter, listener, ignores);
     }
 
+    /**
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
+     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
-                                                               CheckedFunction<Req, Request, IOException> requestConverter,
-                                                               RequestOptions options,
-                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                               ActionListener<Resp> listener, Set<Integer> ignores) {
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            RequestOptions options,
+                                                                            CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                            ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
+        if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             listener.onFailure(validationException);
             return;
         }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Defines a helper method for asynchronously performing a request.
+     */
+    protected final <Req extends Validatable, Resp> void performRequestAsync(Req request,
+                                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                          RequestOptions options,
+                                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                                          ActionListener<Resp> listener, Set<Integer> ignores) {
+        Optional<ValidationException> validationException = request.validate();
+        if (validationException != null && validationException.isPresent()) {
+            listener.onFailure(validationException.get());
+            return;
+        }
+        internalPerformRequestAsync(request, requestConverter, options, responseConverter, listener, ignores);
+    }
+
+    /**
+     * Provides common functionality for asynchronously performing a request.
+     */
+    private <Req, Resp> void internalPerformRequestAsync(Req request,
+                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                 RequestOptions options,
+                                                 CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
         Request req;
         try {
             req = requestConverter.apply(request);
@@ -1387,6 +1485,7 @@ public class RestHighLevelClient implements Closeable {
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);
     }
+
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
                                                         ActionListener<Resp> actionListener, Set<Integer> ignores) {

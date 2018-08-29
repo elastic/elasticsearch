@@ -304,17 +304,22 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2LatLng',
 ]
 
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
-  // Used by Log4J 2.11.1
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
-    'java.io.ObjectInputFilter',
-    'java.io.ObjectInputFilter$Config',
-    'java.io.ObjectInputFilter$FilterInfo',
-    'java.io.ObjectInputFilter$Status'
+          // Used by Log4J 2.11.1
+            'java.io.ObjectInputFilter',
+            'java.io.ObjectInputFilter$Config',
+            'java.io.ObjectInputFilter$FilterInfo',
+            'java.io.ObjectInputFilter$Status',
+          // added in 9
+            'java.lang.ProcessHandle',
+            'java.lang.StackWalker',
+            'java.lang.StackWalker$Option',
+            'java.lang.StackWalker$StackFrame'
   ]
 }
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
 }
 
@@ -340,17 +345,4 @@ if (isEclipse == false || project.path == ":server-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
-}
-
-// TODO: remove these compatibility tests in 7.0
-additionalTest('testScriptedMetricAggParamsV6Compatibility') {
-  include '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
-  include '**/InternalScriptedMetricAggStateV6CompatTests.class'
-  systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'true'
-}
-
-test {
-  // these are tested explicitly in separate test tasks
-  exclude '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
-  exclude '**/InternalScriptedMetricAggStateV6CompatTests.class'
 }

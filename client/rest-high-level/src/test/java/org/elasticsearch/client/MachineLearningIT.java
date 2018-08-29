@@ -19,21 +19,21 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.job.config.AnalysisConfig;
+import org.elasticsearch.client.ml.job.config.DataDescription;
+import org.elasticsearch.client.ml.job.config.Detector;
+import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
-import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
-import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
-import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
-import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.junit.After;
 
 import java.io.IOException;

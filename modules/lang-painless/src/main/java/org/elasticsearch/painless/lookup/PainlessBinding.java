@@ -19,29 +19,23 @@
 
 package org.elasticsearch.painless.lookup;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.List;
 
-public class PainlessMethod {
+public class PainlessBinding {
 
+    public final Constructor<?> javaConstructor;
     public final Method javaMethod;
-    public final Class<?> targetClass;
+
     public final Class<?> returnType;
     public final List<Class<?>> typeParameters;
-    public final MethodHandle methodHandle;
-    public final MethodType methodType;
 
-    public PainlessMethod(Method javaMethod, Class<?> targetClass, Class<?> returnType, List<Class<?>> typeParameters,
-            MethodHandle methodHandle, MethodType methodType) {
-
+    PainlessBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
+        this.javaConstructor = javaConstructor;
         this.javaMethod = javaMethod;
-        this.targetClass = targetClass;
+
         this.returnType = returnType;
-        this.typeParameters = Collections.unmodifiableList(typeParameters);
-        this.methodHandle = methodHandle;
-        this.methodType = methodType;
+        this.typeParameters = typeParameters;
     }
 }

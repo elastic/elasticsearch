@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,23 +21,19 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
@@ -51,15 +45,10 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -77,7 +66,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETT
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.mock;
@@ -104,13 +92,10 @@ public class SecurityTests extends ESTestCase {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put("xpack.security.enabled", true);
-        settingsBuilder.put(testSettings);
-        if (Strings.hasText(settingsBuilder.get("path.home")) == false) {
-            settingsBuilder.put("path.home", createTempDir());
-        }
-        Settings settings = settingsBuilder.build();
+        Settings settings = Settings.builder()
+                .put("xpack.security.enabled", true)
+                .put(testSettings)
+                .put("path.home", createTempDir()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(settings, env);
@@ -439,30 +424,4 @@ public class SecurityTests extends ESTestCase {
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
-
-    public void testDefaultFailureHandlerFailedAuthenticationRespondsWithSortedWWWAuthenticateHeaderValues() throws Exception {
-        final Path temp = createTempDir();
-        final Path configDir = Files.createDirectories(temp.resolve("config"));
-        KerberosTestCase.writeKeyTab(configDir.resolve("es.keytab"), null);
-        final Settings settings = Settings.builder()
-                .put("xpack.security.authc.token.enabled", "true")
-                .put("xpack.security.authc.realms.kerb1.type", "kerberos")
-                .put("xpack.security.authc.realms.kerb1.order", "2")
-                .put("xpack.security.authc.realms.kerb1.keytab.path", "es.keytab")
-                .put("path.home", temp).build();
-        final Collection<Object> components = createComponents(settings);
-
-        final AuthenticationService authcService = findComponent(AuthenticationService.class, components);
-        final RestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(mock(
-                InetSocketAddress.class)).build();
-
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-            authcService.authenticate(restRequest, future);
-            future.actionGet();
-        });
-        assertThat(e.getHeader("WWW-Authenticate"), contains(containsString("Negotiate"), containsString("Bearer"), containsString(
-                "Basic")));
-    }
-
 }

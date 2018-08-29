@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler.authSchemePriority;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -107,8 +108,27 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
     }
 
+    public void testSortsWWWAuthenticateHeaderValues() {
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+        final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
+        final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
+        failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme));
+        final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
+
+        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), new Exception("other error"),
+                new ThreadContext(Settings.builder().build()));
+
+        assertThat(ese, is(notNullValue()));
+        assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+        assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
+        assertWWWAuthenticateWithSchemes(ese, basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+    }
+
     private void assertWWWAuthenticateWithSchemes(final ElasticsearchSecurityException ese, final String... schemes) {
         assertThat(ese.getHeader("WWW-Authenticate").size(), is(schemes.length));
+        // Auth scheme are ordered as more secure to least secure
+        Arrays.sort(schemes, (o1, o2) -> authSchemePriority(o1).compareTo(authSchemePriority(o2)));
         assertThat(ese.getHeader("WWW-Authenticate"), contains(schemes));
     }
 }

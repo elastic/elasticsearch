@@ -78,7 +78,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         AtomicReference<T> responseHolder = new AtomicReference<>();
         blockingCall(function, responseHolder, exceptionHolder);
         if (exceptionHolder.get() != null) {
-            assertNotNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
+            assertNull(exceptionHolder.get().getMessage(), exceptionHolder.get());
         }
         return responseHolder.get();
     }

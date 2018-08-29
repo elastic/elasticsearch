@@ -88,6 +88,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningOpenJobActionRestricted() throws Exception {
         String jobId = "testmachinelearningopenjobactionrestricted";
         assertMLAllowed(true);
@@ -139,6 +140,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningPutDatafeedActionRestricted() throws Exception {
         String jobId = "testmachinelearningputdatafeedactionrestricted";
         String datafeedId = jobId + "-datafeed";
@@ -186,6 +188,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testAutoCloseJobWithDatafeed() throws Exception {
         String jobId = "testautoclosejobwithdatafeed";
         String datafeedId = jobId + "-datafeed";
@@ -288,6 +291,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningStartDatafeedActionRestricted() throws Exception {
         String jobId = "testmachinelearningstartdatafeedactionrestricted";
         String datafeedId = jobId + "-datafeed";
@@ -362,6 +366,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningStopDatafeedActionNotRestricted() throws Exception {
         String jobId = "testmachinelearningstopdatafeedactionnotrestricted";
         String datafeedId = jobId + "-datafeed";
@@ -428,6 +433,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningCloseJobActionNotRestricted() throws Exception {
         String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
@@ -471,6 +477,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningDeleteJobActionNotRestricted() throws Exception {
         String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
@@ -496,6 +503,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "JIndex development")
     public void testMachineLearningDeleteDatafeedActionNotRestricted() throws Exception {
         String jobId = "testmachinelearningdeletedatafeedactionnotrestricted";
         String datafeedId = jobId + "-datafeed";

@@ -52,9 +52,11 @@ import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNIC
 
 public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
+    private boolean legacyLocation;
     private ThreadPool threadPool;
     private ExecutorService executorService;
     private MockTransportService transportService;
+    private Path configPath;
 
     @Before
     public void setUp() throws Exception {
@@ -78,23 +80,20 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     @Before
     public void createTransportSvc() {
-        MockTcpTransport transport =
-            new MockTcpTransport(Settings.EMPTY,
-                                    threadPool,
-                                    BigArrays.NON_RECYCLING_INSTANCE,
-                                    new NoneCircuitBreakerService(),
-                                    new NamedWriteableRegistry(Collections.emptyList()),
-                                    new NetworkService(Collections.emptyList())) {
-                @Override
-                public BoundTransportAddress boundAddress() {
-                    return new BoundTransportAddress(
-                        new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
-                        new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
-                    );
-                }
-            };
+        final MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NetworkService(Collections.emptyList())) {
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                );
+            }
+        };
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+            null);
     }
 
     public void testBuildDynamicNodes() throws Exception {
@@ -109,16 +108,26 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         assertEquals(9300, nodes.get(2).getPort());
     }
 
+    public void testBuildDynamicNodesLegacyLocation() throws Exception {
+        legacyLocation = true;
+        testBuildDynamicNodes();
+        assertDeprecatedLocationWarning();
+    }
+
     public void testEmptyUnicastHostsFile() throws Exception {
         final List<String> hostEntries = Collections.emptyList();
         final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
         assertEquals(0, addresses.size());
     }
 
-    public void testUnicastHostsDoesNotExist() throws Exception {
-        final Settings settings = Settings.builder()
-                                      .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                                      .build();
+    public void testEmptyUnicastHostsFileLegacyLocation() throws Exception {
+        legacyLocation = true;
+        testEmptyUnicastHostsFile();
+        assertDeprecatedLocationWarning();
+    }
+
+    public void testUnicastHostsDoesNotExist() {
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, createTempDir().toAbsolutePath());
         final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
@@ -127,17 +136,29 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testInvalidHostEntries() throws Exception {
-        List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
-        List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        final List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
+        final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
         assertEquals(0, addresses.size());
     }
 
+    public void testInvalidHostEntriesLegacyLocation() throws Exception {
+        legacyLocation = true;
+        testInvalidHostEntries();
+        assertDeprecatedLocationWarning();
+    }
+
     public void testSomeInvalidHostEntries() throws Exception {
-        List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300", "192.168.0.1:9301");
-        List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        final List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300", "192.168.0.1:9301");
+        final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
         assertEquals(1, addresses.size()); // only one of the two is valid and will be used
         assertEquals("192.168.0.1", addresses.get(0).getAddress());
         assertEquals(9301, addresses.get(0).getPort());
+    }
+
+    public void testSomeInvalidHostEntriesLegacyLocation() throws Exception {
+        legacyLocation = true;
+        testSomeInvalidHostEntries();
+        assertDeprecatedLocationWarning();
     }
 
     // sets up the config dir, writes to the unicast hosts file in the config dir,
@@ -145,15 +166,14 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     private List<TransportAddress> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
         final Path homeDir = createTempDir();
         final Settings settings = Settings.builder()
-                                      .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
-                                      .build();
-        final Path configPath;
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
+            .build();
         if (randomBoolean()) {
             configPath = homeDir.resolve("config");
         } else {
             configPath = createTempDir();
         }
-        final Path discoveryFilePath = configPath.resolve("discovery-file");
+        final Path discoveryFilePath = legacyLocation ? configPath.resolve("discovery-file") : configPath;
         Files.createDirectories(discoveryFilePath);
         final Path unicastHostsPath = discoveryFilePath.resolve(UNICAST_HOSTS_FILE);
         try (BufferedWriter writer = Files.newBufferedWriter(unicastHostsPath)) {
@@ -161,7 +181,15 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         }
 
         return new FileBasedUnicastHostsProvider(settings, configPath).buildDynamicHosts((hosts, limitPortCounts) ->
-                    UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
-                        TimeValue.timeValueSeconds(10)));
+            UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
+                TimeValue.timeValueSeconds(10)));
+    }
+
+    private void assertDeprecatedLocationWarning() {
+        assertWarnings("Found dynamic hosts list at [" +
+            configPath.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE) +
+            "] but this path is deprecated. This list should be at [" +
+            configPath.resolve(UNICAST_HOSTS_FILE) +
+            "] instead. Support for the deprecated path will be removed in future.");
     }
 }

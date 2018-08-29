@@ -20,15 +20,12 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -52,30 +49,44 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
+    private final Path legacyUnicastHostsFilePath;
 
     public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
         super(settings);
-        this.unicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+        this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
+        this.legacyUnicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
+    }
+
+    private List<String> getHostsList() {
+        if (Files.exists(unicastHostsFilePath)) {
+            return readFileContents(unicastHostsFilePath);
+        }
+
+        if (Files.exists(legacyUnicastHostsFilePath)) {
+            deprecationLogger.deprecated("Found dynamic hosts list at [{}] but this path is deprecated. This list should be at [{}] " +
+                "instead. Support for the deprecated path will be removed in future.", legacyUnicastHostsFilePath, unicastHostsFilePath);
+            return readFileContents(legacyUnicastHostsFilePath);
+        }
+
+        logger.warn("expected, but did not find, a dynamic hosts list at [{}]", unicastHostsFilePath);
+
+        return Collections.emptyList();
+    }
+
+    private List<String> readFileContents(Path path) {
+        try (Stream<String> lines = Files.lines(path)) {
+            return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
+                .collect(Collectors.toList());
+        } catch (IOException e) {
+            logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+            return Collections.emptyList();
+        }
     }
 
     @Override
     public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
-        List<String> hostsList;
-        try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
-            hostsList = lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                             .collect(Collectors.toList());
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to find unicast hosts file [{}]",
-                                                                        unicastHostsFilePath), e);
-            hostsList = Collections.emptyList();
-        } catch (IOException e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Error reading unicast hosts file [{}]",
-                                                                        unicastHostsFilePath), e);
-            hostsList = Collections.emptyList();
-        }
-
-        final List<TransportAddress> dynamicHosts = hostsResolver.resolveHosts(hostsList, 1);
-        logger.debug("[discovery-file] Using dynamic discovery nodes {}", dynamicHosts);
-        return dynamicHosts;
+        final List<TransportAddress> transportAddresses = hostsResolver.resolveHosts(getHostsList(), 1);
+        logger.debug("seed addresses: {}", transportAddresses);
+        return transportAddresses;
     }
 }

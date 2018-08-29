@@ -67,8 +67,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         if (localNodeMaster == false) {
             return;
         }
-        ClusterState localClusterState = clusterService.state();
-        AutoFollowMetadata autoFollowMetadata = localClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
+        ClusterState followerClusterState = clusterService.state();
+        AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
             return;
@@ -85,7 +85,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
         };
-        AutoFollower operation = new AutoFollower(client, handler, autoFollowMetadata) {
+        AutoFollower operation = new AutoFollower(client, handler, followerClusterState) {
 
             @Override
             void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
@@ -146,15 +146,17 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         private final Client client;
         private final Consumer<Exception> handler;
+        private final ClusterState followerClusterState;
         private final AutoFollowMetadata autoFollowMetadata;
 
         private final CountDown autoFollowPatternsCountDown;
         private final AtomicReference<Exception> autoFollowPatternsErrorHolder = new AtomicReference<>();
 
-        AutoFollower(Client client, Consumer<Exception> handler, AutoFollowMetadata autoFollowMetadata) {
+        AutoFollower(Client client, Consumer<Exception> handler, ClusterState followerClusterState) {
             this.client = client;
             this.handler = handler;
-            this.autoFollowMetadata = autoFollowMetadata;
+            this.followerClusterState = followerClusterState;
+            this.autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
             this.autoFollowPatternsCountDown = new CountDown(autoFollowMetadata.getPatterns().size());
         }
 
@@ -178,7 +180,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         private void handleClusterAlias(String clusterAlias, AutoFollowPattern autoFollowPattern,
                                 List<String> followedIndexUUIDs, ClusterState leaderClusterState) {
-            final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followedIndexUUIDs);
+            final List<Index> leaderIndicesToFollow =
+                getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndexUUIDs);
             if (leaderIndicesToFollow.isEmpty()) {
                 finalise(null);
             } else {
@@ -244,13 +247,18 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
                                                     ClusterState leaderClusterState,
+                                                    ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             String[] patterns = autoFollowPattern.getLeaderIndexPatterns().toArray(new String[0]);
-            for (IndexMetaData indexMetaData : leaderClusterState.getMetaData()) {
-                if (Regex.simpleMatch(patterns, indexMetaData.getIndex().getName())) {
-                    if (followedIndexUUIDs.contains(indexMetaData.getIndex().getUUID()) == false) {
-                        leaderIndicesToFollow.add(indexMetaData.getIndex());
+            for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
+                if (Regex.simpleMatch(patterns, leaderIndexMetaData.getIndex().getName())) {
+                    if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
+                        // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData
+                        // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
+                        // If so then handle it differently: not follow it, but just add an entry to
+                        // AutoFollowMetadata#followedLeaderIndexUUIDs
+                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
                     }
                 }
             }

@@ -522,8 +522,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
-        return mapperService().updateMapping(indexMetaData);
+    public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {

@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,7 +37,7 @@ import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
-public class RemoteInfo implements Writeable {
+public class RemoteInfo implements Writeable, ToXContentObject {
     /**
      * Default {@link #socketTimeout} for requests that don't have one set.
      */
@@ -189,5 +191,26 @@ public class RemoteInfo implements Writeable {
             b.append(" password=<<>>");
         }
         return b.toString();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (username != null) {
+            builder.field("username", username);
+        }
+        if (password != null) {
+            builder.field("password", password);
+        }
+        builder.field("host", scheme + "://" + host + ":" + port +
+            (pathPrefix == null ? "" : "/" + pathPrefix));
+        if (headers.size() >0 ) {
+            builder.field("headers", headers);
+        }
+        builder.field("socket_timeout", socketTimeout.getStringRep());
+        builder.field("connect_timeout", connectTimeout.getStringRep());
+        builder.field("query", query);
+        builder.endObject();
+        return builder;
     }
 }

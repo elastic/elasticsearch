@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.UserToken;
@@ -316,7 +316,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, metadata);
+        tokenService.createUserToken(authentication, authentication, future, metadata, true);
         return future.actionGet();
     }
 

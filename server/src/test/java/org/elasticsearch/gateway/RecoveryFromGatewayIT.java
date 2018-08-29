@@ -482,9 +482,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                // both cases will be zero once we start sending only ops after local checkpoint of the safe commit
-                int expectedTranslogOps = softDeleteEnabled ? numDocs + moreDocs : 0;
-                assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(expectedTranslogOps));
+                assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
             }
         }
     }

@@ -1636,15 +1636,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new translog snapshot for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
-     */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        // TODO: Remove this method after primary-replica resync use soft-deletes
-        return getEngine().newSnapshotFromMinSeqNo(minSeqNo);
-    }
-
-    /**
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
     public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {

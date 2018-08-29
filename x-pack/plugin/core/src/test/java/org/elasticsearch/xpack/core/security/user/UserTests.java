@@ -3,9 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.security;
+package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 

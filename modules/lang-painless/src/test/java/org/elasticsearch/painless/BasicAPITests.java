@@ -129,4 +129,8 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
             "ft.z = 5; return ft.z;"));
     }
+
+    public void testNoSemicolon() {
+        assertEquals(true, exec("def x = true; if (x) return x"));
+    }
 }

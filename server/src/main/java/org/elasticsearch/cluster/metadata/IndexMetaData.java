@@ -713,13 +713,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
         }
+        int customSize = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String key = in.readString();
                 DiffableStringMap custom = new DiffableStringMap(in);
                 builder.putCustom(key, custom);
             }
+        } else {
+            assert customSize == 0 : "expected no custom index metadata";
         }
         int inSyncAllocationIdsSize = in.readVInt();
         for (int i = 0; i < inSyncAllocationIdsSize; i++) {
@@ -761,6 +763,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 out.writeString(cursor.key);
                 cursor.value.writeTo(out);
             }
+        } else {
+            out.writeVInt(0);
         }
         out.writeVInt(inSyncAllocationIds.size());
         for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {

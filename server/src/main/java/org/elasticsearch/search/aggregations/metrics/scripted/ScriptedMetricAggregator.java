@@ -41,10 +41,10 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     private final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript;
     private final ScriptedMetricAggContexts.CombineScript combineScript;
     private final Script reduceScript;
-    private Object aggState;
+    private Map<String, Object> aggState;
 
     protected ScriptedMetricAggregator(String name, ScriptedMetricAggContexts.MapScript.LeafFactory mapScript, ScriptedMetricAggContexts.CombineScript combineScript,
-                                       Script reduceScript, Object aggState, SearchContext context, Aggregator parent,
+                                       Script reduceScript, Map<String, Object> aggState, SearchContext context, Aggregator parent,
                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                                        throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

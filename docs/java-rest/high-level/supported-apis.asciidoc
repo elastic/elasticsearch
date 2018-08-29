@@ -15,6 +15,7 @@ Single document APIs::
 Multi-document APIs::
 * <<java-rest-high-document-bulk>>
 * <<java-rest-high-document-multi-get>>
+* <<java-rest-high-document-reindex>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -23,6 +24,7 @@ include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
+include::document/reindex.asciidoc[]
 
 == Search APIs
 

@@ -34,11 +34,6 @@ public class DeleteLifecyclePolicyRequestTests extends ESTestCase {
     }
 
     public void testValidationFailure() {
-        try {
-            DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(randomFrom("", null));
-            fail("should not be able to create a DeleteLifecyclePolicyRequest with null lifecycle name");
-        } catch (IllegalArgumentException exception) {
-            // ok
-        }
+        expectThrows(IllegalArgumentException.class, () -> new DeleteLifecyclePolicyRequest(randomFrom("", null)));
     }
 }

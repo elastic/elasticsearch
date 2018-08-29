@@ -320,7 +320,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
             "by_nested": {
               "hits": {
                 "total": 1,
-                "max_score": 0.2876821,
+                "max_score": 0.3616575,
                 "hits": [
                   {
                     "_index": "sales",
@@ -330,7 +330,7 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                       "field": "comments",  <1>
                       "offset": 0 <2>
                     },
-                    "_score": 0.2876821,
+                    "_score": 0.3616575,
                     "_source": {
                       "comment": "This car could have better brakes", <3>
                       "username": "baddriver007"

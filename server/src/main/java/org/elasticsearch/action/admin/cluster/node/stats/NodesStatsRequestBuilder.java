@@ -148,4 +148,12 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
         return this;
     }
 
+    /**
+     * Should shard statistics be returned.
+     */
+    public NodesStatsRequestBuilder setShards(boolean shards) {
+        request.shards(shards);
+        return this;
+    }
+
 }

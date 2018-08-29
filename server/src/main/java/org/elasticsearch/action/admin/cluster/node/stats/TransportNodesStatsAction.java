@@ -71,7 +71,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
                 request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
-                request.ingest(), request.adaptiveSelection());
+                request.ingest(), request.adaptiveSelection(), request.shards());
     }
 
     public static class NodeStatsRequest extends BaseNodeRequest {

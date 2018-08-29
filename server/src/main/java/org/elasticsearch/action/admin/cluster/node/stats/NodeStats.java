@@ -20,12 +20,13 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -43,7 +44,10 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -91,6 +95,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
+    @Nullable
+    private List<ShardStats> shardsStats;
+
     NodeStats() {
     }
 
@@ -101,7 +108,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
-                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
+                     @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+                     @Nullable List<ShardStats> shardsStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -117,6 +125,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
+        this.shardsStats = shardsStats;
     }
 
     public long getTimestamp() {
@@ -211,6 +220,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return adaptiveSelectionStats;
     }
 
+    @Nullable
+    public List<ShardStats> getShardsStats() {
+        return shardsStats;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -240,6 +254,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             adaptiveSelectionStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_5_0) && in.readBoolean()) {
+            shardsStats = in.readList(ShardStats::readShardStats);
+        } else {
+            shardsStats = null;
+        }
     }
 
     @Override
@@ -265,6 +284,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            if (shardsStats == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeList(shardsStats);
+            }
         }
     }
 
@@ -328,6 +355,70 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdaptiveSelectionStats() != null) {
             getAdaptiveSelectionStats().toXContent(builder, params);
+        }
+        if (getShardsStats() != null) {
+            builder.startObject("shards");
+            {
+                final BiFunction<String, Integer, Integer> increment = (k, v) -> v + 1;
+                final Map<String, Integer> routingStats = new HashMap<>(8);
+
+                routingStats.put("total", shardsStats.size());
+                routingStats.put("primaries", 0);
+                routingStats.put("replicas", 0);
+                routingStats.put("unassigned", 0);
+                routingStats.put("initializing", 0);
+                routingStats.put("active", 0);
+                routingStats.put("relocating_to_node", 0);
+                routingStats.put("relocating_from_node", 0);
+
+                builder.startArray("stats");
+                for (final ShardStats shard : getShardsStats()) {
+                    final ShardRouting routing = shard.getShardRouting();
+
+                    // accumulate routing stats; note: node_stats already has index stats rolled up
+                    if (routing.active()) {
+                        routingStats.compute("active", increment);
+                        if (routing.relocating()) {
+                            routingStats.compute("relocating_from_node", increment);
+                        }
+                    } else if (routing.initializing()) {
+                        routingStats.compute("initializing", increment);
+                        if (routing.relocatingNodeId() != null) {
+                            routingStats.compute("relocating_to_node", increment);
+                        }
+                    } else if (routing.unassigned()) {
+                        routingStats.compute("unassigned", increment);
+                    }
+
+                    if (routing.primary()) {
+                        routingStats.compute("primaries", increment);
+                    } else {
+                        routingStats.compute("replicas", increment);
+                    }
+
+                    builder.startObject();
+                    {
+                        builder.field("routing", routing);
+                        // inactive (e.g., UNASSIGNED, INITIALIZING) shards have no stats, so do not report false zeros
+                        if (routing.active()) {
+                            shard.getStats().toXContent(builder, params);
+                            if (shard.getCommitStats() != null) {
+                                shard.getCommitStats().toXContent(builder, params);
+                            }
+                            if (shard.getSeqNoStats() != null) {
+                                shard.getSeqNoStats().toXContent(builder, params);
+                            }
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+
+                // add rolled up routing stats
+                builder.field("routing")
+                       .map(routingStats);
+            }
+            builder.endObject();
         }
         return builder;
     }

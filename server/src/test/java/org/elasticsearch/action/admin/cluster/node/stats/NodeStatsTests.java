@@ -19,13 +19,20 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import java.nio.file.Path;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
@@ -301,7 +308,7 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private static NodeStats createNodeStats() {
+    private NodeStats createNodeStats() {
         DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
@@ -460,9 +467,38 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats);
+                ingestStats, adaptiveSelectionStats, createShardStats(node));
+    }
+
+    private List<ShardStats> createShardStats(final DiscoveryNode node) {
+        if (frequently()) {
+            final int numShards = randomInt(8);
+            final List<ShardStats> shardsStats = new ArrayList<>(numShards);
+            final int numIndices = randomInt(3);
+            final List<String> indices = new ArrayList<>(numIndices);
+
+            for (int i = 0; i < numIndices; ++i) {
+                indices.add("fake-index-" + i);
+            }
+
+            final Path dataPath = getBwcIndicesPath();
+
+            for (int i = 0; i < numShards; ++i) {
+                final ShardRoutingState state = randomFrom(ShardRoutingState.values());
+                final ShardRouting routing =
+                    TestShardRouting.newShardRouting(randomFrom(indices), i, node.getId(), randomBoolean(), state);
+                // not a real path, but it's close enough
+                final ShardPath path = new ShardPath(false, dataPath, dataPath, routing.shardId());
+
+                shardsStats.add(new ShardStats(routing, path, new CommonStats(), null, null));
+            }
+
+            return shardsStats;
+        }
+        return null;
     }
 }

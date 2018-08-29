@@ -19,6 +19,9 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -33,6 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
@@ -44,8 +51,20 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class NodeService extends AbstractComponent implements Closeable {
+
+    private static final CommonStatsFlags SHARD_STATS_FLAGS =
+        new CommonStatsFlags(
+                CommonStatsFlags.Flag.Docs,
+                CommonStatsFlags.Flag.Store,
+                CommonStatsFlags.Flag.FieldData,
+                CommonStatsFlags.Flag.QueryCache,
+                CommonStatsFlags.Flag.Completion,
+                CommonStatsFlags.Flag.Segments
+        );
 
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
@@ -103,7 +122,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection) {
+                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean shards) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
@@ -119,7 +138,8 @@ public class NodeService extends AbstractComponent implements Closeable {
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
                 ingest ? ingestService.stats() : null,
-                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
+                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+                shards ? getShardStats(indicesService) : null
         );
     }
 
@@ -134,6 +154,43 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);
+    }
+
+    List<ShardStats> getShardStats(final IndicesService indicesService) {
+        final List<ShardStats> shardsStats = new ArrayList<>();
+
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard shard : indexService) {
+                if (shard.routingEntry() != null) {
+                    // only report on routed shards
+                    CommonStats commonStats = null;
+                    CommitStats commitStats = null;
+                    SeqNoStats seqNoStats = null;
+
+                    if (shard.routingEntry().active()) {
+                        commonStats = new CommonStats(indicesService.getIndicesQueryCache(), shard, SHARD_STATS_FLAGS);
+
+                        try {
+                            commitStats = shard.commitStats();
+                            seqNoStats = shard.seqNoStats();
+                        } catch (AlreadyClosedException e) {
+                            // shard is closed - no stats is fine
+                            commitStats = null;
+                            seqNoStats = null;
+                        }
+                    }
+
+                    // common stats cannot be null for ShardStats, so we just fill in an empty object
+                    if (commonStats == null) {
+                        commonStats = new CommonStats(SHARD_STATS_FLAGS);
+                    }
+
+                    shardsStats.add(new ShardStats(shard.routingEntry(), shard.shardPath(), commonStats, commitStats, seqNoStats));
+                }
+            }
+        }
+
+        return shardsStats;
     }
 
 }

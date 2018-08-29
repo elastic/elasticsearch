@@ -94,32 +94,33 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
-                true, true, true, false, true, false, false, false, false, false, false, false);
-        List<ShardStats> shardsStats = new ArrayList<>();
-        for (IndexService indexService : indicesService) {
-            for (IndexShard indexShard : indexService) {
-                if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
-                    // only report on fully started shards
-                    CommitStats commitStats;
-                    SeqNoStats seqNoStats;
-                    try {
-                        commitStats = indexShard.commitStats();
-                        seqNoStats = indexShard.seqNoStats();
-                    } catch (AlreadyClosedException e) {
-                        // shard is closed - no stats is fine
-                        commitStats = null;
-                        seqNoStats = null;
-                    }
-                    shardsStats.add(
-                        new ShardStats(
-                            indexShard.routingEntry(),
-                            indexShard.shardPath(),
-                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                            commitStats,
-                            seqNoStats));
-                }
-            }
-        }
+                true, true, true, false, true, false, false, false, false, false, false, false, true);
+        List<ShardStats> shardsStats = nodeStats.getShardsStats();
+//        List<ShardStats> shardsStats = new ArrayList<>();
+//        for (IndexService indexService : indicesService) {
+//            for (IndexShard indexShard : indexService) {
+//                if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
+//                    // only report on fully started shards
+//                    CommitStats commitStats;
+//                    SeqNoStats seqNoStats;
+//                    try {
+//                        commitStats = indexShard.commitStats();
+//                        seqNoStats = indexShard.seqNoStats();
+//                    } catch (AlreadyClosedException e) {
+//                        // shard is closed - no stats is fine
+//                        commitStats = null;
+//                        seqNoStats = null;
+//                    }
+//                    shardsStats.add(
+//                        new ShardStats(
+//                            indexShard.routingEntry(),
+//                            indexShard.shardPath(),
+//                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+//                            commitStats,
+//                            seqNoStats));
+//                }
+//            }
+//        }
 
         ClusterHealthStatus clusterStatus = null;
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {

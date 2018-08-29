@@ -45,6 +45,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean discovery;
     private boolean ingest;
     private boolean adaptiveSelection;
+    private boolean shards;
 
     public NodesStatsRequest() {
     }
@@ -74,6 +75,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.discovery = true;
         this.ingest = true;
         this.adaptiveSelection = true;
+        this.shards = true;
         return this;
     }
 
@@ -94,6 +96,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.discovery = false;
         this.ingest = false;
         this.adaptiveSelection = false;
+        this.shards = false;
         return this;
     }
 
@@ -281,6 +284,18 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean shards() {
+        return shards;
+    }
+
+    /**
+     * Should shard statistics be returned. This provides stats about the estimated size of shards that live on this node.
+     */
+    public NodesStatsRequest shards(boolean shards) {
+        this.shards = shards;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -301,6 +316,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         } else {
             adaptiveSelection = false;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            shards = in.readBoolean();
+        } else {
+            shards = false;
+        }
     }
 
     @Override
@@ -320,6 +340,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(ingest);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(adaptiveSelection);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeBoolean(shards);
         }
     }
 }

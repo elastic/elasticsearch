@@ -162,5 +162,6 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "node_stats.thread_pool.search.rejected",
                         "node_stats.thread_pool.watcher.threads",
                         "node_stats.thread_pool.watcher.queue",
-                        "node_stats.thread_pool.watcher.rejected");
+                        "node_stats.thread_pool.watcher.rejected",
+                        "node_stats.shards.*");
 }

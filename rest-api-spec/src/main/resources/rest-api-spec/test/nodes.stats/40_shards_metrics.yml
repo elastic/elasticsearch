@@ -1,0 +1,62 @@
+---
+"Metric - shards":
+- skip:
+    version:     " - 6.9.99"
+    reason:      "shards metrics arrived in 6.5.0"
+- do:
+    cluster.state: {}
+
+# Get master node id
+- set: { master_node: master }
+
+- do:
+    indices.create:
+      index: test_index
+      wait_for_active_shards: all
+      body:
+        settings:
+          auto_expand_replicas: "0-all"
+        mappings:
+          _doc:
+            dynamic: false
+
+- match: { acknowledged: true }
+- match: { shards_acknowledged: true }
+
+- do:
+    index:
+      index: test_index
+      type: _doc
+      refresh: true
+      body: { foo: bar }
+
+- is_true: forced_refresh
+
+- do:
+    nodes.stats: { metric: shards }
+
+# Rollup values report stats for the node
+- gte: { nodes.$master.shards.routing.total: 0 }
+- gte: { nodes.$master.shards.routing.primaries: 0 }
+- gte: { nodes.$master.shards.routing.replicas: 0 }
+- gte: { nodes.$master.shards.routing.active: 0 }
+- gte: { nodes.$master.shards.routing.initializing: 0 }
+- gte: { nodes.$master.shards.routing.relocating_from_node: 0 }
+- gte: { nodes.$master.shards.routing.relocating_to_node: 0 }
+- gte: { nodes.$master.shards.routing.unassigned: 0 }
+
+- is_true: nodes.$master.shards.stats.0.routing.node
+- match: { nodes.$master.shards.stats.0.routing.state: "STARTED" }
+- match: { nodes.$master.shards.stats.0.routing.index: "test_index" }
+- match: { nodes.$master.shards.stats.0.routing.shard: 0 }
+- is_true: nodes.$master.shards.stats.0.routing.allocation_id.id
+- match: { nodes.$master.shards.stats.0.docs.count: 1 }
+- match: { nodes.$master.shards.stats.0.docs.deleted: 0 }
+- gt: { nodes.$master.shards.stats.0.store.size_in_bytes: 0 }
+- match: { nodes.$master.shards.stats.0.segments.count: 1 }
+- gt: { nodes.$master.shards.stats.0.segments.memory_in_bytes: 0 }
+- is_true: nodes.$master.shards.stats.0.completion
+- is_true: nodes.$master.shards.stats.0.fielddata
+- is_true: nodes.$master.shards.stats.0.query_cache
+- is_true: nodes.$master.shards.stats.0.commit
+- is_true: nodes.$master.shards.stats.0.seq_no

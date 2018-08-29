@@ -68,7 +68,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             null, null, null, null, null,
             fsInfo,
             null, null, null,
-            null, null, null, null);
+            null, null, null, null, null);
     }
 
     public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,

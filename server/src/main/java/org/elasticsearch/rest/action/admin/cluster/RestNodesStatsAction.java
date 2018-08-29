@@ -72,6 +72,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         metrics.put("discovery", r -> r.discovery(true));
         metrics.put("ingest", r -> r.ingest(true));
         metrics.put("adaptive_selection", r -> r.adaptiveSelection(true));
+        metrics.put("shards", r -> r.shards(true));
         METRICS = Collections.unmodifiableMap(metrics);
     }
 

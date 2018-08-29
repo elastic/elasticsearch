@@ -9,7 +9,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -21,6 +26,8 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -34,6 +41,8 @@ import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTest
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -100,6 +109,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
     public void testToXContent() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final NodeStats nodeStats = mockNodeStats();
+        final ShardRouting unassignedShard = nodeStats.getShardsStats().get(0).getShardRouting();
+        final ShardRouting startedShard = nodeStats.getShardsStats().get(1).getShardRouting();
 
         final NodeStatsMonitoringDoc doc =
                 new NodeStatsMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, "_node_id", true, nodeStats, false);
@@ -127,7 +138,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                            + "\"count\":1"
                          + "},"
                          + "\"store\":{"
-                           + "\"size_in_bytes\":4"
+                           + "\"size_in_bytes\":5"
                          + "},"
                          + "\"indexing\":{"
                            + "\"index_total\":5,"
@@ -145,8 +156,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                            + "\"evictions\":13"
                          + "},"
                          + "\"fielddata\":{"
-                           + "\"memory_size_in_bytes\":2,"
-                           + "\"evictions\":3"
+                           + "\"memory_size_in_bytes\":3,"
+                           + "\"evictions\":4"
                          + "},"
                          + "\"segments\":{"
                            + "\"count\":19,"
@@ -271,27 +282,200 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                              + "\"write_kilobytes\":2"
                            + "}"
                           + "}"
+                        + "},"
+                        + "\"shards\":{"
+                          + "\"stats\":["
+                            + "{"
+                              + "\"routing\":{"
+                                + "\"state\":\"INITIALIZING\","
+                                + "\"primary\":false,"
+                                + "\"node\":\"_node_id\","
+                                + "\"relocating_node\":null,"
+                                + "\"shard\":77,"
+                                + "\"index\":\"init-1\","
+                                + "\"recovery_source\":{"
+                                  + "\"type\":\"PEER\""
+                                + "},"
+                                +  "\"allocation_id\":{"
+                                  + "\"id\":\"" + unassignedShard.allocationId().getId() + "\""
+                                + "},"
+                                + "\"unassigned_info\":{"
+                                  + "\"reason\":\"" + unassignedShard.unassignedInfo().getReason() + "\","
+                                  + "\"at\":\"" + formatMillis(unassignedShard.unassignedInfo().getUnassignedTimeInMillis()) + "\","
+                                  + (unassignedShard.unassignedInfo().getNumFailedAllocations() != 0 ? "\"failed_attempts\":1," : "")
+                                  + "\"delayed\":false,"
+                                  + "\"details\":\"auto generated for test\","
+                                  + "\"allocation_status\":\"no_attempt\""
+                                + "}"
+                              + "}"
+                            + "},"
+                            + "{"
+                              + "\"routing\":{"
+                                + "\"state\":\"STARTED\","
+                                + "\"primary\":true,"
+                                + "\"node\":\"_node_id\","
+                                + "\"relocating_node\":null,"
+                                + "\"shard\":78,"
+                                + "\"index\":\"started-1\","
+                                + "\"allocation_id\":{"
+                                  + "\"id\":\"" + startedShard.allocationId().getId()
+                                + "\"}"
+                              + "},"
+                              + "\"docs\":{"
+                                + "\"count\":79,"
+                                + "\"deleted\":80"
+                              + "},"
+                              + "\"store\":{"
+                                + "\"size_in_bytes\":83"
+                              + "},"
+                              + "\"indexing\":{"
+                                + "\"index_total\":0,"
+                                + "\"index_time_in_millis\":0,"
+                                + "\"index_current\":0,"
+                                + "\"index_failed\":0,"
+                                + "\"delete_total\":0,"
+                                + "\"delete_time_in_millis\":0,"
+                                + "\"delete_current\":0,"
+                                + "\"noop_update_total\":0,"
+                                + "\"is_throttled\":false,"
+                                + "\"throttle_time_in_millis\":0"
+                              + "},"
+                              + "\"get\":{"
+                                + "\"total\":0,"
+                                + "\"time_in_millis\":0,"
+                                + "\"exists_total\":0,"
+                                + "\"exists_time_in_millis\":0,"
+                                + "\"missing_total\":0,"
+                                + "\"missing_time_in_millis\":0,"
+                                + "\"current\":0"
+                              + "},"
+                              + "\"search\":{"
+                                + "\"open_contexts\":0,"
+                                + "\"query_total\":0,"
+                                + "\"query_time_in_millis\":0,"
+                                + "\"query_current\":0,"
+                                + "\"fetch_total\":0,"
+                                + "\"fetch_time_in_millis\":0,"
+                                + "\"fetch_current\":0,"
+                                + "\"scroll_total\":0,"
+                                + "\"scroll_time_in_millis\":0,"
+                                + "\"scroll_current\":0,"
+                                + "\"suggest_total\":0,"
+                                + "\"suggest_time_in_millis\":0,"
+                                + "\"suggest_current\":0"
+                              + "},"
+                              + "\"merges\":{"
+                                + "\"current\":0,"
+                                + "\"current_docs\":0,"
+                                + "\"current_size_in_bytes\":0,"
+                                + "\"total\":0,"
+                                + "\"total_time_in_millis\":0,"
+                                + "\"total_docs\":0,"
+                                + "\"total_size_in_bytes\":0,"
+                                + "\"total_stopped_time_in_millis\":0,"
+                                + "\"total_throttled_time_in_millis\":0,"
+                                + "\"total_auto_throttle_in_bytes\":0"
+                              + "},"
+                              + "\"refresh\":{"
+                                + "\"total\":0,"
+                                + "\"total_time_in_millis\":0,"
+                                + "\"listeners\":0"
+                              + "},"
+                              + "\"flush\":{"
+                                + "\"total\":0,"
+                                + "\"periodic\":0,"
+                                + "\"total_time_in_millis\":0"
+                              + "},"
+                              + "\"warmer\":{"
+                                + "\"current\":0,"
+                                + "\"total\":0,"
+                                + "\"total_time_in_millis\":0"
+                              + "},"
+                              + "\"query_cache\":{"
+                                + "\"memory_size_in_bytes\":0,"
+                                + "\"total_count\":0,"
+                                + "\"hit_count\":0,"
+                                + "\"miss_count\":0,"
+                                + "\"cache_size\":0,"
+                                + "\"cache_count\":0,"
+                                + "\"evictions\":0"
+                              + "},"
+                              + "\"fielddata\":{"
+                                + "\"memory_size_in_bytes\":81,"
+                                + "\"evictions\":82"
+                              + "},"
+                              + "\"completion\":{"
+                                + "\"size_in_bytes\":0"
+                              + "},"
+                              + "\"segments\":{"
+                                + "\"count\":0,"
+                                + "\"memory_in_bytes\":0,"
+                                + "\"terms_memory_in_bytes\":0,"
+                                + "\"stored_fields_memory_in_bytes\":0,"
+                                + "\"term_vectors_memory_in_bytes\":0,"
+                                + "\"norms_memory_in_bytes\":0,"
+                                + "\"points_memory_in_bytes\":0,"
+                                + "\"doc_values_memory_in_bytes\":0,"
+                                + "\"index_writer_memory_in_bytes\":0,"
+                                + "\"version_map_memory_in_bytes\":0,"
+                                + "\"fixed_bit_set_memory_in_bytes\":0,"
+                                + "\"max_unsafe_auto_id_timestamp\":-9223372036854775808,"
+                                + "\"file_sizes\":{}"
+                              + "},"
+                              + "\"translog\":{"
+                                + "\"operations\":0,"
+                                + "\"size_in_bytes\":0,"
+                                + "\"uncommitted_operations\":0,"
+                                + "\"uncommitted_size_in_bytes\":0,"
+                                + "\"earliest_last_modified_age\":0"
+                              + "},"
+                              + "\"request_cache\":{"
+                                + "\"memory_size_in_bytes\":0,"
+                                + "\"evictions\":0,"
+                                + "\"hit_count\":0,"
+                                + "\"miss_count\":0"
+                              + "},"
+                              + "\"recovery\":{"
+                                + "\"current_as_source\":0,"
+                                + "\"current_as_target\":0,"
+                                + "\"throttle_time_in_millis\":0"
+                              + "}"
+                            + "}"
+                          + "],"
+                          + "\"routing\":{"
+                            + "\"primaries\":1,"
+                            + "\"total\":2,"
+                            + "\"replicas\":1,"
+                            + "\"relocating_from_node\":0,"
+                            + "\"active\":1,"
+                            + "\"relocating_to_node\":0,"
+                            + "\"initializing\":1,"
+                            + "\"unassigned\":0"
+                          + "}"
                         + "}"
                       + "}"
                     + "}", xContent.utf8ToString());
     }
 
-    private static NodeStats mockNodeStats() {
+    private String formatMillis(long millis) {
+        return UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(millis));
+    }
+
+    private NodeStats mockNodeStats() {
 
         // This value is used in constructors of various stats objects,
         // when the value is not printed out in the final XContent.
-        final long no = -1;
+        final int no = -1;
 
         // This value is used in constructors of various stats objects,
         // when the value is printed out in the XContent. Must be
         // incremented for each usage.
-        long iota = 0L;
+        int iota = 0;
 
         // Indices
-        final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
-        indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
-        indicesCommonStats.getStore().add(new StoreStats(++iota));
+        final CommonStats indicesCommonStats = createCommonStats(iota);
+        // createCommonStats did not used to be a method, so we add the same number to ensure that the rest of the JSON stays the same
+        iota += 4;
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats, null));
@@ -301,24 +485,15 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no);
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
-        final SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(++iota, ++iota);
-        segmentsStats.addTermsMemoryInBytes(++iota);
-        segmentsStats.addStoredFieldsMemoryInBytes(++iota);
-        segmentsStats.addTermVectorsMemoryInBytes(++iota);
-        segmentsStats.addNormsMemoryInBytes(++iota);
-        segmentsStats.addPointsMemoryInBytes(++iota);
-        segmentsStats.addDocValuesMemoryInBytes(++iota);
-        segmentsStats.addIndexWriterMemoryInBytes(++iota);
-        segmentsStats.addVersionMapMemoryInBytes(++iota);
-        segmentsStats.addBitsetMemoryInBytes(++iota);
-        indicesCommonStats.getSegments().add(segmentsStats);
+        indicesCommonStats.getSegments().add(createSegmentsStats(iota));
+        // createSegmentsStats did not used to be a method, so we add the same number to ensure that the rest of the JSON stays the same
+        iota += 11;
 
         final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap());
 
         // Filesystem
-        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, null);
-        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ioStatsOne);
+        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(no, no, null, ++iota, ++iota, ++iota, ++iota, null);
+        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats(no, no, null, ++iota, ++iota, ++iota, ++iota, ioStatsOne);
 
         final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[]{ioStatsTwo});
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[]{new FsInfo.Path(null, null, ++iota, ++iota, ++iota)});
@@ -338,7 +513,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final ProcessStats process = new ProcessStats(no, ++iota, ++iota, processCpu, null);
 
         // Jvm
-        final JvmStats.Threads jvmThreads = new JvmStats.Threads((int) no, (int) no);
+        final JvmStats.Threads jvmThreads = new JvmStats.Threads(no, no);
         final JvmStats.Classes jvmClasses = new JvmStats.Classes(no, no, no);
         final JvmStats.Mem jvmMem = new JvmStats.Mem(no, ++iota, ++iota, no, no, emptyList());
         final JvmStats.GarbageCollectors gcs = new JvmStats.GarbageCollectors(new JvmStats.GarbageCollector[]{
@@ -348,12 +523,12 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
 
         // Threadpools
         final List<ThreadPoolStats.Stats> threadpools = new ArrayList<>();
-        threadpools.add(new ThreadPoolStats.Stats("generic", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("get", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("management", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("search", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("watcher", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("write", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
+        threadpools.add(new ThreadPoolStats.Stats("generic", ++iota, ++iota, no, ++iota, no, no));
+        threadpools.add(new ThreadPoolStats.Stats("get", ++iota, ++iota, no, ++iota, no, no));
+        threadpools.add(new ThreadPoolStats.Stats("management", ++iota, ++iota, no, ++iota, no, no));
+        threadpools.add(new ThreadPoolStats.Stats("search", ++iota, ++iota, no, ++iota, no, no));
+        threadpools.add(new ThreadPoolStats.Stats("watcher", ++iota, ++iota, no, ++iota, no, no));
+        threadpools.add(new ThreadPoolStats.Stats("write", ++iota, ++iota, no, ++iota, no, no));
         final ThreadPoolStats threadPool = new ThreadPoolStats(threadpools);
 
         final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
@@ -366,6 +541,66 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 emptySet(),
                                                                 Version.V_6_0_0_beta1);
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null);
+        // Shards
+        final List<ShardStats> shards = createShardStats(iota);
+
+        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs,
+                    null, null, null, null, null, null, null,
+                     shards);
     }
+
+    private List<ShardStats> createShardStats(int iota) {
+        final List<ShardStats> shards = new ArrayList<>();
+
+        // Initializing shard
+        final ShardId initializingShardId = new ShardId("init-1", "initUuid1", ++iota);
+        final ShardRouting initializingRoute =
+            TestShardRouting.newShardRouting(initializingShardId, "_node_id", false, ShardRoutingState.INITIALIZING);
+        final ShardPath initializingPath = createShardPath(initializingShardId);
+        final ShardStats initializingShard = new ShardStats(initializingRoute, initializingPath, new CommonStats(), null, null);
+
+        // Started shard
+        final ShardId startedShardId = new ShardId("started-1", "startedUuid2", ++iota);
+        final ShardRouting startedRoute =
+            TestShardRouting.newShardRouting(startedShardId, "_node_id", true, ShardRoutingState.STARTED);
+        final ShardPath startedPath = createShardPath(startedShardId);
+        final ShardStats startedShard =
+            new ShardStats(startedRoute, startedPath, createCommonStats(iota), null, null);
+
+        // Shard stats
+        shards.add(initializingShard);
+        shards.add(startedShard);
+
+        return shards;
+    }
+
+    private ShardPath createShardPath(final ShardId id) {
+        final Path path = createTempDir().resolve(id.getIndex().getUUID()).resolve(Integer.toString(id.getId()));
+
+        return new ShardPath(false, path, path, id);
+    }
+
+    private CommonStats createCommonStats(int iota) {
+        final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
+        commonStats.getDocs().add(new DocsStats(++iota, ++iota, randomNonNegativeLong()));
+        commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        commonStats.getStore().add(new StoreStats(++iota));
+        return commonStats;
+    }
+
+    private SegmentsStats createSegmentsStats(int iota) {
+        final SegmentsStats segmentsStats = new SegmentsStats();
+        segmentsStats.add(++iota, ++iota);
+        segmentsStats.addTermsMemoryInBytes(++iota);
+        segmentsStats.addStoredFieldsMemoryInBytes(++iota);
+        segmentsStats.addTermVectorsMemoryInBytes(++iota);
+        segmentsStats.addNormsMemoryInBytes(++iota);
+        segmentsStats.addPointsMemoryInBytes(++iota);
+        segmentsStats.addDocValuesMemoryInBytes(++iota);
+        segmentsStats.addIndexWriterMemoryInBytes(++iota);
+        segmentsStats.addVersionMapMemoryInBytes(++iota);
+        segmentsStats.addBitsetMemoryInBytes(++iota);
+        return segmentsStats;
+    }
+
 }

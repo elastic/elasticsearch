@@ -26,6 +26,12 @@ esplugin {
     classname 'org.elasticsearch.discovery.file.FileBasedDiscoveryPlugin'
 }
 
+bundlePlugin {
+    from('config/discovery-file') {
+        into 'config'
+    }
+}
+
 task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
     mustRunAfter(precommit)
 }

@@ -158,7 +158,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         GetJobsStatsRequest request = new GetJobsStatsRequest(jobId1, jobId2);
 
-        Thread.sleep(1000);
         // Test getting specific
         GetJobsStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 

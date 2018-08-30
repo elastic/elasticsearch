@@ -31,36 +31,38 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.stream.Collectors;
 
-public class StatusILMResponseTests extends ESTestCase {
+public class LifecycleManagementStatusResponseTests extends ESTestCase {
 
     public void testClientServerStatuses() {
         assertEquals(
-            EnumSet.allOf(StatusILMResponse.OperationMode.class).stream().map(Enum::name).collect(Collectors.toSet()),
+            EnumSet.allOf(LifecycleManagementStatusResponse.OperationMode.class).stream().map(Enum::name).collect(Collectors.toSet()),
             EnumSet.allOf(OperationMode.class).stream().map(Enum::name).collect(Collectors.toSet()));
     }
 
     public void testFromName() {
-        EnumSet.allOf(StatusILMResponse.OperationMode.class)
-            .forEach(e -> assertEquals(StatusILMResponse.OperationMode.fromString(e.name()), e));
+        EnumSet.allOf(LifecycleManagementStatusResponse.OperationMode.class)
+            .forEach(e -> assertEquals(LifecycleManagementStatusResponse.OperationMode.fromString(e.name()), e));
     }
 
     public void testInvalidStatus() {
         String invalidName = randomAlphaOfLength(10);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> StatusILMResponse.OperationMode.fromString(invalidName));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> LifecycleManagementStatusResponse.OperationMode.fromString(invalidName));
         assertThat(e.getMessage(), CoreMatchers.containsString(invalidName + " is not a valid operation_mode"));
     }
 
     public void testValidStatuses() {
-        EnumSet.allOf(StatusILMResponse.OperationMode.class)
-            .forEach(e -> assertEquals(new StatusILMResponse(e.name()).getOperationMode(), e));
+        EnumSet.allOf(LifecycleManagementStatusResponse.OperationMode.class)
+            .forEach(e -> assertEquals(new LifecycleManagementStatusResponse(e.name()).getOperationMode(), e));
     }
 
     public void testXContent() throws IOException {
         XContentType xContentType = XContentType.JSON;
-        String mode = randomFrom(EnumSet.allOf(StatusILMResponse.OperationMode.class)
+        String mode = randomFrom(EnumSet.allOf(LifecycleManagementStatusResponse.OperationMode.class)
             .stream().map(Enum::name).collect(Collectors.toList()));
         XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{\"operation_mode\" : \"" + mode + "\"}");
-        assertEquals(StatusILMResponse.fromXContent(parser).getOperationMode(), StatusILMResponse.OperationMode.fromString(mode));
+        assertEquals(LifecycleManagementStatusResponse.fromXContent(parser).getOperationMode(),
+            LifecycleManagementStatusResponse.OperationMode.fromString(mode));
     }
 }

@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StatusILMResponse;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -148,9 +148,9 @@ public class IndexLifecycleClient {
      * @param request the request with user defined timeouts.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-    public StatusILMResponse StatusILM(TimedRequest request, RequestOptions options) throws IOException {
+    public LifecycleManagementStatusResponse lifecycleManagementStatus(TimedRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::statusILM, options,
-            StatusILMResponse::fromXContent, emptySet());
+            LifecycleManagementStatusResponse::fromXContent, emptySet());
     }
 
     /**
@@ -162,10 +162,10 @@ public class IndexLifecycleClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void StatusILMAsync(TimedRequest request, RequestOptions options,
-                               ActionListener<StatusILMResponse> listener) {
+    public void lifecycleManagementStatusAsync(TimedRequest request, RequestOptions options,
+                                               ActionListener<LifecycleManagementStatusResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::statusILM, options,
-            StatusILMResponse::fromXContent, listener, emptySet());
+            LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -31,19 +31,19 @@ import java.util.Objects;
 /**
  * The current status of index lifecycle management. See {@link OperationMode} for available statuses.
  */
-public class StatusILMResponse {
+public class LifecycleManagementStatusResponse {
 
     private final OperationMode operationMode;
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<StatusILMResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "operation_mode", a -> new StatusILMResponse((String) a[0]));
+    private static final ConstructingObjectParser<LifecycleManagementStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "operation_mode", a -> new LifecycleManagementStatusResponse((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("operation_mode"));
     }
 
     //package private for testing
-    StatusILMResponse(String operationMode) {
+    LifecycleManagementStatusResponse(String operationMode) {
         this.operationMode = OperationMode.fromString(operationMode);
     }
 
@@ -51,7 +51,7 @@ public class StatusILMResponse {
         return operationMode;
     }
 
-    public static StatusILMResponse fromXContent(XContentParser parser) {
+    public static LifecycleManagementStatusResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -82,16 +82,14 @@ public class StatusILMResponse {
         }
     }
 
-    // generated
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        StatusILMResponse that = (StatusILMResponse) o;
+        LifecycleManagementStatusResponse that = (LifecycleManagementStatusResponse) o;
         return operationMode == that.operationMode;
     }
 
-    // generated
     @Override
     public int hashCode() {
         return Objects.hash(operationMode);

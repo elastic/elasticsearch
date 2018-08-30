@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StatusILMResponse;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
@@ -170,9 +170,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         createIndex("squash", Settings.EMPTY);
 
         TimedRequest statusRequest = new TimedRequest();
-        StatusILMResponse statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::StatusILM,
-            highLevelClient().indexLifecycle()::StatusILMAsync);
-        assertEquals(statusResponse.getOperationMode(), StatusILMResponse.OperationMode.RUNNING);
+        LifecycleManagementStatusResponse statusResponse = execute(
+            statusRequest,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
+        assertEquals(statusResponse.getOperationMode(), LifecycleManagementStatusResponse.OperationMode.RUNNING);
 
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
@@ -180,19 +182,20 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertTrue(stopResponse.isAcknowledged());
 
 
-        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::StatusILM,
-            highLevelClient().indexLifecycle()::StatusILMAsync);
+        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
         assertThat(statusResponse.getOperationMode(),
-                Matchers.anyOf(equalTo(StatusILMResponse.OperationMode.STOPPING), equalTo(StatusILMResponse.OperationMode.STOPPED)));
+                Matchers.anyOf(equalTo(LifecycleManagementStatusResponse.OperationMode.STOPPING),
+                    equalTo(LifecycleManagementStatusResponse.OperationMode.STOPPED)));
 
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
                 highLevelClient().indexLifecycle()::startILMAsync);
         assertTrue(startResponse.isAcknowledged());
 
-        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::StatusILM,
-            highLevelClient().indexLifecycle()::StatusILMAsync);
-        assertEquals(statusResponse.getOperationMode(), StatusILMResponse.OperationMode.RUNNING);
+        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
+        assertEquals(statusResponse.getOperationMode(), LifecycleManagementStatusResponse.OperationMode.RUNNING);
     }
 
     public void testExplainLifecycle() throws Exception {

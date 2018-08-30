@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class NodeAttributesTests extends AbstractXContentTestCase<NodeAttributes> {
 
@@ -52,7 +53,12 @@ public class NodeAttributesTests extends AbstractXContentTestCase<NodeAttributes
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

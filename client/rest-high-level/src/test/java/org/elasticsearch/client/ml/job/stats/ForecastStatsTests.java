@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> {
 
@@ -42,7 +43,12 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
     }
 
     public static ForecastStats createRandom(long minTotal, long maxTotal) {

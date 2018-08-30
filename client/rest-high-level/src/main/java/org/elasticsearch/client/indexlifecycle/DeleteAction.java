@@ -16,26 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ReadOnlyAction implements LifecycleAction, ToXContentObject {
-    public static final String NAME = "readonly";
+public class DeleteAction implements LifecycleAction, ToXContentObject {
+    public static final String NAME = "delete";
 
-    private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, false, ReadOnlyAction::new);
+    private static final ObjectParser<DeleteAction, Void> PARSER = new ObjectParser<>(NAME, DeleteAction::new);
 
-    public static ReadOnlyAction parse(XContentParser parser) {
+    public static DeleteAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ReadOnlyAction() {
+    public DeleteAction() {
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -44,15 +52,8 @@ public class ReadOnlyAction implements LifecycleAction, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
     public int hashCode() {
-        return ReadOnlyAction.class.hashCode();
+        return 1;
     }
 
     @Override

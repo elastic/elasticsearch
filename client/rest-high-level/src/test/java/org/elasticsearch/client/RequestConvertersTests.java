@@ -97,6 +97,8 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -180,6 +182,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
+import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
@@ -2678,6 +2681,20 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testPutLifecyclePolicy() throws Exception {
+        String name = randomAlphaOfLengthBetween(2, 20);
+        LifecyclePolicy policy = createRandomPolicy(name);
+        PutLifecyclePolicyRequest req = new PutLifecyclePolicyRequest(policy);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.putLifecyclePolicy(req);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_ilm/" + name, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     public void testDeleteLifecycle() {

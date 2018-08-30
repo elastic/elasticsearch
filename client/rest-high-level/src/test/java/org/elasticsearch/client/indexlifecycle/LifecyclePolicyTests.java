@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
@@ -74,48 +74,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     @Override
     protected LifecyclePolicy createTestInstance() {
         lifecycleName = randomAlphaOfLength(5);
-        List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
-        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) ->  {
-            switch (phase) {
-                case "hot":
-                    return VALID_HOT_ACTIONS;
-                case "warm":
-                    return VALID_WARM_ACTIONS;
-                case "cold":
-                    return VALID_COLD_ACTIONS;
-                case "delete":
-                    return VALID_DELETE_ACTIONS;
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }};
-        Function<String, LifecycleAction> randomAction = (action) ->  {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }};
-        for (String phase : phaseNames) {
-            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
-            Map<String, LifecycleAction> actions = new HashMap<>();
-            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
-            for (String action : actionNames) {
-                actions.put(action, randomAction.apply(action));
-            }
-            phases.put(phase, new Phase(phase, after, actions));
-        }
-        return new LifecyclePolicy(lifecycleName, phases);
+        return createRandomPolicy(lifecycleName);
     }
 
     public void testValidatePhases() {
@@ -216,6 +175,51 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         } else {
             new LifecyclePolicy(lifecycleName, deletePhase);
         }
+    }
+
+    public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
+        List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
+        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Function<String, Set<String>> validActions = (phase) ->  {
+            switch (phase) {
+                case "hot":
+                    return VALID_HOT_ACTIONS;
+                case "warm":
+                    return VALID_WARM_ACTIONS;
+                case "cold":
+                    return VALID_COLD_ACTIONS;
+                case "delete":
+                    return VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, LifecycleAction> randomAction = (action) ->  {
+            switch (action) {
+                case AllocateAction.NAME:
+                    return AllocateActionTests.randomInstance();
+                case DeleteAction.NAME:
+                    return new DeleteAction();
+                case ForceMergeAction.NAME:
+                    return ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME:
+                    return new ReadOnlyAction();
+                case RolloverAction.NAME:
+                    return RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME:
+                    return ShrinkActionTests.randomInstance();
+                default:
+                    throw new IllegalArgumentException("invalid action [" + action + "]");
+            }};
+        for (String phase : phaseNames) {
+            TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            for (String action : actionNames) {
+                actions.put(action, randomAction.apply(action));
+            }
+            phases.put(phase, new Phase(phase, after, actions));
+        }
+        return new LifecyclePolicy(lifecycleName, phases);
     }
 
     private LifecycleAction getTestAction(String actionName) {

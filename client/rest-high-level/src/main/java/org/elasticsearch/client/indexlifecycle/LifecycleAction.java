@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 /**
  * interface for index lifecycle management actions

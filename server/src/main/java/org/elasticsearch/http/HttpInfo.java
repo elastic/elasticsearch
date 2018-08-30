@@ -91,7 +91,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
                 DEPRECATION_LOGGER.deprecated(
                     "[http.publish_host] was printed as [ip:port] instead of [hostname/ip:port]. "
                         + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
-                        + "Use -Des.http.cname_in_publish_host=true to enforce non-deprecated formatting."
+                        + "Use -Des.http.cname_in_publish_address=true to enforce non-deprecated formatting."
                 );
             }
         }

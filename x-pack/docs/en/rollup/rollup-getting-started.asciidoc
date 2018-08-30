@@ -37,8 +37,7 @@ PUT _xpack/rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
+        "interval": "60m"
       },
       "terms": {
         "fields": ["node"]
@@ -66,7 +65,7 @@ The `cron` parameter controls when and how often the job activates.  When a roll
 from where it left off after the last activation.  So if you configure the cron to run every 30 seconds, the job will process the last 30
 seconds worth of data that was indexed into the `sensor-*` indices.
 
-If instead the cron was configured to run once a day at midnight, the job would process the last 24hours worth of data.  The choice is largely
+If instead the cron was configured to run once a day at midnight, the job would process the last 24 hours worth of data.  The choice is largely
 preference, based on how "realtime" you want the rollups, and if you wish to process continuously or move it to off-peak hours.
 
 Next, we define a set of `groups` and `metrics`.  The metrics are fairly straightforward: we want to save the min/max/sum of the `temperature`
@@ -79,7 +78,7 @@ It also allows us to run terms aggregations on the `node` field.
 .Date histogram interval vs cron schedule
 **********************************
 You'll note that the job's cron is configured to run every 30 seconds, but the date_histogram is configured to
-rollup at hourly intervals.  How do these relate?
+rollup at 60 minute intervals.  How do these relate?
 
 The date_histogram controls the granularity of the saved data.  Data will be rolled up into hourly intervals, and you will be unable
 to query with finer granularity.  The cron simply controls when the process looks for new data to rollup.  Every 30 seconds it will see
@@ -223,70 +222,71 @@ Which returns a corresponding response:
 [source,js]
 ----
 {
-  "took" : 93,
-  "timed_out" : false,
-  "terminated_early" : false,
-  "_shards" : ... ,
-  "hits" : {
-    "total" : 0,
-    "max_score" : 0.0,
-    "hits" : [ ]
-  },
-  "aggregations" : {
-    "timeline" : {
-      "meta" : { },
-      "buckets" : [
-        {
-          "key_as_string" : "2018-01-18T00:00:00.000Z",
-          "key" : 1516233600000,
-          "doc_count" : 6,
-          "nodes" : {
-            "doc_count_error_upper_bound" : 0,
-            "sum_other_doc_count" : 0,
-            "buckets" : [
-              {
-                "key" : "a",
-                "doc_count" : 2,
-                "max_temperature" : {
-                  "value" : 202.0
-                },
-                "avg_voltage" : {
-                  "value" : 5.1499998569488525
-                }
-              },
-              {
-                "key" : "b",
-                "doc_count" : 2,
-                "max_temperature" : {
-                  "value" : 201.0
-                },
-                "avg_voltage" : {
-                  "value" : 5.700000047683716
-                }
-              },
-              {
-                "key" : "c",
-                "doc_count" : 2,
-                "max_temperature" : {
-                  "value" : 202.0
-                },
-                "avg_voltage" : {
-                  "value" : 4.099999904632568
-                }
-              }
-            ]
-          }
-        }
-      ]
-    }
-  }
+   "took" : 93,
+   "timed_out" : false,
+   "terminated_early" : false,
+   "_shards" : ... ,
+   "hits" : {
+     "total" : 0,
+     "max_score" : 0.0,
+     "hits" : [ ]
+   },
+   "aggregations" : {
+     "timeline" : {
+       "meta" : { },
+       "buckets" : [
+         {
+           "key_as_string" : "2018-01-18T00:00:00.000Z",
+           "key" : 1516233600000,
+           "doc_count" : 6,
+           "nodes" : {
+             "doc_count_error_upper_bound" : 0,
+             "sum_other_doc_count" : 0,
+             "buckets" : [
+               {
+                 "key" : "a",
+                 "doc_count" : 2,
+                 "max_temperature" : {
+                   "value" : 202.0
+                 },
+                 "avg_voltage" : {
+                   "value" : 5.1499998569488525
+                 }
+               },
+               {
+                 "key" : "b",
+                 "doc_count" : 2,
+                 "max_temperature" : {
+                   "value" : 201.0
+                 },
+                 "avg_voltage" : {
+                   "value" : 5.700000047683716
+                 }
+               },
+               {
+                 "key" : "c",
+                 "doc_count" : 2,
+                 "max_temperature" : {
+                   "value" : 202.0
+                 },
+                 "avg_voltage" : {
+                   "value" : 4.099999904632568
+                 }
+               }
+             ]
+           }
+         }
+       ]
+     }
+   }
 }
+
 ----
 // TESTRESPONSE[s/"took" : 93/"took" : $body.$_path/]
 // TESTRESPONSE[s/"_shards" : \.\.\. /"_shards" : $body.$_path/]
 
 In addition to being more complicated (date histogram and a terms aggregation, plus an additional average metric), you'll notice
-the date_histogram uses a `7d` interval instead of `1h`.
+the date_histogram uses a `7d` interval instead of `60m`.
 
 [float]
 === Conclusion

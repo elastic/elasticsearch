@@ -80,9 +80,25 @@ The response will tell you that the field and aggregation were not possible, bec
 [float]
 === Interval Granularity
 
-Rollups are stored at a certain granularity, as defined by the `date_histogram` group in the configuration.  If data is rolled up at hourly
-intervals, the <<rollup-search>> API can aggregate on any time interval hourly or greater.  Intervals that are less than an hour will throw
-an exception, since the data simply doesn't exist for finer granularities.
+Rollups are stored at a certain granularity, as defined by the `date_histogram` group in the configuration.  This means you
+can only search/aggregate the rollup data with an interval that is greater-than or equal to the configured rollup interval.
+
+For example, if data is rolled up at hourly intervals, the <<rollup-search>> API can aggregate on any time interval
+hourly or greater.  Intervals that are less than an hour will throw an exception, since the data simply doesn't
+exist for finer granularities.
+
+[[rollup-search-limitations-intervals]]
+.Requests must be multiples of the config
+**********************************
+Perhaps not immediately apparent, but the interval specified in an aggregation request must be a whole
+multiple of the configured interval.  If the job was configured to rollup on `3d` intervals, you can only
+query and aggregate on multiples of three (`3d`, `6d`, `9d`, etc).
+
+A non-multiple wouldn't work, since the rolled up data wouldn't cleanly "overlap" with the buckets generated
+by the aggregation, leading to incorrect results.
+
+For that reason, an error is thrown if a whole multiple of the configured interval isn't found.
+**********************************
 
 Because the RollupSearch endpoint can "upsample" intervals, there is no need to configure jobs with multiple intervals (hourly, daily, etc).
 It's recommended to just configure a single job with the smallest granularity that is needed, and allow the search endpoint to upsample

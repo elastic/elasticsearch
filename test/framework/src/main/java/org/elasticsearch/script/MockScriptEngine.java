@@ -96,6 +96,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
+            IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
+                @Override
+                public boolean execute(Map<String, Object> ctx) {
+                    return (boolean) script.apply(ctx);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
             UpdateScript.Factory factory = parameters -> new UpdateScript(parameters) {
                 @Override

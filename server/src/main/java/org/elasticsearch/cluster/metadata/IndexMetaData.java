@@ -464,12 +464,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
+    ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }
 
     public Map<String, String> getCustomData(final String key) {
-        return this.customData.get(key);
+        return Collections.unmodifiableMap(this.customData.get(key));
     }
 
     public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {
@@ -1147,7 +1147,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             builder.endArray();
 
-            for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.getCustomData()) {
+            for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.customData) {
                 builder.field(cursor.key);
                 builder.map(cursor.value);
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.settings;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -377,6 +378,25 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             }
             assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+        }
+    }
+
+    public void testUserMetadata() {
+        String key = "cluster.metadata." + randomAlphaOfLengthBetween(5, 20);
+        String value = randomRealisticUnicodeOfCodepointLengthBetween(5, 50);
+
+        // Make sure we have both key and value in case this fails
+        logger.info("Attempting to store [{}]: [{}]", key, value);
+
+        final Settings settings = Settings.builder().put(key, value).build();
+        if (randomBoolean()) {
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet();
+            ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(value, state.getState().getMetaData().persistentSettings().get(key));
+        } else {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+            ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(value, state.getState().getMetaData().transientSettings().get(key));
         }
     }
 

@@ -43,6 +43,8 @@ started with the <<rollup-start-job,Start Job API>>.
 `metrics`::
    (object) Defines the metrics that should be collected for each grouping tuple. See <<rollup-job-config,rollup job config>>.
 
+For more details about the job configuration, see <<rollup-job-config>>.
+
 ==== Authorization
 
 You must have `manage` or `manage_rollup` cluster privileges to use this API.

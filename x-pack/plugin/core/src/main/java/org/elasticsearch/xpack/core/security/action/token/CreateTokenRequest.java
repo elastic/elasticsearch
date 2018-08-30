@@ -15,10 +15,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -28,6 +32,37 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <code>refresh_token</code> grant type.
  */
 public final class CreateTokenRequest extends ActionRequest {
+
+    public enum GrantType {
+        PASSWORD("password"),
+        REFRESH_TOKEN("refresh_token"),
+        AUTHORIZATION_CODE("authorization_code"),
+        CLIENT_CREDENTIALS("client_credentials");
+
+        private final String value;
+
+        GrantType(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public static GrantType fromString(String grantType) {
+            if (grantType != null) {
+                for (GrantType type : values()) {
+                    if (type.getValue().equals(grantType)) {
+                        return type;
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
+    private static final Set<GrantType> SUPPORTED_GRANT_TYPES = Collections.unmodifiableSet(
+        EnumSet.of(GrantType.PASSWORD, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS));
 
     private String grantType;
     private String username;
@@ -49,33 +84,58 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if ("password".equals(grantType)) {
-            if (Strings.isNullOrEmpty(username)) {
-                validationException = addValidationError("username is missing", validationException);
-            }
-            if (password == null || password.getChars() == null || password.getChars().length == 0) {
-                validationException = addValidationError("password is missing", validationException);
-            }
-            if (refreshToken != null) {
-                validationException =
-                        addValidationError("refresh_token is not supported with the password grant_type", validationException);
-            }
-        } else if ("refresh_token".equals(grantType)) {
-            if (username != null) {
-                validationException =
-                        addValidationError("username is not supported with the refresh_token grant_type", validationException);
-            }
-            if (password != null) {
-                validationException =
-                        addValidationError("password is not supported with the refresh_token grant_type", validationException);
-            }
-            if (refreshToken == null) {
-                validationException = addValidationError("refresh_token is missing", validationException);
+        GrantType type = GrantType.fromString(grantType);
+        if (type != null) {
+            switch (type) {
+                case PASSWORD:
+                    if (Strings.isNullOrEmpty(username)) {
+                        validationException = addValidationError("username is missing", validationException);
+                    }
+                    if (password == null || password.getChars() == null || password.getChars().length == 0) {
+                        validationException = addValidationError("password is missing", validationException);
+                    }
+                    if (refreshToken != null) {
+                        validationException =
+                            addValidationError("refresh_token is not supported with the password grant_type", validationException);
+                    }
+                    break;
+                case REFRESH_TOKEN:
+                    if (username != null) {
+                        validationException =
+                            addValidationError("username is not supported with the refresh_token grant_type", validationException);
+                    }
+                    if (password != null) {
+                        validationException =
+                            addValidationError("password is not supported with the refresh_token grant_type", validationException);
+                    }
+                    if (refreshToken == null) {
+                        validationException = addValidationError("refresh_token is missing", validationException);
+                    }
+                    break;
+                case CLIENT_CREDENTIALS:
+                    if (username != null) {
+                        validationException =
+                            addValidationError("username is not supported with the client_credentials grant_type", validationException);
+                    }
+                    if (password != null) {
+                        validationException =
+                            addValidationError("password is not supported with the client_credentials grant_type", validationException);
+                    }
+                    if (refreshToken != null) {
+                        validationException = addValidationError("refresh_token is not supported with the client_credentials grant_type",
+                            validationException);
+                    }
+                    break;
+                default:
+                    validationException = addValidationError("grant_type only supports the values: [" +
+                            SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
+                        validationException);
             }
         } else {
-            validationException = addValidationError("grant_type only supports the values: [password, refresh_token]", validationException);
+            validationException = addValidationError("grant_type only supports the values: [" +
+                    SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
+                validationException);
         }
-
         return validationException;
     }
 
@@ -126,6 +186,11 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
+            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
+                out.getVersion() + "]");
+        }
+
         out.writeString(grantType);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalString(username);

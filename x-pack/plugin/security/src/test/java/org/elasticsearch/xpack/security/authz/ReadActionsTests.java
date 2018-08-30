@@ -102,6 +102,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertNoSearchHits(client().prepareSearch().get());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33123")
     public void testEmptyAuthorizedIndicesSearchForAllDisallowNoIndices() {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()

@@ -400,25 +400,25 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
 

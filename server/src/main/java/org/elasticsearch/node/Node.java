@@ -352,7 +352,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
+            final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final DiskThresholdMonitor listener = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client);
@@ -471,7 +471,7 @@ public class Node implements Closeable {
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService());
+                clusterModule.getAllocationService(), environment.configFile());
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,

@@ -99,7 +99,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             releaseRecovery.countDown();
             future.get();
             // rolling/flushing is async
-            assertBusy(() -> assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0)));
+            assertBusy(() -> {
+                assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(19L));
+                assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0));
+            });
         }
     }
 

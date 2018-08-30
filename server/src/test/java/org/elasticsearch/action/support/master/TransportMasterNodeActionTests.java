@@ -87,8 +87,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         localNode = new DiscoveryNode("local_node", buildNewFakeTransportAddress(), Collections.emptyMap(),

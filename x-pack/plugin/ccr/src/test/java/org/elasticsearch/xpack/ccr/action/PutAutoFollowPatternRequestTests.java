@@ -32,7 +32,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setRemoteClusterAlias(randomAlphaOfLength(4));
+        request.setLeaderClusterAlias(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));

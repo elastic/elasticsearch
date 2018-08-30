@@ -459,7 +459,7 @@ Upgrading indices create with Lucene 3.x (Elasticsearch v0.20 and before) to Luc
 [float]
 === Improve error handling when deleting files (STATUS: DONE, v1.4.0.Beta1)
 
-Lucene uses reference counting to prevent files that are still in use from being deleted.  Lucene testing discovered a bug ({JIRA}5919[LUCENE-5919]) when decrementing the ref count on a batch of files. If deleting some of the files resulted in an exception (e.g. due to interference from a virus scanner), the files that had had their ref counts decremented successfully could later have their ref counts deleted again, incorrectly, resulting in files being physically deleted before their time. This is fixed in Lucene 4.10.
+Lucene uses reference counting to prevent files that are still in use from being deleted.  Lucene testing discovered a bug ({JIRA}5919[LUCENE-5919]) when decrementing the ref count on a batch of files. If deleting some of the files resulted in an exception (e.g. due to interference from a virus scanner), the files that had their ref counts decremented successfully could later have their ref counts deleted again, incorrectly, resulting in files being physically deleted before their time. This is fixed in Lucene 4.10.
 
 [float]
 === Using Lucene Checksums to verify shards during snapshot/restore (STATUS:DONE, v1.3.3)

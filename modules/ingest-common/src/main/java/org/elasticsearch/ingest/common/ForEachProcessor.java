@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.elasticsearch.script.ScriptService;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -96,6 +97,13 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+
+        private final ScriptService scriptService;
+
+        Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
+
         @Override
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
                                        Map<String, Object> config) throws Exception {
@@ -107,7 +115,8 @@ public final class ForEachProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, tag, "processor", "Must specify exactly one processor type");
             }
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
-            Processor processor = ConfigurationUtils.readProcessor(factories, entry.getKey(), entry.getValue());
+            Processor processor =
+                ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
             return new ForEachProcessor(tag, field, processor, ignoreMissing);
         }
     }

@@ -35,6 +35,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -43,6 +45,7 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
@@ -450,6 +453,96 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-get-buckets-execute-async
             client.machineLearning().getBucketsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-get-buckets-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetRecords() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-get-records";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a record
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000," +
+                "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::x-pack-ml-get-records-request
+            GetRecordsRequest request = new GetRecordsRequest(jobId); // <1>
+            // end::x-pack-ml-get-records-request
+
+            // tag::x-pack-ml-get-records-desc
+            request.setDescending(true); // <1>
+            // end::x-pack-ml-get-records-desc
+
+            // tag::x-pack-ml-get-records-end
+            request.setEnd("2018-08-21T00:00:00Z"); // <1>
+            // end::x-pack-ml-get-records-end
+
+            // tag::x-pack-ml-get-records-exclude-interim
+            request.setExcludeInterim(true); // <1>
+            // end::x-pack-ml-get-records-exclude-interim
+
+            // tag::x-pack-ml-get-records-page
+            request.setPageParams(new PageParams(100, 200)); // <1>
+            // end::x-pack-ml-get-records-page
+
+            // Set page params back to null so the response contains the record we indexed
+            request.setPageParams(null);
+
+            // tag::x-pack-ml-get-records-record-score
+            request.setRecordScore(75.0); // <1>
+            // end::x-pack-ml-get-records-record-score
+
+            // tag::x-pack-ml-get-records-sort
+            request.setSort("probability"); // <1>
+            // end::x-pack-ml-get-records-sort
+
+            // tag::x-pack-ml-get-records-start
+            request.setStart("2018-08-01T00:00:00Z"); // <1>
+            // end::x-pack-ml-get-records-start
+
+            // tag::x-pack-ml-get-records-execute
+            GetRecordsResponse response = client.machineLearning().getRecords(request, RequestOptions.DEFAULT);
+            // end::x-pack-ml-get-records-execute
+
+            // tag::x-pack-ml-get-records-response
+            long count = response.count(); // <1>
+            List<AnomalyRecord> records = response.records(); // <2>
+            // end::x-pack-ml-get-records-response
+            assertEquals(1, records.size());
+        }
+        {
+            GetRecordsRequest request = new GetRecordsRequest(jobId);
+
+            // tag::x-pack-ml-get-records-listener
+            ActionListener<GetRecordsResponse> listener =
+                    new ActionListener<GetRecordsResponse>() {
+                        @Override
+                        public void onResponse(GetRecordsResponse getRecordsResponse) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::x-pack-ml-get-records-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-records-execute-async
+            client.machineLearning().getRecordsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-records-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

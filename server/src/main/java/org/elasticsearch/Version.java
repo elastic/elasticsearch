@@ -41,7 +41,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
-     * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
+     * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id.
+     * Starting with 7.0.0, we no longer store AA
      */
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
@@ -235,6 +236,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
+                if (rawMajor >= 7) {
+                    throw new IllegalArgumentException("illegal version format - qualifiers are supported until version 7.x");
+                }
                 if (buildStr.startsWith("alpha")) {
                     assert rawMajor >= 5 : "major must be >= 5 but was " + major;
                     build = Integer.parseInt(buildStr.substring(5));

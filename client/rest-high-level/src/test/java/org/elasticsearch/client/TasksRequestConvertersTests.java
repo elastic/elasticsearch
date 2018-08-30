@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TasksRequestConvertersTests extends ESTestCase {
 
-    public static void testCancelTasks() {
+    public void testCancelTasks() {
         CancelTasksRequest request = new CancelTasksRequest();
         Map<String, String> expectedParams = new HashMap<>();
         TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
@@ -51,7 +51,7 @@ public class TasksRequestConvertersTests extends ESTestCase {
         assertThat(httpRequest.getParameters(), equalTo(expectedParams));
     }
 
-    public static void testListTasks() {
+    public void testListTasks() {
         {
             ListTasksRequest request = new ListTasksRequest();
             Map<String, String> expectedParams = new HashMap<>();

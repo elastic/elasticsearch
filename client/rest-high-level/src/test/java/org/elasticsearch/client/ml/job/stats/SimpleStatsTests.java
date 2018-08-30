@@ -28,7 +28,7 @@ public class SimpleStatsTests extends AbstractXContentTestCase<SimpleStats> {
 
     @Override
     protected SimpleStats createTestInstance() {
-        return new SimpleStats(randomDouble(), randomDouble(), randomDouble(), randomDouble());
+        return createRandom();
     }
 
     @Override
@@ -39,5 +39,9 @@ public class SimpleStatsTests extends AbstractXContentTestCase<SimpleStats> {
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public static SimpleStats createRandom() {
+        return new SimpleStats(randomDouble(), randomDouble(), randomDouble(), randomDouble());
     }
 }

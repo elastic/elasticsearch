@@ -30,7 +30,7 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
     @Override
     public ForecastStats createTestInstance() {
         if (randomBoolean()) {
-            return createForecastStats(1, 22);
+            return createRandom(1, 22);
         }
         return new ForecastStats(0, null,null,null,null);
     }
@@ -45,13 +45,13 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
         return false;
     }
 
-    public static ForecastStats createForecastStats(long minTotal, long maxTotal) {
-        return new ForecastStats(randomLongBetween(minTotal, maxTotal), createSimpleStats(),
-            createSimpleStats(), createSimpleStats(), createCountStats());
-    }
-
-    private static SimpleStats createSimpleStats() {
-        return new SimpleStatsTests().createTestInstance();
+    public static ForecastStats createRandom(long minTotal, long maxTotal) {
+        return new ForecastStats(
+            randomLongBetween(minTotal, maxTotal),
+            SimpleStatsTests.createRandom(),
+            SimpleStatsTests.createRandom(),
+            SimpleStatsTests.createRandom(),
+            createCountStats());
     }
 
     private static Map<String, Long> createCountStats() {

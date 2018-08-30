@@ -41,7 +41,7 @@ public class JobStatsTests extends AbstractXContentTestCase<JobStats> {
         DataCounts dataCounts = DataCountsTests.createTestInstance(jobId);
 
         ModelSizeStats modelSizeStats = randomBoolean() ? ModelSizeStatsTests.createRandomized() : null;
-        ForecastStats forecastStats = randomBoolean() ? ForecastStatsTests.createForecastStats(1, 22) : null;
+        ForecastStats forecastStats = randomBoolean() ? ForecastStatsTests.createRandom(1, 22) : null;
         NodeAttributes nodeAttributes = randomBoolean() ? NodeAttributesTests.createRandom() : null;
         String assigmentExplanation = randomBoolean() ? randomAlphaOfLength(10) : null;
         TimeValue openTime = randomBoolean() ? TimeValue.timeValueMillis(randomIntBetween(1, 10000)) : null;

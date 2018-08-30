@@ -49,38 +49,26 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
-    private final Path legacyUnicastHostsFilePath;
 
     public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
         super(settings);
         this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
-        this.legacyUnicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }
 
     private List<String> getHostsList() {
         if (Files.exists(unicastHostsFilePath)) {
-            return readFileContents(unicastHostsFilePath);
-        }
-
-        if (Files.exists(legacyUnicastHostsFilePath)) {
-            deprecationLogger.deprecated("Found dynamic hosts list at [{}] but this path is deprecated. This list should be at [{}] " +
-                "instead. Support for the deprecated path will be removed in future.", legacyUnicastHostsFilePath, unicastHostsFilePath);
-            return readFileContents(legacyUnicastHostsFilePath);
+            try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
+                return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
+                    .collect(Collectors.toList());
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                return Collections.emptyList();
+            }
         }
 
         logger.warn("expected, but did not find, a dynamic hosts list at [{}]", unicastHostsFilePath);
 
         return Collections.emptyList();
-    }
-
-    private List<String> readFileContents(Path path) {
-        try (Stream<String> lines = Files.lines(path)) {
-            return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                .collect(Collectors.toList());
-        } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
-            return Collections.emptyList();
-        }
     }
 
     @Override

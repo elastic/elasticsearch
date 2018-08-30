@@ -4,7 +4,9 @@ import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import groovy.xml.NamespaceBuilder
 import groovy.xml.NamespaceBuilderSupport
-import org.apache.tools.ant.*
+import org.apache.tools.ant.DefaultLogger
+import org.apache.tools.ant.RuntimeConfigurable
+import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
@@ -17,6 +19,7 @@ import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
+import org.gradle.tooling.BuildException
 import org.gradle.util.ConfigureUtil
 
 import javax.inject.Inject

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.RefreshPolicy;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.CharArrays;

@@ -138,6 +138,8 @@ teardown:
 
   - match: { trial_was_started: false }
   - match: { error_message: "Operation failed: Trial was already activated." }
+  - match: { type: "trial" }
+  - match: { trial_status: "trial_already_activated" }
 ---
 "Trial license cannot be basic":
   - do:

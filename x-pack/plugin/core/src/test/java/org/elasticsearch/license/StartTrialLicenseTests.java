@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
@@ -65,8 +66,10 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response2.getStatusLine().getStatusCode());
         assertTrue(body2.contains("\"trial_was_started\":false"));
+        assertTrue(body2.contains("\"trial_status\":\"need_acknowledgement\""));
         assertTrue(body2.contains("\"error_message\":\"Operation failed: Needs acknowledgement.\""));
         assertTrue(body2.contains("\"acknowledged\":false"));
+        assertTrue(body2.contains("\"type\":\"trial\""));
 
         assertBusy(() -> {
             GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
@@ -82,6 +85,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response3.getStatusLine().getStatusCode());
         assertTrue(body3.contains("\"trial_was_started\":true"));
+        assertThat(body3, containsString("\"trial_status\":\"upgraded_to_trial\""));
         assertTrue(body3.contains("\"type\":\"" + type + "\""));
         assertTrue(body3.contains("\"acknowledged\":true"));
 
@@ -105,6 +109,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(403, response5.getStatusLine().getStatusCode());
         assertTrue(body5.contains("\"trial_was_started\":false"));
+        assertThat(body5, containsString("\"trial_status\":\"trial_already_activated\""));
         assertTrue(body5.contains("\"error_message\":\"Operation failed: Trial was already activated.\""));
     }
 

@@ -457,9 +457,9 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                     .array("completion", Token.VALUE_NULL, Token.VALUE_NULL)
                     .endObject()),
             XContentType.JSON));
-        assertThat(doc.docs().size(), equalTo(1));
-        assertNull(doc.docs().get(0).get("completion"));
-        assertNull(doc.docs().get(0).getField("_ignored"));
+        assertThat(nullDoc.docs().size(), equalTo(1));
+        assertNull(nullDoc.docs().get(0).get("completion"));
+        assertNull(nullDoc.docs().get(0).getField("_ignored"));
     }
 
     public void testPrefixQueryType() throws Exception {

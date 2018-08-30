@@ -72,7 +72,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
         processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService));
-        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
+        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService));
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService));
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));

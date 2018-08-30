@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +37,7 @@ import java.util.Set;
  * This is a {@code Map<String, String>} that implements AbstractDiffable so it
  * can be used for cluster state purposes
  */
-public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> implements Map<String, String> {
+public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
 
     private final Map<String, String> innerMap;
 
@@ -48,61 +48,6 @@ public class DiffableStringMap extends AbstractDiffable<DiffableStringMap> imple
     @SuppressWarnings("unchecked")
     DiffableStringMap(final StreamInput in) throws IOException {
         this.innerMap = (Map<String, String>) (Map) in.readMap();
-    }
-
-    @Override
-    public int size() {
-        return innerMap.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return innerMap.isEmpty();
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        return innerMap.containsKey(key);
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-        return innerMap.containsValue(value);
-    }
-
-    @Override
-    public String get(Object key) {
-        return innerMap.get(key);
-    }
-
-    @Override
-    public String put(String key, String value) {
-        return innerMap.put(key, value);
-    }
-
-    @Override
-    public String remove(Object key) {
-        return innerMap.remove(key);
-    }
-
-    @Override
-    public void putAll(Map<? extends String, ? extends String> m) {
-        innerMap.putAll(m);
-    }
-
-    @Override
-    public void clear() {
-        this.innerMap.clear();
-    }
-
-    @Override
-    public Set<String> keySet() {
-        return innerMap.keySet();
-    }
-
-    @Override
-    public Collection<String> values() {
-        return innerMap.values();
     }
 
     @Override

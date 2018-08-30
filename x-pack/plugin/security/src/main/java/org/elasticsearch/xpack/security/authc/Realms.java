@@ -167,12 +167,11 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
-            Settings realmSettings = realmsSettings.get(identifier);
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
-            RealmConfig config = new RealmConfig(identifier, realmSettings, settings, env, threadContext);
+            RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
@@ -277,13 +276,13 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         if (fileRealm != null) {
             realms.add(fileRealm.create(new RealmConfig(
                     new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    Settings.EMPTY, settings, env, threadContext)));
+                    settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
             realms.add(indexRealmFactory.create(new RealmConfig(
                     new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    Settings.EMPTY, settings, env, threadContext)));
+                    settings, env, threadContext)));
         }
     }
 

@@ -439,7 +439,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                 throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configFile());
             }
             if (isSamlRealm(identifier)) {
-                return buildRealm(identifier, realmSettings, env);
+                return buildRealm(identifier, env, settings);
             } else {
                 throw new UserException(ExitCodes.CONFIG, "Realm '" + name + "' is not a SAML realm (is '" + identifier.getType() + "')");
             }
@@ -460,7 +460,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             }
             final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry = saml.get(0);
             terminal.println("Building metadata for SAML realm " + entry.getKey());
-            return buildRealm(entry.getKey(), entry.getValue(), env);
+            return buildRealm(entry.getKey(), env, settings);
         }
     }
 
@@ -468,8 +468,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return spec.options().get(0);
     }
 
-    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Settings settings, Environment env) {
-        return new RealmConfig(identifier, settings, env.settings(), env, new ThreadContext(env.settings()));
+    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings ) {
+        return new RealmConfig(identifier, globalSettings, env, new ThreadContext(globalSettings));
     }
 
     private boolean isSamlRealm(RealmConfig.RealmIdentifier realmIdentifier) {

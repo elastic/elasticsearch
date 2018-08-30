@@ -51,6 +51,11 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     }
 
     @Override
+    public String put(String key, String value) {
+        return innerMap.put(key, value);
+    }
+
+    @Override
     public Set<Entry<String, String>> entrySet() {
         return innerMap.entrySet();
     }

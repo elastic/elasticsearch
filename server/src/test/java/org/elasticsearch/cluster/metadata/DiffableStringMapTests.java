@@ -20,8 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,5 +62,42 @@ public class DiffableStringMapTests extends ESTestCase {
         assertThat(dsm3.get("newkey"), equalTo("yay"));
         assertThat(dsm3.get("baz"), equalTo("eggplant"));
         assertThat(dsm3.get("potato"), equalTo(null));
+    }
+
+    public void testRandomDiffing() {
+        Map<String, String> m = new HashMap<>();
+        m.put("1", "1");
+        m.put("2", "2");
+        m.put("3", "3");
+        DiffableStringMap dsm = new DiffableStringMap(m);
+        DiffableStringMap expected = new DiffableStringMap(m);
+
+        for (int i = 0; i < randomIntBetween(5, 50); i++) {
+            if (randomBoolean() && expected.size() > 1) {
+                expected.remove(randomFrom(expected.keySet()));
+            } else if (randomBoolean()) {
+                expected.put(randomFrom(expected.keySet()), randomAlphaOfLength(4));
+            } else {
+                expected.put(randomAlphaOfLength(2), randomAlphaOfLength(4));
+            }
+            dsm = expected.diff(dsm).apply(dsm);
+        }
+        assertThat(expected, equalTo(dsm));
+    }
+
+    public void testSerialization() throws IOException {
+        Map<String, String> m = new HashMap<>();
+        // Occasionally have an empty map
+        if (frequently()) {
+            m.put("foo", "bar");
+            m.put("baz", "eggplant");
+            m.put("potato", "canon");
+        }
+        DiffableStringMap dsm = new DiffableStringMap(m);
+
+        BytesStreamOutput bso = new BytesStreamOutput();
+        dsm.writeTo(bso);
+        DiffableStringMap deserialized = new DiffableStringMap(bso.bytes().streamInput());
+        assertThat(deserialized, equalTo(dsm));
     }
 }

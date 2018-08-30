@@ -74,6 +74,17 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build'
   // Just syntax examples
   exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/rollup/rollup-getting-started.asciidoc'
+  exclude 'reference/rollup/apis/rollup-job-config.asciidoc'
+  exclude 'reference/rollup/apis/rollup-index-caps.asciidoc'
+  exclude 'reference/rollup/apis/put-job.asciidoc'
+  exclude 'reference/rollup/apis/stop-job.asciidoc'
+  exclude 'reference/rollup/apis/start-job.asciidoc'
+  exclude 'reference/rollup/apis/rollup-search.asciidoc'
+  exclude 'reference/rollup/apis/delete-job.asciidoc'
+  exclude 'reference/rollup/apis/get-job.asciidoc'
+  exclude 'reference/rollup/apis/rollup-caps.asciidoc'
 }
 
 listSnippets.docs = buildRestTests.docs

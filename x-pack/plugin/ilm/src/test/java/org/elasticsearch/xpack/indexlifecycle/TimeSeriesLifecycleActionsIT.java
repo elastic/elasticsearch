@@ -199,9 +199,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private StepKey getStepKey(Map<String, Object> settings) {
-        String phase = (String) settings.get(LifecycleSettings.LIFECYCLE_PHASE);
-        String action = (String) settings.get(LifecycleSettings.LIFECYCLE_ACTION);
-        String step = (String) settings.get(LifecycleSettings.LIFECYCLE_STEP);
+        String phase = (String) settings.get(LifecycleSettings.LIFECYCLE_NEXT_PHASE);
+        String action = (String) settings.get(LifecycleSettings.LIFECYCLE_NEXT_ACTION);
+        String step = (String) settings.get(LifecycleSettings.LIFECYCLE_NEXT_STEP);
         return new StepKey(phase, action, step);
     }
 }

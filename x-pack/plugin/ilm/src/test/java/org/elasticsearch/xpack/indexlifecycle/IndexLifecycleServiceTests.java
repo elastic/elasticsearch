@@ -148,9 +148,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, mockShrinkStep.getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, mockShrinkStep.getAction())
-                .put(LifecycleSettings.LIFECYCLE_STEP, mockShrinkStep.getName()))
+                .put(LifecycleSettings.LIFECYCLE_NEXT_PHASE, mockShrinkStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_NEXT_ACTION, mockShrinkStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_NEXT_STEP, mockShrinkStep.getName()))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
@@ -188,9 +188,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
-                .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName()))
+                .put(LifecycleSettings.LIFECYCLE_NEXT_PHASE, currentStepKey.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_NEXT_ACTION, currentStepKey.getAction())
+                .put(LifecycleSettings.LIFECYCLE_NEXT_STEP, currentStepKey.getName()))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);

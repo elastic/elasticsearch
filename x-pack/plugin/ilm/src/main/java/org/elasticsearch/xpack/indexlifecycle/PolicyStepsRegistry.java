@@ -16,13 +16,17 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
@@ -85,7 +88,7 @@ public class PolicyStepsRegistry {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void update(ClusterState clusterState, Client client, LongSupplier nowSupplier) {
+    public void update(ClusterState clusterState, Client client) {
         final IndexLifecycleMetadata meta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
@@ -122,7 +125,7 @@ public class PolicyStepsRegistry {
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
                         policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
-                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, nowSupplier);
+                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient);
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     final Map<Step.StepKey, Step> stepMapForPolicy = new HashMap<>();
@@ -146,7 +149,7 @@ public class PolicyStepsRegistry {
                 final String existingPhase = (currentSteps == null || currentSteps.size() == 0) ?
                     "_none_" : currentSteps.get(0).getKey().getPhase();
                 // Retrieve the current phase, defaulting to "new" if no phase is set
-                final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE, "new");
+                final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_NEXT_PHASE, "new");
 
                 if (existingPhase.equals(currentPhase) == false) {
                     logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
@@ -219,4 +222,23 @@ public class PolicyStepsRegistry {
         return firstStepMap.get(policy);
     }
 
+    public TimeValue getIndexAgeForPhase(final String policy, final String phase) {
+        // These built in phases should never wait
+        if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phase) || TerminalPolicyStep.TERMINAL_PHASE.equals(phase)) {
+            return TimeValue.ZERO;
+        }
+
+        final LifecyclePolicyMetadata meta = lifecyclePolicyMap.get(policy);
+        if (meta == null) {
+            throw new IllegalArgumentException("no policy found with name \"" + policy + "\"");
+        } else {
+            final Phase retrievedPhase = meta.getPolicy().getPhases().get(phase);
+            if (retrievedPhase == null) {
+                // We don't have that phase registered, proceed right through it
+                return TimeValue.ZERO;
+            } else {
+                return retrievedPhase.getAfter();
+            }
+        }
+    }
 }

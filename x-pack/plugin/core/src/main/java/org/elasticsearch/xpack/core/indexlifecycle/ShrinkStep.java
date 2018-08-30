@@ -45,18 +45,18 @@ public class ShrinkStep extends AsyncActionStep {
                 "] is missing setting[" + LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE);
         }
         String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
-        String phase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(indexMetaData.getSettings());
-        String action = LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(indexMetaData.getSettings());
+        String phase = LifecycleSettings.LIFECYCLE_NEXT_PHASE_SETTING.get(indexMetaData.getSettings());
+        String action = LifecycleSettings.LIFECYCLE_NEXT_ACTION_SETTING.get(indexMetaData.getSettings());
 
         Settings relevantTargetSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, indexMetaData.getNumberOfReplicas())
             .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, lifecycleDate)
             .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
-            .put(LifecycleSettings.LIFECYCLE_PHASE, phase)
-            .put(LifecycleSettings.LIFECYCLE_ACTION, action)
-            .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME) // skip source-index steps
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null) // need to remove the single shard 
+            .put(LifecycleSettings.LIFECYCLE_NEXT_PHASE, phase)
+            .put(LifecycleSettings.LIFECYCLE_NEXT_ACTION, action)
+            .put(LifecycleSettings.LIFECYCLE_NEXT_STEP, ShrunkenIndexCheckStep.NAME) // skip source-index steps
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null) // need to remove the single shard
                                                                                              // allocation so replicas can be allocated
             .build();
         String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
@@ -76,7 +76,7 @@ public class ShrinkStep extends AsyncActionStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), numberOfShards, shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -86,8 +86,8 @@ public class ShrinkStep extends AsyncActionStep {
             return false;
         }
         ShrinkStep other = (ShrinkStep) obj;
-        return super.equals(obj) && 
-                Objects.equals(numberOfShards, other.numberOfShards) && 
+        return super.equals(obj) &&
+                Objects.equals(numberOfShards, other.numberOfShards) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

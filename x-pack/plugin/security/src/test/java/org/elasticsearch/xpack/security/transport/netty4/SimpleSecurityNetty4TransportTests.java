@@ -50,7 +50,6 @@ import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -241,7 +240,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     // TODO: These tests currently rely on plaintext transports
 
     @Override
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
     public void testTcpHandshake() {
     }
 

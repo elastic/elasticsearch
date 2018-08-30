@@ -29,12 +29,15 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -170,10 +173,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
 
         private final boolean hostnameVerificationEnabled;
-        private final String sniServerName;
+        private final DiscoveryNode node;
 
         SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.sniServerName = node.getAttributes().get("sni_server_name");
+            this.node = node;
             this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         }
 
@@ -181,7 +184,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, sniServerName));
+                List<SNIServerName> sniServerNames = new ArrayList<>(2);
+                String configuredServerName = node.getAttributes().get("server_name");
+                sniServerNames.add(new SNIHostName(node.getHostName()));
+                if (configuredServerName != null) {
+                    sniServerNames.add(new SNIHostName(configuredServerName));
+                }
+                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, sniServerNames));
             }
         }
     }
@@ -191,14 +200,14 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
         private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
-        private final String sniServerName;
+        private final List<SNIServerName> serverNames;
 
         private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled,
-                                            String sniServerName) {
+                                            List<SNIServerName> serverNames) {
             this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
-            this.sniServerName = sniServerName;
+            this.serverNames = serverNames;
         }
 
         @Override
@@ -215,11 +224,9 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
 
             sslEngine.setUseClientMode(true);
-            if (sniServerName != null) {
-                SSLParameters sslParameters = sslEngine.getSSLParameters();
-                sslParameters.setServerNames(Collections.singletonList(new SNIHostName(sniServerName)));
-                sslEngine.setSSLParameters(sslParameters);
-            }
+            SSLParameters sslParameters = sslEngine.getSSLParameters();
+            sslParameters.setServerNames(serverNames);
+            sslEngine.setSSLParameters(sslParameters);
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }

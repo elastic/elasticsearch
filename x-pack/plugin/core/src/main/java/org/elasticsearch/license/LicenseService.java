@@ -28,6 +28,9 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -117,7 +120,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;
-        this.scheduler = new SchedulerEngine(clock);
+        this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
@@ -207,38 +210,44 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
 
-            if (newLicense.isProductionLicense()
-                    && XPackSettings.SECURITY_ENABLED.get(settings)
-                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
-                    && isProductionMode(settings, clusterService.localNode())) {
-                // security is on but TLS is not configured we gonna fail the entire request and throw an exception
-                throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
-                        "] license unless TLS is configured or security is disabled");
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
-            } else {
-                clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
-                        AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
-                            @Override
-                            protected PutLicenseResponse newResponse(boolean acknowledged) {
-                                return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
-                            }
-
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                                MetaData currentMetadata = currentState.metaData();
-                                LicensesMetaData licensesMetaData = currentMetadata.custom(LicensesMetaData.TYPE);
-                                Version trialVersion = null;
-                                if (licensesMetaData != null) {
-                                    trialVersion = licensesMetaData.getMostRecentTrialVersion();
-                                }
-                                MetaData.Builder mdBuilder = MetaData.builder(currentMetadata);
-                                mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense, trialVersion));
-                                return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                            }
-                        });
+                if (newLicense.isProductionLicense()
+                    && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
+                    && isProductionMode(settings, clusterService.localNode())) {
+                    // security is on but TLS is not configured we gonna fail the entire request and throw an exception
+                    throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
+                        "] license unless TLS is configured or security is disabled");
+                } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings)
+                    && newLicense.operationMode() != License.OperationMode.PLATINUM
+                    && newLicense.operationMode() != License.OperationMode.TRIAL) {
+                    throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
+                        "] license unless FIPS mode is disabled");
+                }
             }
+
+            clusterService.submitStateUpdateTask("register license [" + newLicense.uid() + "]", new
+                    AckedClusterStateUpdateTask<PutLicenseResponse>(request, listener) {
+                        @Override
+                        protected PutLicenseResponse newResponse(boolean acknowledged) {
+                            return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
+                        }
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                            MetaData currentMetadata = currentState.metaData();
+                            LicensesMetaData licensesMetaData = currentMetadata.custom(LicensesMetaData.TYPE);
+                            Version trialVersion = null;
+                            if (licensesMetaData != null) {
+                                trialVersion = licensesMetaData.getMostRecentTrialVersion();
+                            }
+                            MetaData.Builder mdBuilder = MetaData.builder(currentMetadata);
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense, trialVersion));
+                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                        }
+                    });
         }
     }
 

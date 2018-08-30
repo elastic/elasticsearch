@@ -81,7 +81,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(newLogMergePolicy(random())));
 
         Document document = new Document();
         document.add(new StringField("field", "value1", Field.Store.NO));

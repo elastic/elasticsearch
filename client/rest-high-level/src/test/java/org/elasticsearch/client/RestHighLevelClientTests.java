@@ -60,6 +60,7 @@ import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
+import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
 import org.elasticsearch.index.rankeval.MeanReciprocalRank;
 import org.elasticsearch.index.rankeval.MetricDetail;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -616,7 +617,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(8, namedXContents.size());
+        assertEquals(10, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -630,14 +631,16 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(EvaluationMetric.class));
+        assertEquals(Integer.valueOf(4), categories.get(EvaluationMetric.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(3), categories.get(MetricDetail.class));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(4), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
+        assertTrue(names.contains(ExpectedReciprocalRank.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {
@@ -657,11 +660,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "mtermvectors",
             "put_script",
-            "reindex",
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
-            "snapshot.restore",
             "tasks.get",
             "termvectors",
             "update_by_query"
@@ -683,6 +684,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -752,7 +754,12 @@ public class RestHighLevelClientTests extends ESTestCase {
                             method.isAnnotationPresent(Deprecated.class));
                     } else {
                         //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                        if (apiName.startsWith("xpack.") == false) {
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

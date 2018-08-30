@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -82,11 +81,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = in.readEnum(XContentType.class);
-        } else {
-            xContentType = XContentHelper.xContentType(source);
-        }
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override
@@ -94,9 +89,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeEnum(xContentType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override

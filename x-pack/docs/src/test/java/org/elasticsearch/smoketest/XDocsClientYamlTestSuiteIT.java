@@ -58,8 +58,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion,
-                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**

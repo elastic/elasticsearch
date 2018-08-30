@@ -418,7 +418,7 @@ public final class InternalAutoDateHistogram extends
             return currentResult;
         }
         int roundingIdx = getAppropriateRounding(list.get(0).key, list.get(list.size() - 1).key, currentResult.roundingIdx,
-                bucketInfo.roundingInfos);
+                bucketInfo.roundingInfos, targetBuckets);
         RoundingInfo roundingInfo = bucketInfo.roundingInfos[roundingIdx];
         Rounding rounding = roundingInfo.rounding;
         // merge buckets using the new rounding
@@ -447,7 +447,8 @@ public final class InternalAutoDateHistogram extends
         return new BucketReduceResult(list, roundingInfo, roundingIdx);
     }
 
-    private int getAppropriateRounding(long minKey, long maxKey, int roundingIdx, RoundingInfo[] roundings) {
+    static int getAppropriateRounding(long minKey, long maxKey, int roundingIdx,
+                                              RoundingInfo[] roundings, int targetBuckets) {
         if (roundingIdx == roundings.length - 1) {
             return roundingIdx;
         }
@@ -479,7 +480,7 @@ public final class InternalAutoDateHistogram extends
                 currentKey = currentRounding.nextRoundingValue(currentKey);
             }
             currentRoundingIdx++;
-        } while (requiredBuckets > (targetBuckets * roundings[roundingIdx].getMaximumInnerInterval())
+        } while (requiredBuckets > (targetBuckets * roundings[currentRoundingIdx - 1].getMaximumInnerInterval())
                 && currentRoundingIdx < roundings.length);
         // The loop will increase past the correct rounding index here so we
         // need to subtract one to get the rounding index we need
@@ -509,7 +510,8 @@ public final class InternalAutoDateHistogram extends
                 pipelineAggregators(), getMetaData());
     }
 
-    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult, ReduceContext reduceContext) {
+    private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
+                                                                   ReduceContext reduceContext) {
         List<Bucket> buckets = reducedBucketsResult.buckets;
         RoundingInfo roundingInfo = reducedBucketsResult.roundingInfo;
         int roundingIdx = reducedBucketsResult.roundingIdx;
@@ -539,7 +541,7 @@ public final class InternalAutoDateHistogram extends
                 key = roundingInfo.rounding.round(bucket.key);
             }
             reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
-            sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
+            sameKeyedBuckets.add(new Bucket(Math.round(key), bucket.docCount, format, bucket.aggregations));
         }
         if (sameKeyedBuckets.isEmpty() == false) {
             reduceContext.consumeBucketsAndMaybeBreak(1);

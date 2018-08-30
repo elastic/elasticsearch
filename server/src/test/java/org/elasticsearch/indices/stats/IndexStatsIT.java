@@ -725,7 +725,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
+                .setSettings(Settings.builder().put("index.version.created", Version.V_6_0_0.id))
                 .addMapping("_doc", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 
@@ -1004,6 +1004,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32506")
     public void testFilterCacheStats() throws Exception {
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build()).get());
         indexRandom(true,

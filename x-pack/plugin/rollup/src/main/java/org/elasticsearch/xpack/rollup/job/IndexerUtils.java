@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.job;
 import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -16,19 +15,17 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.rollup.Rollup;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32;
 
 /**
  * These utilities are used to convert agg responses into a set of rollup documents.
@@ -41,12 +38,16 @@ class IndexerUtils {
      * The only entry point in this class.  You hand this method an aggregation and an index
      * pattern, and it returns a list of rolled documents that you can index
      *
-     * @param agg          The aggregation response that you want to rollup
-     * @param rollupIndex  The index that holds rollups for this job
+     * @param agg              The aggregation response that you want to rollup
+     * @param rollupIndex      The index that holds rollups for this job
+     * @param stats            The stats accumulator for this job's task
+     * @param groupConfig      The grouping configuration for the job
+     * @param jobId            The ID for the job
+     * @param isUpgradedDocID  `true` if this job is using the new ID scheme
      * @return             A list of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats,
-                                             GroupConfig groupConfig, String jobId) {
+    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
+                                             GroupConfig groupConfig, String jobId, boolean isUpgradedDocID) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
         return agg.getBuckets().stream().map(b ->{
@@ -57,24 +58,30 @@ class IndexerUtils {
             TreeMap<String, Object> keys = new TreeMap<>(b.getKey());
             List<Aggregation> metrics = b.getAggregations().asList();
 
+            RollupIDGenerator idGenerator;
+            if (isUpgradedDocID) {
+                idGenerator = new RollupIDGenerator.Murmur3(jobId);
+            } else  {
+                idGenerator = new RollupIDGenerator.CRC();
+            }
             Map<String, Object> doc = new HashMap<>(keys.size() + metrics.size());
-            CRC32 docId = processKeys(keys, doc, b.getDocCount(), groupConfig);
-            byte[] vs = jobId.getBytes(StandardCharsets.UTF_8);
-            docId.update(vs, 0, vs.length);
+
+            processKeys(keys, doc, b.getDocCount(), groupConfig, idGenerator);
+            idGenerator.add(jobId);
             processMetrics(metrics, doc);
 
-            doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD, Rollup.ROLLUP_VERSION);
+            doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD,
+                isUpgradedDocID ? Rollup.CURRENT_ROLLUP_VERSION : Rollup.ROLLUP_VERSION_V1);
             doc.put(RollupField.ROLLUP_META + "." + RollupField.ID.getPreferredName(), jobId);
 
-            IndexRequest request = new IndexRequest(rollupIndex, RollupField.TYPE_NAME, String.valueOf(docId.getValue()));
+            IndexRequest request = new IndexRequest(rollupIndex, RollupField.TYPE_NAME, idGenerator.getID());
             request.source(doc);
             return request;
         }).collect(Collectors.toList());
     }
 
-    private static CRC32 processKeys(Map<String, Object> keys, Map<String, Object> doc, long count, GroupConfig groupConfig) {
-        CRC32 docID = new CRC32();
-
+    private static void processKeys(Map<String, Object> keys, Map<String, Object> doc,
+                                     long count, GroupConfig groupConfig, RollupIDGenerator idGenerator) {
         keys.forEach((k, v) -> {
             // Also add a doc count for each key.  This will duplicate data, but makes search easier later
             doc.put(k + "." + RollupField.COUNT_FIELD, count);
@@ -82,38 +89,35 @@ class IndexerUtils {
             if (k.endsWith("." + DateHistogramAggregationBuilder.NAME)) {
                 assert v != null;
                 doc.put(k + "." + RollupField.TIMESTAMP, v);
-                doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHisto().getInterval());
-                doc.put(k  + "." + DateHistoGroupConfig.TIME_ZONE, groupConfig.getDateHisto().getTimeZone().toString());
-                docID.update(Numbers.longToBytes((Long)v), 0, 8);
+                doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHistogram().getInterval());
+                doc.put(k  + "." + DateHistogramGroupConfig.TIME_ZONE, groupConfig.getDateHistogram().getTimeZone());
+                idGenerator.add((Long)v);
             } else if (k.endsWith("." + HistogramAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
-                doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHisto().getInterval());
+                doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHistogram().getInterval());
                 if (v == null) {
-                    // Arbitrary value to update the doc ID with for nulls
-                    docID.update(19);
+                    idGenerator.addNull();
                 } else {
-                    docID.update(Numbers.doubleToBytes((Double) v), 0, 8);
+                    idGenerator.add((Double) v);
                 }
             } else if (k.endsWith("." + TermsAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
                 if (v == null) {
-                    // Arbitrary value to update the doc ID with for nulls
-                    docID.update(19);
+                    idGenerator.addNull();
                 } else if (v instanceof String) {
-                    byte[] vs = ((String) v).getBytes(StandardCharsets.UTF_8);
-                    docID.update(vs, 0, vs.length);
+                    idGenerator.add((String)v);
                 } else if (v instanceof Long) {
-                    docID.update(Numbers.longToBytes((Long)v), 0, 8);
+                    idGenerator.add((Long)v);
                 } else if (v instanceof Double) {
-                    docID.update(Numbers.doubleToBytes((Double)v), 0, 8);
+                    idGenerator.add((Double)v);
                 } else {
-                    throw new RuntimeException("Encountered value of type [" + v.getClass() + "], which was unable to be processed.");
+                    throw new RuntimeException("Encountered value of type ["
+                        + v.getClass() + "], which was unable to be processed.");
                 }
             } else {
                 throw new ElasticsearchException("Could not identify key in agg [" + k + "]");
             }
         });
-        return docID;
     }
 
     private static void processMetrics(List<Aggregation> metrics, Map<String, Object> doc) {

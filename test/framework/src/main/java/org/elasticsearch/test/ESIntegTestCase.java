@@ -176,6 +176,7 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2348,6 +2349,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     final ObjectLongMap<String> globalCheckpoints = indexShard.getInSyncGlobalCheckpoints();
                     for (ShardStats shardStats : indexShardStats) {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                        if (seqNoStats == null) {
+                            continue; // this shard was closed
+                        }
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
                                 seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
@@ -2364,4 +2368,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         });
     }
 
+    public static boolean inFipsJvm() {
+        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+    }
 }

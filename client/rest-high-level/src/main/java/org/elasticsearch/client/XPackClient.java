@@ -41,15 +41,9 @@ import static java.util.Collections.emptySet;
 public final class XPackClient {
 
     private final RestHighLevelClient restHighLevelClient;
-    private final WatcherClient watcherClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-        this.watcherClient = new WatcherClient(restHighLevelClient);
-    }
-
-    public WatcherClient watcher() {
-        return watcherClient;
     }
 
     /**

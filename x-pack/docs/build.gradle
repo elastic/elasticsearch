@@ -685,9 +685,8 @@ setups['sensor_prefab_data'] = '''
                     page_size: 1000
                     groups:
                       date_histogram:
-                        delay: "7d"
                         field: "timestamp"
-                        interval: "1h"
+                        interval: "7d"
                         time_zone: "UTC"
                       terms:
                         fields:

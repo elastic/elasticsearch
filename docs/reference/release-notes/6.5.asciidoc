@@ -1,0 +1,94 @@
+////
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases in
+// ../release-notes.asciidoc. Note that release subheads must be floated and
+// sections cannot be empty.
+// TEMPLATE
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+// coming[n.n.n]
+
+// Also see <<breaking-changes-n.n>>.
+
+// [float]
+// [[breaking-n.n.n]]
+// === Breaking Changes
+
+// [float]
+// [[breaking-java-n.n.n]]
+// === Breaking Java Changes
+
+// [float]
+// [[deprecation-n.n.n]]
+// === Deprecations
+
+// [float]
+// [[feature-n.n.n]]
+// === New Features
+
+// [float]
+// [[enhancement-n.n.n]]
+// === Enhancements
+
+// [float]
+// [[bug-n.n.n]]
+// === Bug Fixes
+
+// [float]
+// [[regression-n.n.n]]
+// === Regressions
+
+// [float]
+// === Known Issues
+////
+
+[[release-notes-6.5.0]]
+== {es} 6.5.0
+
+coming[6.5.0]
+
+Also see <<breaking-changes-6.5>>.
+
+// [float]
+// [[breaking-6.5.0]]
+// === Breaking Changes
+
+[float]
+[[breaking-java-6.5.0]]
+=== Breaking Java Changes
+
+Discovery-Plugins::
+* File-based discovery moved out of the `discovery-file` plugin and into core
+Elasticsearch {pull}33241[#33241] (issue: {issue}33030[#33030])
+
+// [float]
+// [[deprecation-6.5.0]]
+// === Deprecations
+
+Discovery-Plugins::
+* The `discovery-file` plugin is deprecated. Additionally, the expected
+location of the hosts file has moved from
+`$ES_PATH_CONF/discovery-file/unicast_hosts.txt` to
+`$ES_PATH_CONF/unicast_hosts.txt`, and the former location is deprecated.
+{pull}33241[#33241] (issue: {issue}33030[#33030])
+
+// [float]
+// [[feature-6.5.0]]
+// === New Features
+
+// [float]
+// [[enhancement-6.5.0]]
+// === Enhancements
+
+// [float]
+// [[bug-6.5.0]]
+// === Bug Fixes
+
+// [float]
+// [[regression-6.5.0]]
+// === Regressions
+
+// [float]
+// === Known Issues

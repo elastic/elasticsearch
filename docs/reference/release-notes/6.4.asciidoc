@@ -1,39 +1,3 @@
-////
-// To add a release, copy and paste the following text,  uncomment the relevant
-// sections, and add a link to the new section in the list of releases at the
-// top of the page. Note that release subheads must be floated and sections
-// cannot be empty.
-// TEMPLATE
-
-// [[release-notes-n.n.n]]
-// == {es} n.n.n
-
-//[float]
-[[breaking-n.n.n]]
-//=== Breaking Changes
-
-//[float]
-//=== Breaking Java Changes
-
-//[float]
-//=== Deprecations
-
-//[float]
-//=== New Features
-
-//[float]
-//=== Enhancements
-
-//[float]
-//=== Bug Fixes
-
-//[float]
-//=== Regressions
-
-//[float]
-//=== Known Issues
-////
-
 [[release-notes-6.4.0]]
 == {es} version 6.4.0
 

@@ -251,7 +251,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     //package private to allow overriding it in tests
     long currentMemoryUsage() {
-        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+        try {
+            return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
+        } catch (IllegalArgumentException ex) {
+            // This exception can happen (rarely) due to a race condition in the JVM when determining usage of memory pools. We do not want
+            // to fail requests because of this and thus return zero memory usage in this case. While we could also return the most
+            // recently determined memory usage, we would overestimate memory usage immediately after a garbage collection event.
+            assert ex.getMessage().matches("committed = \\d+ should be < max = \\d+");
+            logger.info("Cannot determine current memory usage due to JDK-8207200.", ex);
+            return 0;
+        }
     }
 
     /**

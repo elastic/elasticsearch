@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +46,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  */
 public class RoundTripTests extends ESTestCase {
     public void testReindexRequest() throws IOException {
-        ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
+        ReindexRequest reindex = new ReindexRequest();
         randomRequest(reindex);
         reindex.getDestination().version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, 12L, 1L, 123124L, 12L));
         reindex.getDestination().index("test");

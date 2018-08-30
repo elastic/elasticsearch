@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

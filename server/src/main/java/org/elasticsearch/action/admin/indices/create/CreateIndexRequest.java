@@ -393,8 +393,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             } else if (ALIASES.match(name, deprecationHandler)) {
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
-            } else {
-                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         if (!found) {

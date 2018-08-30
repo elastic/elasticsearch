@@ -2631,7 +2631,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
-        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        Request request = MigrationRequestConverters.getMigrationAssistance(upgradeInfoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());

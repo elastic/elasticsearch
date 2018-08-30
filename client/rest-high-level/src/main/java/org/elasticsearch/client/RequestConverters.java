@@ -412,17 +412,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
-        EndpointBuilder endpointBuilder = new EndpointBuilder()
-            .addPathPartAsIs("_xpack/migration/assistance")
-            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
-        String endpoint = endpointBuilder.build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
-        return request;
-    }
-
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));

@@ -85,10 +85,7 @@ When the operation succeeds, you receive the following results:
   "last_finalized_bucket_end": 1455234900000
 }
 ----
-
-////
-TESTRESPONSE[s/"last_finalized_bucket_end": 1455234900000/"last_finalized_bucket_end": $body.last_finalized_bucket_end/]
-////
+//TESTRESPONSE[s/"last_finalized_bucket_end": 1455234900000/"last_finalized_bucket_end": $body.last_finalized_bucket_end/]
 
 The `last_finalized_bucket_end` provides the timestamp (in
 milliseconds-since-the-epoch) of the end of the last bucket that was processed.
@@ -115,4 +112,4 @@ When the operation succeeds, you receive the following results:
   "last_finalized_bucket_end": 1514804400000
 }
 ----
-
+// TESTRESPONSE

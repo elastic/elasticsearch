@@ -82,7 +82,7 @@ The API returns the following results:
   ]
 }
 ----
-
+// TESTRESPONSE
 
 For more information about these properties, see
 <<ml-event-resource,Scheduled Event Resources>>.

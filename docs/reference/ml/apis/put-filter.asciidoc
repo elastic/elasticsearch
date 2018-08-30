@@ -67,4 +67,4 @@ When the filter is created, you receive the following response:
   "items": ["*.google.com", "wikipedia.org"]
 }
 ----
-
+// TESTRESPONSE

@@ -53,3 +53,4 @@ When the snapshot is deleted, you receive the following results:
   "acknowledged": true
 }
 ----
+// TESTRESPONSE

@@ -50,4 +50,4 @@ When the calendar is deleted, you receive the following results:
   "acknowledged": true
 }
 ----
-
+// TESTRESPONSE

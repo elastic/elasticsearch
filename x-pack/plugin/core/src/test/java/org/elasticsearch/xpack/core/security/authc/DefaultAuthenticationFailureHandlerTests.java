@@ -115,7 +115,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme));
         final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
-        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), new Exception("other error"),
+        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), null,
                 new ThreadContext(Settings.builder().build()));
 
         assertThat(ese, is(notNullValue()));

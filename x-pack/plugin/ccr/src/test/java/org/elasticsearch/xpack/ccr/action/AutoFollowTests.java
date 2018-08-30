@@ -182,7 +182,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
 
     private void deleteAutoFollowPatternSetting() {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setRemoteClusterAlias("_local_");
+        request.setLeaderClusterAlias("_local_");
         assertTrue(client().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

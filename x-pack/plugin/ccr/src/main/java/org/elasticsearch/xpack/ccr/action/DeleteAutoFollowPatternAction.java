@@ -33,35 +33,35 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String remoteClusterAlias;
+        private String leaderClusterAlias;
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (remoteClusterAlias == null) {
-                validationException = addValidationError("remoteClusterAlias is missing", validationException);
+            if (leaderClusterAlias == null) {
+                validationException = addValidationError("leaderClusterAlias is missing", validationException);
             }
             return validationException;
         }
 
-        public String getRemoteClusterAlias() {
-            return remoteClusterAlias;
+        public String getLeaderClusterAlias() {
+            return leaderClusterAlias;
         }
 
-        public void setRemoteClusterAlias(String remoteClusterAlias) {
-            this.remoteClusterAlias = remoteClusterAlias;
+        public void setLeaderClusterAlias(String leaderClusterAlias) {
+            this.leaderClusterAlias = leaderClusterAlias;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            remoteClusterAlias = in.readString();
+            leaderClusterAlias = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(remoteClusterAlias);
+            out.writeString(leaderClusterAlias);
         }
 
         @Override
@@ -69,12 +69,12 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(remoteClusterAlias, request.remoteClusterAlias);
+            return Objects.equals(leaderClusterAlias, request.leaderClusterAlias);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteClusterAlias);
+            return Objects.hash(leaderClusterAlias);
         }
     }
 

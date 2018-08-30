@@ -17,7 +17,7 @@ public class DeleteAutoFollowPatternRequestTests extends AbstractStreamableTestC
     @Override
     protected DeleteAutoFollowPatternAction.Request createTestInstance() {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setRemoteClusterAlias(randomAlphaOfLength(4));
+        request.setLeaderClusterAlias(randomAlphaOfLength(4));
         return request;
     }
 }

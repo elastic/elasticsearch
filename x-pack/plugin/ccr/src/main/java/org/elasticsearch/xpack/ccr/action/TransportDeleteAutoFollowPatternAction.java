@@ -22,12 +22,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class TransportDeleteAutoFollowPatternAction extends
     TransportMasterNodeAction<DeleteAutoFollowPatternAction.Request, AcknowledgedResponse> {
@@ -54,7 +53,7 @@ public class TransportDeleteAutoFollowPatternAction extends
     protected void masterOperation(DeleteAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
-        clusterService.submitStateUpdateTask("put_auto_follow_pattern-" + request.getRemoteClusterAlias(),
+        clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
             new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
             @Override
@@ -72,30 +71,23 @@ public class TransportDeleteAutoFollowPatternAction extends
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
         AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null) {
-            throw new ResourceNotFoundException("auto follow patterns for [{}] cluster alias are missing",
-                request.getRemoteClusterAlias());
+            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found",
+                request.getLeaderClusterAlias());
         }
-        Map<String, AutoFollowMetadata.AutoFollowPattern> configurations = currentAutoFollowMetadata.getPatterns();
-        Set<String> toRemove = new HashSet<>();
-        for (String configurationKey : configurations.keySet()) {
-            if (request.getRemoteClusterAlias().equals(configurationKey)) {
-                toRemove.add(configurationKey);
-            }
-        }
-        if (toRemove.isEmpty()) {
-            throw new ResourceNotFoundException("auto follow patterns for [{}] cluster alias are missing",
-                request.getRemoteClusterAlias());
+        Map<String, AutoFollowPattern> patterns = currentAutoFollowMetadata.getPatterns();
+        AutoFollowPattern autoFollowPatternToRemove = patterns.get(request.getLeaderClusterAlias());
+        if (autoFollowPatternToRemove == null) {
+            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found",
+                request.getLeaderClusterAlias());
         }
 
-        final Map<String, AutoFollowMetadata.AutoFollowPattern> configurationsCopy = new HashMap<>(configurations);
+        final Map<String, AutoFollowPattern> patternsCopy = new HashMap<>(patterns);
         final Map<String, List<String>> followedLeaderIndexUUIDSCopy =
             new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-        for (String key : toRemove) {
-            configurationsCopy.remove(key);
-            followedLeaderIndexUUIDSCopy.remove(key);
-        }
+        patternsCopy.remove(request.getLeaderClusterAlias());
+        followedLeaderIndexUUIDSCopy.remove(request.getLeaderClusterAlias());
 
-        AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(configurationsCopy, followedLeaderIndexUUIDSCopy);
+        AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(patternsCopy, followedLeaderIndexUUIDSCopy);
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)

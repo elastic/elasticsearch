@@ -21,7 +21,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     public RestDeleteAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/_auto_follow/{remote_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/_auto_follow/{leader_cluster_alias}", this);
     }
 
     @Override
@@ -32,7 +32,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request();
-        request.setRemoteClusterAlias(restRequest.param("remote_cluster_alias"));
+        request.setLeaderClusterAlias(restRequest.param("leader_cluster_alias"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

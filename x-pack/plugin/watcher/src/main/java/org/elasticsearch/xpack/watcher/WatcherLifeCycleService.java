@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -22,13 +21,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -45,7 +47,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             Setting.boolSetting("xpack.watcher.require_manual_start", false, Property.NodeScope);
 
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
-    private final AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
+    private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private final boolean requireManualStart;
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
@@ -144,15 +146,20 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        List<String> currentAllocationIds = localShards.stream()
-            .map(ShardRouting::allocationId)
-            .map(AllocationId::getId)
-            .sorted()
+        // also check if non local shards have changed, as loosing a shard on a
+        // remote node or adding a replica on a remote node needs to trigger a reload too
+        Set<ShardId> localShardIds = localShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet());
+        List<ShardRouting> allShards = event.state().routingTable().index(watchIndex).shardsWithState(STARTED);
+        allShards.addAll(event.state().routingTable().index(watchIndex).shardsWithState(RELOCATING));
+        List<ShardRouting> localAffectedShardRoutings = allShards.stream()
+            .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
+            // shardrouting is not comparable, so we need some order mechanism
+            .sorted(Comparator.comparing(ShardRouting::hashCode))
             .collect(Collectors.toList());
 
-        if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
+        if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
-                previousAllocationIds.set(Collections.unmodifiableList(currentAllocationIds));
+                previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
                 } else if (state.get() == WatcherState.STOPPED) {
@@ -187,13 +194,13 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
      * @return true, if existing allocation ids were cleaned out, false otherwise
      */
     private boolean clearAllocationIds() {
-        List<String> previousIds = previousAllocationIds.getAndSet(Collections.emptyList());
-        return previousIds.equals(Collections.emptyList()) == false;
+        List<ShardRouting> previousIds = previousShardRoutings.getAndSet(Collections.emptyList());
+        return previousIds.isEmpty() == false;
     }
 
     // for testing purposes only
-    List<String> allocationIds() {
-        return previousAllocationIds.get();
+    List<ShardRouting> shardRoutings() {
+        return previousShardRoutings.get();
     }
 
     public WatcherState getState() {

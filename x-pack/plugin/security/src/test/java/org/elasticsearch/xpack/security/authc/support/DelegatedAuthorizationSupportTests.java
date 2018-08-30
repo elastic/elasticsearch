@@ -86,7 +86,23 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings), license)
         );
-        assertThat(ex.getMessage(), equalTo("configured authorizing realm [no-such-realm] does not exist (or is not enabled)"));
+        assertThat(ex.getMessage(), equalTo("configured authorization realm [no-such-realm] does not exist (or is not enabled)"));
+    }
+
+    public void testDelegationChainsAreRejected() {
+        final XPackLicenseState license = getLicenseState(true);
+        final Settings settings = Settings.builder()
+            .putList("authorization_realms", "lookup-1", "lookup-2", "lookup-3")
+            .build();
+        globalSettings = Settings.builder()
+            .put(globalSettings)
+            .putList("xpack.security.authc.realms.lookup-2.authorization_realms", "lookup-1")
+            .build();
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            new DelegatedAuthorizationSupport(realms, buildRealmConfig("realm1", settings), license)
+        );
+        assertThat(ex.getMessage(),
+            equalTo("cannot use realm [mock/lookup-2] as an authorization realm - it is already delegating authorization to [[lookup-1]]"));
     }
 
     public void testMatchInDelegationList() throws Exception {

@@ -10,17 +10,20 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
@@ -40,10 +43,11 @@ public class DelegatedAuthorizationSupport {
 
     /**
      * Resolves the {@link DelegatedAuthorizationSettings#AUTHZ_REALMS} setting from {@code config} and calls
-     * {@link #DelegatedAuthorizationSupport(Iterable, List, ThreadContext, XPackLicenseState)}
+     * {@link #DelegatedAuthorizationSupport(Iterable, List, Settings, ThreadContext, XPackLicenseState)}
      */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
-        this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext(), licenseState);
+        this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.globalSettings(), config.threadContext(),
+            licenseState);
     }
 
     /**
@@ -51,11 +55,13 @@ public class DelegatedAuthorizationSupport {
      * {@code allRealms}.
      * @throws IllegalArgumentException if one of the specified realms does not exist
      */
-    protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, ThreadContext threadContext,
-                                            XPackLicenseState licenseState) {
-       this.lookup = new RealmUserLookup(resolveRealms(allRealms, lookupRealms), threadContext);
-       this.logger = Loggers.getLogger(getClass());
-       this.licenseState = licenseState;
+    protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, Settings settings,
+                                            ThreadContext threadContext, XPackLicenseState licenseState) {
+        final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
+        checkForRealmChains(resolvedLookupRealms, settings);
+        this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
+        this.logger = Loggers.getLogger(getClass());
+        this.licenseState = licenseState;
     }
 
     /**
@@ -108,13 +114,33 @@ public class DelegatedAuthorizationSupport {
         return result;
     }
 
+    /**
+     * Checks for (and rejects) chains of delegation in the provided realms.
+     * A chain occurs when "realmA" delegates authorization to "realmB", and realmB also delegates authorization (to any realm).
+     * Since "realmB" does not handle its own authorization, it is not a valid target for delegated authorization.
+     * @param delegatedRealms The list of realms that are going to be used for authorization. If is an error if any of these realms are
+     *                        also configured to delegate their authorization.
+     * @throws IllegalArgumentException if a chain is detected
+     */
+    private void checkForRealmChains(Iterable<Realm> delegatedRealms, Settings globalSettings) {
+        final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
+        for (Realm realm : delegatedRealms) {
+            final Settings realmSettings = settingsByRealm.get(realm.name());
+            if (realmSettings != null && DelegatedAuthorizationSettings.AUTHZ_REALMS.exists(realmSettings)) {
+                throw new IllegalArgumentException("cannot use realm [" + realm +
+                    "] as an authorization realm - it is already delegating authorization to [" +
+                    DelegatedAuthorizationSettings.AUTHZ_REALMS.get(realmSettings) + "]");
+            }
+        }
+    }
+
     private Realm findRealm(String name, Iterable<? extends Realm> allRealms) {
         for (Realm realm : allRealms) {
             if (name.equals(realm.name())) {
                 return realm;
             }
         }
-        throw new IllegalArgumentException("configured authorizing realm [" + name + "] does not exist (or is not enabled)");
+        throw new IllegalArgumentException("configured authorization realm [" + name + "] does not exist (or is not enabled)");
     }
 
 }

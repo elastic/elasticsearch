@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -17,7 +18,9 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,29 @@ import java.util.Set;
 public class RollupJobIdentifierUtils {
 
     private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
+
+    public static final Map<String, Integer> CALENDAR_ORDERING;
+
+    static {
+        Map<String, Integer> dateFieldUnits = new HashMap<>(16);
+        dateFieldUnits.put("year", 8);
+        dateFieldUnits.put("1y", 8);
+        dateFieldUnits.put("quarter", 7);
+        dateFieldUnits.put("1q", 7);
+        dateFieldUnits.put("month", 6);
+        dateFieldUnits.put("1M", 6);
+        dateFieldUnits.put("week", 5);
+        dateFieldUnits.put("1w", 5);
+        dateFieldUnits.put("day", 4);
+        dateFieldUnits.put("1d", 4);
+        dateFieldUnits.put("hour", 3);
+        dateFieldUnits.put("1h", 3);
+        dateFieldUnits.put("minute", 2);
+        dateFieldUnits.put("1m", 2);
+        dateFieldUnits.put("second", 1);
+        dateFieldUnits.put("1s", 1);
+        CALENDAR_ORDERING = Collections.unmodifiableMap(dateFieldUnits);
+    }
 
     /**
      * Given the aggregation tree and a list of available job capabilities, this method will return a set
@@ -93,8 +119,9 @@ public class RollupJobIdentifierUtils {
             if (fieldCaps != null) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        TimeValue interval = TimeValue.parseTimeValue((String)agg.get(RollupField.INTERVAL), "date_histogram.interval");
-                        String thisTimezone = (String) agg.get(DateHistogramGroupConfig.TIME_ZONE);
+                        DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
+
+                        String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
                         String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
 
                         // Ensure we are working on the same timezone
@@ -102,17 +129,20 @@ public class RollupJobIdentifierUtils {
                             continue;
                         }
                         if (source.dateHistogramInterval() != null) {
-                            TimeValue sourceInterval = TimeValue.parseTimeValue(source.dateHistogramInterval().toString(),
-                                    "source.date_histogram.interval");
-                            //TODO should be divisor of interval
-                            if (interval.compareTo(sourceInterval) <= 0) {
+                            // Check if both are calendar and validate if they are.
+                            // If not, check if both are fixed and validate
+                            if (validateCalendarInterval(source.dateHistogramInterval(), interval)) {
+                                localCaps.add(cap);
+                            } else if (validateFixedInterval(source.dateHistogramInterval(), interval)) {
                                 localCaps.add(cap);
                             }
                         } else {
-                            if (interval.getMillis() <= source.interval()) {
+                            // check if config is fixed and validate if it is
+                            if (validateFixedInterval(source.interval(), interval)) {
                                 localCaps.add(cap);
                             }
                         }
+                        // not a candidate if we get here
                         break;
                     }
                 }
@@ -133,6 +163,55 @@ public class RollupJobIdentifierUtils {
         }
     }
 
+    private static boolean isCalendarInterval(DateHistogramInterval interval) {
+        return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
+    }
+
+    static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
+                                                    DateHistogramInterval configInterval) {
+        // Both must be calendar intervals
+        if (isCalendarInterval(requestInterval) == false || isCalendarInterval(configInterval) == false) {
+            return false;
+        }
+
+        // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
+        // relative orders between the calendar units
+        int requestOrder = CALENDAR_ORDERING.getOrDefault(requestInterval.toString(), Integer.MAX_VALUE);
+        int configOrder = CALENDAR_ORDERING.getOrDefault(configInterval.toString(), Integer.MAX_VALUE);
+
+        // All calendar units are multiples naturally, so we just care about gte
+        return requestOrder >= configOrder;
+    }
+
+    static boolean validateFixedInterval(DateHistogramInterval requestInterval,
+                                                 DateHistogramInterval configInterval) {
+        // Neither can be calendar intervals
+        if (isCalendarInterval(requestInterval) || isCalendarInterval(configInterval)) {
+            return false;
+        }
+
+        // Both are fixed, good to conver to millis now
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
+            "date_histo.config.interval").getMillis();
+        long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(),
+            "date_histo.request.interval").getMillis();
+
+        // Must be a multiple and gte the config
+        return requestIntervalMillis >= configIntervalMillis && requestIntervalMillis % configIntervalMillis == 0;
+    }
+
+    static boolean validateFixedInterval(long requestInterval, DateHistogramInterval configInterval) {
+        // config must not be a calendar interval
+        if (isCalendarInterval(configInterval)) {
+            return false;
+        }
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
+            "date_histo.config.interval").getMillis();
+
+        // Must be a multiple and gte the config
+        return requestInterval >= configIntervalMillis && requestInterval % configIntervalMillis == 0;
+    }
+
     /**
      * Find the set of histo's with the largest interval
      */
@@ -144,8 +223,8 @@ public class RollupJobIdentifierUtils {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         Long interval = (long)agg.get(RollupField.INTERVAL);
-                        // TODO should be divisor of interval
-                        if (interval <= source.interval()) {
+                        // query interval must be gte the configured interval, and a whole multiple
+                        if (interval <= source.interval() && source.interval() % interval == 0) {
                             localCaps.add(cap);
                         }
                         break;
@@ -155,8 +234,8 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName() + "] agg on field [" +
-                    source.field() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName()
+                + "] agg on field [" + source.field() + "] which also satisfies all requirements of query.");
         }
 
         // We are a leaf, save our best caps

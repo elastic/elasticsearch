@@ -35,7 +35,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
@@ -50,8 +52,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private TriggerEngine createEngine() {
-        return new TickerScheduleTriggerEngine(Settings.EMPTY,
-                mock(ScheduleRegistry.class), clock);
+        Settings settings = Settings.EMPTY;
+        // having a low value here speeds up the tests tremendously, we still want to run with the defaults every now and then
+        if (usually()) {
+            settings = Settings.builder().put(TickerScheduleTriggerEngine.TICKER_INTERVAL_SETTING.getKey(), "10ms").build();
+        }
+        return new TickerScheduleTriggerEngine(settings, mock(ScheduleRegistry.class), clock);
     }
 
     private void advanceClockIfNeeded(DateTime newCurrentDateTime) {
@@ -102,6 +108,40 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
         engine.stop();
         assertThat(bits.cardinality(), is(count));
+    }
+
+    public void testStartClearsExistingSchedules() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        List<String> firedWatchIds = new ArrayList<>();
+        engine.register(new Consumer<Iterable<TriggerEvent>>() {
+            @Override
+            public void accept(Iterable<TriggerEvent> events) {
+                for (TriggerEvent event : events) {
+                    firedWatchIds.add(event.jobName());
+                }
+                latch.countDown();
+            }
+        });
+
+        int count = randomIntBetween(2, 5);
+        List<Watch> watches = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            watches.add(createWatch(String.valueOf(i), interval("1s")));
+        }
+        engine.start(watches);
+
+        watches.clear();
+        for (int i = 0; i < count; i++) {
+            watches.add(createWatch("another_id" + i, interval("1s")));
+        }
+        engine.start(watches);
+
+        advanceClockIfNeeded(new DateTime(clock.millis(), UTC).plusMillis(1100));
+        if (!latch.await(3 * count, TimeUnit.SECONDS)) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        assertThat(firedWatchIds, everyItem(startsWith("another_id")));
     }
 
     public void testAddHourly() throws Exception {

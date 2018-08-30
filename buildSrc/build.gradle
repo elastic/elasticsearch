@@ -176,7 +176,6 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

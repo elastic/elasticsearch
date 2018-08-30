@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -53,7 +54,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedFirstStep = new MockStep(MOCK_STEP_KEY, null);
         Map<String, Step> firstStepMap = Collections.singletonMap(policyName, expectedFirstStep);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, null);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, null, NamedXContentRegistry.EMPTY);
         Step actualFirstStep = registry.getFirstStep(policyName);
         assertThat(actualFirstStep, sameInstance(expectedFirstStep));
     }
@@ -62,7 +63,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedFirstStep = new MockStep(MOCK_STEP_KEY, null);
         Map<String, Step> firstStepMap = Collections.singletonMap(policyName, expectedFirstStep);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, null);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, firstStepMap, null, null, NamedXContentRegistry.EMPTY);
         Step actualFirstStep = registry.getFirstStep(policyName + "unknown");
         assertNull(actualFirstStep);
     }
@@ -71,7 +72,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY);
         Step actualStep = registry.getStep(index, MOCK_STEP_KEY);
         assertThat(actualStep, sameInstance(expectedStep));
     }
@@ -81,13 +82,13 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step expectedStep = new ErrorStep(errorStepKey);
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY);
         Step actualStep = registry.getStep(index, errorStepKey);
         assertThat(actualStep, equalTo(expectedStep));
     }
 
     public void testGetStepUnknownPolicy() {
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, Collections.emptyMap());
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, Collections.emptyMap(), NamedXContentRegistry.EMPTY);
         assertNull(registry.getStep(new Index("test", "uuid"), MOCK_STEP_KEY));
     }
 
@@ -95,7 +96,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step expectedStep = new MockStep(MOCK_STEP_KEY, null);
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY);
         Step.StepKey unknownStepKey = new Step.StepKey(MOCK_STEP_KEY.getPhase(),
             MOCK_STEP_KEY.getAction(),MOCK_STEP_KEY.getName() + "not");
         assertNull(registry.getStep(index, unknownStepKey));
@@ -145,7 +146,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
 
         // start with empty registry
-        PolicyStepsRegistry registry = new PolicyStepsRegistry();
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         // add new policy
         registry.update(currentState, client, () -> 0L);
@@ -191,7 +192,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertTrue(registry.getStepMap().isEmpty());
     }
 
-    public void testUpdateChangedPolicy() {
+    public void testUpdateChangedPolicy() throws Exception {
         Client client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLengthBetween(5, 10);
@@ -216,7 +217,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
-        PolicyStepsRegistry registry = new PolicyStepsRegistry();
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
         // add new policy
         registry.update(currentState, client, () -> 0L);
 
@@ -285,7 +286,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
 
         // start with empty registry
-        PolicyStepsRegistry registry = new PolicyStepsRegistry();
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         // add new policy
         registry.update(currentState, client, () -> 0L);

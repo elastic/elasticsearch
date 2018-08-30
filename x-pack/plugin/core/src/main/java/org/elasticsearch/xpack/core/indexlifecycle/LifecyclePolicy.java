@@ -90,7 +90,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            a {@link Map} of {@link Phase}s which make up this
      *            {@link LifecyclePolicy}.
      */
-    LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
+    public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
         this.name = name;
         this.phases = phases;
         this.type = type;

@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.protocol.xpack.security.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.ietf.jgss.GSSException;
 
 import java.nio.charset.StandardCharsets;

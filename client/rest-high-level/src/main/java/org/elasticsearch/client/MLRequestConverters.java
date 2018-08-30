@@ -24,13 +24,13 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
-import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
 
 import java.io.IOException;
 

@@ -381,28 +381,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return new FieldNamesTermsEnum(in.iterator());
         }
 
-        // we don't support field statistics (since we filter out terms)
-        // but this isn't really a big deal: _field_names is not used for ranking.
-
-        @Override
-        public int getDocCount() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public long getSumDocFreq() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public long getSumTotalTermFreq() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public long size() throws IOException {
-            return -1;
-        }
+        // We filter out terms but we don't recompute field statistics since it is not cheap.
+        // This isn't really a big deal: _field_names is not used for ranking.
     }
 
     /**

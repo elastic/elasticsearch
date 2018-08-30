@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+    id 'elasticsearch.build'
+}
+
+//dependencyLicenses.enabled = false
+//dependenciesInfo.enabled = false
+//forbiddenApisMain.enabled = false
+//forbiddenApisTest.enabled = false
+//jarHell.enabled = false
+//thirdPartyAudit.enabled = false
+
+ext.licenseFile = file("LICENSE")
+ext.noticeFile = file("NOTICE")
+
+dependencies {
+    compile "junit:junit:${versions.junit}"
+}

@@ -134,3 +134,4 @@ with the updated values:
   }
 }
 ----
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

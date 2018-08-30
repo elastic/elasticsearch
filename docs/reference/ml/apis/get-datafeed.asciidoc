@@ -90,3 +90,4 @@ The API returns the following results:
   ]
 }
 ----
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

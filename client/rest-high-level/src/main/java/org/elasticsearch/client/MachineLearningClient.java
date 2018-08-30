@@ -19,18 +19,20 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.protocol.xpack.ml.CloseJobRequest;
-import org.elasticsearch.protocol.xpack.ml.CloseJobResponse;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobRequest;
-import org.elasticsearch.protocol.xpack.ml.DeleteJobResponse;
-import org.elasticsearch.protocol.xpack.ml.GetBucketsRequest;
-import org.elasticsearch.protocol.xpack.ml.GetBucketsResponse;
-import org.elasticsearch.protocol.xpack.ml.GetJobRequest;
-import org.elasticsearch.protocol.xpack.ml.GetJobResponse;
-import org.elasticsearch.protocol.xpack.ml.OpenJobRequest;
-import org.elasticsearch.protocol.xpack.ml.OpenJobResponse;
-import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
-import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutJobResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,9 +58,9 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">ML PUT job documentation</a>
      *
-     * @param request The PutJobRequest containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
+     * @param request The PutJobRequest containing the {@link org.elasticsearch.client.ml.job.config.Job} settings
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return PutJobResponse with enclosed {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} object
+     * @return PutJobResponse with enclosed {@link org.elasticsearch.client.ml.job.config.Job} object
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutJobResponse putJob(PutJobRequest request, RequestOptions options) throws IOException {
@@ -75,7 +77,7 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">ML PUT job documentation</a>
      *
-     * @param request  The request containing the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} settings
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.job.config.Job} settings
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -98,7 +100,7 @@ public final class MachineLearningClient {
      * @param request {@link GetJobRequest} Request containing a list of jobId(s) and additional options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetJobResponse} response object containing
-     * the {@link org.elasticsearch.protocol.xpack.ml.job.config.Job} objects and the number of jobs found
+     * the {@link org.elasticsearch.client.ml.job.config.Job} objects and the number of jobs found
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetJobResponse getJob(GetJobRequest request, RequestOptions options) throws IOException {
@@ -285,4 +287,40 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
      }
+
+    /**
+     * Gets the records for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html">ML GET records documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetRecordsResponse getRecords(GetRecordsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getRecords,
+                options,
+                GetRecordsResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the records for a Machine Learning Job, notifies listener once the requested records are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html">ML GET records documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getRecordsAsync(GetRecordsRequest request, RequestOptions options, ActionListener<GetRecordsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getRecords,
+                options,
+                GetRecordsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
 }

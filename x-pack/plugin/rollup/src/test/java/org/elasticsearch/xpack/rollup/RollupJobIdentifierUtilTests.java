@@ -61,6 +61,32 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         assertThat(bestCaps.size(), equalTo(1));
     }
 
+    public void testBiggerButCompatibleFixedInterval() {
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("100s")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
+        Set<RollupJobCaps> caps = singletonSet(cap);
+
+        DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
+            .dateHistogramInterval(new DateHistogramInterval("1000s"));
+
+        Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
+        assertThat(bestCaps.size(), equalTo(1));
+    }
+
+    public void testBiggerButCompatibleFixedMillisInterval() {
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("100ms")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
+        Set<RollupJobCaps> caps = singletonSet(cap);
+
+        DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
+            .interval(1000);
+
+        Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
+        assertThat(bestCaps.size(), equalTo(1));
+    }
+
     public void testIncompatibleInterval() {
         final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d")));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
@@ -73,6 +99,20 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         RuntimeException e = expectThrows(RuntimeException.class, () -> RollupJobIdentifierUtils.findBestJobs(builder, caps));
         assertThat(e.getMessage(), equalTo("There is not a rollup job that has a [date_histogram] agg on field " +
                 "[foo] which also satisfies all requirements of query."));
+    }
+
+    public void testIncompatibleFixedCalendarInterval() {
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("5d")));
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
+        Set<RollupJobCaps> caps = singletonSet(cap);
+
+        DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
+            .dateHistogramInterval(new DateHistogramInterval("day"));
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> RollupJobIdentifierUtils.findBestJobs(builder, caps));
+        assertThat(e.getMessage(), equalTo("There is not a rollup job that has a [date_histogram] agg on field " +
+            "[foo] which also satisfies all requirements of query."));
     }
 
     public void testBadTimeZone() {
@@ -385,6 +425,27 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 "[bar] which also satisfies all requirements of query."));
     }
 
+    public void testHistoIntervalNotMultiple() {
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
+        histo.interval(10)  // <--- interval is not a multiple of 3
+            .field("bar")
+            .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
+            .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
+
+        final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig("foo",
+            new DateHistogramInterval("1d"), null, "UTC"),
+            new HistogramGroupConfig(3L, "bar"),
+            null);
+        final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(job);
+        Set<RollupJobCaps> caps = singletonSet(cap);
+
+        Exception e = expectThrows(RuntimeException.class,
+            () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
+        assertThat(e.getMessage(), equalTo("There is not a rollup job that has a [histogram] agg on field " +
+            "[bar] which also satisfies all requirements of query."));
+    }
+
     public void testMissingMetric() {
         int i = ESTestCase.randomIntBetween(0, 3);
 
@@ -415,6 +476,105 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("There is not a rollup job that has a [" + aggType + "] agg with name " +
                 "[test_metric] which also satisfies all requirements of query."));
 
+    }
+
+    public void testValidateFixedInterval() {
+        boolean valid = RollupJobIdentifierUtils.validateFixedInterval(100, new DateHistogramInterval("100ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(200, new DateHistogramInterval("100ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(1000, new DateHistogramInterval("200ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(5*60*1000, new DateHistogramInterval("5m"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(10*5*60*1000, new DateHistogramInterval("5m"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(100, new DateHistogramInterval("500ms"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(100, new DateHistogramInterval("5m"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(100, new DateHistogramInterval("minute"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(100, new DateHistogramInterval("second"));
+        assertFalse(valid);
+
+        // -----------
+        // Same tests, with both being DateHistoIntervals
+        // -----------
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("100ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("200ms"),
+            new DateHistogramInterval("100ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("1000ms"),
+            new DateHistogramInterval("200ms"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("5m"),
+            new DateHistogramInterval("5m"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("20m"),
+            new DateHistogramInterval("5m"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("500ms"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("5m"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("minute"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateFixedInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("second"));
+        assertFalse(valid);
+    }
+
+    public void testValidateCalendarInterval() {
+        boolean valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("second"),
+            new DateHistogramInterval("second"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("minute"),
+            new DateHistogramInterval("second"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("month"),
+            new DateHistogramInterval("day"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("1d"),
+            new DateHistogramInterval("1s"));
+        assertTrue(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("second"),
+            new DateHistogramInterval("minute"));
+        assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("second"),
+            new DateHistogramInterval("1m"));
+        assertFalse(valid);
+
+        // Fails because both are actually fixed
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("100ms"),
+            new DateHistogramInterval("100ms"));
+        assertFalse(valid);
     }
 
     private Set<RollupJobCaps> singletonSet(RollupJobCaps cap) {

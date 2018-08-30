@@ -844,7 +844,7 @@ public class InternalEngine extends Engine {
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                        // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
                             index.startTime(), indexResult.getFailure().toString());
                         location = innerNoOp(noOp).getTranslogLocation();
@@ -1182,8 +1182,10 @@ public class InternalEngine extends Engine {
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
-                            delete.primaryTerm(), deleteResult.getFailure().toString()));
+                    // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                    final NoOp noOp = new NoOp(deleteResult.getSeqNo(), delete.primaryTerm(), delete.origin(),
+                        delete.startTime(), deleteResult.getFailure().toString());
+                    location = innerNoOp(noOp).getTranslogLocation();
                 } else {
                     location = null;
                 }

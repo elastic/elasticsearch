@@ -421,18 +421,19 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(functionExplanation.getDetails()[1].getDescription(), equalTo(functionExpl));
     }
 
-    private static float[] randomFloats(int size) {
+    private static float[] randomPositiveFloats(int size) {
         float[] values = new float[size];
         for (int i = 0; i < values.length; i++) {
-            values[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * randomInt(100) + 1.e-5f;
+            values[i] = randomFloat() * randomInt(100) + 1.e-5f;
         }
         return values;
     }
 
-    private static double[] randomDoubles(int size) {
+    private static double[] randomPositiveDoubles(int size) {
         double[] values = new double[size];
         for (int i = 0; i < values.length; i++) {
-            values[i] = randomDouble() * (randomBoolean() ? 1.0d : -1.0d) * randomInt(100) + 1.e-5d;
+            double rand = randomValueOtherThanMany((d) -> Double.compare(d, 0) < 0, ESTestCase::randomDouble);
+            values[i] = rand * randomInt(100) + 1.e-5d;
         }
         return values;
     }
@@ -478,8 +479,8 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testSimpleWeightedFunction() throws IOException, ExecutionException, InterruptedException {
         int numFunctions = randomIntBetween(1, 3);
-        float[] weights = randomFloats(numFunctions);
-        double[] scores = randomDoubles(numFunctions);
+        float[] weights = randomPositiveFloats(numFunctions);
+        double[] scores = randomPositiveDoubles(numFunctions);
         ScoreFunctionStub[] scoreFunctionStubs = new ScoreFunctionStub[numFunctions];
         for (int i = 0; i < numFunctions; i++) {
             scoreFunctionStubs[i] = new ScoreFunctionStub(scores[i]);

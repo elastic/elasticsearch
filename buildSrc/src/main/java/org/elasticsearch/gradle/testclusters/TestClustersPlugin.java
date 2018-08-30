@@ -46,8 +46,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String LIST_TASK_NAME = "listElasticSearchClusters";
     private static final String NODE_EXTENSION_NAME = "testClusters";
 
-    private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
-    private static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
+    private static final String HELPER_CONFIGURATION_NAME = "_internalTestClusters";
+    private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 

@@ -43,8 +43,6 @@ public class DiffableStringMapTests extends ESTestCase {
         m2.put("newkey", "yay");
         m2.put("baz", "eggplant");
         DiffableStringMap dsm2 = new DiffableStringMap(m2);
-        logger.info("--> 1: {}", dsm);
-        logger.info("--> 2: {}", dsm2);
 
         Diff<DiffableStringMap> diff = dsm2.diff(dsm);
         assertThat(diff, instanceOf(DiffableStringMap.DiffableStringMapDiff.class));
@@ -58,7 +56,6 @@ public class DiffableStringMapTests extends ESTestCase {
         assertThat(dsmd.getUpserts(), equalTo(upserts));
 
         DiffableStringMap dsm3 = diff.apply(dsm);
-        logger.info("--> 3: {}", dsm3);
         assertThat(dsm3.get("foo"), equalTo("not-bar"));
         assertThat(dsm3.get("newkey"), equalTo("yay"));
         assertThat(dsm3.get("baz"), equalTo("eggplant"));

@@ -68,7 +68,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // pulled in as external dependency to work on java 9
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     thirdPartyAudit.excludes += [
         'com.sun.activation.registries.MailcapParseException',
         'javax.activation.ActivationDataFlavor',

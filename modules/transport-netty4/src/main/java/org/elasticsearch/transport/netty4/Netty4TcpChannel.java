@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
@@ -45,7 +46,7 @@ public class Netty4TcpChannel implements TcpChannel {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     closeContext.completeExceptionally(new Exception(cause));
                 } else {
                     closeContext.completeExceptionally((Exception) cause);
@@ -97,7 +98,7 @@ public class Netty4TcpChannel implements TcpChannel {
                 listener.onResponse(null);
             } else {
                 final Throwable cause = f.cause();
-                Netty4Utils.maybeDie(cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 if (cause instanceof Error) {
                     listener.onFailure(new Exception(cause));
                 } else {

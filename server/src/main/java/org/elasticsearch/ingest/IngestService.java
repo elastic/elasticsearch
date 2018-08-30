@@ -71,6 +71,7 @@ public class IngestService implements ClusterStateApplier {
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     private final ClusterService clusterService;
+    private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -85,6 +86,7 @@ public class IngestService implements ClusterStateApplier {
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
         this.clusterService = clusterService;
+        this.scriptService = scriptService;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -92,7 +94,7 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command
-                )
+                ), this
             )
         );
         this.threadPool = threadPool;
@@ -114,6 +116,10 @@ public class IngestService implements ClusterStateApplier {
 
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     /**
@@ -207,7 +213,21 @@ public class IngestService implements ClusterStateApplier {
      */
     public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener) throws Exception {
-        put(clusterService, ingestInfos, request, listener);
+            // validates the pipeline and processor configuration before submitting a cluster update task:
+            validatePipeline(ingestInfos, request);
+            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+
+                    @Override
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                        return new AcknowledgedResponse(acknowledged);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return innerPut(request, currentState);
+                    }
+                });
     }
 
     /**
@@ -280,39 +300,18 @@ public class IngestService implements ClusterStateApplier {
         return newState.build();
     }
 
-    /**
-     * Stores the specified pipeline definition in the request.
-     */
-    public void put(ClusterService clusterService, Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
-        // validates the pipeline and processor configuration before submitting a cluster update task:
-        validatePipeline(ingestInfos, request);
-        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                @Override
-                protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    return new AcknowledgedResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerPut(request, currentState);
-                }
-            });
-    }
-
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories);
+        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
-                if (entry.getValue().containsProcessor(processor.getType()) == false) {
+                String type = processor.getType();
+                if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
                     exceptions.add(
                         ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message)
@@ -460,7 +459,10 @@ public class IngestService implements ClusterStateApplier {
         List<ElasticsearchParseException> exceptions = new ArrayList<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
-                pipelines.put(pipeline.getId(), Pipeline.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
+                pipelines.put(
+                    pipeline.getId(),
+                    Pipeline.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories, scriptService)
+                );
             } catch (ElasticsearchParseException e) {
                 pipelines.put(pipeline.getId(), substitutePipeline(pipeline.getId(), e));
                 exceptions.add(e);

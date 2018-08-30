@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,14 +48,6 @@ public enum DatafeedState implements PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         DatafeedState state = this;
-        // STARTING & STOPPING states were introduced in v5.5.
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            if (this == STARTING) {
-                state = STOPPED;
-            } else if (this == STOPPING) {
-                state = STARTED;
-            }
-        }
         out.writeEnum(state);
     }
 

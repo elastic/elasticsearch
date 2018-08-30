@@ -438,11 +438,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         // ignore null values
         if (token == Token.VALUE_NULL) {
-            context.addIgnoredField(fieldType.name());
             return null;
-        }
-
-        if (token == Token.START_ARRAY) {
+        } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
             }

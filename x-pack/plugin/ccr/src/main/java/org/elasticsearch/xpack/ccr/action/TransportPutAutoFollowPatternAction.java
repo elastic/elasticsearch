@@ -25,11 +25,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends
     TransportMasterNodeAction<PutAutoFollowPatternAction.Request, AcknowledgedResponse> {
@@ -96,7 +98,7 @@ public class TransportPutAutoFollowPatternAction extends
 
         AutoFollowMetadata currentAutoFollowMetadata = localState.metaData().custom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
-        Map<String, AutoFollowMetadata.AutoFollowPattern> patterns;
+        Map<String, AutoFollowPattern> patterns;
         if (currentAutoFollowMetadata != null) {
             patterns = new HashMap<>(currentAutoFollowMetadata.getPatterns());
             followedLeaderIndices = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
@@ -105,7 +107,7 @@ public class TransportPutAutoFollowPatternAction extends
             followedLeaderIndices = new HashMap<>();
         }
 
-        AutoFollowMetadata.AutoFollowPattern previousPattern = patterns.get(request.getLeaderClusterAlias());
+        AutoFollowPattern previousPattern = patterns.get(request.getLeaderClusterAlias());
         List<String> followedIndexUUIDs = followedLeaderIndices.get(request.getLeaderClusterAlias());
         if (followedIndexUUIDs == null) {
             followedIndexUUIDs = new ArrayList<>();
@@ -114,34 +116,55 @@ public class TransportPutAutoFollowPatternAction extends
 
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            for (String newPattern : request.getLeaderIndexPatterns()) {
-                if (previousPattern.getLeaderIndexPatterns().contains(newPattern) == false) {
-                    for (IndexMetaData indexMetaData : leaderClusterState.getMetaData()) {
-                        if (Regex.simpleMatch(newPattern, indexMetaData.getIndex().getName())) {
-                            followedIndexUUIDs.add(indexMetaData.getIndexUUID());
-                        }
-                    }
-                }
-            }
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+                previousPattern, followedIndexUUIDs);
         } else {
-            for (IndexMetaData indexMetaData : leaderClusterState.getMetaData()) {
-                String[] indexPatterns = request.getLeaderIndexPatterns().toArray(new String[0]);
-                if (Regex.simpleMatch(indexPatterns, indexMetaData.getIndex().getName())) {
-                    followedIndexUUIDs.add(indexMetaData.getIndexUUID());
-                }
-            }
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+                followedIndexUUIDs);
         }
 
-        AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(request.getLeaderIndexPatterns(),
-            request.getFollowIndexNamePattern(), request.getMaxBatchOperationCount(), request.getMaxConcurrentReadBatches(),
-            request.getMaxOperationSizeInBytes(), request.getMaxConcurrentWriteBatches(), request.getMaxWriteBufferSize(),
-            request.getRetryTimeout(), request.getIdleShardRetryDelay());
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            request.getLeaderIndexPatterns(),
+            request.getFollowIndexNamePattern(),
+            request.getMaxBatchOperationCount(),
+            request.getMaxConcurrentReadBatches(),
+            request.getMaxOperationSizeInBytes(),
+            request.getMaxConcurrentWriteBatches(),
+            request.getMaxWriteBufferSize(),
+            request.getRetryTimeout(),
+            request.getIdleShardRetryDelay()
+        );
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices))
             .build());
         return newState.build();
+    }
+
+    private static void markExistingIndicesAsAutoFollowedForNewPatterns(
+        List<String> leaderIndexPatterns,
+        MetaData leaderMetaData,
+        AutoFollowPattern previousPattern,
+        List<String> followedIndexUUIDS) {
+
+        final List<String> newPatterns = leaderIndexPatterns
+            .stream()
+            .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
+            .collect(Collectors.toList());
+        markExistingIndicesAsAutoFollowed(newPatterns, leaderMetaData, followedIndexUUIDS);
+    }
+
+    private static void markExistingIndicesAsAutoFollowed(
+        List<String> patterns,
+        MetaData leaderMetaData,
+        List<String> followedIndexUUIDS) {
+
+        for (final IndexMetaData indexMetaData : leaderMetaData) {
+            if (AutoFollowPattern.match(patterns, indexMetaData.getIndex().getName())) {
+                followedIndexUUIDS.add(indexMetaData.getIndexUUID());
+            }
+        }
     }
 
     @Override

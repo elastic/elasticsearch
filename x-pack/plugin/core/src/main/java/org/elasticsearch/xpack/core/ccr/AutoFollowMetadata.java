@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -227,6 +228,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             maxWriteBufferSize = in.readOptionalVInt();
             retryTimeout = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
+        }
+
+        public boolean match(String indexName) {
+            return match(leaderIndexPatterns, indexName);
+        }
+
+        public static boolean match(List<String> leaderIndexPatterns, String indexName) {
+            return Regex.simpleMatch(leaderIndexPatterns, indexName);
         }
 
         public List<String> getLeaderIndexPatterns() {

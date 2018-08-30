@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -250,9 +249,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                     ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
-            String[] patterns = autoFollowPattern.getLeaderIndexPatterns().toArray(new String[0]);
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
-                if (Regex.simpleMatch(patterns, leaderIndexMetaData.getIndex().getName())) {
+                if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable

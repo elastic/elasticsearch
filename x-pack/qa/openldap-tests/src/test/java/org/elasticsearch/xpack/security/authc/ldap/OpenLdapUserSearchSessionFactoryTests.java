@@ -117,7 +117,9 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         }
 
         if (useSecureBindPassword == false) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply("ldap")});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{
+                config.getConcreteSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
+            });
         }
     }
 

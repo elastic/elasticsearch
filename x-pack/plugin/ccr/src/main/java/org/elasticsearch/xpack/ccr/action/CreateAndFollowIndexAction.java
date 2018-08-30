@@ -41,10 +41,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -295,6 +297,11 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
+
+                    // Adding the leader index uuid as custom metadata:
+                    Map<String, String> metadata = new HashMap<>();
+                    metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
+                    imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                     // Copy all settings, but overwrite a few settings.
                     Settings.Builder settingsBuilder = Settings.builder();

@@ -37,7 +37,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -310,10 +309,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-
-        String followerIndexSettings = getIndexSettings(3, 1, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
-        ensureGreen("index1", "index2");
+        ensureGreen("index1");
 
         AtomicBoolean run = new AtomicBoolean(true);
         Thread thread = new Thread(() -> {
@@ -335,7 +331,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
             randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
             ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
-        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
+        client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest)).get();
 
         long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
             followRequest.getMaxBatchOperationCount() * 10));
@@ -357,15 +353,11 @@ public class ShardChangesIT extends ESIntegTestCase {
             getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
-        final String followerIndexSettings =
-            getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
-
         internalCluster().ensureAtLeastNumDataNodes(2);
-        ensureGreen("index1", "index2");
+        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
-        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
+        client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest)).get();
 
         final int numDocs = randomIntBetween(2, 64);
         for (int i = 0; i < numDocs; i++) {
@@ -417,7 +409,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
-    @TestLogging("_root:DEBUG")
+    // Replaced by a unit test as first follow requests needs to go via create_and_follow api
+    /*@TestLogging("_root:DEBUG")
     public void testValidateFollowingIndexSettings() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)));
@@ -442,7 +435,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().execute(FollowIndexAction.INSTANCE,
             createFollowRequest("test-leader", "test-follower")).actionGet());
         unfollowIndex("test-follower");
-    }
+    }*/
 
     public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, between(0, 1),
@@ -476,6 +469,37 @@ public class ShardChangesIT extends ESIntegTestCase {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
         unfollowIndex("index2");
+    }
+
+    public void testDontFollowTheWrongIndex() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0,
+            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("index1");
+        assertAcked(client().admin().indices().prepareCreate("index3").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("index3");
+
+        FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024L,
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+
+        followRequest = new FollowIndexAction.Request("index3", "index4", 1024, 1, 1024L,
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+        unfollowIndex("index2", "index4");
+
+        FollowIndexAction.Request wrongRequest1 = new FollowIndexAction.Request("index1", "index4", 1024, 1, 1024L,
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(FollowIndexAction.INSTANCE, wrongRequest1).actionGet());
+        assertThat(e.getMessage(), containsString("follow index [index4] should reference"));
+
+        FollowIndexAction.Request wrongRequest2 = new FollowIndexAction.Request("index3", "index2", 1024, 1, 1024L,
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        e = expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, wrongRequest2).actionGet());
+        assertThat(e.getMessage(), containsString("follow index [index2] should reference"));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
@@ -514,10 +538,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         };
     }
 
-    private void unfollowIndex(String index) throws Exception {
-        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
-        unfollowRequest.setFollowIndex(index);
-        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+    private void unfollowIndex(String... indices) throws Exception {
+        for (String index : indices) {
+            final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+            unfollowRequest.setFollowIndex(index);
+            client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+        }
         assertBusy(() -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);

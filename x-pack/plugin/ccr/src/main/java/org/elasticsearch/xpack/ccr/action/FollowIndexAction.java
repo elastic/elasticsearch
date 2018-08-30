@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
@@ -516,6 +517,14 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
         }
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.followerIndex + "] does not exist");
+        }
+        String leaderIndexUUID = leaderIndex.getIndex().getUUID();
+        String recordedLeaderIndexUUID = followIndex
+            .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
+            .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
+            throw new IllegalArgumentException("follow index [" + request.followerIndex + "] should reference [" + leaderIndexUUID +
+                "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");

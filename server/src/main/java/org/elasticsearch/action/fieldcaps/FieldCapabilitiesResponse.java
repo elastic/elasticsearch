@@ -65,6 +65,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
      */
     FieldCapabilitiesResponse() {
         this.responseMap = Collections.emptyMap();
+        this.indexResponses = Collections.emptyList();
     }
 
     /**

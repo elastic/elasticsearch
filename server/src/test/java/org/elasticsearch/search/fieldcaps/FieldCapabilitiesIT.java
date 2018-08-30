@@ -21,6 +21,7 @@ package org.elasticsearch.search.fieldcaps;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -147,5 +148,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .execute().actionGet();
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("distance"));
+    }
+
+    public void testEmptyIndexPattern() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("empty_index_pattern*")
+            .setFields("*")
+            .execute().actionGet();
+        assertEquals(0, response.get().size());
     }
 }

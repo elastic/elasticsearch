@@ -148,11 +148,4 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("distance"));
     }
-
-    public void testEmptyIndexPattern() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps("empty_index_pattern*")
-            .setFields("*")
-            .execute().actionGet();
-        assertEquals(0, response.get().size());
-    }
 }

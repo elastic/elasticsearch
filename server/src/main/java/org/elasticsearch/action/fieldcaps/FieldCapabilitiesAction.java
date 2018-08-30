@@ -21,6 +21,8 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.Action;
 
+import java.util.Collections;
+
 public class FieldCapabilitiesAction extends Action<FieldCapabilitiesResponse> {
 
     public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
@@ -32,6 +34,6 @@ public class FieldCapabilitiesAction extends Action<FieldCapabilitiesResponse> {
 
     @Override
     public FieldCapabilitiesResponse newResponse() {
-        return new FieldCapabilitiesResponse();
+        return new FieldCapabilitiesResponse(Collections.emptyMap());
     }
 }

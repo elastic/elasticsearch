@@ -407,6 +407,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
+                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
+                    assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                }
             }
             // unlike previous failures, these two failures replicated directly from the replication channel.
             indexResp = shards.index(new IndexRequest(index.getName(), "type", "any").source("{}", XContentType.JSON));
@@ -419,6 +422,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
 
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
+                    assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                }
+                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }

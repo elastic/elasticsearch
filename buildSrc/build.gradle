@@ -17,10 +17,20 @@
  * under the License.
  */
 import java.nio.file.Files
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
+}
+
+gradlePlugin {
+  plugins {
+    simplePlugin {
+      id = 'elasticsearch.clusterformation'
+      implementationClass = 'org.elasticsearch.gradle.clusterformation.ClusterformationPlugin'
+    }
+  }
 }
 
 group = 'org.elasticsearch.gradle'
@@ -166,7 +176,6 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

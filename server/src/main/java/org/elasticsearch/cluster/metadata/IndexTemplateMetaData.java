@@ -214,6 +214,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             // Previously we allowed custom metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected no custom metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         builder.version(in.readOptionalVInt());
         return builder.build();

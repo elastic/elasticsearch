@@ -478,6 +478,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             // Used to be used for custom index metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected not to have any custom metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

@@ -722,6 +722,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
         } else {
             assert customSize == 0 : "expected no custom index metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int inSyncAllocationIdsSize = in.readVInt();
         for (int i = 0; i < inSyncAllocationIdsSize; i++) {

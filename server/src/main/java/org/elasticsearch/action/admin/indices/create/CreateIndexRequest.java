@@ -452,6 +452,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             // This used to be the size of custom metadata classes
             int customSize = in.readVInt();
             assert customSize == 0 : "unexpected custom metadata when none is supported";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {

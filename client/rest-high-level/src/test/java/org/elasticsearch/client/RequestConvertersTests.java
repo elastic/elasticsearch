@@ -2755,18 +2755,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
-    public void testStatusILM() throws Exception {
-        TimedRequest req = new TimedRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.statusILM(req);
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getEndpoint(), equalTo("/_ilm/status"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
     public void testExplainLifecycle() throws Exception {
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
         String[] indices = rarely() ? null : randomIndicesNames(0, 10);

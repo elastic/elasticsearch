@@ -19,11 +19,15 @@
         index: bar
         body:
           leader_index: foo
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
 
   # we can not reliably wait for replication to occur so we test the endpoint without indexing any documents
   - do:
       ccr.stats:
         index: bar
+  - match: { bar.0.leader_index: "foo" }
   - match: { bar.0.shard_id: 0 }
   - gte: { bar.0.leader_global_checkpoint: -1 }
   - gte: { bar.0.leader_max_seq_no: -1 }
@@ -44,6 +48,7 @@
   - match: { bar.0.number_of_failed_bulk_operations: 0 }
   - match: { bar.0.number_of_operations_indexed: 0 }
   - length: { bar.0.fetch_exceptions: 0 }
+  - gte: { bar.0.time_since_last_fetch_millis: -1 }
 
   - do:
       ccr.unfollow_index:

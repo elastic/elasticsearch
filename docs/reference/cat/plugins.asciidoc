@@ -23,7 +23,6 @@ U7321H6 analysis-stempel        {version} The Stempel (Polish) Analysis plugin i
 U7321H6 analysis-ukrainian      {version} The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.
 U7321H6 discovery-azure-classic {version} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
 U7321H6 discovery-ec2           {version} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
-U7321H6 discovery-file          {version} Discovery file plugin enables unicast discovery from hosts stored in a file.
 U7321H6 discovery-gce           {version} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
 U7321H6 ingest-attachment       {version} Ingest processor that uses Apache Tika to extract contents
 U7321H6 ingest-geoip            {version} Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database

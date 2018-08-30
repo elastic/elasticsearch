@@ -26,7 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -64,6 +63,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -113,6 +113,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -122,6 +123,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -205,6 +207,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
+    private final BooleanSupplier validatePrivateIndexSettings;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -214,13 +218,53 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
-    public InternalTestCluster(long clusterSeed, Path baseDir,
-                               boolean randomlyAddDedicatedMasters,
-                               boolean autoManageMinMasterNodes, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
-                               String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
+    public InternalTestCluster(
+            final long clusterSeed,
+            final Path baseDir,
+            final boolean randomlyAddDedicatedMasters,
+            final boolean autoManageMinMasterNodes,
+            final int minNumDataNodes,
+            final int maxNumDataNodes,
+            final String clusterName,
+            final NodeConfigurationSource nodeConfigurationSource,
+            final int numClientNodes,
+            final String nodePrefix,
+            final Collection<Class<? extends Plugin>> mockPlugins,
+            final Function<Client, Client> clientWrapper) {
+        this(
+                clusterSeed,
+                baseDir,
+                randomlyAddDedicatedMasters,
+                autoManageMinMasterNodes,
+                minNumDataNodes,
+                maxNumDataNodes,
+                clusterName,
+                nodeConfigurationSource,
+                numClientNodes,
+                nodePrefix,
+                mockPlugins,
+                clientWrapper,
+                () -> true);
+    }
+
+    public InternalTestCluster(
+            final long clusterSeed,
+            final Path baseDir,
+            final boolean randomlyAddDedicatedMasters,
+            final boolean autoManageMinMasterNodes,
+            final int minNumDataNodes,
+            final int maxNumDataNodes,
+            final String clusterName,
+            final NodeConfigurationSource nodeConfigurationSource,
+            final int numClientNodes,
+            final String nodePrefix,
+            final Collection<Class<? extends Plugin>> mockPlugins,
+            final Function<Client, Client> clientWrapper,
+            final BooleanSupplier validatePrivateIndexSettings) {
         super(clusterSeed);
         this.autoManageMinMasterNodes = autoManageMinMasterNodes;
         this.clientWrapper = clientWrapper;
+        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -583,7 +627,8 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
+        MockNode node =
+                new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId), validatePrivateIndexSettings);
         try {
             IOUtils.close(secureSettings);
         } catch (IOException e) {

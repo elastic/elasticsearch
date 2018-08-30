@@ -52,7 +52,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -83,9 +82,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -94,7 +95,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 
 /**
  * Service responsible for submitting create index requests
@@ -111,13 +111,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final BooleanSupplier validatePrivateIndexSettings;
 
-    @Inject
-    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService,
-                                      AliasValidator aliasValidator, Environment env,
-                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool,
-                                      NamedXContentRegistry xContentRegistry) {
+    public MetaDataCreateIndexService(
+            Settings settings,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            AllocationService allocationService,
+            AliasValidator aliasValidator,
+            Environment env,
+            IndexScopedSettings indexScopedSettings,
+            ThreadPool threadPool,
+            NamedXContentRegistry xContentRegistry,
+            BooleanSupplier validatePrivateIndexSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -127,6 +133,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
+        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
     }
 
     /**
@@ -229,7 +236,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         xContentRegistry,
                         settings,
                         this::validate,
-                        indexScopedSettings));
+                        indexScopedSettings,
+                        validatePrivateIndexSettings));
     }
 
     interface IndexValidator {
@@ -247,11 +255,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         private final Settings settings;
         private final IndexValidator validator;
         private final IndexScopedSettings indexScopedSettings;
+        private final BooleanSupplier validatePrivateIndexSettings;
 
         IndexCreationTask(Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
                           ActionListener<ClusterStateUpdateResponse> listener, IndicesService indicesService,
                           AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                          Settings settings, IndexValidator validator, IndexScopedSettings indexScopedSettings) {
+                          Settings settings, IndexValidator validator, IndexScopedSettings indexScopedSettings,
+                          BooleanSupplier validatePrivateIndexSettings) {
             super(Priority.URGENT, request, listener);
             this.request = request;
             this.logger = logger;
@@ -262,6 +272,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             this.settings = settings;
             this.validator = validator;
             this.indexScopedSettings = indexScopedSettings;
+            this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
         }
 
         @Override
@@ -348,10 +359,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 // now, put the request settings, so they override templates
                 indexSettingsBuilder.put(request.settings());
-                if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                    DiscoveryNodes nodes = currentState.nodes();
+                if (indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
+                    final DiscoveryNodes nodes = currentState.nodes();
                     final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-                    indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
+                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
                     final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
@@ -373,7 +384,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Settings idxSettings = indexSettingsBuilder.build();
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
-                final Version indexVersionCreated = idxSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+                final Version indexVersionCreated = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(idxSettings);
                 final IndexMetaData sourceMetaData = recoverFromIndex == null ? null :
                     currentState.metaData().getIndexSafe(recoverFromIndex);
                 if (sourceMetaData == null || sourceMetaData.getNumberOfShards() == 1) {
@@ -559,7 +570,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // TODO: this logic can be removed when the current major version is 8
             assert Version.CURRENT.major == 7;
             final int numberOfShards;
-            if (Version.fromId(Integer.parseInt(indexSettingsBuilder.get(SETTING_VERSION_CREATED))).before(Version.V_7_0_0_alpha1)) {
+            final Version indexVersionCreated =
+                    Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
+            if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
                 numberOfShards = 5;
             } else {
                 numberOfShards = 1;
@@ -580,11 +593,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings());
+        validateIndexSettings(request.index(), request.settings(), validatePrivateIndexSettings.getAsBoolean());
     }
 
-    public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings);
+    public void validateIndexSettings(
+            final String indexName, final Settings settings, final boolean validatePrivateSettings) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, validatePrivateSettings);
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -592,7 +606,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(Settings settings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean validatePrivateSettings) {
         String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
         if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
@@ -601,6 +615,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+            }
+        }
+        if (validatePrivateSettings) {
+            for (final String key : settings.keySet()) {
+                final Setting<?> setting = indexScopedSettings.get(key);
+                if (setting == null) {
+                    assert indexScopedSettings.isPrivateSetting(key);
+                } else if (setting.isPrivateIndex()) {
+                    validationErrors.add("private index setting [" + key + "] can not be set explicitly");
+                }
             }
         }
         return validationErrors;
@@ -737,7 +761,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         indexSettingsBuilder
-            .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
+            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
             .put(builder.build())
             .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())

@@ -45,9 +45,11 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -424,6 +426,19 @@ public class Node implements Closeable {
                             threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
                             scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreFactories);
 
+            final AliasValidator aliasValidator = new AliasValidator(settings);
+
+            final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    clusterModule.getAllocationService(),
+                    aliasValidator,
+                    environment,
+                    settingsModule.getIndexScopedSettings(),
+                    threadPool,
+                    xContentRegistry,
+                    this::validatePrivateIndexSettings);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -513,6 +528,8 @@ public class Node implements Closeable {
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
+                    b.bind(AliasValidator.class).toInstance(aliasValidator);
+                    b.bind(MetaDataCreateIndexService.class).toInstance(metaDataCreateIndexService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings,
@@ -567,6 +584,10 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    boolean validatePrivateIndexSettings() {
+        return true;
     }
 
     static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {

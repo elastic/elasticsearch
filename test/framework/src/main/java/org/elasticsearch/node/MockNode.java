@@ -53,7 +53,9 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -65,19 +67,39 @@ import java.util.function.Function;
  * </ul>
  */
 public class MockNode extends Node {
+
     private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final BooleanSupplier validatePrivateIndexSettings;
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, null);
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(settings, classpathPlugins, () -> true);
     }
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath), classpathPlugins);
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final BooleanSupplier validatePrivateIndexSettings) {
+        this(settings, classpathPlugins, null, validatePrivateIndexSettings);
     }
 
-    public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public MockNode(
+            final Settings settings,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final Path configPath,
+            final BooleanSupplier validatePrivateIndexSettings) {
+        this(
+                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath),
+                classpathPlugins,
+                validatePrivateIndexSettings);
+    }
+
+    private MockNode(
+            final Environment environment,
+            final Collection<Class<? extends Plugin>> classpathPlugins,
+            final BooleanSupplier validatePrivateIndexSettings) {
         super(environment, classpathPlugins);
         this.classpathPlugins = classpathPlugins;
+        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
     }
 
     /**
@@ -156,5 +178,11 @@ public class MockNode extends Node {
             return new MockHttpTransport();
         }
     }
+
+    @Override
+    boolean validatePrivateIndexSettings() {
+        return validatePrivateIndexSettings.getAsBoolean();
+    }
+
 }
 

@@ -74,6 +74,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         enableRandomFailures = randomBoolean();
     }
 
+    protected void disableRandomFailures() {
+        enableRandomFailures = false;
+    }
+
     protected void failRandomly() {
         if (enableRandomFailures && rarely()) {
             throw new RuntimeException("dummy test failure");
@@ -269,7 +273,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
+        public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
             failRandomly();
             return false;
         }

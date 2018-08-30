@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -22,36 +23,37 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Collections;
 import java.util.List;
 
 public class TransportDeleteModelSnapshotAction extends HandledTransportAction<DeleteModelSnapshotAction.Request,
-        DeleteModelSnapshotAction.Response> {
+    AcknowledgedResponse> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
 
     @Inject
     public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                              JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
+                                              JobResultsProvider jobResultsProvider, ClusterService clusterService, Client client,
+                                              Auditor auditor) {
         super(settings, DeleteModelSnapshotAction.NAME, transportService, actionFilters,
               DeleteModelSnapshotAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;
         this.auditor = auditor;
     }
 
     @Override
     protected void doExecute(Task task, DeleteModelSnapshotAction.Request request,
-                             ActionListener<DeleteModelSnapshotAction.Response> listener) {
+                             ActionListener<AcknowledgedResponse> listener) {
         // Verify the snapshot exists
-        jobProvider.modelSnapshots(
+        jobResultsProvider.modelSnapshots(
                 request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),
                 page -> {
                     List<ModelSnapshot> deleteCandidates = page.results();
@@ -85,7 +87,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                             auditor.info(request.getJobId(), msg);
                             logger.debug("[{}] {}", request.getJobId(), msg);
                             // We don't care about the bulk response, just that it succeeded
-                            listener.onResponse(new DeleteModelSnapshotAction.Response(true));
+                            listener.onResponse(new AcknowledgedResponse(true));
                         }
 
                         @Override

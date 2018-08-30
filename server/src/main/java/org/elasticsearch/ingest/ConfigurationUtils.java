@@ -19,9 +19,18 @@
 
 package org.elasticsearch.ingest;
 
+import java.io.IOException;
+import java.io.InputStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -284,18 +293,19 @@ public final class ConfigurationUtils {
             msg = "[" + propertyName + "] " + reason;
         }
         ElasticsearchParseException exception = new ElasticsearchParseException(msg);
-        addHeadersToException(exception, processorType, processorTag, propertyName);
+        addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, Exception cause) {
         ElasticsearchException exception = ExceptionsHelper.convertToElastic(cause);
-        addHeadersToException(exception, processorType, processorTag, propertyName);
+        addMetadataToException(exception, processorType, processorTag, propertyName);
         return exception;
     }
 
     public static List<Processor> readProcessorConfigs(List<Map<String, Object>> processorConfigs,
+                                                       ScriptService scriptService,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
@@ -303,7 +313,7 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }
@@ -341,28 +351,29 @@ public final class ConfigurationUtils {
         }
     }
 
-    private static void addHeadersToException(ElasticsearchException exception, String processorType,
-                                              String processorTag, String propertyName) {
+    private static void addMetadataToException(ElasticsearchException exception, String processorType,
+                                               String processorTag, String propertyName) {
         if (processorType != null) {
-            exception.addHeader("processor_type", processorType);
+            exception.addMetadata("es.processor_type", processorType);
         }
         if (processorTag != null) {
-            exception.addHeader("processor_tag", processorTag);
+            exception.addMetadata("es.processor_tag", processorTag);
         }
         if (propertyName != null) {
-            exception.addHeader("property_name", propertyName);
+            exception.addMetadata("es.property_name", propertyName);
         }
     }
 
     @SuppressWarnings("unchecked")
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+                                          ScriptService scriptService,
                                           String type, Object config) throws Exception {
         if (config instanceof Map) {
-            return readProcessor(processorFactories, type, (Map<String, Object>) config);
+            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
-            return readProcessor(processorFactories, type, normalizedScript);
+            return readProcessor(processorFactories, scriptService, type, normalizedScript);
         } else {
             throw newConfigurationException(type, null, null,
                 "property isn't a map, but of type [" + config.getClass().getName() + "]");
@@ -370,15 +381,17 @@ public final class ConfigurationUtils {
     }
 
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+                                           ScriptService scriptService,
                                            String type, Map<String, Object> config) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+        Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Object>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
+            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
@@ -392,14 +405,42 @@ public final class ConfigurationUtils {
                         type, Arrays.toString(config.keySet().toArray()));
                 }
                 if (onFailureProcessors.size() > 0 || ignoreFailure) {
-                    return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
-                } else {
-                    return processor;
+                    processor = new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
                 }
+                if (conditionalScript != null) {
+                    processor = new ConditionalProcessor(tag, conditionalScript, scriptService, processor);
+                }
+                return processor;
             } catch (Exception e) {
                 throw newConfigurationException(type, tag, null, e);
             }
         }
         throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
+    }
+
+    private static Script extractConditional(Map<String, Object> config) throws IOException {
+        Object scriptSource = config.remove("if");
+        if (scriptSource != null) {
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)
+                .map(normalizeScript(scriptSource));
+                 InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                return Script.parse(parser);
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> normalizeScript(Object scriptConfig) {
+        if (scriptConfig instanceof Map<?, ?>) {
+            return (Map<String, Object>) scriptConfig;
+        } else if (scriptConfig instanceof String) {
+            return Collections.singletonMap("source", scriptConfig);
+        } else {
+            throw newConfigurationException("conditional", null, "script",
+                "property isn't a map or string, but of type [" + scriptConfig.getClass().getName() + "]");
+        }
     }
 }

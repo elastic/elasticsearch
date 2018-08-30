@@ -24,7 +24,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class PainlessClassBuilder {
-    final Map<String, PainlessMethod> constructors;
+
+    final Map<String, PainlessConstructor> constructors;
+
     final Map<String, PainlessMethod> staticMethods;
     final Map<String, PainlessMethod> methods;
 
@@ -34,10 +36,11 @@ final class PainlessClassBuilder {
     final Map<String, MethodHandle> getterMethodHandles;
     final Map<String, MethodHandle> setterMethodHandles;
 
-    PainlessMethod functionalMethod;
+    PainlessMethod functionalInterfaceMethod;
 
     PainlessClassBuilder() {
         constructors = new HashMap<>();
+
         staticMethods = new HashMap<>();
         methods = new HashMap<>();
 
@@ -47,11 +50,11 @@ final class PainlessClassBuilder {
         getterMethodHandles = new HashMap<>();
         setterMethodHandles = new HashMap<>();
 
-        functionalMethod = null;
+        functionalInterfaceMethod = null;
     }
 
     PainlessClass build() {
         return new PainlessClass(constructors, staticMethods, methods, staticFields, fields,
-                getterMethodHandles, setterMethodHandles, functionalMethod);
+                getterMethodHandles, setterMethodHandles, functionalInterfaceMethod);
     }
 }

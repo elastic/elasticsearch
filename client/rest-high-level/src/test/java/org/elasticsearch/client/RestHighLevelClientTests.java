@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -661,7 +660,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "mtermvectors",
             "put_script",
-            "reindex",
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
@@ -686,6 +684,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -755,7 +754,12 @@ public class RestHighLevelClientTests extends ESTestCase {
                             method.isAnnotationPresent(Deprecated.class));
                     } else {
                         //TODO xpack api are currently ignored, we need to load xpack yaml spec too
-                        if (apiName.startsWith("xpack.") == false) {
+                        if (apiName.startsWith("xpack.") == false &&
+                            apiName.startsWith("license.") == false &&
+                            apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

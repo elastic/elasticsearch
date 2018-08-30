@@ -219,7 +219,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'test'; return x.getClass().toString()");
         });
-        assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
+        assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, getClass/0] not found"));
     }
 
     public void testDynamicNPE() {
@@ -255,7 +255,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             // We don't want PICKY here so we get the normal error message
             exec("def i = 1} return 1", emptyMap(), emptyMap(), null, false);
         });
-        assertEquals("invalid sequence of tokens near ['}'].", e.getMessage());
+        assertEquals("unexpected token ['}'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
 
     public void testBadBoxingCast() {

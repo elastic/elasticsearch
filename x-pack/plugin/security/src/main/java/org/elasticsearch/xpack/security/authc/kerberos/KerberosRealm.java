@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -87,6 +88,16 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
         this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+
+        if (Files.exists(keytabPath) == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
+        }
+        if (Files.isDirectory(keytabPath)) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] is a directory");
+        }
+        if (Files.isReadable(keytabPath) == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
+        }
         this.enableKerberosDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         this.removeRealmName = config.getSetting(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME);
     }
@@ -168,12 +179,15 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
         if (e instanceof LoginException) {
+            logger.debug("failed to authenticate user, service login failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, service login failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else if (e instanceof GSSException) {
+            logger.debug("failed to authenticate user, gss context negotiation failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, gss context negotiation failure",
                     unauthorized(e.getLocalizedMessage(), e)));
         } else {
+            logger.debug("failed to authenticate user", e);
             listener.onFailure(e);
         }
     }

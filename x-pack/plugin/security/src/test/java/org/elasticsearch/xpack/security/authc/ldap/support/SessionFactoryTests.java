@@ -92,13 +92,16 @@ public class SessionFactoryTests extends ESTestCase {
         options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
-        settings = Settings.builder()
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.NONE)
-                .put("path.home", pathHome)
-                .build();
-        realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
-        assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
+        // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
+        if (inFipsJvm() == false) {
+            settings = Settings.builder()
+                    .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.NONE)
+                    .put("path.home", pathHome)
+                    .build();
+            realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+            options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+            assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
+        }
 
         settings = Settings.builder()
                 .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.FULL)

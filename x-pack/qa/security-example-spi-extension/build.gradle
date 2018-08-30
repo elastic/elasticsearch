@@ -8,7 +8,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
   testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
 }
 

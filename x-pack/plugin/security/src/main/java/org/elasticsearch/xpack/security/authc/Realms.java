@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.util.ArrayList;
@@ -48,7 +49,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
 
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
@@ -165,6 +165,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
+        List<String> kerberosRealmNames = new ArrayList<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
             Settings realmSettings = realmsSettings.get(identifier);
             Realm.Factory factory = factories.get(identifier.getType());
@@ -186,6 +187,13 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
                             + identifier.getType() + "] is an internal realm and therefore there can only be one such realm configured");
                 }
                 internalTypes.add(identifier.getType());
+            }
+            if (KerberosRealmSettings.TYPE.equals(identifier.getType())) {
+                kerberosRealmNames.add(identifier.getName());
+                if (kerberosRealmNames.size() > 1) {
+                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type [" + identifier.getType()
+                            + "], [" + identifier.getType() + "] can only have one such realm configured");
+                }
             }
             realms.add(factory.create(config));
         }

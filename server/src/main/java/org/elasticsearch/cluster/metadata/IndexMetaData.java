@@ -485,22 +485,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return mappings.get(mappingType);
     }
 
-    // we keep the shrink settings for BWC - this can be removed in 8.0
-    // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
-    public static final String INDEX_SHRINK_SOURCE_UUID_KEY = "index.shrink.source.uuid";
-    public static final String INDEX_SHRINK_SOURCE_NAME_KEY = "index.shrink.source.name";
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
     public static final String INDEX_RESIZE_SOURCE_NAME_KEY = "index.resize.source.name";
-    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString(INDEX_SHRINK_SOURCE_UUID_KEY);
-    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString(INDEX_SHRINK_SOURCE_NAME_KEY);
-    public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY,
-        INDEX_SHRINK_SOURCE_UUID);
-    public static final Setting<String> INDEX_RESIZE_SOURCE_NAME = Setting.simpleString(INDEX_RESIZE_SOURCE_NAME_KEY,
-        INDEX_SHRINK_SOURCE_NAME);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY);
+    public static final Setting<String> INDEX_RESIZE_SOURCE_NAME = Setting.simpleString(INDEX_RESIZE_SOURCE_NAME_KEY);
 
     public Index getResizeSourceIndex() {
-        return INDEX_RESIZE_SOURCE_UUID.exists(settings) || INDEX_SHRINK_SOURCE_UUID.exists(settings)
-            ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
+        return INDEX_RESIZE_SOURCE_UUID.exists(settings) ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings),
+            INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
     }
 
     /**

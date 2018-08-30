@@ -31,7 +31,7 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
-        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
+        project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
             forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
         }
@@ -43,7 +43,7 @@ class PrecommitTasks {
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class),
+            configureJarHell(project),
             configureThirdPartyAudit(project)
         ]
 
@@ -78,6 +78,12 @@ class PrecommitTasks {
             dependsOn: precommitTasks
         ]
         return project.tasks.create(precommitOptions)
+    }
+
+    private static Task configureJarHell(Project project) {
+        Task task = project.tasks.create('jarHell', JarHellTask.class)
+        task.classpath = project.sourceSets.test.runtimeClasspath
+        return task
     }
 
     private static Task configureThirdPartyAudit(Project project) {

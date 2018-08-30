@@ -45,31 +45,19 @@ import java.util.function.Supplier;
  * </p>
  * <p>
  * The repository can wrap any other repository delegating the source only snapshot to it to and read
- * from it. For instance a file repository of type <tt>fs</tt> by passing <tt>settings.delegate_type=fs</tt>
+ * from it. For instance a file repository of type <i>fs</i> by passing <i>settings.delegate_type=fs</i>
  * at repository creation time.
  * </p>
- * The repository supports two distinct restore options:
- * <ul>
- *     <li><b>minimal restore</b>: this option re-indexes all documents during restore with an empty mapping. The original mapping is
- *     stored in the restored indexes <tt>_meta</tt> mapping field. The <tt>minimal</tt> restore must be enabled by setting
- *     <tt>settings.restore_minimal=true</tt>.</li>
- *     <li><b>full restore</b>: this option re-indexes all documents during restore with the original mapping. This option is the
- *     default. This option has a significant operational overhead compared to the minimal option but recreates a fully functional new
- *     index</li>
- * </ul>
- *
- * Reindex operations are executed in a single thread and can be monitored via indices recovery stats. Every indexed document will be
- * reported as a translog document.
- *
+ * Snapshots restored from source only snapshots are minimal indices that are read-only and only allow
+ * match_all scroll searches in order to reindex the data.
  */
-// TODO: as a followup we should rename translog phase to operation phase in the indices _recovery stats
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    public static final Setting<String> DELEGATE_TYPE =
-        new Setting<>("delegate_type", "", Function.identity(), Setting.Property.NodeScope);
+    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
+        .NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY_ENGINE = Setting.boolSetting("index.require_source_only_engine", false, Setting
         .Property.IndexScope, Setting.Property.InternalIndex, Setting.Property.Final);
 
-    public static final String SNAPSHOT_DIR_NAME = "_snapshot";
+    private static final String SNAPSHOT_DIR_NAME = "_snapshot";
 
     public static Repository.Factory newFactory() {
         return new Repository.Factory() {
@@ -92,7 +80,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         };
     }
 
-    public SourceOnlySnapshotRepository(Repository in) {
+    SourceOnlySnapshotRepository(Repository in) {
         super(in);
     }
 
@@ -144,7 +132,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     // do nothing;
                 }
             }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = shard.mapperService().hasNested() ? () -> Queries.newNestedFilter() : null;
+            Supplier<Query> querySupplier = shard.mapperService().hasNested() ? Queries::newNestedFilter : null;
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), null, querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             store.incRef();

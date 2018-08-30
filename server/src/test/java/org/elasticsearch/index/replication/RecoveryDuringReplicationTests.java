@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -672,21 +673,27 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 IndexShard replica = shards.getReplicas().get(i);
                 Thread thread = new Thread(() -> {
                     latch.countDown();
+                    int hitClosedException = 0;
                     while (isDone.get() == false) {
-                        try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
-                            Set<String> docIds = EngineTestCase.getDocIds(searcher);
-                            assertThat(ackedDocIds, everyItem(isIn(docIds)));
-                        } catch (IOException e) {
+                        try {
+                            try (Engine.Searcher searcher = replica.acquireSearcher("test")) {
+                                Set<String> docIds = EngineTestCase.getDocIds(searcher);
+                                assertThat(ackedDocIds, everyItem(isIn(docIds)));
+                            }
+                            for (String id : randomSubsetOf(ackedDocIds)) {
+                                try (Engine.GetResult getResult = replica.get(
+                                    new Engine.Get(randomBoolean(), randomBoolean(), "type", id, new Term("_id", Uid.encodeId(id))))) {
+                                    assertThat("doc [" + id + "] not found", getResult.exists(), equalTo(true));
+                                }
+                            }
+                            assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
+                        } catch (AlreadyClosedException e) {
+                            hitClosedException++;
+                        } catch (Exception e) {
                             throw new AssertionError(e);
                         }
-                        for (String id : randomSubsetOf(ackedDocIds)) {
-                            try (Engine.GetResult getResult = replica.get(
-                                new Engine.Get(randomBoolean(), randomBoolean(), "type", id, new Term("_id", Uid.encodeId(id))))) {
-                                assertThat("doc [" + id + "] not found", getResult.exists(), equalTo(true));
-                            }
-                        }
-                        assertThat(replica.getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                     }
+                    assertThat(hitClosedException, lessThanOrEqualTo(2));
                 });
                 threads.add(thread);
                 thread.start();

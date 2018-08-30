@@ -157,7 +157,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -845,7 +844,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return accessEngineAndRetryOnSwap(engine -> engine.get(get, this::acquireSearcher));
+        readAllowed();
+        return getEngine().get(get, this::acquireSearcher);
     }
 
     /**
@@ -1174,7 +1174,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
-        final Engine.Searcher searcher = accessEngineAndRetryOnSwap(engine -> engine.acquireSearcher(source, scope));
+        readAllowed();
+        final Engine engine = getEngine();
+        final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         boolean success = false;
         try {
             final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
@@ -1186,26 +1188,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } finally {
             if (success == false) {
                 Releasables.close(success, searcher);
-            }
-        }
-    }
-
-    private <T> T accessEngineAndRetryOnSwap(Function<Engine, T> accessor) {
-        // Retry only occurs when we are swapping the engine during the primary-replica resync.
-        // We limit the number of retries to 10 as a safe guard - this should happen at most twice.
-        int remained = 10;
-        while (true) {
-            remained--;
-            readAllowed();
-            Engine engine = getEngine();
-            try {
-                return accessor.apply(engine);
-            } catch (AlreadyClosedException e) {
-                if (engine != getEngine() && remained > 0) {
-                    logger.debug("retrying as engine was swapped - remained=" + remained);
-                }else {
-                    throw e;
-                }
             }
         }
     }

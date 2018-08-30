@@ -18,17 +18,59 @@
  */
 package org.elasticsearch.gradle;
 
+import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class BuildPluginIT extends GradleIntegrationTestCase {
 
     public void testPluginCanBeApplied() {
         BuildResult result = getGradleRunner("elasticsearch.build")
-            .withArguments("hello", "-s", "-PcheckForTestsInMain=false")
+            .withArguments("hello", "-s")
             .build();
         assertTaskSuccessful(result, ":hello");
         assertOutputContains("build plugin can be applied");
     }
+
+    public void testCheckTask() {
+        BuildResult result = getGradleRunner("elasticsearch.build")
+            .withArguments("check", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .build();
+        assertTaskSuccessful(result, ":check");
+    }
+
+    public void testLicenseAndNotice() throws IOException {
+        BuildResult result = getGradleRunner("elasticsearch.build")
+            .withArguments("clean", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .build();
+
+        assertTaskSuccessful(result, ":assemble");
+
+        assertBuildFileExists(result, "elasticsearch.build", "distributions/elasticsearch.build.jar");
+
+        try (ZipFile zipFile = new ZipFile(new File(
+            getBuildDir("elasticsearch.build"), "distributions/elasticsearch.build.jar"
+        ))) {
+            ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
+            ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
+            assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);
+            assertNotNull("Jar does not have META-INF/NOTICE", noticeEntry);
+            try (
+                InputStream licese = zipFile.getInputStream(licenseEntry);
+                InputStream notice = zipFile.getInputStream(noticeEntry)
+            ) {
+                assertEquals("this is a test license file", IOUtils.toString(licese, StandardCharsets.UTF_8.name()));
+                assertEquals("this is a test notice file", IOUtils.toString(notice, StandardCharsets.UTF_8.name()));
+            }
+        }
+    }
+
 
 }

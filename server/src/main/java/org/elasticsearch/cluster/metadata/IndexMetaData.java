@@ -684,7 +684,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
                 mappingVersion = in.readVLong();
             } else {
                 mappingVersion = 1;
@@ -724,7 +724,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeString(index);
             out.writeInt(routingNumShards);
             out.writeLong(version);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeVLong(mappingVersion);
             }
             out.writeByte(state.id);
@@ -760,7 +760,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static IndexMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             builder.mappingVersion(in.readVLong());
         } else {
             builder.mappingVersion(1);
@@ -804,7 +804,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVLong(mappingVersion);
         }
         out.writeInt(routingNumShards);
@@ -1370,8 +1370,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_0_0_alpha1)) {
-                assert mappingVersion : "mapping version should be present for indices created on or after 7.0.0";
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
+                assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             }
             return builder.build();
         }

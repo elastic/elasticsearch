@@ -253,6 +253,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
+     * Timeout to wait for the shards on to be available for each bulk request?
+     */
+    public Self setTimeout(String timeout) {
+        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
+        return self();
+    }
+
+    /**
      * The number of shard copies that must be active before proceeding with the write.
      */
     public ActiveShardCount getWaitForActiveShards() {

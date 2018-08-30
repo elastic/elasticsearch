@@ -36,7 +36,6 @@ public class TimedRequest implements Validatable {
 
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-
     }
 
     public void setMasterTimeout(TimeValue masterTimeout) {

@@ -88,6 +88,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -1188,6 +1189,19 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putLifecyclePolicy(PutLifecyclePolicyRequest putLifecycleRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ilm")
+            .addPathPartAsIs(putLifecycleRequest.getName())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withMasterTimeout(putLifecycleRequest.masterNodeTimeout());
+        params.withTimeout(putLifecycleRequest.timeout());
+        request.setEntity(createEntity(putLifecycleRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

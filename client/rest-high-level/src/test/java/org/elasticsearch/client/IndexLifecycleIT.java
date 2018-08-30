@@ -19,15 +19,22 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.AllocateAction;
+import org.elasticsearch.client.indexlifecycle.DeleteAction;
+import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.Phase;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.protocol.xpack.indexlifecycle.IndexLifecycleExplainResponse;
@@ -38,8 +45,11 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -47,61 +57,15 @@ import static org.hamcrest.Matchers.is;
 public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
     public void testSetIndexLifecyclePolicy() throws Exception {
-        String policy = randomAlphaOfLength(10);
-
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        String jsonString = "{\n" +
-            "   \"policy\": {\n" +
-            "     \"phases\": {\n" +
-            "       \"hot\": {\n" +
-            "         \"after\": \"60s\",\n" +
-            "         \"actions\": {\n" +
-            "          \"rollover\": {\n" +
-            "            \"max_age\": \"500s\"\n" +
-            "          }        \n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"allocate\": {\n" +
-            "             \"require\": { \"_name\": \"node-1\" },\n" +
-            "             \"include\": {},\n" +
-            "             \"exclude\": {}\n" +
-            "           },\n" +
-            "           \"shrink\": {\n" +
-            "             \"number_of_shards\": 1\n" +
-            "           },\n" +
-            "           \"forcemerge\": {\n" +
-            "             \"max_num_segments\": 1000\n" +
-            "           }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
-            "         \"actions\": {\n" +
-            "          \"allocate\": {\n" +
-            "            \"number_of_replicas\": 0\n" +
-            "          }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"delete\": {}\n" +
-            "         }\n" +
-            "       }\n" +
-            "     }\n" +
-            "   }\n" +
-            "}";
-        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "/_ilm/" + policy);
-        request.setEntity(entity);
-        client().performRequest(request);
+        String policyName = randomAlphaOfLength(10);
+        LifecyclePolicy policy = createRandomPolicy(policyName);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
-        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest(policy, "foo", "baz");
+        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest(policyName, "foo", "baz");
         SetIndexLifecyclePolicyResponse response = execute(req, highLevelClient().indexLifecycle()::setIndexLifecyclePolicy,
                 highLevelClient().indexLifecycle()::setIndexLifecyclePolicyAsync);
         assertThat(response.hasFailures(), is(false));
@@ -109,61 +73,16 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz");
         GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
-        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
-        assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
+        assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policyName));
+        assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policyName));
     }
 
     public void testStartStopILM() throws Exception {
-        String policy = randomAlphaOfLength(10);
-
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        String jsonString = "{\n" +
-            "   \"policy\": {\n" +
-            "     \"phases\": {\n" +
-            "       \"hot\": {\n" +
-            "         \"actions\": {\n" +
-            "          \"rollover\": {\n" +
-            "            \"max_age\": \"50d\"\n" +
-            "          }        \n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"allocate\": {\n" +
-            "             \"require\": { \"_name\": \"node-1\" },\n" +
-            "             \"include\": {},\n" +
-            "             \"exclude\": {}\n" +
-            "           },\n" +
-            "           \"shrink\": {\n" +
-            "             \"number_of_shards\": 1\n" +
-            "           },\n" +
-            "           \"forcemerge\": {\n" +
-            "             \"max_num_segments\": 1000\n" +
-            "           }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
-            "         \"actions\": {\n" +
-            "          \"allocate\": {\n" +
-            "            \"number_of_replicas\": 0\n" +
-            "          }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"delete\": {}\n" +
-            "         }\n" +
-            "       }\n" +
-            "     }\n" +
-            "   }\n" +
-            "}";
-        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "/_ilm/" + policy);
-        request.setEntity(entity);
-        client().performRequest(request);
+        String policyName = randomAlphaOfLength(10);
+        LifecyclePolicy policy = createRandomPolicy(policyName);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", "bar").build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
@@ -201,65 +120,39 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testExplainLifecycle() throws Exception {
-        String policy = randomAlphaOfLength(10);
+        Map<String, Phase> lifecyclePhases = new HashMap<>();
+        Map<String, LifecycleAction> hotActions = Collections.singletonMap(
+            RolloverAction.NAME,
+            new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        lifecyclePhases.put("hot", new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions));
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        String jsonString = "{\n" +
-            "   \"policy\": {\n" +
-            "     \"phases\": {\n" +
-            "       \"hot\": {\n" +
-            "         \"actions\": {\n" +
-            "          \"rollover\": {\n" +
-            "            \"max_age\": \"50d\"\n" +
-            "          }        \n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"allocate\": {\n" +
-            "             \"require\": { \"_name\": \"node-1\" },\n" +
-            "             \"include\": {},\n" +
-            "             \"exclude\": {}\n" +
-            "           },\n" +
-            "           \"shrink\": {\n" +
-            "             \"number_of_shards\": 1\n" +
-            "           },\n" +
-            "           \"forcemerge\": {\n" +
-            "             \"max_num_segments\": 1000\n" +
-            "           }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
-            "         \"actions\": {\n" +
-            "          \"allocate\": {\n" +
-            "            \"number_of_replicas\": 0\n" +
-            "          }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"delete\": {}\n" +
-            "         }\n" +
-            "       }\n" +
-            "     }\n" +
-            "   }\n" +
-            "}";
-        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "/_ilm/" + policy);
-        request.setEntity(entity);
-        client().performRequest(request);
+        Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
+        lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
-        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy).build());
-        createIndex("baz", Settings.builder().put("index.lifecycle.name", policy).build());
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
+        lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
+
+        Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+        lifecyclePhases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3000), deleteActions));
+
+        LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        AcknowledgedResponse putResponse = execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
+        assertTrue(putResponse.isAcknowledged());
+
+        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
+        createIndex("baz", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
         createIndex("squash", Settings.EMPTY);
         assertBusy(() -> {
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz");
             GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy));
+            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy.getName()));
+            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy.getName()));
             assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
             assertThat(settingsResponse.getSetting("baz", "index.lifecycle.phase"), equalTo("hot"));
         });
@@ -291,68 +184,37 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testDeleteLifecycle() throws IOException {
-        String policy = randomAlphaOfLength(10);
+        String policyName = randomAlphaOfLength(10);
+        LifecyclePolicy policy = createRandomPolicy(policyName);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        String jsonString = "{\n" +
-            "   \"policy\": {\n" +
-            "     \"phases\": {\n" +
-            "       \"hot\": {\n" +
-            "         \"actions\": {\n" +
-            "          \"rollover\": {\n" +
-            "            \"max_age\": \"50d\"\n" +
-            "          }        \n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"warm\": {\n" +
-            "         \"after\": \"1000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"allocate\": {\n" +
-            "             \"require\": { \"_name\": \"node-1\" },\n" +
-            "             \"include\": {},\n" +
-            "             \"exclude\": {}\n" +
-            "           },\n" +
-            "           \"shrink\": {\n" +
-            "             \"number_of_shards\": 1\n" +
-            "           },\n" +
-            "           \"forcemerge\": {\n" +
-            "             \"max_num_segments\": 1000\n" +
-            "           }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"cold\": {\n" +
-            "         \"after\": \"2000s\",\n" +
-            "         \"actions\": {\n" +
-            "          \"allocate\": {\n" +
-            "            \"number_of_replicas\": 0\n" +
-            "          }\n" +
-            "         }\n" +
-            "       },\n" +
-            "       \"delete\": {\n" +
-            "         \"after\": \"3000s\",\n" +
-            "         \"actions\": {\n" +
-            "           \"delete\": {}\n" +
-            "         }\n" +
-            "       }\n" +
-            "     }\n" +
-            "   }\n" +
-            "}";
-        HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "/_ilm/" + policy);
-        request.setEntity(entity);
-        client().performRequest(request);
-
-        DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy);
+        DeleteLifecyclePolicyRequest deleteRequest = new DeleteLifecyclePolicyRequest(policy.getName());
         assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecyclePolicy,
             highLevelClient().indexLifecycle()::deleteLifecyclePolicyAsync));
 
         // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        Request getLifecycle = new Request("GET", "/_ilm/" + policy);
+        Request getLifecycle = new Request("GET", "/_ilm/" + policyName);
         try {
             client().performRequest(getLifecycle);
             fail("index should not exist after being deleted");
         } catch (ResponseException ex) {
             assertEquals(404, ex.getResponse().getStatusLine().getStatusCode());
         }
+    }
+
+    public void testPutLifecycle() throws IOException {
+        String name = randomAlphaOfLengthBetween(5, 20);
+        LifecyclePolicy policy = createRandomPolicy(name);
+        PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
+
+        assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+
+        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
+        Request getLifecycle = new Request("GET", "/_ilm/" + name);
+        Response response = client().performRequest(getLifecycle);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

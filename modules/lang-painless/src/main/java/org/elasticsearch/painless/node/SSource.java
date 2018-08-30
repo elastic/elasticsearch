@@ -359,6 +359,13 @@ public final class SSource extends AStatement {
             clinit.endMethod();
         }
 
+        // Write binding variables
+        for (Map.Entry<String, Class<?>> binding : globals.getBindings().entrySet()) {
+            String name = binding.getKey();
+            String descriptor = Type.getType(binding.getValue()).getDescriptor();
+            visitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
+        }
+
         // Write any needsVarName methods for used variables
         for (org.objectweb.asm.commons.Method needsMethod : scriptClassInfo.getNeedsMethods()) {
             String name = needsMethod.getName();

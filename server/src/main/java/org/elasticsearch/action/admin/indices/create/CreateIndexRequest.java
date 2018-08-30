@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -86,8 +85,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private boolean updateAllTypes = false;
 
@@ -397,16 +394,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                // maybe custom?
-                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
-                if (proto != null) {
-                    found = true;
-                    try {
-                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
-                    } catch (IOException e) {
-                        throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
-                    }
-                }
+                throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         if (!found) {
@@ -422,18 +410,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     public Set<Alias> aliases() {
         return this.aliases;
-    }
-
-    /**
-     * Adds custom metadata to the index to be created.
-     */
-    public CreateIndexRequest custom(IndexMetaData.Custom custom) {
-        customs.put(custom.type(), custom);
-        return this;
-    }
-
-    public Map<String, IndexMetaData.Custom> customs() {
-        return this.customs;
     }
 
     /** True if all fields that span multiple types should be updated, false otherwise */
@@ -498,11 +474,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             mappings.put(type, source);
         }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            customs.put(type, customIndexMetaData);
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // This used to be the size of custom metadata classes
+            int customSize = in.readVInt();
+            assert customSize == 0 : "unexpected custom metadata when none is supported";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -523,10 +501,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        out.writeVInt(customs.size());
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // Size of custom index metadata, which is removed
+            out.writeVInt(0);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -562,10 +539,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.toXContent(builder, params);
         }
         builder.endObject();
-
-        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue(), params);
-        }
         return builder;
     }
 }

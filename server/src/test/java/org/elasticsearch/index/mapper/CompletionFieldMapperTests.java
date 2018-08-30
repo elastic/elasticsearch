@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -453,7 +454,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument nullDoc = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                     .startObject()
-                    .array("completion", null, null)
+                    .array("completion", Token.VALUE_NULL, Token.VALUE_NULL)
                     .endObject()),
             XContentType.JSON));
         assertThat(doc.docs().size(), equalTo(1));

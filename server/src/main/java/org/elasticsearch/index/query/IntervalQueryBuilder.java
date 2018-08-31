@@ -1,5 +1,6 @@
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.elasticsearch.common.ParseField;
@@ -66,6 +67,10 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("Cannot create IntervalQuery over non-existent field [" + field + "]");
+        }
+        if (fieldType.tokenized() == false ||
+            fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + field + "] with no indexed positions");
         }
         return new IntervalQuery(field, sourceProvider.getSource(fieldType));
     }

@@ -1,7 +1,9 @@
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.intervals.IntervalIterator;
@@ -155,7 +157,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public IntervalsSource getSource(MappedFieldType fieldType) throws IOException {
             List<IntervalsSource> subSources = new ArrayList<>();
-            try (TokenStream ts = fieldType.tokenize(fieldType.name(), text)) {
+            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create source against field [" + fieldType.name() + "] with no positions indexed");
+            }
+            Analyzer analyzer = fieldType.searchAnalyzer();
+            try (TokenStream ts = analyzer.tokenStream(fieldType.name(), text)) {
                 // TODO synonyms -> run through GraphTokenStreamFiniteStrings?
                 TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
                 ts.reset();

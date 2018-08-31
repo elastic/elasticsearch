@@ -369,10 +369,6 @@ public abstract class MappedFieldType extends FieldType {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
     }
 
-    public TokenStream tokenize(String field, String text) {
-        throw new IllegalArgumentException("Can only tokenize text on text fields - not on [" + name + "] which is of type [" + typeName() + "]");
-    }
-
     /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range

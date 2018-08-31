@@ -7,21 +7,46 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQueryBuilder> {
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        IntervalsSourceProvider match1 = new IntervalsSourceProvider.Match("jabber crackpot henceforth", Integer.MAX_VALUE, true);
-        IntervalsSourceProvider match2 = new IntervalsSourceProvider.Match("floo", Integer.MAX_VALUE, true);
-        IntervalsSourceProvider combi
-            = new IntervalsSourceProvider.Combine(Arrays.asList(match1, match2), IntervalsSourceProvider.Combine.Type.ORDERED, 30);
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, combi);
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
+    }
+
+    private IntervalsSourceProvider createRandomSource() {
+        switch (randomInt(20)) {
+            case 0:
+                IntervalsSourceProvider source1 = createRandomSource();
+                IntervalsSourceProvider source2 = createRandomSource();
+                int relOrd = randomInt(IntervalsSourceProvider.Relate.Relation.values().length - 1);
+                return new IntervalsSourceProvider.Relate(source1, source2, IntervalsSourceProvider.Relate.Relation.values()[relOrd]);
+            case 1:
+            case 2:
+            case 3:
+                int count = randomInt(5) + 1;
+                List<IntervalsSourceProvider> subSources = new ArrayList<>();
+                for (int i = 0; i < count; i++) {
+                    subSources.add(createRandomSource());
+                }
+                int typeOrd = randomInt(IntervalsSourceProvider.Combine.Type.values().length - 1);
+                int width = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(count, 100);
+                return new IntervalsSourceProvider.Combine(subSources, IntervalsSourceProvider.Combine.Type.values()[typeOrd], width);
+            default:
+                int wordCount = randomInt(4) + 1;
+                List<String> words = new ArrayList<>();
+                for (int i = 0; i < wordCount; i++) {
+                    words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
+                }
+                String text = String.join(" ", words);
+                return new IntervalsSourceProvider.Match(text, randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 20), randomBoolean());
+        }
     }
 
     @Override
@@ -30,8 +55,6 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testMatchInterval() throws IOException {
-
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         String json = "{ \"intervals\" : " +
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\"," +
@@ -67,8 +90,6 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testCombineInterval() throws IOException {
-
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         String json = "{ \"intervals\" : " +
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
@@ -107,8 +128,6 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testRelateIntervals() throws IOException {
-
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         String json = "{ \"intervals\" : " +
             "{ \"field\" : \"" + STRING_FIELD_NAME + "\", " +
@@ -169,5 +188,26 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.nonOverlapping(Intervals.term("one"), Intervals.term("two")));
         assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
+    public void testNonIndexedFields() {
+        IntervalsSourceProvider provider = createRandomSource();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder = new IntervalQueryBuilder("no_such_field", provider);
+            builder.doToQuery(createShardContext());
+        });
+        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over non-existent field [no_such_field]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);
+            builder.doToQuery(createShardContext());
+        });
+        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field [" + INT_FIELD_NAME + "] with no indexed positions"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder = new IntervalQueryBuilder(STRING_FIELD_NAME_2, provider);
+            builder.doToQuery(createShardContext());
+        });
+        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field [" + STRING_FIELD_NAME_2 + "] with no indexed positions"));
     }
 }

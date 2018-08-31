@@ -583,11 +583,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TokenStream tokenize(String field, String text) {
-            return searchAnalyzer().tokenStream(field, text);
-        }
-
-        @Override
         public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
 
             if (indexPhrases && slop == 0 && hasGaps(cache(stream)) == false) {

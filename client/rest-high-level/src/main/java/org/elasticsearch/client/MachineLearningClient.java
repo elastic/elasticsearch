@@ -291,7 +291,8 @@ public final class MachineLearningClient {
      }
 
     /**
-     * Flushes a given Machine Learning Job
+     * Flushes internally buffered data for the given Machine Learning Job ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
      *
      * Both flush and close operations are similar,
      * however the flush is more efficient if you are expecting to send more data for analysis.
@@ -316,7 +317,8 @@ public final class MachineLearningClient {
      }
 
     /**
-     * Flushes a given Machine Learning Job asynchronously and notifies the listener on completion
+     * Flushes internally buffered data for the given Machine Learning Job asynchronously ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
      *
      * Both flush and close operations are similar,
      * however the flush is more efficient if you are expecting to send more data for analysis.

@@ -474,18 +474,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::x-pack-ml-flush-job-request
             FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-first-machine-learning-job"); //<1>
-            flushJobRequest.setCalcInterim(true); //<2>
-            flushJobRequest.setAdvanceTime("1400"); //<3>
-            flushJobRequest.setStart("1500"); //<4>
-            flushJobRequest.setEnd("2000"); //<5>
-            flushJobRequest.setSkipTime("1100"); //<6>
             //end::x-pack-ml-flush-job-request
+
+            //tag::x-pack-ml-flush-job-request-options
+            flushJobRequest.setCalcInterim(true); //<1>
+            flushJobRequest.setAdvanceTime("2018-08-31T16:35:07+00:00"); //<2>
+            flushJobRequest.setStart("2018-08-31T16:35:17+00:00"); //<3>
+            flushJobRequest.setEnd("2018-08-31T16:35:27+00:00"); //<4>
+            flushJobRequest.setSkipTime("2018-08-31T16:35:00+00:00"); //<5>
+            //end::x-pack-ml-flush-job-request-options
 
             //tag::x-pack-ml-flush-job-execute
             FlushJobResponse flushJobResponse = client.machineLearning().flushJob(flushJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-ml-flush-job-execute
+
+            //tag::x-pack-ml-flush-job-response
             boolean isFlushed = flushJobResponse.isFlushed(); //<1>
             Date lastFinalizedBucketEnd = flushJobResponse.getLastFinalizedBucketEnd(); //<2>
-            //end::x-pack-ml-flush-job-execute
+            //end::x-pack-ml-flush-job-response
 
         }
         {

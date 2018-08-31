@@ -54,6 +54,6 @@ public class FlushJobRequestTests extends AbstractXContentTestCase<FlushJobReque
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

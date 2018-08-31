@@ -43,11 +43,7 @@ public class FlushJobResponse extends ActionResponse implements ToXContentObject
             true,
             (a) -> {
                 boolean flushed = (boolean) a[0];
-
-                Date date = null;
-                if (a[1] != null) {
-                    date = new Date((long) a[1]);
-                }
+                Date date = a[1] == null ? null : new Date((long) a[1]);
                 return new FlushJobResponse(flushed, date);
             });
 
@@ -76,7 +72,7 @@ public class FlushJobResponse extends ActionResponse implements ToXContentObject
     }
 
     /**
-     * provides the timestamp (in milliseconds-since-the-epoch) of the end of the last bucket that was processed.
+     * Provides the timestamp (in milliseconds-since-the-epoch) of the end of the last bucket that was processed.
      */
     @Nullable
     public Date getLastFinalizedBucketEnd() {

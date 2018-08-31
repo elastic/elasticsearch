@@ -131,7 +131,8 @@ final class MLRequestConverters {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors").addPathPart(flushJobRequest.getJobId())
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(flushJobRequest.getJobId())
             .addPathPartAsIs("_flush")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);

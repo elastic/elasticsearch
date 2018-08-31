@@ -41,7 +41,7 @@ public class FlushJobRequest extends ActionRequest implements ToXContentObject {
     public static final ParseField SKIP_TIME = new ParseField("skip_time");
 
     public static final ConstructingObjectParser<FlushJobRequest, Void> PARSER =
-        new ConstructingObjectParser<>("flush_job_request", true, (a) -> new FlushJobRequest((String) a[0]));
+        new ConstructingObjectParser<>("flush_job_request", (a) -> new FlushJobRequest((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -93,7 +93,7 @@ public class FlushJobRequest extends ActionRequest implements ToXContentObject {
      * When used in conjunction with {@link FlushJobRequest#calcInterim},
      * specifies the start of the range of buckets on which to calculate interim results.
      *
-     * @param start the beginning of the range of buckets
+     * @param start the beginning of the range of buckets; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -107,7 +107,7 @@ public class FlushJobRequest extends ActionRequest implements ToXContentObject {
      * When used in conjunction with {@link FlushJobRequest#calcInterim}, specifies the end of the range
      * of buckets on which to calculate interim results
      *
-     * @param end the end of the range of buckets
+     * @param end the end of the range of buckets; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;
@@ -121,7 +121,7 @@ public class FlushJobRequest extends ActionRequest implements ToXContentObject {
      * Specifies to advance to a particular time value.
      * Results are generated and the model is updated for data from the specified time interval.
      *
-     * @param advanceTime String representation of an EPOCH timestamp
+     * @param advanceTime String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setAdvanceTime(String advanceTime) {
         this.advanceTime = advanceTime;
@@ -135,7 +135,7 @@ public class FlushJobRequest extends ActionRequest implements ToXContentObject {
      * Specifies to skip to a particular time value.
      * Results are not generated and the model is not updated for data from the specified time interval.
      *
-     * @param skipTime String representation of an EPOCH timestamp
+     * @param skipTime String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setSkipTime(String skipTime) {
         this.skipTime = skipTime;

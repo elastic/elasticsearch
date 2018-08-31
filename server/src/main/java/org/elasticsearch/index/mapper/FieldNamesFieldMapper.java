@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -205,12 +204,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
     }
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_6_1_0)) {
+        if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             super.parse(context);
         }
     }

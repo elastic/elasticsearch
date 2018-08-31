@@ -23,13 +23,13 @@ public class TsvLogStructureFinderFactory implements LogStructureFinderFactory {
      */
     @Override
     public boolean canCreateFromSample(List<String> explanation, String sample) {
-        return SeparatedValuesLogStructureFinder.canCreateFromSample(explanation, sample, 2, CsvPreference.TAB_PREFERENCE, "TSV");
+        return DelimitedLogStructureFinder.canCreateFromSample(explanation, sample, 2, CsvPreference.TAB_PREFERENCE, "TSV");
     }
 
     @Override
     public LogStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
         throws IOException {
-        return SeparatedValuesLogStructureFinder.makeSeparatedValuesLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
+        return DelimitedLogStructureFinder.makeDelimitedLogStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
             CsvPreference.TAB_PREFERENCE, false);
     }
 }

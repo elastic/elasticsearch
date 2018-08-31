@@ -12,27 +12,27 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.ml.logstructurefinder.SeparatedValuesLogStructureFinder.levenshteinFieldwiseCompareRows;
-import static org.elasticsearch.xpack.ml.logstructurefinder.SeparatedValuesLogStructureFinder.levenshteinDistance;
+import static org.elasticsearch.xpack.ml.logstructurefinder.DelimitedLogStructureFinder.levenshteinFieldwiseCompareRows;
+import static org.elasticsearch.xpack.ml.logstructurefinder.DelimitedLogStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 
-public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase {
+public class DelimitedLogStructureFinderTests extends LogStructureTestCase {
 
-    private LogStructureFinderFactory factory = new CsvLogStructureFinderFactory();
+    private LogStructureFinderFactory csvFactory = new DelimitedLogStructureFinderFactory(',', 2, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
             "2018-05-17T13:41:23,hello\n" +
             "2018-05-17T13:41:32,hello again\n";
-        assertTrue(factory.canCreateFromSample(explanation, sample));
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        LogStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogStructure structure = structureFinder.getStructure();
 
-        assertEquals(LogStructure.Format.CSV, structure.getFormat());
+        assertEquals(LogStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());
@@ -41,7 +41,7 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
         }
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
         assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
-        assertEquals(Character.valueOf(','), structure.getSeparator());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("time", "message"), structure.getInputFields());
@@ -55,15 +55,15 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "\"hello\n" +
             "world\",2018-05-17T13:41:23,1\n" +
             "\"hello again\n"; // note that this last record is truncated
-        assertTrue(factory.canCreateFromSample(explanation, sample));
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        LogStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogStructure structure = structureFinder.getStructure();
 
-        assertEquals(LogStructure.Format.CSV, structure.getFormat());
+        assertEquals(LogStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());
@@ -72,7 +72,7 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
         }
         assertEquals("^\"?message\"?,\"?time\"?,\"?count\"?", structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
-        assertEquals(Character.valueOf(','), structure.getSeparator());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("message", "time", "count"), structure.getInputFields());
@@ -88,15 +88,15 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
-        assertTrue(factory.canCreateFromSample(explanation, sample));
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        LogStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogStructure structure = structureFinder.getStructure();
 
-        assertEquals(LogStructure.Format.CSV, structure.getFormat());
+        assertEquals(LogStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());
@@ -108,7 +108,7 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
             structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
-        assertEquals(Character.valueOf(','), structure.getSeparator());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
@@ -126,15 +126,15 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "2,2016-12-31 15:15:01,2016-12-31 15:15:09,1,.00,1,N,264,264,2,1,0,0.5,0,0,0.3,1.8,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:10:22,1,1.60,1,N,163,143,2,9,0.5,0.5,0,0,0.3,10.3,,\n" +
             "1,2016-12-01 00:00:01,2016-12-01 00:11:01,1,1.40,1,N,164,229,1,9,0.5,0.5,2.05,0,0.3,12.35,,\n";
-        assertTrue(factory.canCreateFromSample(explanation, sample));
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        LogStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogStructure structure = structureFinder.getStructure();
 
-        assertEquals(LogStructure.Format.CSV, structure.getFormat());
+        assertEquals(LogStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());
@@ -146,7 +146,7 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
                 "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
             structure.getExcludeLinesPattern());
         assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
-        assertEquals(Character.valueOf(','), structure.getSeparator());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
@@ -161,15 +161,15 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
         String sample = "\"pos_id\",\"trip_id\",\"latitude\",\"longitude\",\"altitude\",\"timestamp\"\n" +
             "\"1\",\"3\",\"4703.7815\",\"1527.4713\",\"359.9\",\"2017-01-19 16:19:04.742113\"\n" +
             "\"2\",\"3\",\"4703.7815\",\"1527.4714\",\"359.9\",\"2017-01-19 16:19:05.741890\"\n";
-        assertTrue(factory.canCreateFromSample(explanation, sample));
+        assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        LogStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
+        LogStructureFinder structureFinder = csvFactory.createFromSample(explanation, sample, charset, hasByteOrderMarker);
 
         LogStructure structure = structureFinder.getStructure();
 
-        assertEquals(LogStructure.Format.CSV, structure.getFormat());
+        assertEquals(LogStructure.Format.DELIMITED, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());
@@ -179,7 +179,7 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
         assertEquals("^\"?pos_id\"?,\"?trip_id\"?,\"?latitude\"?,\"?longitude\"?,\"?altitude\"?,\"?timestamp\"?",
             structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
-        assertEquals(Character.valueOf(','), structure.getSeparator());
+        assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("pos_id", "trip_id", "latitude", "longitude", "altitude", "timestamp"), structure.getInputFields());
@@ -195,8 +195,8 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogStructureFinder.findHeaderFromSample(explanation,
-            SeparatedValuesLogStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+        Tuple<Boolean, String[]> header = DelimitedLogStructureFinder.findHeaderFromSample(explanation,
+            DelimitedLogStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertTrue(header.v1());
         assertThat(header.v2(), arrayContaining("time", "airline", "responsetime", "sourcetype"));
@@ -208,8 +208,8 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
             "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n" +
             "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = SeparatedValuesLogStructureFinder.findHeaderFromSample(explanation,
-            SeparatedValuesLogStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
+        Tuple<Boolean, String[]> header = DelimitedLogStructureFinder.findHeaderFromSample(explanation,
+            DelimitedLogStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertFalse(header.v1());
         assertThat(header.v2(), arrayContaining("column1", "column2", "column3", "column4"));
@@ -251,43 +251,43 @@ public class SeparatedValuesLogStructureFinderTests extends LogStructureTestCase
 
     public void testLineHasUnescapedQuote() {
 
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(DelimitedLogStructureFinder.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(DelimitedLogStructureFinder.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
 
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(SeparatedValuesLogStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedLogStructureFinder.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(DelimitedLogStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(DelimitedLogStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
     }
 
     public void testRowContainsDuplicateNonEmptyValues() {
 
-        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("a")));
-        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("")));
-        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
-        assertTrue(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
-        assertTrue(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
-        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
-        assertFalse(SeparatedValuesLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+        assertFalse(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("a")));
+        assertFalse(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Collections.singletonList("")));
+        assertFalse(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
+        assertTrue(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
+        assertTrue(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
+        assertFalse(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
+        assertFalse(DelimitedLogStructureFinder.rowContainsDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
     }
 }

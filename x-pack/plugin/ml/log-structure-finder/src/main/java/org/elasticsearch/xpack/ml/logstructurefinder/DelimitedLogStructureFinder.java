@@ -29,17 +29,16 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SeparatedValuesLogStructureFinder implements LogStructureFinder {
+public class DelimitedLogStructureFinder implements LogStructureFinder {
 
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
     private final List<String> sampleMessages;
     private final LogStructure structure;
 
-    static SeparatedValuesLogStructureFinder makeSeparatedValuesLogStructureFinder(List<String> explanation, String sample,
-                                                                                   String charsetName, Boolean hasByteOrderMarker,
-                                                                                   CsvPreference csvPreference, boolean trimFields)
-        throws IOException {
+    static DelimitedLogStructureFinder makeDelimitedLogStructureFinder(List<String> explanation, String sample, String charsetName,
+                                                                       Boolean hasByteOrderMarker, CsvPreference csvPreference,
+                                                                       boolean trimFields) throws IOException {
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
@@ -73,13 +72,14 @@ public class SeparatedValuesLogStructureFinder implements LogStructureFinder {
         String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
 
         char delimiter = (char) csvPreference.getDelimiterChar();
-        LogStructure.Builder structureBuilder = new LogStructure.Builder(LogStructure.Format.fromSeparator(delimiter))
+        LogStructure.Builder structureBuilder = new LogStructure.Builder(LogStructure.Format.DELIMITED)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(preamble)
             .setNumLinesAnalyzed(lineNumbers.get(lineNumbers.size() - 1))
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isHeaderInFile)
+            .setDelimiter(delimiter)
             .setInputFields(Arrays.stream(headerWithNamedBlanks).collect(Collectors.toList()));
 
         if (trimFields) {
@@ -131,10 +131,10 @@ public class SeparatedValuesLogStructureFinder implements LogStructureFinder {
             .setExplanation(explanation)
             .build();
 
-        return new SeparatedValuesLogStructureFinder(sampleMessages, structure);
+        return new DelimitedLogStructureFinder(sampleMessages, structure);
     }
 
-    private SeparatedValuesLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
+    private DelimitedLogStructureFinder(List<String> sampleMessages, LogStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }

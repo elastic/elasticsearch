@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -50,7 +49,6 @@ import java.util.function.Function;
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
-    public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
@@ -226,8 +224,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        BytesReference originalSource = context.sourceToParse().source();
-        BytesReference source = originalSource;
+        BytesReference source = context.sourceToParse().source();
         if (enabled && fieldType().stored() && source != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
@@ -243,17 +240,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             BytesRef ref = source.toBytesRef();
             fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
-        } else {
-            source = null;
         }
-
-        if (originalSource != null && source != originalSource && context.indexSettings().isSoftDeleteEnabled()) {
-            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-            BytesRef ref = originalSource.toBytesRef();
-            fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            fields.add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
-        }
-     }
+    }
 
     @Override
     protected String contentType() {

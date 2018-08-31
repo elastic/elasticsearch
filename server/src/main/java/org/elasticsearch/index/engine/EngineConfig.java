@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -81,7 +80,6 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier primaryTermSupplier;
-    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -128,8 +126,7 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier,
-                        TombstoneDocSupplier tombstoneDocSupplier) {
+                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -167,7 +164,6 @@ public final class EngineConfig {
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
-        this.tombstoneDocSupplier = tombstoneDocSupplier;
     }
 
     /**
@@ -376,26 +372,5 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
-    }
-
-    /**
-     * A supplier supplies tombstone documents which will be used in soft-update methods.
-     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     */
-    public interface TombstoneDocSupplier {
-        /**
-         * Creates a tombstone document for a delete operation.
-         */
-        ParsedDocument newDeleteTombstoneDoc(String type, String id);
-
-        /**
-         * Creates a tombstone document for a noop operation.
-         * @param reason the reason of an a noop
-         */
-        ParsedDocument newNoopTombstoneDoc(String reason);
-    }
-
-    public TombstoneDocSupplier getTombstoneDocSupplier() {
-        return tombstoneDocSupplier;
     }
 }

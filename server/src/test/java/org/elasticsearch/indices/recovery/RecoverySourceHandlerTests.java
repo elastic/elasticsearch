@@ -411,6 +411,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             recoverySettings.getChunkSize().bytesAsInt(),
             Settings.EMPTY) {
 
+
+            @Override
+            boolean isTranslogReadyForSequenceNumberBasedRecovery() throws IOException {
+                return randomBoolean();
+            }
+
             @Override
             public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);

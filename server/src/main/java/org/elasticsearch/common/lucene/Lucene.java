@@ -27,10 +27,8 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -98,8 +96,6 @@ public class Lucene {
         assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
     }
 
-    public static final String SOFT_DELETES_FIELD = "__soft_deletes";
-
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
@@ -144,7 +140,7 @@ public class Lucene {
     public static int getNumDocs(SegmentInfos info) {
         int numDocs = 0;
         for (SegmentCommitInfo si : info) {
-            numDocs += si.info.maxDoc() - si.getDelCount() - si.getSoftDelCount();
+            numDocs += si.info.maxDoc() - si.getDelCount();
         }
         return numDocs;
     }
@@ -201,7 +197,6 @@ public class Lucene {
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
@@ -225,7 +220,6 @@ public class Lucene {
             }
         }
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
@@ -834,83 +828,5 @@ public class Lucene {
                 return maxDoc;
             }
         };
-    }
-
-    /**
-     * Wraps a directory reader to make all documents live except those were rolled back
-     * or hard-deleted due to non-aborting exceptions during indexing.
-     * The wrapped reader can be used to query all documents.
-     *
-     * @param in the input directory reader
-     * @return the wrapped reader
-     */
-    public static DirectoryReader wrapAllDocsLive(DirectoryReader in) throws IOException {
-        return new DirectoryReaderWithAllLiveDocs(in);
-    }
-
-    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
-            final Bits liveDocs;
-            final int numDocs;
-            LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
-                super(in);
-                this.liveDocs = liveDocs;
-                this.numDocs = numDocs;
-            }
-            @Override
-            public Bits getLiveDocs() {
-                return liveDocs;
-            }
-            @Override
-            public int numDocs() {
-                return numDocs;
-            }
-            @Override
-            public CacheHelper getCoreCacheHelper() {
-                return in.getCoreCacheHelper();
-            }
-            @Override
-            public CacheHelper getReaderCacheHelper() {
-                return null; // Modifying liveDocs
-            }
-        }
-
-        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader leaf) {
-                    SegmentReader segmentReader = segmentReader(leaf);
-                    Bits hardLiveDocs = segmentReader.getHardLiveDocs();
-                    if (hardLiveDocs == null) {
-                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
-                    }
-                    // TODO: Can we avoid calculate numDocs by using SegmentReader#getSegmentInfo with LUCENE-8458?
-                    int numDocs = 0;
-                    for (int i = 0; i < hardLiveDocs.length(); i++) {
-                        if (hardLiveDocs.get(i)) {
-                            numDocs++;
-                        }
-                    }
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
-                }
-            });
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return wrapAllDocsLive(in);
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return null; // Modifying liveDocs
-        }
-    }
-
-    /**
-     * Returns a numeric docvalues which can be used to soft-delete documents.
-     */
-    public static NumericDocValuesField newSoftDeletesField() {
-        return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
     }
 }

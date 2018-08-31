@@ -24,8 +24,9 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -195,7 +196,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public IndexSettings indexSettings() {
+        public Settings indexSettings() {
             return in.indexSettings();
         }
 
@@ -314,7 +315,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final List<Document> documents;
 
-        private final IndexSettings indexSettings;
+        @Nullable
+        private final Settings indexSettings;
 
         private final SourceToParse sourceToParse;
 
@@ -332,8 +334,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
+        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
+                SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -345,7 +347,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getValue(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+            this.maxAllowedNumNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(indexSettings);
             this.numNestedDocs = 0L;
         }
 
@@ -355,7 +357,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public IndexSettings indexSettings() {
+        @Nullable
+        public Settings indexSettings() {
             return this.indexSettings;
         }
 
@@ -562,7 +565,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         return false;
     }
 
-    public abstract IndexSettings indexSettings();
+    @Nullable
+    public abstract Settings indexSettings();
 
     public abstract SourceToParse sourceToParse();
 

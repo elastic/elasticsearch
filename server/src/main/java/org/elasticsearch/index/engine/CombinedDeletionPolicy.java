@@ -46,17 +46,14 @@ import java.util.function.LongSupplier;
 public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
 
-    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
+    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
-        this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new ObjectIntHashMap<>();
     }
@@ -83,7 +80,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 deleteCommit(commits.get(i));
             }
         }
-        updateRetentionPolicy();
+        updateTranslogDeletionPolicy();
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -93,7 +90,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
-    private void updateRetentionPolicy() throws IOException {
+    private void updateTranslogDeletionPolicy() throws IOException {
         assert Thread.holdsLock(this);
         logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
@@ -104,9 +101,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
-
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
     /**

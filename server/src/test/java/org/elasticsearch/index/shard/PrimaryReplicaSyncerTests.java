@@ -106,22 +106,17 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                     .isPresent(),
                 is(false));
         }
+
+        assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, resyncTask.getTotalOperations());
         if (syncNeeded && globalCheckPoint < numDocs - 1) {
-            if (shard.indexSettings.isSoftDeleteEnabled()) {
-                assertThat(resyncTask.getSkippedOperations(), equalTo(0));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(resyncTask.getTotalOperations()));
-                assertThat(resyncTask.getTotalOperations(), equalTo(Math.toIntExact(numDocs - 1 - globalCheckPoint)));
-            } else {
-                int skippedOps = Math.toIntExact(globalCheckPoint + 1); // everything up to global checkpoint included
-                assertThat(resyncTask.getSkippedOperations(), equalTo(skippedOps));
-                assertThat(resyncTask.getResyncedOperations(), equalTo(numDocs - skippedOps));
-                assertThat(resyncTask.getTotalOperations(), equalTo(globalCheckPoint == numDocs - 1 ? 0 : numDocs));
-            }
+            long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
+            assertEquals(skippedOps, resyncTask.getSkippedOperations());
+            assertEquals(numDocs - skippedOps, resyncTask.getResyncedOperations());
         } else {
-            assertThat(resyncTask.getSkippedOperations(), equalTo(0));
-            assertThat(resyncTask.getResyncedOperations(), equalTo(0));
-            assertThat(resyncTask.getTotalOperations(), equalTo(0));
+            assertEquals(0, resyncTask.getSkippedOperations());
+            assertEquals(0, resyncTask.getResyncedOperations());
         }
+
         closeShards(shard);
     }
 

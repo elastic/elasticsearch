@@ -346,6 +346,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         try (NodeEnvironment.NodeLock nodeLock = shardLockTuple.v2()) {
             assertThat(shardLockTuple.v1().resolveIndex(), equalTo(indexPath));
         }
+
+        final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
+        final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple2 = command.getShardPath(options2, environment);
+        try (NodeEnvironment.NodeLock nodeLock = shardLockTuple2.v2()) {
+            assertThat(shardLockTuple2.v1().resolveIndex(), equalTo(indexPath));
+        }
     }
 
     private IndexShard reopenIndexShard(boolean corrupted) throws IOException {

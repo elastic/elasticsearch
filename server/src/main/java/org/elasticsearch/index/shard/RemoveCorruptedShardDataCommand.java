@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -69,7 +68,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
@@ -126,92 +124,51 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     protected Tuple<ShardPath, NodeEnvironment.NodeLock> getShardPath(OptionSet options, Environment environment) throws IOException {
         final Settings settings = environment.settings();
+
+        final String indexName;
+        final int shardId;
+        final int fromNodeId;
+        final int toNodeId;
+
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
-            final Path shardParentPath = path.getParent();
+            final Path shardParent = path.getParent();
+            final Path shardParentParent = shardParent.getParent();
             final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
             if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
                 throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
             }
 
             final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardParentPath);
-            final Index index = indexMetaData.getIndex();
-            final ShardId shardId;
-            final String fileName = path.getFileName().toString();
-            if (Files.isDirectory(path) && fileName.chars().allMatch(Character::isDigit)) {
-                int id = Integer.parseInt(fileName);
-                shardId = new ShardId(index, id);
+                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardParent);
+
+            final String shardIdFileName = path.getFileName().toString();
+            final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
+            if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
+                && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
+                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
+                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
+            ) {
+                shardId = Integer.parseInt(shardIdFileName);
+                indexName = indexMetaData.getIndex().getName();
+                fromNodeId = Integer.parseInt(nodeIdFileName);
+                toNodeId = fromNodeId + 1;
             } else {
-                throw new ElasticsearchException("Unable to resolve shard id from " + path.toString());
+                throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
+                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
             }
+        } else {
+            // otherwise resolve shardPath based on the index name and shard id
+            indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
+            shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
 
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-
-            final Tuple<ShardPath, NodeEnvironment.NodeLock> tuple = resolveShardPath(environment,
-                (nodeLockId, nodePath) -> {
-                    final Path shardPathLocation = nodePath.resolve(shardId);
-                    final ShardPath shardPath1 = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
-                        nodeLockId, nodePath.path);
-                    if (shardPath1 != null && shardPath1.resolveIndex().equals(indexPath)) {
-                        return shardPath1;
-                    }
-                    return null;
-                },
-                () -> new ElasticsearchException("Unable to resolve shard path for path " + path.toString()));
-            return tuple;
+            // resolve shard path in case of multi-node layout per environment
+            fromNodeId = 0;
+            toNodeId = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         }
 
-        // otherwise - try to resolve shardPath based on the index name and shard id
-
-        final String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
-        final Integer id = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-
-        return resolveShardPath(environment,
-            (nodeLockId, nodePath) -> {
-                // have to scan all index uuid folders to resolve from index name
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                    for (Path file : stream) {
-                        if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
-                            final IndexMetaData indexMetaData =
-                                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
-                            if (indexMetaData != null) {
-                                final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                                final Index index = indexMetaData.getIndex();
-                                if (indexName.equals(index.getName())) {
-                                    final ShardId shardId = new ShardId(index, id);
-
-                                    final Path shardPathLocation = nodePath.resolve(shardId);
-                                    ShardPath shardPath = null;
-                                    if (Files.exists(shardPathLocation)) {
-                                        shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings,
-                                            new Path[]{shardPathLocation},
-                                            nodeLockId, nodePath.path);
-                                    }
-                                    if (shardPath != null) {
-                                        return shardPath;
-                                    }
-                                    throw new ElasticsearchException("Unable to resolve shard path for index ["
-                                        + indexName + "] and shard id [" + id + "]");
-                                }
-                            }
-                        }
-                    }
-                }
-                return null;
-            },
-            () -> new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "]"));
-    }
-
-    private Tuple<ShardPath, NodeEnvironment.NodeLock> resolveShardPath(
-        final Environment environment,
-        final CheckedBiFunction<Integer, NodeEnvironment.NodePath, ShardPath, IOException> function,
-        final Supplier<ElasticsearchException> exceptionSupplier) throws IOException {
-        final Settings settings = environment.settings();
-        // try to resolve shard path in case of multi-node layout per environment
-        final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
-        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
+        for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
             final NodeEnvironment.NodeLock nodeLock;
             try {
                 nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment);
@@ -221,15 +178,40 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
             for (NodeEnvironment.NodePath nodePath : nodePaths) {
                 if (Files.exists(nodePath.indicesPath)) {
-                    final ShardPath shardPath = function.apply(possibleLockId, nodePath);
-                    if (shardPath != null) {
-                        return Tuple.tuple(shardPath, nodeLock);
+                    // have to scan all index uuid folders to resolve from index name
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                        for (Path file : stream) {
+                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                                final IndexMetaData indexMetaData =
+                                    IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
+                                if (indexMetaData != null) {
+                                    final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                                    final Index index = indexMetaData.getIndex();
+                                    if (indexName.equals(index.getName())) {
+                                        final ShardId shId = new ShardId(index, shardId);
+
+                                        final Path shardPathLocation = nodePath.resolve(shId);
+                                        ShardPath shardPath = null;
+                                        if (Files.exists(shardPathLocation)) {
+                                            shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                                                new Path[]{shardPathLocation},
+                                                possibleLockId, nodePath.path);
+                                        }
+                                        if (shardPath != null) {
+                                            return Tuple.tuple(shardPath, nodeLock);
+                                        }
+                                        throw new ElasticsearchException("Unable to resolve shard path for index ["
+                                            + indexName + "] and shard id [" + shardId + "]");
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
             nodeLock.close();
         }
-        throw exceptionSupplier.get();
+        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "]");
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {

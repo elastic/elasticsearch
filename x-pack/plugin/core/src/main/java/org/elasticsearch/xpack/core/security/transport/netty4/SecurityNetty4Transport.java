@@ -190,7 +190,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 if (configuredServerName != null) {
                     sniServerNames.add(new SNIHostName(configuredServerName));
                 }
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, sniServerNames));
+                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
+                    sniServerNames));
             }
         }
     }

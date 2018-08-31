@@ -97,6 +97,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
@@ -2700,7 +2701,21 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertToXContentBody(graphExploreRequest, request.getEntity());
-    }    
+    }
+
+    public void testGetLifecyclePolicy() {
+        String[] policies = rarely() ? null : randomIndicesNames(0, 10);
+        GetLifecyclePolicyRequest req = new GetLifecyclePolicyRequest(policies);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.getLifecyclePolicy(req);
+        assertEquals(request.getMethod(), HttpGet.METHOD_NAME);
+        String policiesStr = Strings.arrayToCommaDelimitedString(policies);
+        assertEquals(request.getEndpoint(), "/_ilm" + (policiesStr.isEmpty() ? "" : ("/" + policiesStr)));
+        assertEquals(request.getParameters(), expectedParams);
+    }
 
     public void testPutLifecyclePolicy() throws Exception {
         String name = randomAlphaOfLengthBetween(2, 20);

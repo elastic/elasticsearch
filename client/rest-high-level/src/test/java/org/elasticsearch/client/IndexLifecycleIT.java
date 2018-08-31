@@ -20,12 +20,16 @@
 package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.AllocateAction;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.Phase;
@@ -33,7 +37,6 @@ import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
@@ -45,6 +48,7 @@ import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +56,7 @@ import java.util.Map;
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
 public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
@@ -194,14 +199,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertAcked(execute(deleteRequest, highLevelClient().indexLifecycle()::deleteLifecyclePolicy,
             highLevelClient().indexLifecycle()::deleteLifecyclePolicyAsync));
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        Request getLifecycle = new Request("GET", "/_ilm/" + policyName);
-        try {
-            client().performRequest(getLifecycle);
-            fail("index should not exist after being deleted");
-        } catch (ResponseException ex) {
-            assertEquals(404, ex.getResponse().getStatusLine().getStatusCode());
-        }
+        GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(policyName);
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
+                highLevelClient().indexLifecycle()::getLifecyclePolicyAsync));
+        assertEquals(404, ex.status().getStatus());
     }
 
     public void testPutLifecycle() throws IOException {
@@ -212,9 +214,27 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        Request getLifecycle = new Request("GET", "/_ilm/" + name);
-        Response response = client().performRequest(getLifecycle);
-        assertEquals(200, response.getStatusLine().getStatusCode());
+        GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(name);
+        GetLifecyclePolicyResponse response = execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
+            highLevelClient().indexLifecycle()::getLifecyclePolicyAsync);
+        assertEquals(policy, response.getPolicies().get(name));
+    }
+
+    public void testGetMultipleLifecyclePolicies() throws IOException {
+        int numPolicies = randomIntBetween(1, 10);
+        String[] policyNames = new String[numPolicies];
+        LifecyclePolicy[] policies = new LifecyclePolicy[numPolicies];
+        for (int i = 0; i < numPolicies; i++) {
+            policyNames[i] = "policy-" + randomAlphaOfLengthBetween(5, 10);
+            policies[i] = createRandomPolicy(policyNames[i]);
+            PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policies[i]);
+            assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
+                highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+        }
+
+        GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(randomFrom(policyNames, null));
+        GetLifecyclePolicyResponse response = execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
+            highLevelClient().indexLifecycle()::getLifecyclePolicyAsync);
+        assertThat(Arrays.asList(response.getPolicies().values().toArray()), hasItems((Object[]) policies));
     }
 }

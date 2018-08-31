@@ -424,7 +424,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
             "mock", (factories, tag, config) -> new AbstractProcessor("mock") {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     throw new IllegalStateException("error");
                 }
 
@@ -827,8 +827,9 @@ public class IngestServiceTests extends ESTestCase {
             String value = (String) config.remove("value");
             return new Processor() {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     ingestDocument.setFieldValue(field, value);
+                    return ingestDocument;
                 }
 
                 @Override
@@ -846,8 +847,9 @@ public class IngestServiceTests extends ESTestCase {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     ingestDocument.removeField(field);
+                    return ingestDocument;
                 }
 
                 @Override

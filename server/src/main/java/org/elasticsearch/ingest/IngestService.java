@@ -270,7 +270,7 @@ public class IngestService implements ClusterStateApplier {
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
         Processor failureProcessor = new AbstractProcessor(tag) {
             @Override
-            public void execute(IngestDocument ingestDocument) {
+            public IngestDocument execute(IngestDocument ingestDocument) {
                 throw new IllegalStateException(errorMessage);
             }
 

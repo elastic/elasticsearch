@@ -65,8 +65,9 @@ public class ConditionalProcessorTests extends ESTestCase {
                 scriptName, Collections.emptyMap()), scriptService,
             new Processor() {
                 @Override
-                public void execute(final IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                     ingestDocument.setFieldValue("foo", "bar");
+                    return ingestDocument;
                 }
 
                 @Override

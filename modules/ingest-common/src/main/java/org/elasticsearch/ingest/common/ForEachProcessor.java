@@ -63,11 +63,11 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
-                return;
+                return ingestDocument;
             }
             throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
         }
@@ -81,6 +81,7 @@ public final class ForEachProcessor extends AbstractProcessor {
             }
         }
         ingestDocument.setFieldValue(field, newValues);
+        return ingestDocument;
     }
 
     @Override

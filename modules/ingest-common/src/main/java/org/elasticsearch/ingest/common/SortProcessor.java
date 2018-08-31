@@ -94,7 +94,7 @@ public final class SortProcessor extends AbstractProcessor {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         List<? extends Comparable<Object>> list = document.getFieldValue(field, List.class);
 
         if (list == null) {
@@ -110,6 +110,7 @@ public final class SortProcessor extends AbstractProcessor {
         }
 
         document.setFieldValue(targetField, copy);
+        return document;
     }
 
     @Override

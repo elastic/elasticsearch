@@ -44,6 +44,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -434,6 +435,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setCommitOnClose(false)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         // IndexWriter acquires directory lock by its own

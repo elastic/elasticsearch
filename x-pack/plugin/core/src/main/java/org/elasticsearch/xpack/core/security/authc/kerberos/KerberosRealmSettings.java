@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 
 import java.util.Set;
 
@@ -49,7 +50,9 @@ public final class KerberosRealmSettings {
      * @return the valid set of {@link Setting}s for a {@value #TYPE} realm
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        return Sets.newHashSet(HTTP_SERVICE_KEYTAB_PATH, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING, SETTING_KRB_DEBUG_ENABLE,
-                SETTING_REMOVE_REALM_NAME);
+        final Set<Setting.AffixSetting<?>> settings = Sets.newHashSet(HTTP_SERVICE_KEYTAB_PATH, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING,
+                SETTING_KRB_DEBUG_ENABLE, SETTING_REMOVE_REALM_NAME);
+        settings.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
+        return settings;
     }
 }

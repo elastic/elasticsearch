@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.CompositeRoleMapperSettings;
 
 import java.util.HashSet;
@@ -43,6 +44,7 @@ public final class LdapRealmSettings {
             assert LDAP_TYPE.equals(type) : "type [" + type + "] is unknown. expected one of [" + AD_TYPE + ", " + LDAP_TYPE + "]";
             settings.addAll(LdapSessionFactorySettings.getSettings());
             settings.addAll(LdapUserSearchSessionFactorySettings.getSettings());
+            settings.addAll(DelegatedAuthorizationSettings.getSettings(type));
         }
         settings.addAll(LdapMetaDataResolverSettings.getSettings());
         settings.addAll(RealmSettings.getStandardSettings(type));

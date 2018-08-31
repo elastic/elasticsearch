@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -73,6 +75,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final Pattern principalPattern;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
         this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
@@ -89,6 +92,15 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setExpireAfterWrite(config.getSetting(PkiRealmSettings.CACHE_TTL_SETTING))
                 .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
+        this.delegatedRealms = null;
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     @Override
@@ -103,30 +115,48 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     @Override
     public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+        assert delegatedRealms != null : "Realm has not been initialized correctly";
         X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
             final BytesKey fingerprint = computeFingerprint(token.credentials()[0]);
             User user = cache.get(fingerprint);
             if (user != null) {
-                listener.onResponse(AuthenticationResult.success(user));
+                if (delegatedRealms.hasDelegation()) {
+                    delegatedRealms.resolve(token.principal(), listener);
+                } else {
+                    listener.onResponse(AuthenticationResult.success(user));
+                }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
-                final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
-                final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
-                        token.dn(), Collections.emptySet(), metadata, this.config);
-                roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-                    final User computedUser =
-                            new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);
-                    try (ReleasableLock ignored = readLock.acquire()) {
-                        cache.put(fingerprint, computedUser);
+                final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
+                    if (result.isAuthenticated()) {
+                        try (ReleasableLock ignored = readLock.acquire()) {
+                            cache.put(fingerprint, result.getUser());
+                        }
                     }
-                    listener.onResponse(AuthenticationResult.success(computedUser));
-                }, listener::onFailure));
+                    listener.onResponse(result);
+                }, listener::onFailure);
+                if (delegatedRealms.hasDelegation()) {
+                    delegatedRealms.resolve(token.principal(), cachingListener);
+                } else {
+                    this.buildUser(token, cachingListener);
+                }
             }
         } catch (CertificateEncodingException e) {
             listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " has encoding issues", e));
         }
+    }
+
+    private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+        final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
+                token.dn(), Collections.emptySet(), metadata, this.config);
+        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+            final User computedUser =
+                    new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);
+            listener.onResponse(AuthenticationResult.success(computedUser));
+        }, listener::onFailure));
     }
 
     @Override

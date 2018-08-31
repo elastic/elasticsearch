@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -164,6 +166,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private final AttributeParser nameAttribute;
     private final AttributeParser mailAttribute;
 
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     /**
      * Factory for SAML realm.
@@ -227,6 +230,14 @@ public final class SamlRealm extends Realm implements Releasable {
         this.mailAttribute = AttributeParser.forSetting(logger, MAIL_ATTRIBUTE, config, false);
 
         this.releasables = new ArrayList<>();
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
@@ -402,11 +413,24 @@ public final class SamlRealm extends Realm implements Releasable {
         }
     }
 
-    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> listener) {
+    private void buildUser(SamlAttributes attributes, ActionListener<AuthenticationResult> baseListener) {
         final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name(config));
         if (Strings.isNullOrEmpty(principal)) {
-            listener.onResponse(AuthenticationResult.unsuccessful(
+            baseListener.onResponse(AuthenticationResult.unsuccessful(
                     principalAttribute + " not found in " + attributes.attributes(), null));
+            return;
+        }
+
+        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
+        ActionListener<AuthenticationResult> wrappedListener = ActionListener.wrap(auth -> {
+            if (auth.isAuthenticated()) {
+                config.threadContext().putTransient(CONTEXT_TOKEN_DATA, tokenMetadata);
+            }
+            baseListener.onResponse(auth);
+        }, baseListener::onFailure);
+
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(principal, wrappedListener);
             return;
         }
 
@@ -424,7 +448,6 @@ public final class SamlRealm extends Realm implements Releasable {
             userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
         }
 
-        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
 
         final List<String> groups = groupsAttribute.getAttribute(attributes);
         final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name(config));
@@ -433,9 +456,8 @@ public final class SamlRealm extends Realm implements Releasable {
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
-            config.threadContext().putTransient(CONTEXT_TOKEN_DATA, tokenMetadata);
-            listener.onResponse(AuthenticationResult.success(user));
-        }, listener::onFailure));
+            wrappedListener.onResponse(AuthenticationResult.success(user));
+        }, wrappedListener::onFailure));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {

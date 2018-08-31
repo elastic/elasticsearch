@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.CompositeRoleMapperSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
@@ -78,6 +79,7 @@ public final class PkiRealmSettings {
         settings.add(TRUST_STORE_ALGORITHM);
         settings.add(CAPATH_SETTING);
 
+        settings.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         settings.addAll(CompositeRoleMapperSettings.getSettings(TYPE));
 
         settings.addAll(RealmSettings.getStandardSettings(TYPE));

@@ -29,6 +29,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -173,6 +174,55 @@ public final class NodeEnvironment  implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    public static class NodeLock implements Releasable {
+
+        private final int nodeId;
+        private final Lock[] locks;
+        private final NodePath[] nodePaths;
+
+        public NodeLock(final int nodeId, final Logger startupTraceLogger, final Environment environment) throws IOException {
+            this.nodeId = nodeId;
+            nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+            locks = new Lock[nodePaths.length];
+            final Path[] dataPaths = environment.dataFiles();
+            for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
+                Path dataDir = dataPaths[dirIndex];
+                Path dir = resolveNodePath(dataDir, nodeId);
+                Files.createDirectories(dir);
+
+                try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
+                    startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                    try {
+                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                        nodePaths[dirIndex] = new NodePath(dir);
+                    } catch (LockObtainFailedException ex) {
+                        startupTraceLogger.trace(
+                            new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
+                        // release all the ones that were obtained up until now
+                        releaseAndNullLocks(locks);
+                        throw ex;
+                    }
+
+                } catch (IOException e) {
+                    startupTraceLogger.trace(() -> new ParameterizedMessage(
+                        "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                    // release all the ones that were obtained up until now
+                    releaseAndNullLocks(locks);
+                    throw new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
+                }
+            }
+        }
+
+        public NodePath[] getNodePaths() {
+            return nodePaths;
+        }
+
+        @Override
+        public void close() {
+            releaseAndNullLocks(locks);
+        }
+    }
+
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
@@ -184,86 +234,53 @@ public final class NodeEnvironment  implements Closeable {
             logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
             return;
         }
-        final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
-        final Lock[] locks = new Lock[nodePaths.length];
-        boolean success = false;
-
         // trace logger to debug issues before the default node name is derived from the node id
         Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
-        try {
-            sharedDataPath = environment.sharedDataFile();
-            int nodeLockId = -1;
-            IOException lastException = null;
-            int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
-            for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
-                for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
-                    Path dataDir = environment.dataFiles()[dirIndex];
-                    Path dir = resolveNodePath(dataDir, possibleLockId);
-                    Files.createDirectories(dir);
+        sharedDataPath = environment.sharedDataFile();
+        IOException lastException = null;
+        int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+        NodeLock nodeLock = null;
+        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
 
-                    try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                        try {
-                            locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                            nodePaths[dirIndex] = new NodePath(dir);
-                            nodeLockId = possibleLockId;
-                        } catch (LockObtainFailedException ex) {
-                            startupTraceLogger.trace(
-                                    new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
-                            // release all the ones that were obtained up until now
-                            releaseAndNullLocks(locks);
-                            break;
-                        }
-
-                    } catch (IOException e) {
-                        startupTraceLogger.trace(() -> new ParameterizedMessage(
-                            "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
-                        lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
-                        // release all the ones that were obtained up until now
-                        releaseAndNullLocks(locks);
-                        break;
-                    }
-                }
-                if (locks[0] != null) {
-                    // we found a lock, break
-                    break;
-                }
-            }
-
-            if (locks[0] == null) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "failed to obtain node locks, tried [%s] with lock id%s;" +
-                        " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
-                    Arrays.toString(environment.dataWithClusterFiles()),
-                    maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
-                    MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-                    maxLocalStorageNodes);
-                throw new IllegalStateException(message, lastException);
-            }
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
-            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
-
-            this.nodeLockId = nodeLockId;
-            this.locks = locks;
-            this.nodePaths = nodePaths;
-
-            if (logger.isDebugEnabled()) {
-                logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
-            }
-
-            maybeLogPathDetails();
-            maybeLogHeapDetails();
-
-            applySegmentInfosTrace(settings);
-            assertCanWrite();
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(locks);
+            try {
+                final NodeLock lock = new NodeLock(possibleLockId, startupTraceLogger, environment);
+                nodeLock = lock;
+                break;
+            } catch (LockObtainFailedException e) {
+                // ignore any LockObtainFailedException
+            } catch (IOException e) {
+                lastException = e;
             }
         }
+
+        if (nodeLock == null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "failed to obtain node locks, tried [%s] with lock id%s;" +
+                    " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
+                Arrays.toString(environment.dataWithClusterFiles()),
+                maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
+                MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
+                maxLocalStorageNodes);
+            throw new IllegalStateException(message, lastException);
+        }
+        this.locks = nodeLock.locks;
+        this.nodePaths = nodeLock.nodePaths;
+        this.nodeLockId = nodeLock.nodeId;
+        this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
+        this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
+        }
+
+        maybeLogPathDetails();
+        maybeLogHeapDetails();
+
+        applySegmentInfosTrace(settings);
+        assertCanWrite();
     }
 
     /**

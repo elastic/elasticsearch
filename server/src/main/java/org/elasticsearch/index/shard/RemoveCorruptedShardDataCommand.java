@@ -33,7 +33,6 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
@@ -75,8 +74,6 @@ import java.util.function.Supplier;
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private static final Logger logger = Loggers.getLogger(RemoveCorruptedShardDataCommand.class);
-
-    private static final int MISCONFIGURATION = 1;
 
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
@@ -127,11 +124,10 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected ShardPath getShardPath(OptionSet options, Environment environment) throws IOException, UserException {
+    protected Tuple<ShardPath, NodeEnvironment.NodeLock> getShardPath(OptionSet options, Environment environment) throws IOException {
         final Settings settings = environment.settings();
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
-            final Settings settings1 = environment.settings();
             final Path shardParentPath = path.getParent();
             final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
             if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
@@ -150,9 +146,9 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException("Unable to resolve shard id from " + path.toString());
             }
 
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings1);
+            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
 
-            final ShardPath shardPath = resolveShardPath(environment,
+            final Tuple<ShardPath, NodeEnvironment.NodeLock> tuple = resolveShardPath(environment,
                 (nodeLockId, nodePath) -> {
                     final Path shardPathLocation = nodePath.resolve(shardId);
                     final ShardPath shardPath1 = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
@@ -163,7 +159,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     return null;
                 },
                 () -> new ElasticsearchException("Unable to resolve shard path for path " + path.toString()));
-            return shardPath;
+            return tuple;
         }
 
         // otherwise - try to resolve shardPath based on the index name and shard id
@@ -207,39 +203,31 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             () -> new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "]"));
     }
 
-    private ShardPath resolveShardPath(final Environment environment,
-                                       final CheckedBiFunction<Integer, NodeEnvironment.NodePath, ShardPath, IOException> function,
-                                       final Supplier<ElasticsearchException> exceptionSupplier)
-        throws IOException, UserException {
-        // have to iterate over possibleLockId as NodeEnvironment - but fail if node owns lock
+    private Tuple<ShardPath, NodeEnvironment.NodeLock> resolveShardPath(
+        final Environment environment,
+        final CheckedBiFunction<Integer, NodeEnvironment.NodePath, ShardPath, IOException> function,
+        final Supplier<ElasticsearchException> exceptionSupplier) throws IOException {
         final Settings settings = environment.settings();
-        final Path[] dataFiles = environment.dataFiles();
         // try to resolve shard path in case of multi-node layout per environment
         final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
-        for (int dirIndex = 0; dirIndex < dataFiles.length; dirIndex++) {
-            final Path dataDir = dataFiles[dirIndex];
-            for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
-                final Path dir = NodeEnvironment.resolveNodePath(dataDir, possibleLockId);
-                if (Files.exists(dir) == false) {
-                    // assume that we do not have gaps in nodes like
-                    break;
-                }
-                try (Directory nodeDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE);
-                     Lock lock = nodeDir.obtainLock(NodeEnvironment.NODE_LOCK_FILENAME)) {
-                }  catch (LockObtainFailedException lofe) {
-                    throw new UserException(MISCONFIGURATION,
-                        "Failed to lock node's directory at [" + dir + "], is Elasticsearch still running?");
-                }
-                final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dir);
-                if (Files.exists(nodePath.indicesPath) == false) {
-                    break;
-                }
-
-                final ShardPath shardPath = function.apply(possibleLockId, nodePath);
-                if (shardPath != null) {
-                    return shardPath;
+        // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
+        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
+            final NodeEnvironment.NodeLock nodeLock;
+            try {
+                nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment);
+            }  catch (LockObtainFailedException lofe) {
+                throw new ElasticsearchException(lofe.getMessage() + ", is Elasticsearch still running?");
+            }
+            final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
+            for (NodeEnvironment.NodePath nodePath : nodePaths) {
+                if (Files.exists(nodePath.indicesPath)) {
+                    final ShardPath shardPath = function.apply(possibleLockId, nodePath);
+                    if (shardPath != null) {
+                        return Tuple.tuple(shardPath, nodeLock);
+                    }
                 }
             }
+            nodeLock.close();
         }
         throw exceptionSupplier.get();
     }
@@ -314,32 +302,32 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     public void execute(Terminal terminal, OptionSet options, Environment environment) throws Exception {
         warnAboutESShouldBeStopped(terminal);
 
-        final ShardPath shardPath = getShardPath(options, environment);
+        final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple = getShardPath(options, environment);
 
-        final Path indexPath = shardPath.resolveIndex();
-        final Path translogPath = shardPath.resolveTranslog();
-        final Path nodePath = getNodePath(shardPath);
-        if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
-            throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
-        }
-
-        final PrintWriter writer = terminal.getWriter();
-        final PrintStream printStream = new PrintStream(new OutputStream() {
-            @Override
-            public void write(int b) {
-                writer.write(b);
+        // Hold the node lock open for the duration of the tool running
+        try (NodeEnvironment.NodeLock nodeLock = shardLockTuple.v2()) {
+            final ShardPath shardPath = shardLockTuple.v1();
+            final Path indexPath = shardPath.resolveIndex();
+            final Path translogPath = shardPath.resolveTranslog();
+            final Path nodePath = getNodePath(shardPath);
+            if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
+                throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
-        }, false, "UTF-8");
-        final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
-        final Directory indexDirectory = getDirectory(indexPath);
-        final Directory nodeDirectory = getDirectory(nodePath);
+            final PrintWriter writer = terminal.getWriter();
+            final PrintStream printStream = new PrintStream(new OutputStream() {
+                @Override
+                public void write(int b) {
+                    writer.write(b);
+                }
+            }, false, "UTF-8");
+            final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
-        final Tuple<CleanStatus, String> indexCleanStatus;
-        final Tuple<CleanStatus, String> translogCleanStatus;
-        try (Directory nodeDir = nodeDirectory; Directory indexDir = indexDirectory) {
-            // Hold the node lock open for the duration of the tool running
-            try (Lock writeNodeIndexLock = nodeDir.obtainLock(NodeEnvironment.NODE_LOCK_FILENAME)) {
+            final Directory indexDirectory = getDirectory(indexPath);
+
+            final Tuple<CleanStatus, String> indexCleanStatus;
+            final Tuple<CleanStatus, String> translogCleanStatus;
+            try (Directory indexDir = indexDirectory) {
                 // keep the index lock to block any runs of older versions of this tool
                 try (Lock writeIndexLock = indexDir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     ////////// Index
@@ -440,10 +428,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 if (indexStatus != CleanStatus.CLEAN) {
                     dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
-            } catch (LockObtainFailedException lofe) {
-                final String msg = "Failed to lock node's directory at [" + nodeDir + "], is Elasticsearch still running?";
-                terminal.println(msg);
-                throw new ElasticsearchException(msg);
             }
         }
     }

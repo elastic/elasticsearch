@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -48,6 +49,11 @@ public class DateFormattersTests extends ESTestCase {
         assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(0));
         assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(-1));
         assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(1));
+
+        // format() output should be equal as well
+        long randomMillis = randomLong();
+        TemporalAccessor accessor = formatter.parse(randomMillis + "");
+        assertThat(randomMillis + "", is(formatter.format(accessor)));
     }
 
     private void assertThatSameDateTime(CompoundDateTimeFormatter formatter, CompoundDateTimeFormatter zonedFormatter, String value) {

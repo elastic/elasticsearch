@@ -882,7 +882,7 @@ public class DateFormatters {
     /*
      * Returns a formatter for parsing the milliseconds since the epoch
      * This one needs a custom implementation, because the standard date formatter can not parse negative values
-     * or anything +- 999 milliseconds around the eopch
+     * or anything +- 999 milliseconds around the epoch
      *
      * This implementation just resorts to parsing the input directly to an Instant by trying to parse a number.
      */
@@ -893,11 +893,11 @@ public class DateFormatters {
 
     private static final class EpochDateTimeFormatter extends CompoundDateTimeFormatter {
 
-        EpochDateTimeFormatter() {
+        private EpochDateTimeFormatter() {
             super(EPOCH_MILLIS_FORMATTER);
         }
 
-        EpochDateTimeFormatter(ZoneId zoneId) {
+        private EpochDateTimeFormatter(ZoneId zoneId) {
             super(EPOCH_MILLIS_FORMATTER.withZone(zoneId));
         }
 
@@ -913,6 +913,11 @@ public class DateFormatters {
         @Override
         public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
             return new EpochDateTimeFormatter(zoneId);
+        }
+
+        @Override
+        public String format(TemporalAccessor accessor) {
+            return String.valueOf(Instant.from(accessor).toEpochMilli());
         }
     }
 

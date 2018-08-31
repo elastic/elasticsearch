@@ -19,13 +19,10 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -53,33 +50,6 @@ public class LifecycleManagementStatusResponse {
 
     public static LifecycleManagementStatusResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    /**
-     * Enum representing the different modes that Index Lifecycle Service can operate in.
-     */
-    public enum OperationMode {
-        /**
-         * This represents a state where no policies are executed
-         */
-        STOPPED,
-
-        /**
-         * this represents a state where only sensitive actions (like {@link ShrinkAction}) will be executed
-         * until they finish, at which point the operation mode will move to <code>STOPPED</code>.
-         */
-        STOPPING,
-
-        /**
-         * Normal operation where all policies are executed as normal.
-         */
-        RUNNING;
-
-        static OperationMode fromString(String string) {
-            return EnumSet.allOf(OperationMode.class).stream()
-                .filter(e -> string.equalsIgnoreCase(e.name())).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(String.format(Locale.ENGLISH, "%s is not a valid operation_mode", string)));
-        }
     }
 
     @Override

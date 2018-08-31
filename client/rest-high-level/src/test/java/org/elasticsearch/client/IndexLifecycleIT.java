@@ -29,6 +29,7 @@ import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
@@ -93,7 +94,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             statusRequest,
             highLevelClient().indexLifecycle()::lifecycleManagementStatus,
             highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
-        assertEquals(statusResponse.getOperationMode(), LifecycleManagementStatusResponse.OperationMode.RUNNING);
+        assertEquals(statusResponse.getOperationMode(), OperationMode.RUNNING);
 
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
@@ -104,8 +105,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
             highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
         assertThat(statusResponse.getOperationMode(),
-                Matchers.anyOf(equalTo(LifecycleManagementStatusResponse.OperationMode.STOPPING),
-                    equalTo(LifecycleManagementStatusResponse.OperationMode.STOPPED)));
+                Matchers.anyOf(equalTo(OperationMode.STOPPING),
+                    equalTo(OperationMode.STOPPED)));
 
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
@@ -114,7 +115,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
             highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
-        assertEquals(statusResponse.getOperationMode(), LifecycleManagementStatusResponse.OperationMode.RUNNING);
+        assertEquals(statusResponse.getOperationMode(), OperationMode.RUNNING);
     }
 
     public void testExplainLifecycle() throws Exception {

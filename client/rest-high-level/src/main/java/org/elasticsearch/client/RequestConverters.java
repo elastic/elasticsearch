@@ -1256,15 +1256,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request statusILM(TimedRequest ilmStatusRequest){
+    static Request lifecycleManagementStatus(TimedRequest lifecycleManagementStatusRequest){
         Request request = new Request(HttpGet.METHOD_NAME,
             new EndpointBuilder()
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("status")
             .build());
         Params params = new Params(request);
-        params.withMasterTimeout(ilmStatusRequest.masterNodeTimeout());
-        params.withTimeout(ilmStatusRequest.timeout());
+        params.withMasterTimeout(lifecycleManagementStatusRequest.masterNodeTimeout());
+        params.withTimeout(lifecycleManagementStatusRequest.timeout());
         return request;
     }
 

@@ -179,7 +179,7 @@ public class IndexLifecycleClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public LifecycleManagementStatusResponse lifecycleManagementStatus(TimedRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::statusILM, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
             LifecycleManagementStatusResponse::fromXContent, emptySet());
     }
 
@@ -194,7 +194,7 @@ public class IndexLifecycleClient {
      */
     public void lifecycleManagementStatusAsync(TimedRequest request, RequestOptions options,
                                                ActionListener<LifecycleManagementStatusResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::statusILM, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
             LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 

@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[rollup-apis]]
 == Rollup APIs
 
@@ -26,12 +27,12 @@
 
 
 
-include::rollup/delete-job.asciidoc[]
-include::rollup/get-job.asciidoc[]
-include::rollup/put-job.asciidoc[]
-include::rollup/start-job.asciidoc[]
-include::rollup/stop-job.asciidoc[]
-include::rollup/rollup-caps.asciidoc[]
-include::rollup/rollup-index-caps.asciidoc[]
-include::rollup/rollup-search.asciidoc[]
-include::rollup/rollup-job-config.asciidoc[]
+include::apis/delete-job.asciidoc[]
+include::apis/get-job.asciidoc[]
+include::apis/put-job.asciidoc[]
+include::apis/start-job.asciidoc[]
+include::apis/stop-job.asciidoc[]
+include::apis/rollup-caps.asciidoc[]
+include::apis/rollup-index-caps.asciidoc[]
+include::apis/rollup-search.asciidoc[]
+include::apis/rollup-job-config.asciidoc[]

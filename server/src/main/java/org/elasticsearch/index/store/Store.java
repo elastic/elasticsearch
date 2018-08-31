@@ -1594,7 +1594,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         throws IOException {
         assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
         IndexWriterConfig iwc = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             .setIndexCommit(commit)
             // we don't want merges to happen here - we call maybe merge on the engine

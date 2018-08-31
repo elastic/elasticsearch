@@ -1659,19 +1659,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new "translog" snapshot from Lucene for reading operations whose seqno is between minSeqNo and maxSeqNo.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
+     * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
      *
      * @param source            the source of the request
-     * @param minSeqNo          the min_seqno to read - inclusive
-     * @param maxSeqNo          the max_seqno to read - inclusive
-     * @param requiredFullRange if true then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
-     *                          if any operation between minSeqNo and maxSeqNo is missing. This parameter should be only
-     *                          enabled when the requesting range is below the global checkpoint.
+     * @param fromSeqNo         the from seq_no (inclusive) to read
+     * @param toSeqNo           the to seq_no (inclusive) to read
+     * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
+     *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
+     *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, long minSeqNo, long maxSeqNo,
-                                                      boolean requiredFullRange) throws IOException {
-        return getEngine().newLuceneChangesSnapshot(source, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {

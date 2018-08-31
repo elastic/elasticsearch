@@ -36,7 +36,7 @@ import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.client.ml.GetJobsStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -140,18 +140,18 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testGetJobsStats() {
-        GetJobsStatsRequest getJobsStatsRequestRequest = new GetJobsStatsRequest();
+    public void testGetJobStats() {
+        GetJobStatsRequest getJobStatsRequestRequest = new GetJobStatsRequest();
 
-        Request request = MLRequestConverters.getJobsStats(getJobsStatsRequestRequest);
+        Request request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/_stats", request.getEndpoint());
         assertFalse(request.getParameters().containsKey("allow_no_jobs"));
 
-        getJobsStatsRequestRequest = new GetJobsStatsRequest("job1", "jobs*");
-        getJobsStatsRequestRequest.setAllowNoJobs(true);
-        request = MLRequestConverters.getJobsStats(getJobsStatsRequestRequest);
+        getJobStatsRequestRequest = new GetJobStatsRequest("job1", "jobs*");
+        getJobStatsRequestRequest.setAllowNoJobs(true);
+        request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
 
         assertEquals("/_xpack/ml/anomaly_detectors/job1,jobs*/_stats", request.getEndpoint());
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));

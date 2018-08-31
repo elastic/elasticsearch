@@ -33,21 +33,21 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Contains a {@link List} of the found {@link JobStats} objects and the total count found
  */
-public class GetJobsStatsResponse extends AbstractResultResponse<JobStats>  {
+public class GetJobStatsResponse extends AbstractResultResponse<JobStats>  {
 
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetJobsStatsResponse, Void> PARSER =
+    public static final ConstructingObjectParser<GetJobStatsResponse, Void> PARSER =
         new ConstructingObjectParser<>("jobs_stats_response", true,
-            a -> new GetJobsStatsResponse((List<JobStats>) a[0], (long) a[1]));
+            a -> new GetJobStatsResponse((List<JobStats>) a[0], (long) a[1]));
 
     static {
         PARSER.declareObjectArray(constructorArg(), JobStats.PARSER, RESULTS_FIELD);
         PARSER.declareLong(constructorArg(), COUNT);
     }
 
-    GetJobsStatsResponse(List<JobStats> jobStats, long count) {
+    GetJobStatsResponse(List<JobStats> jobStats, long count) {
         super(RESULTS_FIELD, jobStats, count);
     }
 
@@ -58,7 +58,7 @@ public class GetJobsStatsResponse extends AbstractResultResponse<JobStats>  {
         return results;
     }
 
-    public static GetJobsStatsResponse fromXContent(XContentParser parser) throws IOException {
+    public static GetJobStatsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -77,7 +77,7 @@ public class GetJobsStatsResponse extends AbstractResultResponse<JobStats>  {
             return false;
         }
 
-        GetJobsStatsResponse other = (GetJobsStatsResponse) obj;
+        GetJobStatsResponse other = (GetJobStatsResponse) obj;
         return Objects.equals(results, other.results) && count == other.count;
     }
 

@@ -28,11 +28,11 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.client.ml.GetJobsStatsRequest;
 
 import java.io.IOException;
 
@@ -127,19 +127,19 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request getJobsStats(GetJobsStatsRequest getJobsStatsRequest) {
+    static Request getJobStats(GetJobStatsRequest getJobStatsRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
             .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(Strings.collectionToCommaDelimitedString(getJobsStatsRequest.getJobIds()))
+            .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
             .addPathPartAsIs("_stats")
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getJobsStatsRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobsStatsRequest.isAllowNoJobs()));
+        if (getJobStatsRequest.isAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.isAllowNoJobs()));
         }
         return request;
     }

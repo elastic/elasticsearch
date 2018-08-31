@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.client.ml.GetJobsStatsRequest;
-import org.elasticsearch.client.ml.GetJobsStatsResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -144,7 +144,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isClosed());
     }
 
-    public void testGetJobsStats() throws Exception {
+    public void testGetJobStats() throws Exception {
         String jobId1 = "ml-get-job-stats-test-id-1";
         String jobId2 = "ml-get-job-stats-test-id-2";
 
@@ -156,10 +156,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         machineLearningClient.openJob(new OpenJobRequest(jobId1), RequestOptions.DEFAULT);
 
-        GetJobsStatsRequest request = new GetJobsStatsRequest(jobId1, jobId2);
+        GetJobStatsRequest request = new GetJobStatsRequest(jobId1, jobId2);
 
         // Test getting specific
-        GetJobsStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+        GetJobStatsResponse response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertEquals(2, response.count());
         assertThat(response.jobStats(), hasSize(2));
@@ -173,7 +173,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
 
         // Test getting all explicitly
-        request = GetJobsStatsRequest.getAllJobsStatsRequest();
+        request = GetJobStatsRequest.getAllJobStatsRequest();
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertTrue(response.count() >= 2L);
@@ -181,21 +181,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test getting all implicitly
-        response = execute(new GetJobsStatsRequest(), machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
+        response = execute(new GetJobStatsRequest(), machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
 
         assertTrue(response.count() >= 2L);
         assertTrue(response.jobStats().size() >= 2L);
         assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test getting all with wildcard
-        request = new GetJobsStatsRequest("ml-get-job-stats-test-id-*");
+        request = new GetJobStatsRequest("ml-get-job-stats-test-id-*");
         response = execute(request, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync);
         assertTrue(response.count() >= 2L);
         assertTrue(response.jobStats().size() >= 2L);
         assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
 
         // Test when allow_no_jobs is false
-        final GetJobsStatsRequest erroredRequest = new GetJobsStatsRequest("jobs-that-do-not-exist*");
+        final GetJobStatsRequest erroredRequest = new GetJobStatsRequest("jobs-that-do-not-exist*");
         erroredRequest.setAllowNoJobs(false);
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));

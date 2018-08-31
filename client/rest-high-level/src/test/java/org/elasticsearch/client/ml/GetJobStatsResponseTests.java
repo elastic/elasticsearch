@@ -27,10 +27,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetJobsStatsResponseTests extends AbstractXContentTestCase<GetJobsStatsResponse> {
+public class GetJobStatsResponseTests extends AbstractXContentTestCase<GetJobStatsResponse> {
 
     @Override
-    protected GetJobsStatsResponse createTestInstance() {
+    protected GetJobStatsResponse createTestInstance() {
 
         int count = randomIntBetween(1, 5);
         List<JobStats> results = new ArrayList<>(count);
@@ -38,12 +38,12 @@ public class GetJobsStatsResponseTests extends AbstractXContentTestCase<GetJobsS
             results.add(JobStatsTests.createRandomInstance());
         }
 
-        return new GetJobsStatsResponse(results, count);
+        return new GetJobStatsResponse(results, count);
     }
 
     @Override
-    protected GetJobsStatsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetJobsStatsResponse.fromXContent(parser);
+    protected GetJobStatsResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetJobStatsResponse.fromXContent(parser);
     }
 
     @Override

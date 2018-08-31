@@ -25,22 +25,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsStatsRequest> {
+public class GetJobStatsRequestTests extends AbstractXContentTestCase<GetJobStatsRequest> {
 
     public void testAllJobsRequest() {
-        GetJobsStatsRequest request = GetJobsStatsRequest.getAllJobsStatsRequest();
+        GetJobStatsRequest request = GetJobStatsRequest.getAllJobStatsRequest();
 
         assertEquals(request.getJobIds().size(), 1);
         assertEquals(request.getJobIds().get(0), "_all");
     }
 
     public void testNewWithJobId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobsStatsRequest("job", null));
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobStatsRequest("job", null));
         assertEquals(exception.getMessage(), "jobIds must not contain null values");
     }
 
     @Override
-    protected GetJobsStatsRequest createTestInstance() {
+    protected GetJobStatsRequest createTestInstance() {
         int jobCount = randomIntBetween(0, 10);
         List<String> jobIds = new ArrayList<>(jobCount);
 
@@ -48,7 +48,7 @@ public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsSt
             jobIds.add(randomAlphaOfLength(10));
         }
 
-        GetJobsStatsRequest request = new GetJobsStatsRequest(jobIds);
+        GetJobStatsRequest request = new GetJobStatsRequest(jobIds);
 
         if (randomBoolean()) {
             request.setAllowNoJobs(randomBoolean());
@@ -58,8 +58,8 @@ public class GetJobsStatsRequestTests extends AbstractXContentTestCase<GetJobsSt
     }
 
     @Override
-    protected GetJobsStatsRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetJobsStatsRequest.PARSER.parse(parser, null);
+    protected GetJobStatsRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetJobStatsRequest.PARSER.parse(parser, null);
     }
 
     @Override

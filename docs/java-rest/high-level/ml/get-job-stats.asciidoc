@@ -3,8 +3,8 @@
 
 The Get Job Stats API provides the ability to get any number of
  {ml} job's statistics in the cluster.
-It accepts a `GetJobsStatsRequest` object and responds
-with a `GetJobsStatsResponse` object.
+It accepts a `GetJobStatsRequest` object and responds
+with a `GetJobStatsResponse` object.
 
 [[java-rest-high-x-pack-ml-get-job-stats-request]]
 ==== Get Job Stats Request
@@ -31,8 +31,6 @@ in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` 
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-execute]
 --------------------------------------------------
-<1> `getCount()` from the `GetJobsStatsResponse` indicates the number of jobs statistics found
-<2> `getJobStats()` is the collection of {ml} `JobStats` objects found
 
 [[java-rest-high-x-pack-ml-get-job-stats-execution-async]]
 ==== Asynchronous Execution
@@ -56,3 +54,14 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats
 --------------------------------------------------
 <1> `onResponse` is called back when the action is completed successfully
 <2> `onFailure` is called back when some unexpected error occurs
+
+[[java-rest-high-x-pack-ml-get-job-stats-response]]
+==== Get Job Stats Response
+The returned `GetJobStatsResponse` contains the requested job statistics:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-job-stats-response]
+--------------------------------------------------
+<1> `getCount()` indicates the number of jobs statistics found
+<2> `getJobStats()` is the collection of {ml} `JobStats` objects found

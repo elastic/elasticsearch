@@ -41,19 +41,19 @@ import java.util.Objects;
  * `_all` explicitly gets all the jobs' statistics in the cluster
  * An empty request (no `jobId`s) implicitly gets all the jobs' statistics in the cluster
  */
-public class GetJobsStatsRequest extends ActionRequest implements ToXContentObject {
+public class GetJobStatsRequest extends ActionRequest implements ToXContentObject {
 
     public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetJobsStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_jobs_stats_request", a -> new GetJobsStatsRequest((List<String>) a[0]));
+    public static final ConstructingObjectParser<GetJobStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "get_jobs_stats_request", a -> new GetJobStatsRequest((List<String>) a[0]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
             Job.ID, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareBoolean(GetJobsStatsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(GetJobStatsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
     }
 
     private static final String ALL_JOBS = "_all";
@@ -64,13 +64,13 @@ public class GetJobsStatsRequest extends ActionRequest implements ToXContentObje
     /**
      * Explicitly gets all jobs statistics
      *
-     * @return a {@link GetJobsStatsRequest} for all existing jobs
+     * @return a {@link GetJobStatsRequest} for all existing jobs
      */
-    public static GetJobsStatsRequest getAllJobsStatsRequest(){
-        return new GetJobsStatsRequest(ALL_JOBS);
+    public static GetJobStatsRequest getAllJobStatsRequest(){
+        return new GetJobStatsRequest(ALL_JOBS);
     }
 
-    GetJobsStatsRequest(List<String> jobIds) {
+    GetJobStatsRequest(List<String> jobIds) {
         if (jobIds.stream().anyMatch(Objects::isNull)) {
             throw new NullPointerException("jobIds must not contain null values");
         }
@@ -82,7 +82,7 @@ public class GetJobsStatsRequest extends ActionRequest implements ToXContentObje
      *
      * @param jobIds must be non-null and each jobId must be non-null
      */
-    public GetJobsStatsRequest(String... jobIds) {
+    public GetJobStatsRequest(String... jobIds) {
         this(Arrays.asList(jobIds));
     }
 
@@ -123,7 +123,7 @@ public class GetJobsStatsRequest extends ActionRequest implements ToXContentObje
             return false;
         }
 
-        GetJobsStatsRequest that = (GetJobsStatsRequest) other;
+        GetJobStatsRequest that = (GetJobStatsRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
             Objects.equals(allowNoJobs, that.allowNoJobs);
     }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 

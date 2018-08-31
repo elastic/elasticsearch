@@ -1,9 +1,9 @@
-[[shard-tool]]
+[[index-modules-shard-tool]]
 == elasticsearch-shard
 
 In some cases (a bad drive, user error) the Lucene index or translog on a shard copy can become corrupted.
 
-The `elasticsearch-shard` command enables you to remove a corrupted Lucene index segments or corrupted translog
+The `elasticsearch-shard` command enables you to remove a corrupted data (Lucene index segments or corrupted translog)
 if a shard cannot be recovered automatically or restored from backup.
 
 [WARNING]
@@ -11,7 +11,7 @@ You will lose the corrupted data when you run `elasticsearch-shard`.
 This tool should only be used as a last resort if there is no way to recover from another copy of the shard
 or restore a snapshot.
 
-When Elasticsearch detects that a shard's translog or Lucene index is corrupted, it fails that shard copy
+When Elasticsearch detects that a shard's data is corrupted, it fails that shard copy
 and quits using it. Under normal conditions, the shard is automatically recovered from another copy.
 If no good copy of the shard is available and you cannot restore from backup, you can use `elasticsearch-shard`
 to remove only the corrupted data and restore access to the data in unaffected segments.
@@ -26,7 +26,7 @@ There are two ways to specify the path:
 * Specify the index name and shard name with the `--index` and `--shard-id` options.
 * Use the `-dir` option to specify the full path to the corrupted index or translog files.
 
-=== Removing a corrupted Lucene index files and/or corrupted translog files
+=== Removing a corrupted data files
 
 `elasticsearch-shard` provides an overview of the corruption. To proceed you must confirm that you want
 to remove the corrupted data.
@@ -39,7 +39,7 @@ Back up your data before running `elasticsearch-shard`. This is a destructive op
 $ bin/elasticsearch-shard remove-corrupted-data --index twitter --shard-id 0
 
 
-    WARNING: ElasticSearch MUST be stopped before running this tool.
+    WARNING: Elasticsearch MUST be stopped before running this tool.
 
   Please make a complete backup of your index before using this tool.
 
@@ -83,6 +83,8 @@ POST /_cluster/reroute
   ]
 }
 
+You should admin data loss changing parameter `accept_data_loss` to `true`.
+
 Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag
 
 --------------------------------------------------
@@ -91,9 +93,6 @@ Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag
 When you use `elasticsearch-shard` to drop the corrupted data, the shard's allocation ID changes.
 After you restart the node, you must use the cluster reroute API to tell Elasticsearch to use the new ID.
 When you run the `elasticsearch-shard` command, it shows the request that you need to submit.
-
-[WARNING]
-You should admin data loss changing parameter `accept_data_loss` to `true`.
 
 You can also use the `-h` option to get a list of all options and parameters
 that the `elasticsearch-shard` tool supports.

@@ -277,16 +277,12 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
-<<index-modules-command-line-tools,Command-line tools>>::
-
-    Command-line tools if shard is corrupted
-
 [float]
 [[elasticsearch-shard-tool]]
 === elasticsearch-shard tool
 
-You can use the <<index-modules-elasticsearch-shard,shard-tool>> recovery tool to remove corrupted translog or corrupted Lucene
-segments if a shard cannot be recovered automatically or restored from backup.
+You can use the <<index-modules-shard-tool,shard-tool>> tool to remove corrupted data if a shard cannot be
+recovered automatically or restored from backup.
 
 --
 

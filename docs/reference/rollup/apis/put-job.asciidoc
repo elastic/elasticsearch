@@ -1,0 +1,101 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-put-job]]
+=== Create Job API
+++++
+<titleabbrev>Create Job</titleabbrev>
+++++
+
+experimental[]
+
+This API enables you to create a rollup job.  The job will be created in a `STOPPED` state, and must be
+started with the <<rollup-start-job,Start Job API>>.
+
+==== Request
+
+`PUT _xpack/rollup/job/<job_id>`
+
+//===== Description
+
+==== Path Parameters
+
+`job_id` (required)::
+  (string) Identifier for the job
+
+
+==== Request Body
+
+`index_pattern` (required)::
+  (string) The index, or index pattern, that you wish to rollup.  Supports wildcard-style patterns (`logstash-*`).
+
+`rollup_index` (required)::
+  (string) The index that you wish to store rollup results into.  Can be shared with other rollup jobs.
+
+`cron` (required)::
+  (string) A cron string which defines when the rollup job should be executed.
+
+`page_size` (required)::
+  (int) The number of bucket results that should be processed on each iteration of the rollup indexer.  A larger value
+  will tend to execute faster, but will require more memory during processing.
+
+`groups` (required)::
+  (object) Defines the grouping fields that are defined for this rollup job. See <<rollup-job-config,rollup job config>>.
+
+`metrics`::
+   (object) Defines the metrics that should be collected for each grouping tuple. See <<rollup-job-config,rollup job config>>.
+
+For more details about the job configuration, see <<rollup-job-config>>.
+
+==== Authorization
+
+You must have `manage` or `manage_rollup` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+
+==== Examples
+
+The following example creates a rollup job named "sensor", targeting the "sensor-*" index pattern:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/rollup/job/sensor
+{
+    "index_pattern": "sensor-*",
+    "rollup_index": "sensor_rollup",
+    "cron": "*/30 * * * * ?",
+    "page_size" :1000,
+    "groups" : {
+      "date_histogram": {
+        "field": "timestamp",
+        "interval": "1h",
+        "delay": "7d"
+      },
+      "terms": {
+        "fields": ["node"]
+      }
+    },
+    "metrics": [
+        {
+            "field": "temperature",
+            "metrics": ["min", "max", "sum"]
+        },
+        {
+            "field": "voltage",
+            "metrics": ["avg"]
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sensor_index]
+
+When the job is created, you receive the following results:
+
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// TESTRESPONSE

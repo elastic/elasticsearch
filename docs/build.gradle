@@ -19,6 +19,12 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
+/* List of files that have snippets that require a gold or platinum licence 
+and therefore cannot be tested yet... */
+buildRestTests.expectedUnconvertedCandidates = [
+        'reference/ml/transforms.asciidoc',
+]
+
 integTestCluster {
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
@@ -74,6 +80,17 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build'
   // Just syntax examples
   exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/rollup/rollup-getting-started.asciidoc'
+  exclude 'reference/rollup/apis/rollup-job-config.asciidoc'
+  exclude 'reference/rollup/apis/rollup-index-caps.asciidoc'
+  exclude 'reference/rollup/apis/put-job.asciidoc'
+  exclude 'reference/rollup/apis/stop-job.asciidoc'
+  exclude 'reference/rollup/apis/start-job.asciidoc'
+  exclude 'reference/rollup/apis/rollup-search.asciidoc'
+  exclude 'reference/rollup/apis/delete-job.asciidoc'
+  exclude 'reference/rollup/apis/get-job.asciidoc'
+  exclude 'reference/rollup/apis/rollup-caps.asciidoc'
 }
 
 listSnippets.docs = buildRestTests.docs
@@ -592,5 +609,261 @@ buildRestTests.setups['library'] = '''
             {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
             {"index":{"_id": "The Moon is a Harsh Mistress"}}
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+'''
+buildRestTests.setups['sensor_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+  - do:
+      xpack.rollup.put_job:
+        id: "sensor"
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+'''
+buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+
+  - do:
+      bulk:
+        index: sensor-1
+        type: _doc
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+  - do:
+      xpack.rollup.put_job:
+        id: "sensor"
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "* * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+  - do:
+      xpack.rollup.start_job:
+        id: "sensor"
+'''
+
+buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+                load:
+                  type: double
+                net_in:
+                  type: long
+                net_out:
+                  type: long
+                hostname:
+                  type: keyword
+                datacenter:
+                  type: keyword
+'''
+
+buildRestTests.setups['sensor_prefab_data'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+  - do:
+      indices.create:
+        index: sensor_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                node.terms.value:
+                  type: keyword
+                temperature.sum.value:
+                  type: double
+                temperature.max.value:
+                  type: double
+                temperature.min.value:
+                  type: double
+                timestamp.date_histogram.time_zone:
+                  type: keyword
+                timestamp.date_histogram.interval:
+                  type: keyword
+                timestamp.date_histogram.timestamp:
+                  type: date
+                timestamp.date_histogram._count:
+                  type: long
+                voltage.avg.value:
+                  type: double
+                voltage.avg._count:
+                  type: long
+                _rollup.id:
+                  type: keyword
+                _rollup.version:
+                  type: long
+              _meta:
+                _rollup:
+                  sensor:
+                    cron: "* * * * * ?"
+                    rollup_index: "sensor_rollup"
+                    index_pattern: "sensor-*"
+                    timeout: "20s"
+                    page_size: 1000
+                    groups:
+                      date_histogram:
+                        delay: "7d"
+                        field: "timestamp"
+                        interval: "1h"
+                        time_zone: "UTC"
+                      terms:
+                        fields:
+                          - "node"
+                    id: sensor
+                    metrics:
+                      - field: "temperature"
+                        metrics:
+                          - min
+                          - max
+                          - sum
+                      - field: "voltage"
+                        metrics:
+                          - avg
+
+  - do:
+      bulk:
+        index: sensor_rollup
+        type: _doc
+        refresh: true
+        body: |
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
 
 '''

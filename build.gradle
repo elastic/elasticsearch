@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
@@ -24,14 +26,9 @@ import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.util.GradleVersion
-import org.gradle.util.DistributionLocator
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.nio.file.Path
-import java.security.MessageDigest
 
 plugins {
     id 'com.gradle.build-scan' version '1.13.2'
@@ -512,6 +509,16 @@ allprojects {
   tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+  // work arround https://github.com/gradle/gradle/issues/6582 
+  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
+  tasks.matching { it.name == 'eclipseClasspath' }.all {
+    it.mustRunAfter { tasks.cleanEclipseClasspath }
+  }
+  tasks.matching { it.name == 'eclipseJdt' }.all {
+    it.mustRunAfter { tasks.cleanEclipseJdt }
+  }
+  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
 }
 
 allprojects {

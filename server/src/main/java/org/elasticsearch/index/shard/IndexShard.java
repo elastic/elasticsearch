@@ -1332,7 +1332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
-        if (Booleans.isTrue(checkIndexOnStartup)) {
+        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -1955,6 +1955,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
+            } catch (IOException e) {
+                store.markStoreCorrupted(e);
+                throw e;
             } finally {
                 store.decRef();
             }
@@ -1998,18 +2001,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return;
                 }
                 logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                if ("fix".equals(checkIndexOnStartup)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("fixing index, writing new segments file ...");
-                    }
-                    store.exorciseIndex(status);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
-                    }
-                } else {
-                    // only throw a failure if we are not going to fix the index
-                    throw new IllegalStateException("index check failure but can't fix it");
-                }
+                throw new IOException("index check failure");
             }
         }
 

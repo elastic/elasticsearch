@@ -135,6 +135,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchInputHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -242,6 +243,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30777")
     public void testIndexActionHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

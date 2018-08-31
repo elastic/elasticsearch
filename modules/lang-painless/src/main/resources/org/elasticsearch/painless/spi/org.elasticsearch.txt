@@ -132,24 +132,6 @@ class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues
   List getValues()
 }
 
-# for testing.
-# currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
-class org.elasticsearch.painless.FeatureTest no_import {
-  int z
-  ()
-  (int,int)
-  int getX()
-  int getY()
-  void setX(int)
-  void setY(int)
-  boolean overloadedStatic()
-  boolean overloadedStatic(boolean)
-  Object twoFunctionsOfX(Function,Function)
-  void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
-}
-
 class org.elasticsearch.search.lookup.FieldLookup {
   def getValue()
   List getValues()
@@ -174,4 +156,26 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
 class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
+}
+
+# for testing
+class org.elasticsearch.painless.FeatureTest no_import {
+  int z
+  ()
+  (int,int)
+  int getX()
+  int getY()
+  void setX(int)
+  void setY(int)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
+}
+
+# for testing
+static {
+  int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
 }

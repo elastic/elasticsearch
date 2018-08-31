@@ -1009,7 +1009,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 final String segmentId = IndexFileNames.parseSegmentName(meta.name());
                 final String extension = IndexFileNames.getExtension(meta.name());
-                assert FIELD_INFOS_FILE_EXTENSION.equals(extension) == false || IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(meta.name())).isEmpty() : "FieldInfos are generational but updateable DV are not supported in elasticsearch";
                 if (IndexFileNames.SEGMENTS.equals(segmentId) || DEL_FILE_EXTENSION.equals(extension) || LIV_FILE_EXTENSION.equals(extension)) {
                     // only treat del files as per-commit files fnm files are generational but only for upgradable DV
                     perCommitStoreFiles.add(meta);
@@ -1595,6 +1594,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         throws IOException {
         assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
         IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             .setIndexCommit(commit)
             // we don't want merges to happen here - we call maybe merge on the engine

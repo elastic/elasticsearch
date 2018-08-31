@@ -477,7 +477,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (InputStream is = Files.newInputStream(keyStorePath)) {
             keyStore.load(is, keyStorePass.toCharArray());
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keyStorePass.toCharArray())
+        // TODO Revisit TLS1.2 pinning when TLS1.3 is fully supported
+        // https://github.com/elastic/elasticsearch/issues/32276
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadKeyMaterial(keyStore, keyStorePass.toCharArray())
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -491,7 +493,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
             CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, password.toCharArray())
+        // TODO Revisit TLS1.2 pinning when TLS1.3 is fully supported
+        // https://github.com/elastic/elasticsearch/issues/32276
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadKeyMaterial(keyStore, password.toCharArray())
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));

@@ -198,10 +198,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        Exception e = expectThrows(RuntimeException.class,
-                () -> RollupResponseTranslator.combineResponses(msearch,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
-        assertThat(e.getMessage(), equalTo("Expected to find aggregations in rollup response, but none found."));
+        SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
+            new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
+        assertNotNull(response);
+        Aggregations responseAggs = response.getAggregations();
+        assertThat(responseAggs.asList().size(), equalTo(0));
     }
 
     public void testMissingRolledIndex() {
@@ -508,10 +509,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
-        Exception e = expectThrows(RuntimeException.class,
+        ClassCastException e = expectThrows(ClassCastException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
-        assertThat(e.getMessage(), equalTo("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds " +
-                "cannot be cast to org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds"));
+        assertThat(e.getMessage(),
+            containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
     }
 
     public void testDateHisto() throws IOException {

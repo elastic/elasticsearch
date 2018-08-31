@@ -9,6 +9,7 @@ import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -311,13 +312,15 @@ public abstract class PublishableHttpResource extends HttpResource {
                                                               final Set<Integer> exists, final Set<Integer> doesNotExist) {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-        final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
+
+        final Request request = new Request("GET", resourceBasePath + "/" + resourceName);
+        addParameters(request);
         // avoid exists and DNE parameters from being an exception by default
-        final Map<String, String> getParameters = new HashMap<>(parameters);
-        getParameters.put("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
+        final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
+        request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
 
         try {
-            final Response response = client.performRequest("GET", resourceBasePath + "/" + resourceName, getParameters);
+            final Response response = client.performRequest(request);
             final int statusCode = response.getStatusLine().getStatusCode();
 
             // checking the content is the job of whoever called this function by checking the tuple's response
@@ -385,8 +388,12 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         boolean success = false;
 
+        final Request request = new Request("PUT", resourceBasePath + "/" + resourceName);
+        addParameters(request);
+        request.setEntity(body.get());
+
         try {
-            final Response response = client.performRequest("PUT", resourceBasePath + "/" + resourceName, parameters, body.get());
+            final Response response = client.performRequest(request);
             final int statusCode = response.getStatusLine().getStatusCode();
 
             // 200 or 201
@@ -431,12 +438,15 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         boolean success = false;
 
-        // avoid 404 being an exception by default
-        final Map<String, String> deleteParameters = new HashMap<>(parameters);
-        deleteParameters.putIfAbsent("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
+        Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
+        addParameters(request);
+        if (false == parameters.containsKey("ignore")) {
+            // avoid 404 being an exception by default
+            request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
+        }
 
         try {
-            final Response response = client.performRequest("DELETE", resourceBasePath + "/" + resourceName, deleteParameters);
+            final Response response = client.performRequest(request);
             final int statusCode = response.getStatusLine().getStatusCode();
 
             // 200 or 404 (not found is just as good as deleting it!)
@@ -498,4 +508,9 @@ public abstract class PublishableHttpResource extends HttpResource {
         return true;
     }
 
+    private void addParameters(Request request) {
+        for (Map.Entry<String, String> param : parameters.entrySet()) {
+            request.addParameter(param.getKey(), param.getValue());
+        }
+    }
 }

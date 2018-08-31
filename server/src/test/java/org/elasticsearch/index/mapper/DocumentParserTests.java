@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -123,6 +124,35 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals(
                 "Cannot add a value for field [foo.bar] since one of the intermediate objects is mapped as a nested object: [foo]",
                 e.getMessage());
+    }
+
+    public void testUnexpectedFieldMappingType() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo").field("type", "long").endObject()
+                .startObject("bar").field("type", "boolean").endObject()
+                .startObject("geo").field("type", "geo_shape").endObject()
+                .endObject().endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        {
+            BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("foo", true).endObject());
+            MapperException exception = expectThrows(MapperException.class,
+                    () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
+            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long]"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("bar", "bar").endObject());
+            MapperException exception = expectThrows(MapperException.class,
+                    () -> mapper.parse(SourceToParse.source("test", "type", "2", bytes, XContentType.JSON)));
+            assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean]"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("geo", 123).endObject());
+            MapperException exception = expectThrows(MapperException.class,
+                    () -> mapper.parse(SourceToParse.source("test", "type", "2", bytes, XContentType.JSON)));
+            assertThat(exception.getMessage(), containsString("failed to parse field [geo] of type [geo_shape]"));
+        }
+
     }
 
     public void testDotsWithDynamicNestedMapper() throws Exception {
@@ -282,15 +312,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        ParseContext context = new ParseContext.InternalParseContext(
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+        IndexMetaData build = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+        ParseContext context = new ParseContext.InternalParseContext(settings,
             mapperService.documentMapperParser(), mapperService.documentMapper("type"), null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
         }
         Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
-        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         return (ObjectMapper)builder.build(builderContext);
     }
 

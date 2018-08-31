@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +51,7 @@ import static org.elasticsearch.search.suggest.completion.context.ContextMapping
  * and creates context queries for defined {@link ContextMapping}s
  * for a {@link CompletionFieldMapper}
  */
-public class ContextMappings implements ToXContent {
+public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> {
 
     private final List<ContextMapping<?>> contextMappings;
     private final Map<String, ContextMapping<?>> contextNameMap;
@@ -95,6 +96,11 @@ public class ContextMappings implements ToXContent {
      */
     public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<CharSequence>> contexts) {
         document.add(new TypedContextField(name, input, weight, contexts, document));
+    }
+
+    @Override
+    public Iterator<ContextMapping<?>> iterator() {
+        return contextMappings.iterator();
     }
 
     /**

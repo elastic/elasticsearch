@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;

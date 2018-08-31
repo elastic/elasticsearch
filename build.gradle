@@ -16,21 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-
-import org.gradle.api.tasks.wrapper.Wrapper
-import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
 import org.gradle.util.GradleVersion
 import org.gradle.util.DistributionLocator
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -91,8 +88,15 @@ subprojects {
           }
         }
       }
+      repositories {
+        maven {
+          name = 'localTest'
+          url = "${rootProject.buildDir}/local-test-repo"
+        }
+      }
     }
   }
+
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
@@ -232,6 +236,7 @@ subprojects {
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
+    "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
@@ -300,7 +305,7 @@ subprojects {
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
-    if (project.plugins.hasPlugin(BuildPlugin)) {
+    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
@@ -319,13 +324,6 @@ subprojects {
           project.evaluationDependsOn(upstreamProject.path)
           project.javadoc.source += upstreamProject.javadoc.source
           /*
-           * Do not add those projects to the javadoc classpath because
-           * we are going to resolve them with their source instead.
-           */
-          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
-            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
-          }
-          /*
            * Instead we need the upstream project's javadoc classpath so
            * we don't barf on the classes that it references.
            */
@@ -341,16 +339,16 @@ subprojects {
       project.configurations.compile.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       project.configurations.compileOnly.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       if (hasShadow) {
-        project.configurations.shadow.dependencies
+        project.configurations.bundle.dependencies
             .findAll()
             .toSorted(sortClosure)
-            .each({ c -> depJavadocClosure(false, c) })
+            .each({ c -> depJavadocClosure(true, c) })
       }
     }
   }
@@ -516,6 +514,24 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
+allprojects {
+  /*
+   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
+   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
+   * regular "compile" dependencies. This isn't needed for the project
+   * itself because the IDE configuration is done by SourceSets but it is
+   * *is* needed for projects that depends on the project doing the shadowing.
+   * Without this they won't properly depend on the shadowed project.
+   */
+  if (isEclipse || isIdea) {
+    project.plugins.withType(ShadowPlugin).whenPluginAdded {
+      project.afterEvaluate {
+        project.configurations.compile.extendsFrom project.configurations.bundle
+      }
+    }
+  }
+}
+
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {
@@ -537,7 +553,7 @@ task run(type: Run) {
 }
 
 wrapper {
-    distributionType = DistributionType.ALL
+    distributionType = 'ALL'
     doLast {
         final DistributionLocator locator = new DistributionLocator()
         final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
@@ -546,6 +562,10 @@ wrapper {
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
         println "Added checksum to wrapper properties"
+        // Update build-tools to reflect the Gradle upgrade
+        // TODO: we can remove this once we have tests to make sure older versions work.
+        project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+        println "Updated minimum Gradle Version"
     }
 }
 

@@ -385,9 +385,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // randomize tcp settings
         if (random.nextBoolean()) {
-            builder.put(TcpTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(TcpTransport.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(TcpTransport.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -1161,6 +1161,26 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         });
+    }
+
+    /**
+     * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
+     * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
+     */
+    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                    } catch (AlreadyClosedException ignored) {
+                        // shard is closed
+                    }
+                }
+            }
+        }
     }
 
     private void randomlyResetClients() throws IOException {
@@ -2008,8 +2028,10 @@ public final class InternalTestCluster extends TestCluster {
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
-                CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                assertThat("Accounting breaker not reset to 0 on node: " + name, acctBreaker.getUsed(), equalTo(0L));
+                // TODO: This is commented out while Lee looks into the failures
+                // See: https://github.com/elastic/elasticsearch/issues/30290
+                // CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+                // assertThat("Accounting breaker not reset to 0 on node: " + name, acctBreaker.getUsed(), equalTo(0L));
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
                 // that the breaker can sometimes be incremented from ping

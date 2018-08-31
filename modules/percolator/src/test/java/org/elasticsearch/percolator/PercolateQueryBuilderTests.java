@@ -27,7 +27,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -57,7 +55,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -292,26 +289,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
         assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("P4AAAAAFZmllbGQEdHlwZQAAAAAAAA57ImZvbyI6ImJhciJ9AAAAAA==");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            PercolateQueryBuilder queryBuilder = new PercolateQueryBuilder(in);
-            assertEquals("type", queryBuilder.getDocumentType());
-            assertEquals("field", queryBuilder.getField());
-            assertEquals("{\"foo\":\"bar\"}", queryBuilder.getDocuments().iterator().next().utf8ToString());
-            assertEquals(XContentType.JSON, queryBuilder.getXContentType());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                queryBuilder.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
     }
 
     private static BytesReference randomSource(Set<String> usedFields) {

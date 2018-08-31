@@ -192,20 +192,29 @@ public class NioHttpServerTransportTests extends ESTestCase {
             xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(expectedStatus));
-                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest =
-                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
-
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                    if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                        final FullHttpRequest continuationRequest =
+                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        try {
+                            assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                            assertThat(
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                            );
+                        } finally {
+                            continuationResponse.release();
+                        }
+                    }
+                } finally {
+                    response.release();
                 }
             }
         }
@@ -266,22 +275,26 @@ public class NioHttpServerTransportTests extends ESTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(
-                    new String(response.content().array(), Charset.forName("UTF-8")),
-                    containsString("you sent a bad request and you should feel bad"));
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
+                    assertThat(
+                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        containsString("you sent a bad request and you should feel bad"));
+                } finally {
+                    response.release();
+                }
             }
         }
 
         assertNotNull(causeReference.get());
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
-    
+
 //    public void testReadTimeout() throws Exception {
 //        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 //

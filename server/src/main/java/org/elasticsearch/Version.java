@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;

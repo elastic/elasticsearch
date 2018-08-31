@@ -259,7 +259,8 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
 
                 @Override
                 protected void initChannel(Channel ch) {
-                    SSLEngine serverEngine = sslService.createSSLEngine(sslService.getSSLConfiguration(setting("transport.ssl.")), null, -1);
+                    SSLEngine serverEngine = sslService.createSSLEngine(sslService.getSSLConfiguration(setting("transport.ssl.")),
+                        null, -1);
                     serverEngine.setUseClientMode(false);
                     SSLParameters sslParameters = serverEngine.getSSLParameters();
                     sslParameters.setSNIMatchers(Collections.singletonList(new SNIMatcher(0) {

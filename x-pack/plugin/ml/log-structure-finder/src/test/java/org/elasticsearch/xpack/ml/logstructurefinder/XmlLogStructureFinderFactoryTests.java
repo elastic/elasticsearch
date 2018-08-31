@@ -26,14 +26,14 @@ public class XmlLogStructureFinderFactoryTests extends LogStructureTestCase {
         assertFalse(factory.canCreateFromSample(explanation, TSV_SAMPLE));
     }
 
-    public void testCanCreateFromSampleGivenSemiColonSeparatedValues() {
+    public void testCanCreateFromSampleGivenSemiColonDelimited() {
 
-        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE));
     }
 
-    public void testCanCreateFromSampleGivenPipeSeparatedValues() {
+    public void testCanCreateFromSampleGivenPipeDelimited() {
 
-        assertFalse(factory.canCreateFromSample(explanation, PIPE_SEPARATED_VALUES_SAMPLE));
+        assertFalse(factory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenText() {

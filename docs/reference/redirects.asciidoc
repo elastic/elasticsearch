@@ -534,3 +534,8 @@ You can use the following APIs to add, remove, and retrieve role mappings:
 
 * <<security-api-put-role-mapping,Add role mappings>>, <<security-api-delete-role-mapping,Delete role mappings>>
 * <<security-api-get-role-mapping,Get role mappings>>
+
+[role="exclude",id="xpack-commands"]
+=== X-Pack commands
+
+See <<commands>>. 

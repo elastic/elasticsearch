@@ -53,16 +53,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
-    private Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected Version indexVersionCreated(final ClusterState clusterState) {
-        return indexVersionCreated;
     }
 
     @Override

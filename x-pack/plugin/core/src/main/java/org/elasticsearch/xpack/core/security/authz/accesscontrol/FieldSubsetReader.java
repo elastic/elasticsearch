@@ -115,7 +115,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
-    private Terms fieldNamesFilterTerms;
+    private final Terms fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
@@ -130,10 +130,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
-        fieldNamesFilterTerms = super.terms(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFilterTerms != null) {
-            fieldNamesFilterTerms = new FieldNamesTerms(fieldNamesFilterTerms);
-        }
+        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
+        this.fieldNamesFilterTerms = fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms);
     }
 
     /** returns true if this field is allowed. */
@@ -375,33 +373,28 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * representing fields that should not be visible in this reader.
      */
     class FieldNamesTerms extends FilterTerms {
-        long size = 0;
-        long sumDocFreq;
-        int docCount;
-
+        final long size;
+        final long sumDocFreq;
 
         FieldNamesTerms(Terms in) throws IOException {
             super(in);
             assert in.hasFreqs() == false;
             // re-compute the stats for the field to take
             // into account the filtered terms.
-            computeFilteredStats();
+            final TermsEnum e = iterator();
+            long size = 0, sumDocFreq = 0;
+            while (e.next() != null) {
+                size ++;
+                sumDocFreq += e.docFreq();
+            }
+            this.size = size;
+            this.sumDocFreq = sumDocFreq;
         }
 
         @Override
         public TermsEnum iterator() throws IOException {
             return new FieldNamesTermsEnum(in.iterator());
         }
-
-        private void computeFilteredStats() throws IOException {
-            TermsEnum e = iterator();
-            while (e.next() != null) {
-                size ++;
-                sumDocFreq += e.docFreq();
-                docCount = Math.max(e.docFreq(), docCount);
-            }
-        }
-
 
         @Override
         public long size() throws IOException {
@@ -415,7 +408,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         @Override
         public int getDocCount() throws IOException {
-            return docCount;
+            // it is costly to recompute this value so we assume that docCount == maxDoc.
+            return maxDoc();
         }
     }
 

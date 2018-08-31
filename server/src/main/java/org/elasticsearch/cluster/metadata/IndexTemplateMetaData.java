@@ -210,7 +210,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_5_0)) {
             // Previously we allowed custom metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected no custom metadata";
@@ -245,7 +245,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeVInt(0);
         }
         out.writeOptionalVInt(version);

@@ -474,7 +474,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             String mappingSource = in.readString();
             mappings.put(type, mappingSource);
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_5_0)) {
             // Used to be used for custom index metadata
             int customSize = in.readVInt();
             assert customSize == 0 : "expected not to have any custom metadata";
@@ -507,7 +507,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeVInt(0);
         }
         out.writeVInt(aliases.size());

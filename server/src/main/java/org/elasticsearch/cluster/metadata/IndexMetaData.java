@@ -706,7 +706,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.putAlias(aliasMd);
         }
         int customSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             for (int i = 0; i < customSize; i++) {
                 String key = in.readString();
                 DiffableStringMap custom = new DiffableStringMap(in);
@@ -752,7 +752,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVInt(customData.size());
             for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
                 out.writeString(cursor.key);

@@ -2798,16 +2798,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testCheckOnStartupDeprecatedValue() throws Exception {
-        final Settings settings = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "fix").build();
-
-        final IndexShard newShard = newShard(true, settings);
-        closeShards(newShard);
-
-        assertWarnings("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
-            + "which has no effect and will not be accepted in future");
-    }
-
     class Result {
         private final int localCheckpoint;
         private final int maxSeqNo;

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
@@ -15,21 +15,18 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuild
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTime;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends BaseDateTimeFunction {
+public abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
-    DateTimeFunction(Location location, Expression field, TimeZone timeZone) {
+    NamedDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
     }
 
@@ -40,58 +37,52 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
             return null;
         }
 
-        return dateTimeChrono(folded.getMillis(), timeZone().getID(), chronoField().name());
+        return extractName(folded.getMillis(), timeZone().getID());
     }
 
-    public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
-        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-        return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
-    }
+    public abstract String extractName(long millis, String tzId);
 
     @Override
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value.millis, {}, {})");
+        template = formatTemplate(formatMethodName("{sql}.{method_name}(doc[{}].value.millis, {})"));
         params.variable(field.name())
-              .variable(timeZone().getID())
-              .variable(chronoField().name());
+              .variable(timeZone().getID());
         
         return new ScriptTemplate(template, params.build(), dataType());
     }
-
-    /**
-     * Used for generating the painless script version of this function when the time zone is not UTC
-     */
-    protected abstract ChronoField chronoField();
-
-    @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new DateTimeProcessor(extractor(), timeZone()));
+    
+    private String formatMethodName(String template) {
+        return template.replace("{method_name}", StringUtils.underscoreToLowerCamelCase(nameExtractor().toString()));
     }
 
-    protected abstract DateTimeExtractor extractor();
+    @Override
+    protected final ProcessorDefinition makeProcessorDefinition() {
+        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
+                new NamedDateTimeProcessor(nameExtractor(), timeZone()));
+    }
+
+    protected abstract NameExtractor nameExtractor();
+    
+    protected abstract String dateTimeFormat();
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataType.KEYWORD;
     }
-
-    // used for applying ranges
-    public abstract String dateTimeFormat();
 
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        DateTimeFunction other = (DateTimeFunction) obj;
+        NamedDateTimeFunction other = (NamedDateTimeFunction) obj;
         return Objects.equals(other.field(), field())
             && Objects.equals(other.timeZone(), timeZone());
     }
-
+    
     @Override
     public int hashCode() {
         return Objects.hash(field(), timeZone());

@@ -38,6 +38,11 @@ MONTH           |SCALAR
 YEAR            |SCALAR
 WEEK_OF_YEAR    |SCALAR
 WEEK            |SCALAR
+DAY_NAME        |SCALAR
+DAYNAME         |SCALAR
+MONTH_NAME      |SCALAR
+MONTHNAME       |SCALAR
+QUARTER         |SCALAR
 ABS             |SCALAR
 ACOS            |SCALAR
 ASIN            |SCALAR
@@ -130,6 +135,8 @@ DAY_OF_WEEK     |SCALAR
 DAY_OF_YEAR     |SCALAR
 HOUR_OF_DAY     |SCALAR
 MINUTE_OF_DAY   |SCALAR
+DAY_NAME        |SCALAR
+DAYNAME         |SCALAR
 ;
 
 showTables

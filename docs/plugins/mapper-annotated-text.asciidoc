@@ -145,6 +145,9 @@ broader positional queries e.g. finding mentions of a `Guitarist` near to `strat
 <3> A benefit of searching with these carefully defined annotation tokens is that a query for 
 `Beck` will not match document 2 that contains the tokens `jeff`, `beck` and `Jeff Beck`
 
+WARNING: Any use of `=` signs in annotation values eg `[Prince](person=Prince)` will 
+cause the document to be rejected with a parse failure. In future we hope to have a use for
+the equals signs so wil actively reject documents that contain this today.
 
 
 [[mapper-annotated-text-tips]]

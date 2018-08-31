@@ -211,14 +211,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 lastPos = m.end();
                 
                 String[] pairs = m.group(2).split("&");
-                String type = null;
                 String value = null;
                 for (String pair : pairs) {
                     String[] kv = pair.split("=");
                     try {
-                        if(kv.length == 2){                            
-                            type = URLDecoder.decode(kv[0], "UTF-8");
-                            value = URLDecoder.decode(kv[1], "UTF-8");
+                        if(kv.length == 2){               
+                            throw new ElasticsearchParseException("key=value pairs are not supported in annotations");
                         }
                         if(kv.length == 1) {
                             //Check "=" sign wasn't in the pair string
@@ -228,7 +226,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                             }
                         }
                         if (value!=null && value.length() > 0) {
-                            annotations.add(new AnnotationToken(startOffset, endOffset, type, value));
+                            annotations.add(new AnnotationToken(startOffset, endOffset, value));
                         }
                     } catch (UnsupportedEncodingException uee){
                         throw new ElasticsearchParseException("Unsupported encoding parsing annotated text", uee);
@@ -251,12 +249,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             public final int offset;
             public final int endOffset;
             
-            public final String type;
             public final String value;
-            public AnnotationToken(int offset, int endOffset, String type, String value) {
+            public AnnotationToken(int offset, int endOffset, String value) {
                 this.offset = offset;
                 this.endOffset = endOffset;
-                this.type = type;
                 this.value = value;
             }
             @Override
@@ -275,7 +271,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 int result = 1;
                 result = prime * result + endOffset;
                 result = prime * result + offset;
-                result = prime * result + Objects.hashCode(type);
                 result = prime * result + Objects.hashCode(value);
                 return result;
             }
@@ -290,7 +285,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                     return false;
                 AnnotationToken other = (AnnotationToken) obj;
                 return Objects.equals(endOffset, other.endOffset) && Objects.equals(offset, other.offset)
-                        && Objects.equals(type, other.type) && Objects.equals(value, other.value);
+                        && Objects.equals(value, other.value);
             }
             
         }
@@ -348,7 +343,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 for (AnnotationToken token : fieldValueAnnotations.annotations) {
                     if(token.intersects(start - fieldValueOffset , end - fieldValueOffset)) {
                         intersectingAnnotations.add(new AnnotationToken(token.offset + fieldValueOffset, 
-                                token.endOffset + fieldValueOffset, token.type, token.value));
+                                token.endOffset + fieldValueOffset, token.value));
                     }
                 } 
                 //add 1 for the fieldvalue separator character
@@ -569,12 +564,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             }
         }
         private void setType(AnnotationToken token) {
-            if (token.type != null) {
-                typeAtt.setType(token.type);
-            } else {
-                //Default annotation type if not supplied by user
-                typeAtt.setType("annotation");
-            }
+            //Default annotation type - in future AnnotationTokens may contain custom type info
+            typeAtt.setType("annotation");
         }
 
         private void emitAnnotation(int firstSpannedTextPosInc, int annotationPosLen) throws IOException {

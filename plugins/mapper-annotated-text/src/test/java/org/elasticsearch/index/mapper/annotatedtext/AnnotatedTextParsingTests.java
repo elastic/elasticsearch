@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.mapper.annotatedtext;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class AnnotatedTextParsingTests extends ESTestCase {
     
@@ -38,30 +41,32 @@ public class AnnotatedTextParsingTests extends ESTestCase {
     }  
     
     public void testSingleValueMarkup() {
-        checkParsing("foo [bar](x=Y)", "foo bar", new AnnotationToken(4,7,"x","Y"));
+        checkParsing("foo [bar](Y)", "foo bar", new AnnotationToken(4,7,"Y"));
     }   
     
     public void testMultiValueMarkup() {
-        checkParsing("foo [bar](x=Y&a=B)", "foo bar", new AnnotationToken(4,7,"x","Y"), 
-                new AnnotationToken(4,7,"a","B"));
+        checkParsing("foo [bar](Y&B)", "foo bar", new AnnotationToken(4,7,"Y"), 
+                new AnnotationToken(4,7,"B"));
     }    
     
     public void testBlankTextAnnotation() {
-        checkParsing("It sounded like this:[](this=theSoundOfOneHandClapping)", "It sounded like this:", 
-                new AnnotationToken(21,21,"this","theSoundOfOneHandClapping"));
+        checkParsing("It sounded like this:[](theSoundOfOneHandClapping)", "It sounded like this:", 
+                new AnnotationToken(21,21,"theSoundOfOneHandClapping"));
     }    
     
     public void testMissingBracket() {
-        checkParsing("[foo](problem=MissingEndBracket bar",
-                "[foo](problem=MissingEndBracket bar", new AnnotationToken[0]);
+        checkParsing("[foo](MissingEndBracket bar",
+                "[foo](MissingEndBracket bar", new AnnotationToken[0]);
     }
     
-    public void testMissingType() {
-        checkParsing("foo [bar](noType) baz", "foo bar baz",  new AnnotationToken(4,7,null,"noType"));
+    public void testAnnotationWithType() {
+        Exception expectedException = expectThrows(ElasticsearchParseException.class,
+                () -> checkParsing("foo [bar](type=foo) baz", "foo bar baz",  new AnnotationToken(4,7, "noType")));
+            assertThat(expectedException.getMessage(), equalTo("key=value pairs are not supported in annotations"));
     }
     
     public void testMissingValue() {
-        checkParsing("[foo](this=) bar", "foo bar", new AnnotationToken[0]);
+        checkParsing("[foo]() bar", "foo bar", new AnnotationToken[0]);
     }    
         
 

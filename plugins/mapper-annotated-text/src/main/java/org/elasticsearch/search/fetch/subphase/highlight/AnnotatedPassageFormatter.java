@@ -138,12 +138,7 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
                 int end = token.endOffset;
                 if(start >= passage.getStartOffset() && end<=passage.getEndOffset()) {
                     String escapedValue = URLEncoder.encode(token.value, StandardCharsets.UTF_8.name());
-                    String escapedKv = escapedValue;
-                    if (token.type != null) {
-                        String escapedType = URLEncoder.encode(token.type, StandardCharsets.UTF_8.name());
-                        escapedKv = escapedType+"="+escapedValue;
-                    }
-                    Markup markup = new Markup(start, end, escapedKv);
+                    Markup markup = new Markup(start, end, escapedValue);
                     markupPassage.addUnlessOverlapping(markup);                        
                 }
             }

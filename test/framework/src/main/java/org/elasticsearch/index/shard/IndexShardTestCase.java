@@ -242,7 +242,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc", "{ \"properties\": {} }");
-        return newShard(shardRouting, metaData.build(), engineFactory, listeners);
+        return newShard(shardRouting, metaData.build(), null, engineFactory, () -> {}, listeners);
     }
 
     /**
@@ -286,21 +286,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer);
-    }
-
-
-    /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
-     * current node id the shard is assigned to.
-     *
-     * @param routing       shard routing to use
-     * @param indexMetaData indexMetaData for the shard, including any mapping
-     * @param listeners     an optional set of listeners to add to the shard
-     */
-    protected IndexShard newShard(
-            ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory, IndexingOperationListener... listeners)
-        throws IOException {
-        return newShard(routing, indexMetaData, null, engineFactory, () -> {}, listeners);
     }
 
     /**

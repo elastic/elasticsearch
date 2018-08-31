@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.rollup;
 
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -20,9 +21,7 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,37 +36,6 @@ public class RollupJobIdentifierUtils {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RollupJobIdentifierUtils.class));
     private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
-
-    /*
-      This map provides a relative ordering of the calendar units, so that we can say one week is less than
-      one month.
-
-      It also serves double duty in 6.4 as providing a rough estimate of milliseconds per calendar unit, as
-      a way to compare against fixed time.  This is forbidden in 6.5+, but in 6.4 it is allowed for BWC
-      so we need a way to compare so the user can't request `day` on a query when the job is configured at `30d`
-      for example
-     */
-    public static final Map<String, Long> CALENDAR_ORDERING;
-    static {
-        Map<String, Long> dateFieldUnits = new HashMap<>(16);
-        dateFieldUnits.put("year", 1000L * 60 * 60 * 24 * 365);
-        dateFieldUnits.put("1y", 1000L * 60 * 60 * 24 * 365);
-        dateFieldUnits.put("quarter", 1000L * 60 * 60 * 24 * 7 * 30 * 4);
-        dateFieldUnits.put("1q", 1000L * 60 * 60 * 24 * 7 * 30 * 4);
-        dateFieldUnits.put("month", 1000L * 60 * 60 * 24 * 7 * 30);
-        dateFieldUnits.put("1M", 1000L * 60 * 60 * 24 * 7 * 30);
-        dateFieldUnits.put("week", 1000L * 60 * 60 * 24 * 7);
-        dateFieldUnits.put("1w", 1000L * 60 * 60 * 24 * 7);
-        dateFieldUnits.put("day", 1000L * 60 * 60 * 24);
-        dateFieldUnits.put("1d", 1000L * 60 * 60 * 24);
-        dateFieldUnits.put("hour", 1000L * 60 * 60);
-        dateFieldUnits.put("1h", 1000L * 60 * 60);
-        dateFieldUnits.put("minute", 1000L * 60);
-        dateFieldUnits.put("1m", 1000L * 60);
-        dateFieldUnits.put("second", 1000L);
-        dateFieldUnits.put("1s", 1000L);
-        CALENDAR_ORDERING = Collections.unmodifiableMap(dateFieldUnits);
-    }
 
     /**
      * Given the aggregation tree and a list of available job capabilities, this method will return a set
@@ -203,8 +171,12 @@ public class RollupJobIdentifierUtils {
 
         // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
         // relative orders between the calendar units
-        long requestOrder = CALENDAR_ORDERING.getOrDefault(requestInterval.toString(), Long.MAX_VALUE);
-        long configOrder = CALENDAR_ORDERING.getOrDefault(configInterval.toString(), Long.MAX_VALUE);
+        DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        long requestOrder = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+
+        DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        long configOrder = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+
 
         // All calendar units are multiples naturally, so we just care about gte
         return requestOrder >= configOrder;
@@ -258,10 +230,12 @@ public class RollupJobIdentifierUtils {
 
         if (isCalendarInterval(requestInterval) && isCalendarInterval(configInterval) == false) {
             configIntervalMillis= TimeValue.parseTimeValue(configInterval.toString(), "date_histo.config.interval").getMillis();
-            requestIntervalMillis = CALENDAR_ORDERING.getOrDefault(requestInterval.toString(), Long.MAX_VALUE);
+            DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+            requestIntervalMillis = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
 
         } else if (isCalendarInterval(requestInterval) == false && isCalendarInterval(configInterval)) {
-            configIntervalMillis = CALENDAR_ORDERING.getOrDefault(configInterval.toString(), Long.MAX_VALUE);
+            DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+            configIntervalMillis = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
             requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(), "date_histo.config.interval").getMillis();
 
         } else {
@@ -283,8 +257,15 @@ public class RollupJobIdentifierUtils {
      */
     static boolean validateMixedInterval(long requestInterval, DateHistogramInterval configInterval) {
         if (isCalendarInterval(configInterval)) {
-            long configIntervalMillis = CALENDAR_ORDERING.getOrDefault(configInterval.toString(), Long.MAX_VALUE);
-            return requestInterval >= configIntervalMillis;
+            DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+            long configIntervalMillis = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+            if (requestInterval >= configIntervalMillis) {
+                DEPRECATION_LOGGER.deprecated("Starting in 6.5.0, query and config interval types must match (e.g. fixed-time config " +
+                    "can only be queried with fixed-time aggregations, and calendar-time config can only be queried with calendar-time" +
+                    "aggregations).");
+                return true;
+            }
+            return false;
         }
         return false;
     }
@@ -301,8 +282,11 @@ public class RollupJobIdentifierUtils {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         Long interval = (long)agg.get(RollupField.INTERVAL);
-                        // query interval must be gte the configured interval, and a whole multiple
-                        if (interval <= source.interval() && source.interval() % interval == 0) {
+                        // query interval must be gte the configured interval
+                        if (interval <= source.interval()) {
+                            if (source.interval() % interval != 0) {
+                                DEPRECATION_LOGGER.deprecated("Starting in 6.5.0, query intervals must be a multiple of configured intervals.");
+                            }
                             localCaps.add(cap);
                         }
                         break;

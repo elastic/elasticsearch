@@ -78,6 +78,22 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         assertThat(bestCaps.size(), equalTo(1));
     }
 
+    public void testBiggerButCompatibleFixedIntervalNotMultiple() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("300s")).build());
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+        Set<RollupJobCaps> caps = singletonSet(cap);
+
+        DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
+            .dateHistogramInterval(new DateHistogramInterval("1000s"));
+
+        Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
+        assertWarnings("Starting in 6.5.0, query intervals must be a multiple of configured intervals.");
+        assertThat(bestCaps.size(), equalTo(1));
+    }
+
     public void testBiggerButCompatibleFixedMillisInterval() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
@@ -600,9 +616,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     public void testHistoIntervalNotMultiple() {
         HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
         histo.interval(10)  // <--- interval is not a multiple of 3
-            .field("bar")
-            .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-            .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
+            .field("bar");
 
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
@@ -612,10 +626,10 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = singletonSet(cap);
 
-        Exception e = expectThrows(RuntimeException.class,
-            () -> RollupJobIdentifierUtils.findBestJobs(histo, caps));
-        assertThat(e.getMessage(), equalTo("There is not a rollup job that has a [histogram] agg on field " +
-            "[bar] which also satisfies all requirements of query."));
+        Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(histo, caps);
+
+        assertThat(bestCaps.size(), equalTo(1));
+        assertWarnings("Starting in 6.5.0, query intervals must be a multiple of configured intervals.");
     }
 
     public void testMissingMetric() {
@@ -743,6 +757,10 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("second"),
             new DateHistogramInterval("1m"));
         assertFalse(valid);
+
+        valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("1M"),
+            new DateHistogramInterval("minute"));
+        assertTrue(valid);
 
         // Fails because both are actually fixed
         valid = RollupJobIdentifierUtils.validateCalendarInterval(new DateHistogramInterval("100ms"),

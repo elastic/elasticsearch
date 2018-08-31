@@ -776,6 +776,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldAAA")));
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldB")));
 
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
 
@@ -822,6 +823,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(new BytesRef("fieldC"), termsEnum.term());
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldD")));
 
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
 
@@ -857,6 +859,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         termsEnum = terms.iterator();
         assertEquals(SeekStatus.END, termsEnum.seekCeil(new BytesRef("fieldC")));
 
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
 

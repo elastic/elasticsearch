@@ -186,6 +186,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29893")
     public void testSearchTransformHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -268,6 +269,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(spam, is("eggs"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30777")
     public void testIndexActionInsufficientPrivileges() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

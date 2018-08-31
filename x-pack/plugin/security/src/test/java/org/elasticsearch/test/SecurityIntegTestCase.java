@@ -420,14 +420,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         createIndex(indices);
 
         if (frequently()) {
+            boolean noAliasAdded = true;
             IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     //one alias per index with prefix "alias-"
                     builder.addAlias(index, "alias-" + index);
+                    noAliasAdded = false;
                 }
             }
-            if (randomBoolean()) {
+            // If we get to this point and we haven't added an alias to the request we need to add one 
+            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            if (noAliasAdded || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");

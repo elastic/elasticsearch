@@ -119,11 +119,11 @@ public class AnnotatedTextHighlighterTests  extends ESTestCase {
         String annotatedWord = "[highlighting](" + encodedUrl + ")";
         String highlightedAnnotatedWord = "[highlighting](" + AnnotatedPassageFormatter.SEARCH_HIT_TYPE + "=" + encodedUrl + "&"
                 + encodedUrl + ")";
-        final String[] markedUpInputs = { "This is a test. Just a test1 " + annotatedWord + " from [annotated](foo=bar) highlighter.",
+        final String[] markedUpInputs = { "This is a test. Just a test1 " + annotatedWord + " from [annotated](bar) highlighter.",
                 "This is the second " + annotatedWord + " value to perform highlighting on a longer text that gets scored lower." };
 
         String[] expectedPassages = {
-                "This is a test. Just a test1 " + highlightedAnnotatedWord + " from [annotated](foo=bar) highlighter.",
+                "This is a test. Just a test1 " + highlightedAnnotatedWord + " from [annotated](bar) highlighter.",
                 "This is the second " + highlightedAnnotatedWord + " value to perform highlighting on a"
                         + " longer text that gets scored lower." };
         Query query = new TermQuery(new Term("text", url));
@@ -133,10 +133,10 @@ public class AnnotatedTextHighlighterTests  extends ESTestCase {
 
     public void testAnnotatedTextOverlapsWithUnstructuredSearchTerms() throws Exception {
         final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore",
-                "Donald duck is a [Disney](company=Disney+Inc) invention" };
+                "Donald duck is a [Disney](Disney+Inc) invention" };
 
         String[] expectedPassages = { "[Donald](_hit_term=donald) Trump visited Singapore",
-                "[Donald](_hit_term=donald) duck is a [Disney](company=Disney+Inc) invention" };
+                "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
@@ -144,10 +144,10 @@ public class AnnotatedTextHighlighterTests  extends ESTestCase {
 
     public void testAnnotatedTextMultiFieldWithBreakIterator() throws Exception {
         final String[] markedUpInputs = { "[Donald Trump](Donald+Trump) visited Singapore. Kim shook hands with Donald",
-                "Donald duck is a [Disney](company=Disney+Inc) invention" };
+                "Donald duck is a [Disney](Disney+Inc) invention" };
         String[] expectedPassages = { "[Donald](_hit_term=donald) Trump visited Singapore",
                 "Kim shook hands with [Donald](_hit_term=donald)",
-                "[Donald](_hit_term=donald) duck is a [Disney](company=Disney+Inc) invention" };
+                "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         breakIterator = new SplittingBreakIterator(breakIterator, '.');

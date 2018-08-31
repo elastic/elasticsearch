@@ -39,6 +39,7 @@ PUT _xpack/ml/filters/safe_domains
 }
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 Now, we can create our job specifying a scope that uses the `safe_domains` 
 filter for the `highest_registered_domain` field:
@@ -70,6 +71,7 @@ PUT _xpack/ml/anomaly_detectors/dns_exfiltration_with_rule
 }
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 As time advances and we see more data and more results, we might encounter new 
 domains that we want to add in the filter. We can do that by using the 
@@ -83,7 +85,7 @@ POST _xpack/ml/filters/safe_domains/_update
 }
 ----------------------------------
 // CONSOLE
-// TEST[setup:ml_filter_safe_domains]
+// TEST[skip:setup:ml_filter_safe_domains]
 
 Note that we can use any of the `partition_field_name`, `over_field_name`, or 
 `by_field_name` fields in the `scope`.
@@ -123,6 +125,7 @@ PUT _xpack/ml/anomaly_detectors/scoping_multiple_fields
 }
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 Such a detector will skip results when the values of all 3 scoped fields
 are included in the referenced filters.
@@ -166,6 +169,7 @@ PUT _xpack/ml/anomaly_detectors/cpu_with_rule
 }
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 When there are multiple conditions they are combined with a logical `and`.
 This is useful when we want the rule to apply to a range. We simply create
@@ -205,6 +209,7 @@ PUT _xpack/ml/anomaly_detectors/rule_with_range
 }
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 ==== Custom rules in the life-cycle of a job
 

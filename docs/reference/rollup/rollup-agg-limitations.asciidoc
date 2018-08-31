@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[rollup-agg-limitations]]
 == Rollup Aggregation Limitations
 

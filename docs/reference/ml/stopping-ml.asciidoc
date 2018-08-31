@@ -28,7 +28,7 @@ request stops the `feed1` {dfeed}:
 POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_startdf]
+// TEST[skip:setup:server_metrics_startdf]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
 For more information, see <<security-privileges>>.
@@ -49,6 +49,7 @@ If you are upgrading your cluster, you can use the following request to stop all
 POST _xpack/ml/datafeeds/_all/_stop
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 [float]
 [[closing-ml-jobs]]
@@ -67,7 +68,7 @@ example, the following request closes the `job1` job:
 POST _xpack/ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_openjob]
+// TEST[skip:setup:server_metrics_openjob]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
 For more information, see <<security-privileges>>.
@@ -86,3 +87,4 @@ all open jobs on the cluster:
 POST _xpack/ml/anomaly_detectors/_all/_close
 ----------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]

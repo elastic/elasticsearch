@@ -512,6 +512,16 @@ allprojects {
   tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+  // work arround https://github.com/gradle/gradle/issues/6582 
+  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
+  if (tasks.findByName('eclipseClasspath') != null) {
+    tasks.eclipseClasspath.mustRunAfter tasks.cleanEclipseClasspath
+  }
+  if (tasks.findByName('eclipseJdt') != null) {
+    tasks.eclipseJdt.mustRunAfter tasks.cleanEclipseJdt
+  }
+  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
 }
 
 allprojects {

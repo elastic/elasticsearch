@@ -21,7 +21,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.ingest.DroppedDocumentException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -56,8 +55,6 @@ class SimulateExecutionService {
             try {
                 pipeline.execute(ingestDocument);
                 return new SimulateDocumentBaseResult(ingestDocument);
-            } catch (DroppedDocumentException e) {
-                return null;
             } catch (Exception e) {
                 return new SimulateDocumentBaseResult(e);
             }

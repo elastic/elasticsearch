@@ -75,7 +75,9 @@ public final class ForEachProcessor extends AbstractProcessor {
         for (Object value : values) {
             Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
             try {
-                processor.execute(ingestDocument);
+                if (processor.execute(ingestDocument) == null) {
+                    return null;
+                }
             } finally {
                 newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
             }

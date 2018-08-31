@@ -61,7 +61,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.ingest.DroppedDocumentException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -526,31 +525,28 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         ingestService.executeBulkRequest(() -> bulkRequestModifier,
             (indexRequest, exception) -> {
-                if (ExceptionsHelper.unwrap(exception, DroppedDocumentException.class) != null) {
-                    bulkRequestModifier.markCurrentItemAsDropped();
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                        indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
-                    bulkRequestModifier.markCurrentItemAsFailed(exception);
-                }
+                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+                    indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
+                bulkRequestModifier.markCurrentItemAsFailed(exception);
             }, (exception) -> {
-            if (exception != null) {
-                logger.error("failed to execute pipeline for a bulk request", exception);
-                listener.onFailure(exception);
-            } else {
-                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
-                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
-                if (bulkRequest.requests().isEmpty()) {
-                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                    // so we stop and send an empty response back to the client.
-                    // (this will happen if pre-processing all items in the bulk failed)
-                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                if (exception != null) {
+                    logger.error("failed to execute pipeline for a bulk request", exception);
+                    listener.onFailure(exception);
                 } else {
-                    doExecute(task, bulkRequest, actionListener);
+                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
+                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
+                    if (bulkRequest.requests().isEmpty()) {
+                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                        // so we stop and send an empty response back to the client.
+                        // (this will happen if pre-processing all items in the bulk failed)
+                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                    } else {
+                        doExecute(task, bulkRequest, actionListener);
+                    }
                 }
-            }
-        });
+            },
+            indexRequest -> bulkRequestModifier.markCurrentItemAsDropped());
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {

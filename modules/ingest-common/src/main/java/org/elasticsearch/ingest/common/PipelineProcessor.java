@@ -47,8 +47,7 @@ public class PipelineProcessor extends AbstractProcessor {
         if (pipeline == null) {
             throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']');
         }
-        ingestDocument.executePipeline(pipeline);
-        return ingestDocument;
+        return ingestDocument.executePipeline(pipeline);
     }
 
     @Override

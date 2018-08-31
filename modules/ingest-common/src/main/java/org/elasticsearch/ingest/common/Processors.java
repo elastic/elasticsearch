@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.DroppedDocumentException;
-
 import java.util.Map;
 
 public final class Processors {
@@ -49,7 +47,4 @@ public final class Processors {
         return URLDecodeProcessor.apply(value);
     }
 
-    public static void drop() {
-        throw new DroppedDocumentException();
-    }
 }

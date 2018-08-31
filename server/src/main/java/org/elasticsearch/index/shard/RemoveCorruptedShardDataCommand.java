@@ -353,8 +353,9 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         final Tuple<CleanStatus, String> indexCleanStatus;
         final Tuple<CleanStatus, String> translogCleanStatus;
         try (Directory nodeDir = nodeDirectory; Directory indexDir = indexDirectory) {
-            // Hold the lock open for the duration of the tool running
+            // Hold the node lock open for the duration of the tool running
             try (Lock writeNodeIndexLock = nodeDir.obtainLock(NodeEnvironment.NODE_LOCK_FILENAME)) {
+                // keep the index lock to block any runs of older versions of this tool
                 try (Lock writeIndexLock = indexDir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     ////////// Index
                     // that's only for 6.x branch for bwc with elasticsearch-translog

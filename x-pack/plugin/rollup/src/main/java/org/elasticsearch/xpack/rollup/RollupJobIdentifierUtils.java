@@ -285,7 +285,8 @@ public class RollupJobIdentifierUtils {
                         // query interval must be gte the configured interval
                         if (interval <= source.interval()) {
                             if (source.interval() % interval != 0) {
-                                DEPRECATION_LOGGER.deprecated("Starting in 6.5.0, query intervals must be a multiple of configured intervals.");
+                                DEPRECATION_LOGGER.deprecated("Starting in 6.5.0, query intervals must be a " +
+                                    "multiple of configured intervals.");
                             }
                             localCaps.add(cap);
                         }

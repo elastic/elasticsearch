@@ -56,7 +56,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }
-        this.schedules.putAll(schedules);
+        this.schedules = schedules;
     }
 
     @Override

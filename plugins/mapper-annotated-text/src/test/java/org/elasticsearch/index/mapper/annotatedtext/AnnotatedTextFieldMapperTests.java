@@ -119,7 +119,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);        
 
         // Use example of typed and untyped annotations
-        String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&role=Payee) hush money";
+        String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
         SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
@@ -174,7 +174,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);        
 
-        String annotatedText = "foo [bar](problem=MissingEndBracket baz";
+        String annotatedText = "foo [bar](MissingEndBracket baz";
         SourceToParse sourceToParse = SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
@@ -226,7 +226,7 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < max; i++) {
             bulk.add(client().prepareIndex("test", "type", Integer.toString(i))
-                    .setSource("tvfield", "the quick [brown](pos=Color) fox jumped over the lazy dog"));
+                    .setSource("tvfield", "the quick [brown](Color) fox jumped over the lazy dog"));
         }
         bulk.get();
 

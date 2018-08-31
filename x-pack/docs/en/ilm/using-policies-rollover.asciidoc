@@ -1,38 +1,48 @@
 [[using-policies-rollover]]
 == Using policies to manage index rollover
 
-The rollover action can be used to create a new index and move a write alias
-over to that index when the current index is considered "full". The action can
-be configured with the desired criteria for when the rollover should be performed.
+The rollover action enables you to automatically roll over to a new index based
+on the index size, document count, or age. When a rollover is triggered, a new
+index is created, the write alias is updated to point to the new index, and all
+subsequent updates are written to the new index.
 
-NOTE: It's recommended to use rollover when configuring an index lifecycle policy. 
-Using rollover you can automatically switch over to a new index when the 
-current index is "full" rather than at an arbitrary time (for example each
-day). This avoids the trap of creating many small indexes with very little data
-in each.
+Rolling over to a new index based on size, document count, or age is preferable
+to time-based rollovers. Rolling over at an arbitrary time often results in
+many small indices, which can have a negative impact on performance and
+resource usage.
 
-The rollover action in {ilm} takes the following parameters:
+You control when the rollover action is triggered by specifying one or more
+rollover parameters. The rollover is performed once any of the criteria are
+met. Because the criteria are checked periodically, the index might grow
+slightly beyond the specified threshold. To control how often the critera are
+checked, specify the `indices.lifecycle.poll_interval` cluster setting.
+
+The rollover action takes the following parameters:
 
 .`rollover` Action Parameters
 |===
-|Parameter Name |Description |Required |Default Value
-|`max_size` |The maximum estimated size the index is allowed to grow 
-to |Optional | `null`
-|`max_docs` |The maximum number of document the index should 
-contain |Optional | `null`
-|`max_age`  |The maximum age of the index |Optional | `null`
+|Name |Description
+|max_size |The maximum estimated size the index is allowed to grow
+to. Defaults tonull. Optional.
+|max_docs |The maximum number of document the index should
+contain. Defaults tonull. Optional.
+|max_age |The maximum age of the index. Defaults tonull. Optional.
 |===
 
 These parameters are used to determine when the index is considered "full" and
 a rollover should be performed. Where multiple criteria are defined the
 rollover operation will be performed once any of the criteria are met.
 
-Note: The rollover criteria is checked periodically so the index may increase
-slightly beyond the criteria above before the rollover is performed. The
-frequency of this check can be controlled using the
-`indices.lifecycle.poll_interval` cluster setting.
+The following request defines a policy with a rollover action that triggers
+when the index size reaches 25GB. The old index is subsequently deleted after
+30 days.
 
-Below is an example which defines a policy using the `rollover` action.
+NOTE: Once an index rolls over, {ilm} uses the timestamp of the rollover
+operation rather than the index creation time to evaluate when to move the
+index to the next phase. For indices that have rolled over, the `after`
+criteria specified for a phase is relative to the rollover time for indices. In
+this example, that means the index will be deleted 30 days after rollover, not
+30 days from when the index was created.
 
 [source,js]
 --------------------------------------------------
@@ -59,17 +69,9 @@ POST /_ilm/my_policy
 --------------------------------------------------
 // CONSOLE
 
-This policy will execute a rollover when the index reaches a size of 25GB. The
-index will then be deleted 30 days after the rollover.
-
-A side effect of the rollover operation is that the date used by {ilm} to
-evaluate when to move an index to the next phase (this criteria is specified by
-the `after` parameter on a Phase) will from the rollover operation onwards be
-relative to the timestamp of the rollover rather than the timestamp of index
-creation.
-
-To use the above policy an index template needs to be defined to associate 
-indexes matching the desired pattern with this policy.
+To use an {ilm} policy, you need to specify it in the index template used to
+create the indices. For example, the following template associates `my_policy`
+with indices created from the template `my_template`.
 
 [source,js]
 -----------------------
@@ -85,14 +87,9 @@ PUT _template/my_template
 }
 -----------------------
 // CONSOLE
-<1> This template will be applied to all indexes which have a name starting
-with `test-`
-<2> The template will set the policy to be used to `my_policy`
-<3> Any rollover action applied to this index will rollover the alias
-`test-alias` to the newly created index
-
-Now all indexes with a name that matches `test-*` will use the policy 
-`my_policy` (including indexes created by the rollover action).
+<1> Template applies to all indices with the prefix test-
+<2> Associates my_policy with all indices created with this template
+<3> Rolls over the write alias test when the rollover action is triggered
 
 To be able to start using the policy for these `test-*` indexes we need to
 bootstrap the process by creating the first index.
@@ -109,13 +106,10 @@ PUT test-000001 <1>
 }
 -----------------------
 // CONSOLE
-<1> We name the first index `test-000001` and the rollover action will 
-increment the sufix number for each newly created index
-<2> Set this initial index to be the write index for this alias.
+<1> Creates the index called test-000001. The rollover action increments the
+suffix number for each subsequent index.
+<2> Designates this index as the write index for this alias.
 
-This first index defines an alias `test-alias` which can then be used for
-indexing data. The initial `test-000001` index is set as the "write index" for
-this alias and as per the `index.lifecycle.rollover_alias` setting defined in
-the index template above the "write index" for this alias will be moved to the
-newly created index on each rollover to allow indexing to not be interrupted as
-indexes become "full" and are rolled over.
+When the rollover is performed the newly created index will be set as the 
+"write index" for the rolled over alias. This new index will then be used to 
+index documents sent to the alias allowing indexing to be uninterrupted.

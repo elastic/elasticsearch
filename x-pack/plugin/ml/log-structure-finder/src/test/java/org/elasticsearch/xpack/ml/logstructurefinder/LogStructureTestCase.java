@@ -34,14 +34,14 @@ public abstract class LogStructureTestCase extends ESTestCase {
             "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
             "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
 
-    protected static final String PIPE_SEPARATED_VALUES_SAMPLE = "2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |" +
+    protected static final String PIPE_DELIMITED_SAMPLE = "2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |" +
             "listening on 0.0.0.0:9987, :::9987\n" +
         "2018-01-06 17:19:44.465252|INFO    |VirtualServer |1  |client " +
             "'User1'(id:2) changed default admin channelgroup to 'Guest'(id:8)\n" +
         "2018-01-06 17:21:25.764368|INFO    |VirtualServer |1  |client " +
             "'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel 'Default Channel'(id:1)";
 
-    protected static final String SEMI_COLON_SEPARATED_VALUES_SAMPLE = "\"pos_id\";\"trip_id\";\"latitude\";\"longitude\";\"altitude\";" +
+    protected static final String SEMI_COLON_DELIMITED_SAMPLE = "\"pos_id\";\"trip_id\";\"latitude\";\"longitude\";\"altitude\";" +
             "\"timestamp\"\n" +
         "\"1\";\"3\";\"4703.7815\";\"1527.4713\";\"359.9\";\"2017-01-19 16:19:04.742113\"\n" +
         "\"2\";\"3\";\"4703.7815\";\"1527.4714\";\"359.9\";\"2017-01-19 16:19:05.741890\"\n" +

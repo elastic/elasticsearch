@@ -26,7 +26,7 @@ public class BindingTest {
         this.state = state0 + state1;
     }
 
-    public int testAddWithState(int stateless) {
-        return stateless + state;
+    public int testAddWithState(int istateless, double dstateless) {
+        return istateless + state + (int)dstateless;
     }
 }

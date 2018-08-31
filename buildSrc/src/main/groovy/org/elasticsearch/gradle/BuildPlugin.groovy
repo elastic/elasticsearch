@@ -212,6 +212,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
+            project.rootProject.ext.java9Home = findJavaHome("9")
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -225,6 +226,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
+        project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
     private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {

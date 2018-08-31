@@ -75,11 +75,10 @@ public final class IndexSettings {
         switch(s) {
             case "false":
             case "true":
-            case "fix":
             case "checksum":
                 return s;
             default:
-                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, fix, checksum] but was: " + s);
+                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, checksum] but was: " + s);
         }
     }, Property.IndexScope);
 

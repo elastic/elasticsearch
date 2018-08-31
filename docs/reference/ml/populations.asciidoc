@@ -51,13 +51,10 @@ PUT _xpack/ml/anomaly_detectors/population
 }
 ----------------------------------
 //CONSOLE
+// TEST[skip:needs-licence]
 <1> This `over_field_name` property indicates that the metrics for each user (
   as identified by their `username` value) are analyzed relative to other users
   in each bucket.
-
-//TO-DO: Per sophiec20 "Perhaps add the datafeed config and add a query filter to
-//include only workstations as servers and printers would behave differently
-//from the population
 
 If your data is stored in {es}, you can use the population job wizard in {kib}
 to create a job with these same properties. For example, the population job

@@ -47,6 +47,7 @@ PUT _xpack/ml/anomaly_detectors/example1
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 If you use this `lat_long` function in a detector in your job, it
 detects anomalies where the geographic location of a credit card transaction is
@@ -98,6 +99,6 @@ PUT _xpack/ml/datafeeds/datafeed-test2
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:farequote_job]
+// TEST[skip:setup:farequote_job]
 
 For more information, see <<ml-configuring-transform>>.

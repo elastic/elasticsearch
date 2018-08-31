@@ -158,6 +158,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29893")
     public void testSearchInputWithInsufficientPrivileges() throws Exception {
         String indexName = "index_not_allowed_to_read";
         try (XContentBuilder builder = jsonBuilder()) {
@@ -213,6 +214,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(value, is("15"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33291")
     public void testSearchTransformInsufficientPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

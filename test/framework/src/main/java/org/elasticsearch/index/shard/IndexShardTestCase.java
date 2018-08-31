@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -58,10 +53,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -236,6 +229,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
                 .put(settings)
                 .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
@@ -376,7 +372,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param listeners new listerns to use for the newly created shard
      */
@@ -388,7 +384,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
      * @param listeners new listerns to use for the newly created shard
@@ -419,8 +415,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param primary controls whether the shard will be a primary or a replica.
      */
     protected IndexShard newStartedShard(final boolean primary) throws IOException {
-        return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+        return newStartedShard(primary, Settings.EMPTY);
     }
+
+    protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
+        return newStartedShard(primary, settings, new InternalEngineFactory());
+    }
+
     /**
      * Creates a new empty shard with the specified settings and engine factory and starts it.
      *
@@ -458,6 +459,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         for (IndexShard shard : shards) {
             if (shard != null) {
                 try {
+                    assertConsistentHistoryBetweenTranslogAndLucene(shard);
                     shard.close("test", false);
                 } finally {
                     IOUtils.close(shard.store());
@@ -639,22 +641,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
-        shard.refresh("get_uids");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            Set<String> ids = new HashSet<>();
-            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                Bits liveDocs = reader.getLiveDocs();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
-                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
-                    }
-                }
-            }
-            return ids;
-        }
+        return EngineTestCase.getDocIds(shard.getEngine(), true);
     }
 
     protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
@@ -667,6 +654,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         assertThat(shardDocUIDs, hasSize(ids.length));
     }
 
+    public static void assertConsistentHistoryBetweenTranslogAndLucene(IndexShard shard) throws IOException {
+        final Engine engine = shard.getEngineOrNull();
+        if (engine != null) {
+            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
+        }
+    }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");
@@ -711,11 +704,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
+        final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
-            return shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
+            result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
-            return shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
+            result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
         }
+        return result;
     }
 
     protected void flushShard(IndexShard shard) {

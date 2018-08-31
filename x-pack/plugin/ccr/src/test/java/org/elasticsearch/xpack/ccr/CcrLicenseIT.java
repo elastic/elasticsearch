@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -36,9 +37,9 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         client().execute(
                 FollowIndexAction.INSTANCE,
                 followRequest,
-                new ActionListener<FollowIndexAction.Response>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(final FollowIndexAction.Response response) {
+                    public void onResponse(final AcknowledgedResponse response) {
                         fail();
                     }
 

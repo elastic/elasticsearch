@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -420,18 +420,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         createIndex(indices);
 
         if (frequently()) {
-            boolean noAliasAdded = true;
+            boolean aliasAdded = false;
             IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     //one alias per index with prefix "alias-"
                     builder.addAlias(index, "alias-" + index);
-                    noAliasAdded = false;
+                    aliasAdded = true;
                 }
             }
             // If we get to this point and we haven't added an alias to the request we need to add one 
             // or the request will fail so use noAliasAdded to force adding the alias in this case 
-            if (noAliasAdded || randomBoolean()) {
+            if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");

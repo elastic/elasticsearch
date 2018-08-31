@@ -44,21 +44,30 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(zonedFormatter.printer.getZone(), is(zoneId));
 
         // test with negative and non negative values
-        assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(randomNonNegativeLong() * -1));
-        assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(randomNonNegativeLong()));
-        assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(0));
-        assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(-1));
-        assertThatSameDateTime(formatter, zonedFormatter, String.valueOf(1));
+        assertThatSameDateTime(formatter, zonedFormatter, randomNonNegativeLong() * -1);
+        assertThatSameDateTime(formatter, zonedFormatter, randomNonNegativeLong());
+        assertThatSameDateTime(formatter, zonedFormatter, 0);
+        assertThatSameDateTime(formatter, zonedFormatter, -1);
+        assertThatSameDateTime(formatter, zonedFormatter, 1);
 
         // format() output should be equal as well
-        long randomMillis = randomLong();
-        TemporalAccessor accessor = formatter.parse(randomMillis + "");
-        assertThat(randomMillis + "", is(formatter.format(accessor)));
+        assertSameFormat(formatter, randomNonNegativeLong() * -1);
+        assertSameFormat(formatter, randomNonNegativeLong());
+        assertSameFormat(formatter, 0);
+        assertSameFormat(formatter, -1);
+        assertSameFormat(formatter, 1);
     }
 
-    private void assertThatSameDateTime(CompoundDateTimeFormatter formatter, CompoundDateTimeFormatter zonedFormatter, String value) {
-        ZonedDateTime formatterZonedDateTime = DateFormatters.toZonedDateTime(formatter.parse(value));
-        ZonedDateTime zonedFormatterZonedDateTime = DateFormatters.toZonedDateTime(zonedFormatter.parse(value));
+    private void assertThatSameDateTime(CompoundDateTimeFormatter formatter, CompoundDateTimeFormatter zonedFormatter, long millis) {
+        String millisAsString = String.valueOf(millis);
+        ZonedDateTime formatterZonedDateTime = DateFormatters.toZonedDateTime(formatter.parse(millisAsString));
+        ZonedDateTime zonedFormatterZonedDateTime = DateFormatters.toZonedDateTime(zonedFormatter.parse(millisAsString));
         assertThat(formatterZonedDateTime.toInstant().toEpochMilli(), is(zonedFormatterZonedDateTime.toInstant().toEpochMilli()));
+    }
+
+    private void assertSameFormat(CompoundDateTimeFormatter formatter, long millis) {
+        String millisAsString = String.valueOf(millis);
+        TemporalAccessor accessor = formatter.parse(millisAsString);
+        assertThat(millisAsString, is(formatter.format(accessor)));
     }
 }

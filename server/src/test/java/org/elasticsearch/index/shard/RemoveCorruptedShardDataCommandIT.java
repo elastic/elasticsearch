@@ -186,8 +186,6 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 t.addTextInput("y");
-
-                // Try running it before the shard is corrupted, it should flip out because there is no corruption file marker
                 command.execute(t, options, environment);
 
                 return super.onNodeStopped(nodeName);
@@ -246,7 +244,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
 
         ensureGreen(indexName);
-        // Run a search and make sure it succeeds
+
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
     }
 

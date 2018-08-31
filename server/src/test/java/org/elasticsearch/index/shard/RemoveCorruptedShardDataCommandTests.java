@@ -176,7 +176,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             fail();
         } catch (ElasticsearchException e) {
             if (corruptSegments) {
-                assertThat(e.getMessage(), is("Index is unrecoverable - there are missing segments"));
+                assertThat(e.getMessage(), is("Index is unrecoverable"));
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }

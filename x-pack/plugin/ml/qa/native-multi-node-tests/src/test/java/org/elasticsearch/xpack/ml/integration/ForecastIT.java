@@ -343,20 +343,31 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
 
         {
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
-                "forecasts-delete-with-all-and-allow-no-forecasts", MetaData.ALL);
+            Job.Builder otherJob = new Job.Builder("forecasts-delete-with-all-and-allow-no-forecasts");
+            otherJob.setAnalysisConfig(analysisConfig);
+            otherJob.setDataDescription(dataDescription);
+
+            registerJob(otherJob);
+            putJob(otherJob);
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), MetaData.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
         }
 
         {
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
-                "forecasts-delete-with-all-and-NOT-allow-no-forecasts", MetaData.ALL);
+            Job.Builder otherJob = new Job.Builder("forecasts-delete-with-all-and-not-allow-no-forecasts");
+            otherJob.setAnalysisConfig(analysisConfig);
+            otherJob.setDataDescription(dataDescription);
+
+            registerJob(otherJob);
+            putJob(otherJob);
+
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), MetaData.ALL);
             request.setAllowNoForecasts(false);
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
             assertThat(e.getMessage(),
-                equalTo(String.format("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-NOT-allow-no-forecasts]")));
+                equalTo(String.format("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]")));
         }
     }
 

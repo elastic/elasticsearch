@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -42,7 +41,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
@@ -67,7 +65,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteForecastAction extends HandledTransportAction<DeleteForecastAction.Request, AcknowledgedResponse> {
 
-    private static final String RESULTS_INDEX_PATTERN = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*";
     private final Client client;
     private static final int MAX_FORECAST_TO_SEARCH = 10_000;
 
@@ -83,18 +80,25 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     @Override
     protected void doExecute(Task task, DeleteForecastAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String jobId = request.getJobId();
+        final String forecastsExpression = request.getForecastId();
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, request, listener),
             e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
 
         SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(QueryBuilders.boolQuery()
-            .minimumShouldMatch(1)
-            .must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
-            .should(QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))))
-            .size(MAX_FORECAST_TO_SEARCH);
-        SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
+
+        BoolQueryBuilder builder = QueryBuilders.boolQuery();
+        BoolQueryBuilder innerBool = QueryBuilders.boolQuery().must(
+            QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
+
+        if (MetaData.ALL.equals(request.getForecastId()) == false) {
+            Set<String> forcastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
+            innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forcastIds));
+        }
+
+        source.query(builder.filter(innerBool));
+
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         searchRequest.source(source);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
@@ -106,14 +110,14 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         final String jobId = request.getJobId();
         Set<ForecastRequestStats> forecastsToDelete;
         try {
-            forecastsToDelete = findForecastsToDelete(searchResponse, request.getForecastId());
+            forecastsToDelete = parseForecastsFromSearch(searchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
         if (forecastsToDelete.isEmpty()) {
-            if ((MetaData.ALL.equals(request.getForecastId()) || Regex.isMatchAllPattern(request.getForecastId())) &&
+            if (MetaData.ALL.equals(request.getForecastId()) &&
                 request.isAllowNoForecasts()) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {
@@ -137,26 +141,20 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
-                if (response.getDeleted() > 0) {
-                    logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
-                    listener.onResponse(new AcknowledgedResponse(true));
-                    return;
-                }
                 if (response.isTimedOut()) {
                     listener.onFailure(
                         new TimeoutException("Delete request timed out. Successfully deleted " +
-                            response.getDeleted() + " forecasts from job [" + jobId + "]"));
+                            response.getDeleted() + " forecast documents from job [" + jobId + "]"));
                     return;
                 }
-                if (response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) {
+                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                    Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
                     listener.onFailure(
-                        new ResourceNotFoundException(
-                            String.format("Unable to delete forecasts [%s] for jobId [%s]", request.getForecastId(), jobId)));
+                        new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
                     return;
                 }
-                Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
-                listener.onFailure(
-                    new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
+                logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
+                listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure));
     }
@@ -183,27 +181,15 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         return new Tuple<>(status, reason);
     }
 
-    private Set<ForecastRequestStats> findForecastsToDelete(SearchResponse searchResponse, String forecastsExpression) throws IOException {
-
+    private static Set<ForecastRequestStats> parseForecastsFromSearch(SearchResponse searchResponse) throws IOException {
         SearchHits hits = searchResponse.getHits();
         List<ForecastRequestStats> allStats = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            try {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
-                allStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
-            } catch (IOException e) {
-                //
-                throw new IllegalStateException(e);
-            }
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
+            allStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
         }
-
-        if (MetaData.ALL.equals(forecastsExpression) || Regex.isMatchAllPattern(forecastsExpression)) {
-            return new HashSet<>(allStats);
-        }
-
-        Set<String> forcastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
-        return allStats.stream().filter((forecastStat) -> forcastIds.contains(forecastStat.getForecastId())).collect(Collectors.toSet());
+        return new HashSet<>(allStats);
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
@@ -211,20 +197,19 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         // We need to create the DeleteByQueryRequest before we modify the SearchRequest
         // because the constructor of the former wipes the latter
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest)
-            .setAbortOnVersionConflict(false)
+            .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
             .setSize(MAX_FORECAST_TO_SEARCH)
             .setSlices(5);
 
-        searchRequest.indices(RESULTS_INDEX_PATTERN);
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
-        boolQuery.must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
-            ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE));
-        for (String forecastToDelete : forecastsToDelete) {
-            boolQuery.should(QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastToDelete)));
-        }
-        QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
+        searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+        BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery();
+        innerBoolQuery
+            .must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
+                ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE))
+            .must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(),
+                forecastsToDelete));
+
+        QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
         searchRequest.source(new SearchSourceBuilder().query(query));
         return request;
     }

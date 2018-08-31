@@ -178,7 +178,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                another shard)
      */
     protected IndexShard newShard(boolean primary) throws IOException {
-        return newShard(primary, Settings.EMPTY, new InternalEngineFactory());
+        return newShard(primary, Settings.EMPTY);
+    }
+
+    /**
+     * Creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
+     *                another shard)
+     */
+    protected IndexShard newShard(final boolean primary, final Settings settings) throws IOException {
+        return newShard(primary, settings, new InternalEngineFactory());
     }
 
     /**
@@ -425,7 +435,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newStartedShard(
             final boolean primary, final Settings settings, final EngineFactory engineFactory) throws IOException {
-        IndexShard shard = newShard(primary, settings, engineFactory);
+        return newStartedShard(p -> newShard(p, settings, engineFactory), primary);
+    }
+
+    /**
+     * creates a new empty shard and starts it.
+     *
+     * @param shardFunction shard factory function
+     * @param primary controls whether the shard will be a primary or a replica.
+     */
+    protected IndexShard newStartedShard(CheckedFunction<Boolean, IndexShard, IOException> shardFunction,
+                                         boolean primary) throws IOException {
+        IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
         } else {

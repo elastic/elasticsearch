@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
+import org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -40,6 +41,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -69,10 +71,11 @@ public class DiscoveryModule {
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService) {
+                           AllocationService allocationService, Path configFile) {
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
+        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(settings, configFile));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
                 if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {

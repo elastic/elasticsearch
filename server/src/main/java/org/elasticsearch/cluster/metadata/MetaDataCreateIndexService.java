@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -287,7 +286,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 List<IndexTemplateMetaData> templates =
                         MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
-                Map<String, Custom> customs = new HashMap<>();
+                Map<String, Map<String, String>> customs = new HashMap<>();
 
                 // add the request mapping
                 Map<String, Map<String, Object>> mappings = new HashMap<>();
@@ -298,10 +297,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                     mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
-                }
-
-                for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
-                    customs.put(entry.getKey(), entry.getValue());
                 }
 
                 final Index recoverFromIndex = request.recoverFrom();
@@ -318,18 +313,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             } else {
                                 mappings.put(cursor.key,
                                     MapperService.parseMapping(xContentRegistry, mappingString));
-                            }
-                        }
-                        // handle custom
-                        for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
-                            String type = cursor.key;
-                            IndexMetaData.Custom custom = cursor.value;
-                            IndexMetaData.Custom existing = customs.get(type);
-                            if (existing == null) {
-                                customs.put(type, custom);
-                            } else {
-                                IndexMetaData.Custom merged = existing.mergeWith(custom);
-                                customs.put(type, merged);
                             }
                         }
                         //handle aliases
@@ -519,7 +502,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
 
-                for (Map.Entry<String, Custom> customEntry : customs.entrySet()) {
+                for (Map.Entry<String, Map<String, String>> customEntry : customs.entrySet()) {
                     indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                 }
 
@@ -723,10 +706,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
                     Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
                 // we only try once and then give up with a shrink index
-                .put("index.allocation.max_retries", 1)
-                // we add the legacy way of specifying it here for BWC. We can remove this once it's backported to 6.x
-                .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
-                .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());
+                .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
         } else {

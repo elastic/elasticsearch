@@ -3841,7 +3841,7 @@ public class InternalEngineTests extends EngineTestCase {
                     maxSeqNo,
                     localCheckpoint);
             trimUnsafeCommits(engine.config());
-            EngineConfig noopEngineConfig = copy(engine.config(), new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD,
+            EngineConfig noopEngineConfig = copy(engine.config(), new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD,
                 () -> new MatchAllDocsQuery(), engine.config().getMergePolicy()));
             noOpEngine = new InternalEngine(noopEngineConfig, supplier) {
                 @Override
@@ -4887,7 +4887,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private void assertOperationHistoryInLucene(List<Engine.Operation> operations) throws IOException {
         final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
-            Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
+            Lucene.SOFT_DELETES_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -4992,6 +4992,32 @@ public class InternalEngineTests extends EngineTestCase {
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
         }
+    }
+
+    public void testLastRefreshCheckpoint() throws Exception {
+        AtomicBoolean done = new AtomicBoolean();
+        Thread[] refreshThreads = new Thread[between(1, 8)];
+        CountDownLatch latch = new CountDownLatch(refreshThreads.length);
+        for (int i = 0; i < refreshThreads.length; i++) {
+            latch.countDown();
+            refreshThreads[i] = new Thread(() -> {
+                while (done.get() == false) {
+                    long checkPointBeforeRefresh = engine.getLocalCheckpoint();
+                    engine.refresh("test", randomFrom(Engine.SearcherScope.values()));
+                    assertThat(engine.lastRefreshedCheckpoint(), greaterThanOrEqualTo(checkPointBeforeRefresh));
+                }
+            });
+            refreshThreads[i].start();
+        }
+        latch.await();
+        List<Engine.Operation> ops = generateSingleDocHistory(true, VersionType.EXTERNAL, 1, 10, 1000, "1");
+        concurrentlyApplyOps(ops, engine);
+        done.set(true);
+        for (Thread thread : refreshThreads) {
+            thread.join();
+        }
+        engine.refresh("test");
+        assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getLocalCheckpoint()));
     }
 
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {

@@ -592,31 +592,34 @@ public abstract class Engine implements Closeable {
      */
     public abstract Closeable acquireRetentionLockForPeerRecovery();
 
+    /**
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
+     */
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
+
+    /**
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
     public abstract TranslogStats getTranslogStats();
 
     /**
      * Returns the last location that the translog of this engine has written into.
      */
     public abstract Translog.Location getTranslogLastWriteLocation();
-
-    /**
-     * Creates a new "translog" snapshot from Lucene for reading operations whose seqno in the requesting seqno range
-     */
-    public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
-                                                               long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
-
-    /**
-     * Creates a new history snapshot for reading operations since the provided seqno.
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
-     */
-    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
-
-    /**
-     * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
-     */
-    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
-
-    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

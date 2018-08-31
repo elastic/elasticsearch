@@ -98,7 +98,7 @@ public class Lucene {
         assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
     }
 
-    public static final String SOFT_DELETE_FIELD = "__soft_delete";
+    public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
@@ -201,7 +201,7 @@ public class Lucene {
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
@@ -225,7 +225,7 @@ public class Lucene {
             }
         }
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
@@ -884,7 +884,7 @@ public class Lucene {
                     if (hardLiveDocs == null) {
                         return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                     }
-                    // TODO: Avoid recalculate numDocs everytime.
+                    // TODO: Can we avoid calculate numDocs by using SegmentReader#getSegmentInfo with LUCENE-8458?
                     int numDocs = 0;
                     for (int i = 0; i < hardLiveDocs.length(); i++) {
                         if (hardLiveDocs.get(i)) {
@@ -910,7 +910,7 @@ public class Lucene {
     /**
      * Returns a numeric docvalues which can be used to soft-delete documents.
      */
-    public static NumericDocValuesField newSoftDeleteField() {
-        return new NumericDocValuesField(SOFT_DELETE_FIELD, 1);
+    public static NumericDocValuesField newSoftDeletesField() {
+        return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
     }
 }

@@ -211,7 +211,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
-            project.rootProject.ext.java9Home = findJavaHome("9")
+            project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion

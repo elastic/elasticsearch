@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[rollup-understanding-groups]]
 == Understanding Groups
 

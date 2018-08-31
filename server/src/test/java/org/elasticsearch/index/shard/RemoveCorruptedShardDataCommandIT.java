@@ -91,6 +91,7 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -148,7 +149,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             command.execute(t, options, environment);
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
-            assertThat(e.getMessage(), containsString("Failed to lock node's directory"));
+            assertThat(e.getMessage(),
+                allOf(containsString("Failed to lock node's directory"),
+                    containsString("is Elasticsearch still running ?")));
         }
 
         final Set<Path> indexDirs = getDirs(indexName, ShardPath.INDEX_FOLDER_NAME);

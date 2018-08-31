@@ -192,23 +192,15 @@ public final class NodeEnvironment  implements Closeable {
 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                    try {
-                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                        nodePaths[dirIndex] = new NodePath(dir);
-                    } catch (LockObtainFailedException ex) {
-                        startupTraceLogger.trace(
-                            new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), ex);
-                        // release all the ones that were obtained up until now
-                        releaseAndNullLocks(locks);
-                        throw ex;
-                    }
-
+                    locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                    nodePaths[dirIndex] = new NodePath(dir);
                 } catch (IOException e) {
                     startupTraceLogger.trace(() -> new ParameterizedMessage(
                         "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                     // release all the ones that were obtained up until now
                     releaseAndNullLocks(locks);
-                    throw new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
+                    throw (e instanceof LockObtainFailedException ? e
+                        : new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e));
                 }
             }
         }

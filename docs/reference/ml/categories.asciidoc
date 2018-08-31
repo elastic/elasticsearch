@@ -44,6 +44,7 @@ PUT _xpack/ml/anomaly_detectors/it_ops_new_logs
 }
 ----------------------------------
 //CONSOLE
+// TEST[skip:needs-licence]
 <1> The `categorization_field_name` property indicates which field will be
 categorized.
 <2> The resulting categories are used in a detector by setting `by_field_name`,
@@ -127,6 +128,7 @@ PUT _xpack/ml/anomaly_detectors/it_ops_new_logs2
 }
 ----------------------------------
 //CONSOLE
+// TEST[skip:needs-licence]
 <1> The
 {ref}/analysis-pattern-replace-charfilter.html[`pattern_replace` character filter]
 here achieves exactly the same as the `categorization_filters` in the first
@@ -193,6 +195,7 @@ PUT _xpack/ml/anomaly_detectors/it_ops_new_logs3
 }
 ----------------------------------
 //CONSOLE
+// TEST[skip:needs-licence]
 <1> Tokens basically consist of hyphens, digits, letters, underscores and dots.
 <2> By default, categorization ignores tokens that begin with a digit.
 <3> By default, categorization also ignores tokens that are hexadecimal numbers.

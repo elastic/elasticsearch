@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[rollup-stop-job]]
 === Stop Job API
 ++++

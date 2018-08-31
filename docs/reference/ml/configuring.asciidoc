@@ -36,20 +36,20 @@ The scenarios in this section describe some best practices for generating useful
 * <<ml-configuring-transform>>
 * <<ml-configuring-detector-custom-rules>>
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/customurl.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/customurl.asciidoc
 include::customurl.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/aggregations.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/aggregations.asciidoc
 include::aggregations.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/categories.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/categories.asciidoc
 include::categories.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/populations.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/populations.asciidoc
 include::populations.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/transforms.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/transforms.asciidoc
 include::transforms.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/detector-custom-rules.asciidoc
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/ml/detector-custom-rules.asciidoc
 include::detector-custom-rules.asciidoc[]

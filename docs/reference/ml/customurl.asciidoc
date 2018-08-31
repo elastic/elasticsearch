@@ -106,7 +106,7 @@ POST _xpack/ml/anomaly_detectors/sample_job/_update
 }
 ----------------------------------
 //CONSOLE
-//TEST[setup:sample_job]
+//TEST[skip:setup:sample_job]
 
 When you click this custom URL in the anomalies table in {kib}, it opens up the
 *Discover* page and displays source data for the period one hour before and 

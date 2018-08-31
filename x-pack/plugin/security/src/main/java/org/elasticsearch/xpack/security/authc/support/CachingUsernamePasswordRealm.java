@@ -39,9 +39,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         final TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, ListenableFuture<UserWithHash>>builder()
-                    .setExpireAfterWrite(ttl)
-                    .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
-                    .build();
+                .setExpireAfterWrite(ttl)
+                .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
+                .build();
         } else {
             cache = null;
         }
@@ -108,10 +108,16 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 listenableCacheEntry.addListener(ActionListener.wrap(authenticatedUserWithHash -> {
                     if (authenticatedUserWithHash != null && authenticatedUserWithHash.verify(token.credentials())) {
                         // cached credential hash matches the credential hash for this forestalled request
-                        final User user = authenticatedUserWithHash.user;
-                        logger.debug("realm [{}] authenticated user [{}], with roles [{}], from cache", name(), token.principal(),
-                                user.roles());
-                        listener.onResponse(AuthenticationResult.success(user));
+                        handleCachedAuthentication(authenticatedUserWithHash.user, ActionListener.wrap(cacheResult -> {
+                            if (cacheResult.isAuthenticated()) {
+                                logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
+                                    name(), token.principal(), cacheResult.getUser().roles());
+                            } else {
+                                logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                                    name(), token.principal(), cacheResult.getMessage());
+                            }
+                            listener.onResponse(cacheResult);
+                        }, listener::onFailure));
                     } else {
                         // The inflight request has failed or its credential hash does not match the
                         // hash of the credential for this forestalled request.
@@ -151,6 +157,16 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * {@code handleCachedAuthentication} is called when a {@link User} is retrieved from the cache.
+     * The first {@code user} parameter is the user object that was found in the cache.
+     * The default implementation returns a {@link AuthenticationResult#success(User) success result} with the
+     * provided user, but sub-classes can return a different {@code User} object, or an unsuccessful result.
+     */
+    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+        listener.onResponse(AuthenticationResult.success(user));
     }
 
     @Override

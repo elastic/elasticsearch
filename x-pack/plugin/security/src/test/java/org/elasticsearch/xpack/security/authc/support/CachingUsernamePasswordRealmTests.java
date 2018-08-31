@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -339,6 +341,33 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         realm.lookupUser("user", future);
         RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("lookup exception"));
+    }
+
+    public void testReturnDifferentObjectFromCache() throws Exception {
+        final AtomicReference<User> userArg = new AtomicReference<>();
+        final AtomicReference<AuthenticationResult> result = new AtomicReference<>();
+        Realm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool) {
+            @Override
+            protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+                userArg.set(user);
+                listener.onResponse(result.get());
+            }
+        };
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
+        final AuthenticationResult result1 = future.actionGet();
+        assertThat(result1, notNullValue());
+        assertThat(result1.getUser(), notNullValue());
+        assertThat(result1.getUser().principal(), equalTo("user"));
+
+        final AuthenticationResult result2 = AuthenticationResult.success(new User("user"));
+        result.set(result2);
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
+        final AuthenticationResult result3 = future.actionGet();
+        assertThat(result3, sameInstance(result2));
+        assertThat(userArg.get(), sameInstance(result1.getUser()));
     }
 
     public void testSingleAuthPerUserLimit() throws Exception {

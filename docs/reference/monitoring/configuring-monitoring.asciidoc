@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="basic"]
+[testenv="gold"]
 [[configuring-monitoring]]
 == Configuring monitoring in {es}
 ++++
@@ -80,6 +80,7 @@ POST /_xpack/security/user/remote_monitor
 }
 ---------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-gold+-license]
 --
 
 .. On each node in the cluster that is being monitored, configure the `http` 

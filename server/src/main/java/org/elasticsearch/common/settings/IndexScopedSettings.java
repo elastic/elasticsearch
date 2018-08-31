@@ -129,6 +129,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
         IndexSettings.INDEX_GC_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,

@@ -448,7 +448,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             }
             mappings.put(type, source);
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_6_5_0)) {
             // This used to be the size of custom metadata classes
             int customSize = in.readVInt();
             assert customSize == 0 : "unexpected custom metadata when none is supported";
@@ -477,7 +477,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_6_5_0)) {
             // Size of custom index metadata, which is removed
             out.writeVInt(0);
         }

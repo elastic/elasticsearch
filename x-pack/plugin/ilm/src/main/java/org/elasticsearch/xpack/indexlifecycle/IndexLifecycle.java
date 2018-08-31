@@ -90,7 +90,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
-    public static final String NAME = "index_lifecycle";
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private Settings settings;
     private boolean enabled;

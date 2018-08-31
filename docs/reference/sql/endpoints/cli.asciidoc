@@ -22,6 +22,15 @@ the first parameter:
 $ ./bin/elasticsearch-sql-cli https://some.server:9200
 --------------------------------------------------
 
+If security is enabled on your cluster, you can pass the username
+and password in the form `username:password@host_name:port`
+to the SQL CLI:
+
+[source,bash]
+--------------------------------------------------
+$ ./bin/elasticsearch-sql-cli https://sql_user:strongpassword@some.server:9200
+--------------------------------------------------
+
 Once the CLI is running you can use any <<sql-spec,query>> that
 Elasticsearch supports:
 

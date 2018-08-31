@@ -344,10 +344,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
 
-    protected Version indexVersionCreated(final ClusterState clusterState) {
-        return Version.CURRENT;
-    }
-
     protected boolean validatePrivateIndexSettings() {
         return true;
     }

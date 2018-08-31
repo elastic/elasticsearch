@@ -61,12 +61,12 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
             assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);
-            assertNotNull("Jar does not have META-INF/NOTICE", noticeEntry);
+            assertNotNull("Jar does not have META-INF/NOTICE.txt", noticeEntry);
             try (
-                InputStream licese = zipFile.getInputStream(licenseEntry);
+                InputStream license = zipFile.getInputStream(licenseEntry);
                 InputStream notice = zipFile.getInputStream(noticeEntry)
             ) {
-                assertEquals("this is a test license file", IOUtils.toString(licese, StandardCharsets.UTF_8.name()));
+                assertEquals("this is a test license file", IOUtils.toString(license, StandardCharsets.UTF_8.name()));
                 assertEquals("this is a test notice file", IOUtils.toString(notice, StandardCharsets.UTF_8.name()));
             }
         }

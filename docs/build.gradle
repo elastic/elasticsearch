@@ -19,6 +19,12 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
+/* List of files that have snippets that require a gold or platinum licence 
+and therefore cannot be tested yet... */
+buildRestTests.expectedUnconvertedCandidates = [
+        'reference/ml/transforms.asciidoc',
+]
+
 integTestCluster {
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */

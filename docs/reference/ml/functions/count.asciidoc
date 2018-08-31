@@ -59,6 +59,7 @@ PUT _xpack/ml/anomaly_detectors/example1
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 This example is probably the simplest possible analysis. It identifies
 time buckets during which the overall count of events is higher or lower than
@@ -86,6 +87,7 @@ PUT _xpack/ml/anomaly_detectors/example2
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 If you use this `high_count` function in a detector in your job, it
 models the event rate for each error code. It detects users that generate an
@@ -110,6 +112,7 @@ PUT _xpack/ml/anomaly_detectors/example3
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 In this example, the function detects when the count of events for a
 status code is lower than usual.
@@ -136,6 +139,7 @@ PUT _xpack/ml/anomaly_detectors/example4
 }  
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 If you are analyzing an aggregated `events_per_min` field, do not use a sum
 function (for example, `sum(events_per_min)`). Instead, use the count function
@@ -200,6 +204,7 @@ PUT _xpack/ml/anomaly_detectors/example5
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 If you use this `high_non_zero_count` function in a detector in your job, it
 models the count of events for the `signaturename` field. It ignores any buckets
@@ -253,6 +258,7 @@ PUT _xpack/ml/anomaly_detectors/example6
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 This `distinct_count` function detects when a system has an unusual number
 of logged in users. When you use this function in a detector in your job, it
@@ -278,6 +284,7 @@ PUT _xpack/ml/anomaly_detectors/example7
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-licence]
 
 This example detects instances of port scanning. When you use this function in a
 detector in your job, it models the distinct count of ports. It also detects the

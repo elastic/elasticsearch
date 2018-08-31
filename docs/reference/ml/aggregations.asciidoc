@@ -41,7 +41,7 @@ PUT _xpack/ml/anomaly_detectors/farequote
 }
 ----------------------------------
 // CONSOLE
-// TEST[setup:farequote_data]
+// TEST[skip:setup:farequote_data]
 
 In this example, the `airline`, `responsetime`, and `time` fields are
 aggregations.
@@ -90,7 +90,7 @@ PUT _xpack/ml/datafeeds/datafeed-farequote
 }
 ----------------------------------
 // CONSOLE
-// TEST[setup:farequote_job]
+// TEST[skip:setup:farequote_job]
 
 In this example, the aggregations have names that match the fields that they
 operate on. That is to say, the `max` aggregation is named `time` and its

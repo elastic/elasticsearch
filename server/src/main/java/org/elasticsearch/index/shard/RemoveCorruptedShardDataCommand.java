@@ -129,10 +129,40 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     protected ShardPath getShardPath(OptionSet options, Environment environment) throws IOException, UserException {
         final Settings settings = environment.settings();
-        final String dirValue = folderOption.value(options);
-        if (dirValue != null) {
-            final Path path = getPath(dirValue).getParent();
-            final ShardPath shardPath = resolveShardPath(environment, path);
+        if (options.has(folderOption)) {
+            final Path path = getPath(folderOption.value(options)).getParent();
+            final Settings settings1 = environment.settings();
+            final Path shardParentPath = path.getParent();
+            final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+            if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
+                throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
+            }
+
+            final IndexMetaData indexMetaData =
+                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardParentPath);
+            final Index index = indexMetaData.getIndex();
+            final ShardId shardId;
+            final String fileName = path.getFileName().toString();
+            if (Files.isDirectory(path) && fileName.chars().allMatch(Character::isDigit)) {
+                int id = Integer.parseInt(fileName);
+                shardId = new ShardId(index, id);
+            } else {
+                throw new ElasticsearchException("Unable to resolve shard id from " + path.toString());
+            }
+
+            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings1);
+
+            final ShardPath shardPath = resolveShardPath(environment,
+                (nodeLockId, nodePath) -> {
+                    final Path shardPathLocation = nodePath.resolve(shardId);
+                    final ShardPath shardPath1 = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
+                        nodeLockId, nodePath.path);
+                    if (shardPath1 != null && shardPath1.resolveIndex().equals(indexPath)) {
+                        return shardPath1;
+                    }
+                    return null;
+                },
+                () -> new ElasticsearchException("Unable to resolve shard path for path " + path.toString()));
             return shardPath;
         }
 
@@ -165,7 +195,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                                     if (shardPath != null) {
                                         return shardPath;
                                     }
-                                    new ElasticsearchException("Unable to resolve shard path for index ["
+                                    throw new ElasticsearchException("Unable to resolve shard path for index ["
                                         + indexName + "] and shard id [" + id + "]");
                                 }
                             }
@@ -175,49 +205,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 return null;
             },
             () -> new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "]"));
-    }
-
-    /**
-     * resolve {@code ShardPath} based on a full index or translog path
-     * @param environment
-     * @param path
-     * @return
-     * @throws IOException
-     * @throws UserException
-     */
-    private ShardPath resolveShardPath(Environment environment, Path path) throws IOException, UserException {
-        final Settings settings = environment.settings();
-        final Path shardParentPath = path.getParent();
-        final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-        if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
-            throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
-        }
-
-        final IndexMetaData indexMetaData =
-            IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardParentPath);
-        final Index index = indexMetaData.getIndex();
-        final ShardId shardId;
-        final String fileName = path.getFileName().toString();
-        if (Files.isDirectory(path) && fileName.chars().allMatch(Character::isDigit)) {
-            int id = Integer.parseInt(fileName);
-            shardId = new ShardId(index, id);
-        } else {
-            throw new ElasticsearchException("Unable to resolve shard id from " + path.toString());
-        }
-
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-
-        return resolveShardPath(environment,
-            (nodeLockId, nodePath) -> {
-                final Path shardPathLocation = nodePath.resolve(shardId);
-                final ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, indexSettings, new Path[]{shardPathLocation},
-                    nodeLockId, nodePath.path);
-                if (shardPath != null && shardPath.resolveIndex().equals(indexPath)) {
-                    return shardPath;
-                }
-                return null;
-            },
-            () -> new ElasticsearchException("Unable to resolve shard path for path " + path.toString()));
     }
 
     private ShardPath resolveShardPath(final Environment environment,
@@ -242,8 +229,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 }  catch (LockObtainFailedException lofe) {
                     throw new UserException(MISCONFIGURATION,
                         "Failed to lock node's directory at [" + dir + "], is Elasticsearch still running?");
-                } catch (IOException e) {
-                    throw e;
                 }
                 final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dir);
                 if (Files.exists(nodePath.indicesPath) == false) {
@@ -311,12 +296,12 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private void warnAboutESShouldBeStopped(Terminal terminal) {
         terminal.println("-----------------------------------------------------------------------");
         terminal.println("");
-        terminal.println("    WARNING: ElasticSearch MUST be stopped before running this tool.");
+        terminal.println("    WARNING: Elasticsearch MUST be stopped before running this tool.");
         terminal.println("");
         // that's only for 6.x branch for bwc with elasticsearch-translog
         if (removeCorruptedLuceneSegmentsAction == null) {
             terminal.println("  This tool is deprecated and will be completely removed in 7.0.");
-            terminal.println("  Consider to use elasticsearch-shard tool instead of this one. ");
+            terminal.println("  It is replaced by the elasticsearch-shard tool. ");
             terminal.println("");
         }
         terminal.println("  Please make a complete backup of your index before using this tool.");
@@ -411,11 +396,11 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                             terminal.println("Details: " + indexCleanStatus.v2());
                         }
 
-                        terminal.println("You can allocate completely empty primary shard with command: ");
+                        terminal.println("You can allocate a new, empty, primary shard with the following command:");
 
                         printRerouteCommand(shardPath, terminal, false);
 
-                        throw new ElasticsearchException("Index is unrecoverable - there are missing segments");
+                        throw new ElasticsearchException("Index is unrecoverable");
                     }
 
 
@@ -554,6 +539,9 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         terminal.println("");
         terminal.println("POST /_cluster/reroute'\n"
             + Strings.toString(commands, true, true) + "'");
+        terminal.println("");
+        terminal.println("You should admin data loss changing parameter `accept_data_loss` to `true`.");
+        terminal.println("");
     }
 
     private Path getNodePath(ShardPath shardPath) {

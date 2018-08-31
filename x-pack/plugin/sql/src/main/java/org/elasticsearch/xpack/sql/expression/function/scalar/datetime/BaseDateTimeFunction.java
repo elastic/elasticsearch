@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.TimeZone;
 
-abstract class BaseDateTimeFunction extends UnaryScalarFunction {
+public abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
     private final TimeZone timeZone;
     private final String name;
@@ -53,6 +53,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
         return timeZone;
     }
     
+    // add tz along the rest of the params
     @Override
     public String name() {
         return name;

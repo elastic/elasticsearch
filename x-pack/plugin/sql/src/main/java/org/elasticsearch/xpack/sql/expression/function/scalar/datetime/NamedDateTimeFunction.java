@@ -24,10 +24,7 @@ import java.util.TimeZone;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-/*
- * Base class for the two "naming" date/time functions: month_name and day_name
- */
-abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
+public abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     NamedDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
@@ -58,7 +55,6 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
     }
     
     private String formatMethodName(String template) {
-        // the Painless method name will be the enum's lower camelcase name
         return template.replace("{method_name}", StringUtils.underscoreToLowerCamelCase(nameExtractor().toString()));
     }
 

@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, UnfollowIndexAction.Response,
+public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, AcknowledgedResponse,
         UnfollowIndexAction.RequestBuilder> {
 
     public static final UnfollowIndexAction INSTANCE = new UnfollowIndexAction();
@@ -47,8 +47,8 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends ActionRequest {
@@ -81,16 +81,6 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-
-        Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        Response() {
-        }
-    }
-
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client) {
@@ -99,22 +89,27 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
     }
 
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
 
         private final Client client;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+        public TransportAction(Settings settings,
+                               ThreadPool threadPool,
+                               TransportService transportService,
+                               ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               Client client,
                                PersistentTasksService persistentTasksService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+            super(settings, NAME, threadPool,transportService, actionFilters, indexNameExpressionResolver,Request::new);
             this.client = client;
             this.persistentTasksService = persistentTasksService;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Request request,
+                                 ActionListener<AcknowledgedResponse> listener) {
             client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
                 IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.followIndex);
                 if (followIndexMetadata == null) {
@@ -158,7 +153,7 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
 
                                 if (error == null) {
                                     // include task ids?
-                                    listener.onResponse(new Response(true));
+                                    listener.onResponse(new AcknowledgedResponse(true));
                                 } else {
                                     // TODO: cancel all started tasks
                                     listener.onFailure(error);

@@ -1163,6 +1163,26 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
+    /**
+     * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
+     * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
+     */
+    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                    } catch (AlreadyClosedException ignored) {
+                        // shard is closed
+                    }
+                }
+            }
+        }
+    }
+
     private void randomlyResetClients() throws IOException {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {

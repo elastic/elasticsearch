@@ -69,10 +69,10 @@ public final class LogStructureFinderManager {
         new JsonLogStructureFinderFactory(),
         new XmlLogStructureFinderFactory(),
         // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
-        new CsvLogStructureFinderFactory(),
-        new TsvLogStructureFinderFactory(),
-        new SemiColonSeparatedValuesLogStructureFinderFactory(),
-        new PipeSeparatedValuesLogStructureFinderFactory(),
+        new DelimitedLogStructureFinderFactory(',', 2, false),
+        new DelimitedLogStructureFinderFactory('\t', 2, false),
+        new DelimitedLogStructureFinderFactory(';', 4, false),
+        new DelimitedLogStructureFinderFactory('|', 5, true),
         new TextLogStructureFinderFactory()
     ));
 

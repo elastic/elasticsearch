@@ -23,10 +23,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -120,7 +121,7 @@ public class IndexLifecycleService extends AbstractComponent
                 scheduler.set(new SchedulerEngine(settings, clock));
                 scheduler.get().register(this);
             }
-            scheduledJob = new SchedulerEngine.Job(IndexLifecycle.NAME, new TimeValueSchedule(pollInterval));
+            scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
             scheduler.get().add(scheduledJob);
         }
     }
@@ -151,14 +152,14 @@ public class IndexLifecycleService extends AbstractComponent
 
     private void cancelJob() {
         if (scheduler.get() != null) {
-            scheduler.get().remove(IndexLifecycle.NAME);
+            scheduler.get().remove(XPackField.INDEX_LIFECYCLE);
             scheduledJob = null;
         }
     }
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(IndexLifecycle.NAME)) {
+        if (event.getJobName().equals(XPackField.INDEX_LIFECYCLE)) {
             logger.trace("job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
             triggerPolicies(clusterService.state(), false);
         }

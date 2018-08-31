@@ -32,7 +32,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        String shrunkenIndexSource = IndexMetaData.INDEX_SHRINK_SOURCE_NAME.get(
+        String shrunkenIndexSource = IndexMetaData.INDEX_RESIZE_SOURCE_NAME.get(
             clusterState.metaData().index(index).getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
@@ -50,7 +50,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -60,7 +60,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
             return false;
         }
         ShrunkenIndexCheckStep other = (ShrunkenIndexCheckStep) obj;
-        return super.equals(obj) && 
+        return super.equals(obj) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

@@ -31,8 +31,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, AcknowledgedResponse,
-        UnfollowIndexAction.RequestBuilder> {
+public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, AcknowledgedResponse, UnfollowIndexAction.RequestBuilder> {
 
     public static final UnfollowIndexAction INSTANCE = new UnfollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/unfollow_index";
@@ -81,7 +80,7 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Ack
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());

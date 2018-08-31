@@ -301,9 +301,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, FollowIndexAction.RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, FollowIndexAction.RequestBuilder> {
 
-        RequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action) {
+        RequestBuilder(ElasticsearchClient client, Action<Request, AcknowledgedResponse, RequestBuilder> action) {
             super(client, action, new Request());
         }
     }

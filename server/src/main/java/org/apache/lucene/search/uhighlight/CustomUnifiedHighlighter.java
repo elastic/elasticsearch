@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
@@ -136,15 +137,16 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
 
     @Override
     protected FieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
-        BytesRef[] terms = filterExtractedTerms(getFieldMatcher(field), allTerms);
+        Predicate<String> fieldMatcher = getFieldMatcher(field);
+        BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
         CharacterRunAutomaton[] automata = getAutomata(field, query, highlightFlags);
         OffsetSource offsetSource = getOptimizedOffsetSource(field, terms, phraseHelper, automata);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        FieldOffsetStrategy strategy =
-            getOffsetStrategy(offsetSource, field, terms, phraseHelper, automata, highlightFlags);
+        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, highlightFlags);
+        FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
     }

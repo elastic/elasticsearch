@@ -8,7 +8,6 @@ advanced {ml} job configuration options.
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
 * <<ml-snapshot-resource,Model snapshots>>
@@ -18,7 +17,6 @@ advanced {ml} job configuration options.
 
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]

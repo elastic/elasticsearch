@@ -18,33 +18,38 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
-public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse> {
+public class NodeAttributesTests extends AbstractXContentTestCase<NodeAttributes> {
 
-    @Override
-    protected GetJobResponse createTestInstance() {
-
-        int count = randomIntBetween(1, 5);
-        List<Job.Builder> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
-            results.add(JobTests.createRandomizedJobBuilder());
+    public static NodeAttributes createRandom() {
+        int numberOfAttributes = randomIntBetween(1, 10);
+        Map<String, String> attributes = new HashMap<>(numberOfAttributes);
+        for(int i = 0; i < numberOfAttributes; i++) {
+            String val = randomAlphaOfLength(10);
+            attributes.put("key-"+i, val);
         }
-
-        return new GetJobResponse(results, count);
+        return new NodeAttributes(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            attributes);
     }
 
     @Override
-    protected GetJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetJobResponse.fromXContent(parser);
+    protected NodeAttributes createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected NodeAttributes doParseInstance(XContentParser parser) throws IOException {
+        return NodeAttributes.PARSER.parse(parser, null);
     }
 
     @Override

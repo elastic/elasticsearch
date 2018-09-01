@@ -248,7 +248,7 @@ public final class IndexSettings {
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
      */
     public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
-        Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope, Property.Final);
+        Setting.boolSetting("index.soft_deletes.enabled", false, Property.IndexScope, Property.Final);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
@@ -499,9 +499,9 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {

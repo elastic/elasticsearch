@@ -173,9 +173,12 @@ public class BootstrapForTesting {
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
-            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
-            if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
-                throw new IllegalStateException("Already added " + name + " codebase for testing");
+            Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
+            if (location.toString().endsWith(".jar") == false) {
+                if (codebases.put(name, location) != null) {
+                    throw new IllegalStateException("Already added " + name + " codebase for testing");
+                }
             }
         } catch (ClassNotFoundException e) {
             // no class, fall through to not add. this can happen for any tests that do not include

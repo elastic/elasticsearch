@@ -134,7 +134,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
-    static final String CORRUPTED = "corrupted_";
+    // public is for test purposes
+    public static final String CORRUPTED = "corrupted_";
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
@@ -355,18 +356,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try (CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             return checkIndex.checkIndex();
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
-     */
-    public void exorciseIndex(CheckIndex.Status status) throws IOException {
-        metadataLock.writeLock().lock();
-        try (CheckIndex checkIndex = new CheckIndex(directory)) {
-            checkIndex.exorciseIndex(status);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1622,7 +1611,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         throws IOException {
         assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
         IndexWriterConfig iwc = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             .setIndexCommit(commit)
             // we don't want merges to happen here - we call maybe merge on the engine

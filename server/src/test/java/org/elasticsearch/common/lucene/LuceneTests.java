@@ -416,8 +416,8 @@ public class LuceneTests extends ESTestCase {
 
     public void testWrapAllDocsLive() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+        IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         Set<String> liveDocs = new HashSet<>();
@@ -434,9 +434,9 @@ public class LuceneTests extends ESTestCase {
                 Document doc = new Document();
                 doc.add(new StringField("id", "v2-" + id, Store.YES));
                 if (randomBoolean()) {
-                    doc.add(Lucene.newSoftDeleteField());
+                    doc.add(Lucene.newSoftDeletesField());
                 }
-                writer.softUpdateDocument(new Term("id", id), doc, Lucene.newSoftDeleteField());
+                writer.softUpdateDocument(new Term("id", id), doc, Lucene.newSoftDeletesField());
                 liveDocs.add("v2-" + id);
             }
         }
@@ -456,8 +456,8 @@ public class LuceneTests extends ESTestCase {
 
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+        IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         List<String> liveDocs = new ArrayList<>();
@@ -466,7 +466,7 @@ public class LuceneTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField("id", id, Store.YES));
             if (randomBoolean()) {
-                doc.add(Lucene.newSoftDeleteField());
+                doc.add(Lucene.newSoftDeletesField());
             }
             writer.addDocument(doc);
             liveDocs.add(id);

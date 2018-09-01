@@ -539,3 +539,8 @@ You can use the following APIs to add, remove, and retrieve role mappings:
 === Privilege APIs
 
 See <<security-api-has-privileges>>.
+
+[role="exclude",id="xpack-commands"]
+=== X-Pack commands
+
+See <<commands>>. 

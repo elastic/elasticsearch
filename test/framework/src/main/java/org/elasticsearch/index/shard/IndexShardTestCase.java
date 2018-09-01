@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -156,7 +157,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-
     protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
         return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()));
     }
@@ -169,7 +169,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
             }
         };
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+    }
 
+    /**
+     * creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica
+     *                (ready to recover from another shard)
+     */
+    protected IndexShard newShard(boolean primary) throws IOException {
+        return newShard(primary, Settings.EMPTY);
     }
 
     /**
@@ -178,8 +187,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
      *                another shard)
      */
-    protected IndexShard newShard(boolean primary) throws IOException {
-        return newShard(primary, Settings.EMPTY, new InternalEngineFactory());
+    protected IndexShard newShard(final boolean primary, final Settings settings) throws IOException {
+        return newShard(primary, settings, new InternalEngineFactory());
     }
 
     /**
@@ -222,7 +231,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
                 .put(settings)
                 .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
@@ -318,23 +327,25 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param routing                       shard routing to use
      * @param shardPath                     path to use for shard data
      * @param indexMetaData                 indexMetaData for the shard, including any mapping
-     * @param store                         an optional custom store to use. If null a default file based store will be created
+     * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
      * @param indexSearcherWrapper          an optional wrapper to be used during searchers
      * @param globalCheckpointSyncer        callback for syncing global checkpoints
      * @param indexEventListener            index event listener
      * @param listeners                     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
-                                  @Nullable Store store, @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
         final IndexShard indexShard;
-        if (store == null) {
-            store = createStore(indexSettings, shardPath);
+        if (storeProvider == null) {
+            storeProvider = is -> createStore(is, shardPath);
         }
+        final Store store = storeProvider.apply(indexSettings);
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
@@ -361,7 +372,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param listeners new listerns to use for the newly created shard
      */
@@ -373,7 +384,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
      * @param listeners new listerns to use for the newly created shard
@@ -399,20 +410,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a new empty shard and starts it
-     * @param settings the settings to use for this shard
-     */
-    protected IndexShard newStartedShard(Settings settings) throws IOException {
-        return newStartedShard(randomBoolean(), settings, new InternalEngineFactory());
-    }
-
-    /**
-     * Creates a new empty shard and starts it.
+     * creates a new empty shard and starts it.
      *
      * @param primary controls whether the shard will be a primary or a replica.
      */
     protected IndexShard newStartedShard(final boolean primary) throws IOException {
-        return newStartedShard(primary, Settings.EMPTY, new InternalEngineFactory());
+        return newStartedShard(primary, Settings.EMPTY);
+    }
+
+    protected IndexShard newStartedShard(final boolean primary, Settings settings) throws IOException {
+        return newStartedShard(primary, settings, new InternalEngineFactory());
     }
 
     /**
@@ -424,7 +431,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newStartedShard(
             final boolean primary, final Settings settings, final EngineFactory engineFactory) throws IOException {
-        IndexShard shard = newShard(primary, settings, engineFactory);
+        return newStartedShard(p -> newShard(p, settings, engineFactory), primary);
+    }
+
+    /**
+     * creates a new empty shard and starts it.
+     *
+     * @param shardFunction shard factory function
+     * @param primary controls whether the shard will be a primary or a replica.
+     */
+    protected IndexShard newStartedShard(CheckedFunction<Boolean, IndexShard, IOException> shardFunction,
+                                         boolean primary) throws IOException {
+        IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
         } else {

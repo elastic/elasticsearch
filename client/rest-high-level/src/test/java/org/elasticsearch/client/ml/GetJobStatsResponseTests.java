@@ -18,42 +18,36 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.client.ml.job.stats.JobStatsTests;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
-public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse> {
+public class GetJobStatsResponseTests extends AbstractXContentTestCase<GetJobStatsResponse> {
 
     @Override
-    protected GetJobResponse createTestInstance() {
+    protected GetJobStatsResponse createTestInstance() {
 
         int count = randomIntBetween(1, 5);
-        List<Job.Builder> results = new ArrayList<>(count);
+        List<JobStats> results = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
-            results.add(JobTests.createRandomizedJobBuilder());
+            results.add(JobStatsTests.createRandomInstance());
         }
 
-        return new GetJobResponse(results, count);
+        return new GetJobStatsResponse(results, count);
     }
 
     @Override
-    protected GetJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetJobResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+    protected GetJobStatsResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetJobStatsResponse.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

@@ -16,44 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.job.stats;
 
-import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Predicate;
 
-public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse> {
+
+public class SimpleStatsTests extends AbstractXContentTestCase<SimpleStats> {
 
     @Override
-    protected GetJobResponse createTestInstance() {
-
-        int count = randomIntBetween(1, 5);
-        List<Job.Builder> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
-            results.add(JobTests.createRandomizedJobBuilder());
-        }
-
-        return new GetJobResponse(results, count);
+    protected SimpleStats createTestInstance() {
+        return createRandom();
     }
 
     @Override
-    protected GetJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetJobResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+    protected SimpleStats doParseInstance(XContentParser parser) throws IOException {
+        return SimpleStats.PARSER.parse(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public static SimpleStats createRandom() {
+        return new SimpleStats(randomDouble(), randomDouble(), randomDouble(), randomDouble());
     }
 }

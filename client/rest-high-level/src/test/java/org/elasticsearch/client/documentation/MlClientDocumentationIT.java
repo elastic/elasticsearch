@@ -35,6 +35,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -50,6 +52,7 @@ import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.junit.After;
 
 import java.io.IOException;
@@ -453,6 +456,64 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-get-buckets-execute-async
             client.machineLearning().getBucketsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-get-buckets-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetJobStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("get-machine-learning-job-stats1");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("get-machine-learning-job-stats2");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-get-job-stats-request
+            GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*"); //<1>
+            request.setAllowNoJobs(true); //<2>
+            //end::x-pack-ml-get-job-stats-request
+
+            //tag::x-pack-ml-get-job-stats-execute
+            GetJobStatsResponse response = client.machineLearning().getJobStats(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-job-stats-execute
+
+            //tag::x-pack-ml-get-job-stats-response
+            long numberOfJobStats = response.count(); //<1>
+            List<JobStats> jobStats = response.jobStats(); //<2>
+            //end::x-pack-ml-get-job-stats-response
+
+            assertEquals(2, response.count());
+            assertThat(response.jobStats(), hasSize(2));
+            assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()),
+                containsInAnyOrder(job.getId(), secondJob.getId()));
+        }
+        {
+            GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*");
+
+            // tag::x-pack-ml-get-job-stats-listener
+            ActionListener<GetJobStatsResponse> listener = new ActionListener<GetJobStatsResponse>() {
+                @Override
+                public void onResponse(GetJobStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-get-job-stats-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-job-stats-execute-async
+            client.machineLearning().getJobStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-job-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -26,12 +24,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -89,33 +85,31 @@ public class Detector implements ToXContentObject, Writeable {
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("detector", true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("detector", false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
-            parser.declareString(Builder::setFunction, FUNCTION_FIELD);
-            parser.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
-            parser.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
-            parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
-            parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
-            parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-            parser.declareField(Builder::setExcludeFrequent, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return ExcludeFrequent.forString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
-            parser.declareObjectArray(Builder::setRules, (p, c) ->
-                    DetectionRule.PARSERS.get(parserType).apply(p, c).build(), CUSTOM_RULES_FIELD);
-            parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
-        }
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>("detector", ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
+        parser.declareString(Builder::setFunction, FUNCTION_FIELD);
+        parser.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
+        parser.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
+        parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
+        parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
+        parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
+        parser.declareField(Builder::setExcludeFrequent, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ExcludeFrequent.forString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareObjectArray(Builder::setRules,
+            (p, c) -> (ignoreUnknownFields ? DetectionRule.LENIENT_PARSER : DetectionRule.STRICT_PARSER).apply(p, c).build(),
+            CUSTOM_RULES_FIELD);
+        parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+
+        return parser;
     }
 
     public static final String BY = "by";
@@ -252,13 +246,8 @@ public class Detector implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
-        rules = in.readList(DetectionRule::new);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // negative means unknown, and is expected for 5.4 jobs
-            detectorIndex = -1;
-        }
+        rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -281,9 +270,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeList(Collections.emptyList());
         }
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeInt(detectorIndex);
-        }
+        out.writeInt(detectorIndex);
     }
 
     @Override
@@ -508,7 +495,7 @@ public class Detector implements ToXContentObject, Writeable {
             partitionFieldName = detector.partitionFieldName;
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
-            rules = new ArrayList<>(detector.getRules());
+            rules = new ArrayList<>(detector.rules);
             detectorIndex = detector.detectorIndex;
         }
 

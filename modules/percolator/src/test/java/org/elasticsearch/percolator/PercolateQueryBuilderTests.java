@@ -27,7 +27,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -57,7 +55,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -75,7 +72,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()
     };
 
-    private static String queryField;
+    private static String queryField = "field";
+    private static String aliasField = "alias";
     private static String docType;
 
     private String indexedDocumentIndex;
@@ -96,9 +94,11 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
+        aliasField = randomAlphaOfLength(4);
+
         String docType = "_doc";
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
-                queryField, "type=percolator"
+                queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
         ))), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
@@ -291,26 +291,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
     }
 
-    public void testSerializationBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("P4AAAAAFZmllbGQEdHlwZQAAAAAAAA57ImZvbyI6ImJhciJ9AAAAAA==");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            PercolateQueryBuilder queryBuilder = new PercolateQueryBuilder(in);
-            assertEquals("type", queryBuilder.getDocumentType());
-            assertEquals("field", queryBuilder.getField());
-            assertEquals("{\"foo\":\"bar\"}", queryBuilder.getDocuments().iterator().next().utf8ToString());
-            assertEquals(XContentType.JSON, queryBuilder.getXContentType());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                queryBuilder.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
-    }
-
     private static BytesReference randomSource(Set<String> usedFields) {
         try {
             // If we create two source that have the same field, but these fields have different kind of values (str vs. lng) then
@@ -354,5 +334,22 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         builder = rewriteAndFetch(builder, createShardContext());
         builder.writeTo(new BytesStreamOutput(10));
+    }
+
+    public void testFieldAlias() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+
+        PercolateQueryBuilder builder = doCreateTestQueryBuilder(false);
+        QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
+        PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
+
+        PercolateQueryBuilder aliasBuilder = new PercolateQueryBuilder(aliasField,
+            builder.getDocuments(),
+            builder.getXContentType());
+        QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, shardContext);
+        PercolateQuery aliasQuery = (PercolateQuery) rewrittenAliasBuilder.toQuery(shardContext);
+
+        assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
+        assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
     }
 }

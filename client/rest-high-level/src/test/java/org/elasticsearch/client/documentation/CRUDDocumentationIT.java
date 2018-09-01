@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -52,6 +50,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,14 +61,22 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -753,10 +761,150 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testReindex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String mapping =
+                "\"doc\": {\n" +
+                    "    \"properties\": {\n" +
+                    "      \"user\": {\n" +
+                    "        \"type\": \"text\"\n" +
+                    "      },\n" +
+                    "      \"field1\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      },\n" +
+                    "      \"field2\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }";
+            createIndex("source1", Settings.EMPTY, mapping);
+            createIndex("source2", Settings.EMPTY, mapping);
+            createPipeline("my_pipeline");
+        }
+        {
+            // tag::reindex-request
+            ReindexRequest request = new ReindexRequest(); // <1>
+            request.setSourceIndices("source1", "source2"); // <2>
+            request.setDestIndex("dest");  // <3>
+            // end::reindex-request
+            // tag::reindex-request-versionType
+            request.setDestVersionType(VersionType.EXTERNAL); // <1>
+            // end::reindex-request-versionType
+            // tag::reindex-request-opType
+            request.setDestOpType("create"); // <1>
+            // end::reindex-request-opType
+            // tag::reindex-request-conflicts
+            request.setConflicts("proceed"); // <1>
+            // end::reindex-request-conflicts
+            // tag::reindex-request-typeOrQuery
+            request.setSourceDocTypes("doc"); // <1>
+            request.setSourceQuery(new TermQueryBuilder("user", "kimchy")); // <2>
+            // end::reindex-request-typeOrQuery
+            // tag::reindex-request-size
+            request.setSize(10); // <1>
+            // end::reindex-request-size
+            // tag::reindex-request-sourceSize
+            request.setSourceBatchSize(100); // <1>
+            // end::reindex-request-sourceSize
+            // tag::reindex-request-pipeline
+            request.setDestPipeline("my_pipeline"); // <1>
+            // end::reindex-request-pipeline
+            // tag::reindex-request-sort
+            request.addSortField("field1", SortOrder.DESC); // <1>
+            request.addSortField("field2", SortOrder.ASC); // <2>
+            // end::reindex-request-sort
+            // tag::reindex-request-script
+            request.setScript(
+                new Script(
+                    ScriptType.INLINE, "painless",
+                    "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
+                    Collections.emptyMap())); // <1>
+            // end::reindex-request-script
+            // tag::reindex-request-remote
+            request.setRemoteInfo(
+                new RemoteInfo(
+                    "https", "localhost", 9002, null, new BytesArray(new MatchAllQueryBuilder().toString()),
+                    "user", "pass", Collections.emptyMap(), new TimeValue(100, TimeUnit.MILLISECONDS),
+                    new TimeValue(100, TimeUnit.SECONDS)
+                )
+            ); // <1>
+            // end::reindex-request-remote
+            request.setRemoteInfo(null); // Remove it for tests
+            // tag::reindex-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::reindex-request-timeout
+            // tag::reindex-request-refresh
+            request.setRefresh(true); // <1>
+            // end::reindex-request-refresh
+            // tag::reindex-request-slices
+            request.setSlices(2); // <1>
+            // end::reindex-request-slices
+            // tag::reindex-request-scroll
+            request.setScroll(TimeValue.timeValueMinutes(10)); // <1>
+            // end::reindex-request-scroll
+
+
+            // tag::reindex-execute
+            BulkByScrollResponse bulkResponse = client.reindex(request, RequestOptions.DEFAULT);
+            // end::reindex-execute
+            assertSame(0, bulkResponse.getSearchFailures().size());
+            assertSame(0, bulkResponse.getBulkFailures().size());
+            // tag::reindex-response
+            TimeValue timeTaken = bulkResponse.getTook(); // <1>
+            boolean timedOut = bulkResponse.isTimedOut(); // <2>
+            long totalDocs = bulkResponse.getTotal(); // <3>
+            long updatedDocs = bulkResponse.getUpdated(); // <4>
+            long createdDocs = bulkResponse.getCreated(); // <5>
+            long deletedDocs = bulkResponse.getDeleted(); // <6>
+            long batches = bulkResponse.getBatches(); // <7>
+            long noops = bulkResponse.getNoops(); // <8>
+            long versionConflicts = bulkResponse.getVersionConflicts(); // <9>
+            long bulkRetries = bulkResponse.getBulkRetries(); // <10>
+            long searchRetries = bulkResponse.getSearchRetries(); // <11>
+            TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <12>
+            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <13>
+            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <14>
+            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <15>
+            // end::reindex-response
+        }
+        {
+            ReindexRequest request = new ReindexRequest();
+            request.setSourceIndices("source1");
+            request.setDestIndex("dest");
+
+            // tag::reindex-execute-listener
+            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+                @Override
+                public void onResponse(BulkByScrollResponse bulkResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::reindex-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::reindex-execute-async
+            client.reindexAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::reindex-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            String mappings = "{\n" +
+            Request createIndex = new Request("PUT", "/posts");
+            createIndex.setJsonEntity(
+                    "{\n" +
                     "    \"mappings\" : {\n" +
                     "        \"doc\" : {\n" +
                     "            \"properties\" : {\n" +
@@ -767,10 +915,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}";
-
-            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
-            Response response = client().performRequest("PUT", "/posts", Collections.emptyMap(), entity);
+                    "}");
+            Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
             IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
@@ -1071,21 +1217,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String mappings = "{\n" +
-            "    \"mappings\" : {\n" +
-            "        \"type\" : {\n" +
-            "            \"properties\" : {\n" +
-            "                \"foo\" : {\n" +
-            "                    \"type\": \"text\",\n" +
-            "                    \"store\": true\n" +
-            "                }\n" +
-            "            }\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
-
-            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
-            Response response = client().performRequest("PUT", "/index", Collections.emptyMap(), entity);
+            Request createIndex = new Request("PUT", "/index");
+            createIndex.setJsonEntity(
+                    "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"type\" : {\n" +
+                    "            \"properties\" : {\n" +
+                    "                \"foo\" : {\n" +
+                    "                    \"type\": \"text\",\n" +
+                    "                    \"store\": true\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}");
+            Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
         }
 
@@ -1124,7 +1270,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::multi-get-request-top-level-extras
 
             // tag::multi-get-execute
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             // end::multi-get-execute
 
             // tag::multi-get-response
@@ -1177,7 +1323,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::multi-get-execute-async
-            client.multiGetAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.mgetAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::multi-get-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1188,7 +1334,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE));  // <1>
             // end::multi-get-request-no-source
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertNull(item.getResponse().getSource());
         }
         {
@@ -1201,7 +1347,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(fetchSourceContext));  // <1>
             // end::multi-get-request-source-include
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertThat(item.getResponse().getSource(), hasEntry("foo", "val1"));
             assertThat(item.getResponse().getSource(), hasEntry("bar", "val2"));
             assertThat(item.getResponse().getSource(), not(hasKey("baz")));
@@ -1216,7 +1362,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(fetchSourceContext));  // <1>
             // end::multi-get-request-source-exclude
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertThat(item.getResponse().getSource(), not(hasKey("foo")));
             assertThat(item.getResponse().getSource(), not(hasKey("bar")));
             assertThat(item.getResponse().getSource(), hasEntry("baz", "val3"));
@@ -1226,7 +1372,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::multi-get-request-stored
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .storedFields("foo"));  // <1>
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             MultiGetItemResponse item = response.getResponses()[0];
             String value = item.getResponse().getField("foo").getValue(); // <2>
             // end::multi-get-request-stored
@@ -1238,7 +1384,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             MultiGetRequest request = new MultiGetRequest();
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .version(1000L));
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             MultiGetItemResponse item = response.getResponses()[0];
             assertNull(item.getResponse());                          // <1>
             Exception e = item.getFailure().getFailure();            // <2>

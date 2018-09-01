@@ -8,12 +8,20 @@ package org.elasticsearch.xpack.sql.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class ExpressionTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
+
+    public void testTokenFunctionName() throws Exception {
+        Expression lt = parser.createExpression("LEFT()");
+        assertEquals(UnresolvedFunction.class, lt.getClass());
+        UnresolvedFunction uf = (UnresolvedFunction) lt;
+        assertEquals("LEFT", uf.functionName());
+    }
 
     public void testLiteralLong() throws Exception {
         Expression lt = parser.createExpression(String.valueOf(Long.MAX_VALUE));

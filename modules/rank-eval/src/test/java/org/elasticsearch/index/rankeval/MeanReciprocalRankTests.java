@@ -95,14 +95,14 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(1.0 / rankAtFirstRelevant, evaluation.metricScore(), Double.MIN_VALUE);
         assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
 
         // check that if we have fewer search hits than relevant doc position,
-        // we don't find any result and get 0.0 quality level
+        // we don't find any result and get 0.0 score
         reciprocalRank = new MeanReciprocalRank();
         evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
-        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
     }
 
     public void testEvaluationOneRelevantInResults() {
@@ -120,7 +120,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
         }
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(1.0 / (relevantAt + 1), evaluation.metricScore(), Double.MIN_VALUE);
         assertEquals(relevantAt + 1, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
@@ -140,7 +140,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2, 10);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
-        assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
+        assertEquals((double) 1 / 3, evaluation.metricScore(), 0.00001);
         assertEquals(3, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
@@ -158,13 +158,13 @@ public class MeanReciprocalRankTests extends ESTestCase {
         SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
     }
 
     public void testNoResults() throws Exception {
         SearchHit[] hits = new SearchHit[0];
         EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", hits, Collections.emptyList());
-        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(-1, ((MeanReciprocalRank.Detail) evaluated.getMetricDetails()).getFirstRelevantRank());
     }
 

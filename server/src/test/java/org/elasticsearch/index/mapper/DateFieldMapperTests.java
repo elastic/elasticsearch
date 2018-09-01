@@ -382,11 +382,11 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
             .endObject().endObject().endObject());
-        DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
+        indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
-        assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
+        assertThat(indexService.mapperService().fullName("release_date"), notNullValue());
+        assertFalse(indexService.mapperService().fullName("release_date").stored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")
@@ -413,5 +413,23 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping()));
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+    }
+
+    public void testIllegalFormatField() throws Exception {
+        String mapping =  Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date")
+                            .array("format", "test_format")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
     }
 }

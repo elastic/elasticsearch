@@ -41,6 +41,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -114,8 +116,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -123,6 +127,14 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -143,6 +155,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.hamcrest.CoreMatchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -150,6 +163,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -161,6 +175,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
@@ -168,11 +183,13 @@ import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -393,6 +410,64 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/_aliases", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(indicesAliasesRequest, request.getEntity());
+    }
+
+    public void testReindex() throws IOException {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source_idx");
+        reindexRequest.setDestIndex("dest_idx");
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            RemoteInfo remoteInfo = new RemoteInfo("http", "remote-host", 9200, null,
+                BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),
+                "user",
+                "pass",
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            );
+            reindexRequest.setRemoteInfo(remoteInfo);
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceDocTypes("doc", "tweet");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestDocType("tweet_and_doc");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSize(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            reindexRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+        }
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
+        expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
+        Request request = RequestConverters.reindex(reindexRequest);
+        assertEquals("/_reindex", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(reindexRequest, request.getEntity());
     }
 
     public void testPutMapping() throws IOException {
@@ -2169,6 +2244,54 @@ public class RequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testSnapshotsStatus() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String[] snapshots = randomIndicesNames(1, 5);
+        StringBuilder snapshotNames = new StringBuilder(snapshots[0]);
+        for (int idx = 1; idx < snapshots.length; idx++) {
+            snapshotNames.append(",").append(snapshots[idx]);
+        }
+        boolean ignoreUnavailable = randomBoolean();
+        String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
+
+        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
+        setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
+        snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        Request request = RequestConverters.snapshotsStatus(snapshotsStatusRequest);
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
+
+    public void testRestoreSnapshot() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s/_restore", repository, snapshot);
+
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
+        setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
+        if (randomBoolean()) {
+            restoreSnapshotRequest.waitForCompletion(true);
+            expectedParams.put("wait_for_completion", "true");
+        }
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            restoreSnapshotRequest.masterNodeTimeout(timeout);
+            expectedParams.put("master_timeout", timeout);
+        }
+
+        Request request = RequestConverters.restoreSnapshot(restoreSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertToXContentBody(restoreSnapshotRequest, request.getEntity());
+    }
+
     public void testDeleteSnapshot() {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = randomIndicesNames(1, 1)[0];
@@ -2463,6 +2586,123 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
+    }
+
+    public void testXPackInfo() {
+        XPackInfoRequest infoRequest = new XPackInfoRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        infoRequest.setVerbose(randomBoolean());
+        if (false == infoRequest.isVerbose()) {
+            expectedParams.put("human", "false");
+        }
+        int option = between(0, 2);
+        switch (option) {
+        case 0:
+            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+            break;
+        case 1:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+            expectedParams.put("categories", "features");
+            break;
+        case 2:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
+            expectedParams.put("categories", "build,features");
+            break;
+        default:
+            throw new IllegalArgumentException("invalid option [" + option + "]");
+        }
+
+        Request request = RequestConverters.xPackInfo(infoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetMigrationAssistance() {
+        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
+        String expectedEndpoint = "/_xpack/migration/assistance";
+        if (randomBoolean()) {
+            String[] indices = randomIndicesNames(1, 5);
+            upgradeInfoRequest.indices(indices);
+            expectedEndpoint += "/" + String.join(",", indices);
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testXPackPutWatch() throws Exception {
+        PutWatchRequest putWatchRequest = new PutWatchRequest();
+        String watchId = randomAlphaOfLength(10);
+        putWatchRequest.setId(watchId);
+        String body = randomAlphaOfLength(20);
+        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            putWatchRequest.setActive(false);
+            expectedParams.put("active", "false");
+        }
+
+        if (randomBoolean()) {
+            long version = randomLongBetween(10, 100);
+            putWatchRequest.setVersion(version);
+            expectedParams.put("version", String.valueOf(version));
+        }
+
+        Request request = RequestConverters.xPackWatcherPutWatch(putWatchRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        assertThat(bos.toString("UTF-8"), is(body));
+    }
+    
+    public void testGraphExplore() throws Exception {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
+        graphExploreRequest.sampleDiversityField("diversity");
+        graphExploreRequest.indices("index1", "index2");
+        graphExploreRequest.types("type1", "type2");
+        int timeout = randomIntBetween(10000, 20000);
+        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
+        for (int i = 0; i < numHops; i++) {
+            int hopNumber = i + 1;
+            QueryBuilder guidingQuery = null;
+            if (randomBoolean()) {
+                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
+            }
+            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
+            hop.addVertexRequest("field" + hopNumber);
+            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
+        }
+        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertToXContentBody(graphExploreRequest, request.getEntity());
+    }    
+
+    public void testXPackDeleteWatch() {
+        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
+        String watchId = randomAlphaOfLength(10);
+        deleteWatchRequest.setId(watchId);
+
+        Request request = RequestConverters.xPackWatcherDeleteWatch(deleteWatchRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertThat(request.getEntity(), nullValue());
     }
 
     /**

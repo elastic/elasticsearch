@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -86,7 +87,8 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
         IngestDocument document = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new RenameProcessor("_tag", "foo", "foo.bar", false);
+        Processor processor = new RenameProcessor("_tag", new TestTemplateService.MockTemplateScript.Factory("foo"),
+            new TestTemplateService.MockTemplateScript.Factory("foo.bar"), false);
         processor.execute(document);
         processor = new DotExpanderProcessor("_tag", null, "foo.bar");
         processor.execute(document);

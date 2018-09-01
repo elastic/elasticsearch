@@ -96,7 +96,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
-                    "if (ctx._source.awesome == 'absolutely) {"
+                    "if (ctx._source.awesome == 'absolutely') {"
                         + "  ctx.op='noop'"
                         + "} else if (ctx._source.awesome == 'lame') {"
                         + "  ctx.op='delete'"

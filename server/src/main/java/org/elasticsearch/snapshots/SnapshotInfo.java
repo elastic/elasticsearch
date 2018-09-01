@@ -27,8 +27,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,6 +37,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -50,7 +52,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime");
+    private static final CompoundDateTimeFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -74,9 +76,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
-    private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0;
     private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_6_2_0;
-    public static final Version VERBOSE_INTRODUCED = Version.V_5_5_0;
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
@@ -138,22 +138,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             this.shardFailures = shardFailures;
         }
 
-        private void ignoreVersion(String version) {
-            // ignore extra field
-        }
-
-        private void ignoreStartTime(String startTime) {
-            // ignore extra field
-        }
-
-        private void ignoreEndTime(String endTime) {
-            // ignore extra field
-        }
-
-        private void ignoreDurationInMillis(long durationInMillis) {
-            // ignore extra field
-        }
-
         public SnapshotInfo build() {
             SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
 
@@ -195,10 +179,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int getSuccessfulShards() {
             return successfulShards;
         }
-
-        private void ignoreFailedShards(int failedShards) {
-            // ignore extra field
-        }
     }
 
     public static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
@@ -220,14 +200,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
         SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setShardFailures, SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
             new ParseField(FAILURES));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreVersion, new ParseField(VERSION));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreStartTime, new ParseField(START_TIME));
-        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreEndTime, new ParseField(END_TIME));
-        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::ignoreDurationInMillis, new ParseField(DURATION_IN_MILLIS));
 
         SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setTotalShards, new ParseField(TOTAL));
         SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setSuccessfulShards, new ParseField(SUCCESSFUL));
-        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::ignoreFailedShards, new ParseField(FAILED));
     }
 
     private final SnapshotId snapshotId;
@@ -298,11 +273,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             indicesListBuilder.add(in.readString());
         }
         indices = Collections.unmodifiableList(indicesListBuilder);
-        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
-        } else {
-            state = SnapshotState.fromValue(in.readByte());
-        }
+        state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         reason = in.readOptionalString();
         startTime = in.readVLong();
         endTime = in.readVLong();
@@ -318,11 +289,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             shardFailures = Collections.emptyList();
         }
-        if (in.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED)) {
-            version = Version.readVersion(in);
-        } else {
-            version = in.readBoolean() ? Version.readVersion(in) : null;
-        }
+        version = in.readBoolean() ? Version.readVersion(in) : null;
         if (in.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
             includeGlobalState = in.readOptionalBoolean();
         }
@@ -530,11 +497,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(REASON, reason);
         }
         if (verbose || startTime != 0) {
-            builder.field(START_TIME, DATE_TIME_FORMATTER.printer().print(startTime));
+            builder.field(START_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));
             builder.field(START_TIME_IN_MILLIS, startTime);
         }
         if (verbose || endTime != 0) {
-            builder.field(END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
+            builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
         }
@@ -704,19 +671,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         for (String index : indices) {
             out.writeString(index);
         }
-        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            if (state != null) {
-                out.writeBoolean(true);
-                out.writeByte(state.value());
-            } else {
-                out.writeBoolean(false);
-            }
+        if (state != null) {
+            out.writeBoolean(true);
+            out.writeByte(state.value());
         } else {
-            if (out.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED) && state == SnapshotState.INCOMPATIBLE) {
-                out.writeByte(SnapshotState.FAILED.value());
-            } else {
-                out.writeByte(state.value());
-            }
+            out.writeBoolean(false);
         }
         out.writeOptionalString(reason);
         out.writeVLong(startTime);
@@ -727,19 +686,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         for (SnapshotShardFailure failure : shardFailures) {
             failure.writeTo(out);
         }
-        if (out.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED)) {
-            Version versionToWrite = version;
-            if (versionToWrite == null) {
-                versionToWrite = Version.CURRENT;
-            }
-            Version.writeVersion(versionToWrite, out);
+        if (version != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(version, out);
         } else {
-            if (version != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(version, out);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeBoolean(false);
         }
         if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
             out.writeOptionalBoolean(includeGlobalState);

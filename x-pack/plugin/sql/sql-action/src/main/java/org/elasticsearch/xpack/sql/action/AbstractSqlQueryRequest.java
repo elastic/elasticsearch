@@ -112,7 +112,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     }
 
     public AbstractSqlQueryRequest timeZone(TimeZone timeZone) {
-        if (query == null) {
+        if (timeZone == null) {
             throw new IllegalArgumentException("time zone may not be null.");
         }
         this.timeZone = timeZone;

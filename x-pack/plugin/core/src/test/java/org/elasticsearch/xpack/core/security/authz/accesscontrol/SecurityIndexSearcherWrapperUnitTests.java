@@ -442,7 +442,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                         return "rendered_text";
                     }
                 };
-        
+
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
 
         XContentBuilder builder = jsonBuilder();

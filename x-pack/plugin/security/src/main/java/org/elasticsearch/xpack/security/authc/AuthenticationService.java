@@ -34,10 +34,12 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -271,7 +273,9 @@ public class AuthenticationService extends AbstractComponent {
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
-                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                    Exception e = (result.getException() != null) ? result.getException()
+                                            : Exceptions.authenticationError(result.getMessage());
+                                    userListener.onFailure(e);
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -379,33 +383,18 @@ public class AuthenticationService extends AbstractComponent {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final List<Realm> realmsList = realms.asList();
-            final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) ->
-                    realm.lookupUser(runAsUsername, ActionListener.wrap((lookedupUser) -> {
-                        if (lookedupUser != null) {
-                            lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                            lookupUserListener.onResponse(lookedupUser);
-                        } else {
-                            lookupUserListener.onResponse(null);
-                        }
-                    }, lookupUserListener::onFailure));
-
-            final IteratingActionListener<User, Realm> userLookupListener =
-                    new IteratingActionListener<>(ActionListener.wrap((lookupUser) -> {
-                                if (lookupUser == null) {
-                                    // the user does not exist, but we still create a User object, which will later be rejected by authz
-                                    userConsumer.accept(new User(runAsUsername, null, user));
-                                } else {
-                                    userConsumer.accept(new User(lookupUser, user));
-                                }
-                            },
-                            (e) -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken))),
-                            realmLookupConsumer, realmsList, threadContext);
-            try {
-                userLookupListener.run();
-            } catch (Exception e) {
-                listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
-            }
+            final RealmUserLookup lookup = new RealmUserLookup(realms.asList(), threadContext);
+            lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
+                if (tuple == null) {
+                    // the user does not exist, but we still create a User object, which will later be rejected by authz
+                    userConsumer.accept(new User(runAsUsername, null, user));
+                } else {
+                    User foundUser = Objects.requireNonNull(tuple.v1());
+                    Realm realm = Objects.requireNonNull(tuple.v2());
+                    lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                    userConsumer.accept(new User(foundUser, user));
+                }
+            }, exception -> listener.onFailure(request.exceptionProcessingRequest(exception, authenticationToken))));
         }
 
         /**
@@ -541,7 +530,6 @@ public class AuthenticationService extends AbstractComponent {
 
         private final RestRequest request;
 
-        @SuppressWarnings("unchecked")
         AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                              RestRequest request) {
             super(auditTrail, failureHandler, threadContext);

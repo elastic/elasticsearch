@@ -35,11 +35,11 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
@@ -67,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -112,7 +113,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test uses the Monitoring Bulk API to index document as an external application like Kibana would do. It
      * then ensure that the documents were correctly indexed and have the expected information.
      */
-    @SuppressWarnings("unchecked")
     public void testMonitoringBulk() throws Exception {
         whenExportersAreReady(() -> {
             final MonitoredSystem system = randomSystem();
@@ -120,8 +120,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // REST is the realistic way that these operations happen, so it's the most realistic way to integration test it too
             // Use Monitoring Bulk API to index 3 documents
-            //final Response bulkResponse = getRestClient().performRequest("POST", "/_xpack/monitoring/_bulk",
-            //                                                             parameters, createBulkEntity());
+            //final Request bulkRequest = new Request("POST", "/_xpack/monitoring/_bulk");
+            //<<add all parameters>
+            //bulkRequest.setJsonEntity(createBulkEntity());
+            //final Response bulkResponse = getRestClient().performRequest(request);
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
@@ -187,8 +189,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * This test waits for the monitoring service to collect monitoring documents and then checks that all expected documents
      * have been indexed with the expected information.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29880")
-    @SuppressWarnings("unchecked")
     public void testMonitoringService() throws Exception {
         final boolean createAPMIndex = randomBoolean();
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
@@ -284,7 +284,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * Asserts that the source_node information (provided as a Map) of a monitoring document correspond to
      * the current local node information
      */
-    @SuppressWarnings("unchecked")
     private void assertMonitoringDocSourceNode(final Map<String, Object> sourceNode) {
         assertEquals(6, sourceNode.size());
 
@@ -340,7 +339,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
         assertThat(clusterStats, notNullValue());
-        assertThat(clusterStats.size(), equalTo(4));
+        assertThat(clusterStats.size(), equalTo(5));
 
         final Map<String, Object> stackStats = (Map<String, Object>) source.get("stack_stats");
         assertThat(stackStats, notNullValue());
@@ -350,7 +349,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(apm, notNullValue());
         assertThat(apm.size(), equalTo(1));
         assertThat(apm.remove("found"), is(apmIndicesExist));
-        assertThat(apm.isEmpty(), is(true));
+        assertThat(apm.keySet(), empty());
 
         final Map<String, Object> xpackStats = (Map<String, Object>) stackStats.get("xpack");
         assertThat(xpackStats, notNullValue());
@@ -362,14 +361,14 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final Map<String, Object> clusterState = (Map<String, Object>) source.get("cluster_state");
         assertThat(clusterState, notNullValue());
-        assertThat(clusterState.size(), equalTo(6));
         assertThat(clusterState.remove("nodes_hash"), notNullValue());
         assertThat(clusterState.remove("status"), notNullValue());
         assertThat(clusterState.remove("version"), notNullValue());
         assertThat(clusterState.remove("state_uuid"), notNullValue());
+        assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.isEmpty(), is(true));
+        assertThat(clusterState.keySet(), empty());
     }
 
     /**
@@ -452,6 +451,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
             if ("node_stats.os.cpu.load_average.5m".equals(filter) || "node_stats.os.cpu.load_average.15m".equals(filter)) {
+                return;
+            }
+
+            // bulk is not a thread pool in the current version but we allow it to support mixed version clusters
+            if (filter.startsWith("node_stats.thread_pool.bulk")) {
                 return;
             }
 
@@ -541,7 +545,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     /**
      * Disable the monitoring service and the Local exporter.
      */
-    @SuppressWarnings("unchecked")
     public void disableMonitoring() throws Exception {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")

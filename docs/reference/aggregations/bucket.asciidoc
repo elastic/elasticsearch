@@ -19,6 +19,8 @@ the limit will fail with an exception.
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 
+include::bucket/autodatehistogram-aggregation.asciidoc[]
+
 include::bucket/children-aggregation.asciidoc[]
 
 include::bucket/composite-aggregation.asciidoc[]

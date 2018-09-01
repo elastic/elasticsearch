@@ -177,18 +177,17 @@ class NodeInfo {
             javaVersion = 8
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
             javaVersion = 9
+        } else if (project.inFipsJvm && nodeVersion.onOrAfter("6.3.0") && nodeVersion.before("6.4.0")) {
+            /*
+             * Elasticsearch versions before 6.4.0 cannot be run in a FIPS-140 JVM. If we're running
+             * bwc tests in a FIPS-140 JVM, ensure that the pre v6.4.0 nodes use a Java 10 JVM instead.
+             */
+            javaVersion = 10
         }
 
         args.addAll("-E", "node.portsfile=true")
-        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
-        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
-        if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            // put the enable assertions options before other options to allow
-            // flexibility to disable assertions for specific packages or classes
-            // in the cluster-specific options
-            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
-        }
-        env = ['ES_JAVA_OPTS': esJavaOpts]
+        env = [:]
+        env.putAll(config.environmentVariables)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")

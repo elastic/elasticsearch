@@ -272,11 +272,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             documents = document != null ? Collections.singletonList(document) : Collections.emptyList();
         }
         if (documents.isEmpty() == false) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = in.readEnum(XContentType.class);
-            } else {
-                documentXContentType = XContentHelper.xContentType(documents.iterator().next());
-            }
+            documentXContentType = in.readEnum(XContentType.class);
         } else {
             documentXContentType = null;
         }
@@ -329,7 +325,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             BytesReference doc = documents.isEmpty() ? null : documents.iterator().next();
             out.writeOptionalBytesReference(doc);
         }
-        if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
+        if (documents.isEmpty() == false) {
             out.writeEnum(documentXContentType);
         }
     }
@@ -618,13 +614,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
-        boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
-        QueryShardContext percolateShardContext = wrap(context);
-
-        String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
+        String name = this.name != null ? this.name : pft.name();
+        QueryShardContext percolateShardContext = wrap(context);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
+            percolateShardContext,
+            pft.mapUnmappedFieldsAsText);
+
         return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
     }
 
@@ -756,7 +752,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             @SuppressWarnings("unchecked")
             public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndexName());
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndex().getName());
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(shardContext.getIndexSettings(), fieldType, cache, circuitBreaker,
@@ -764,5 +760,4 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
         };
     }
-
 }

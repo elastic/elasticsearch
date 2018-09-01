@@ -118,6 +118,19 @@ least 4096 threads. This can be done via `/etc/security/limits.conf`
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
 
+=== Max file size check
+
+The segment files that are the components of individual shards and the translog
+generations that are components of the translog can get large (exceeding
+multiple gigabytes). On systems where the max size of files that can be created
+by the Elasticsearch process is limited, this can lead to failed
+writes. Therefore, the safest option here is that the max file size is unlimited
+and that is what the max file size bootstrap check enforces. To pass the max
+file check, you must configure your system to allow the Elasticsearch process
+the ability to write files of unlimited size. This can be done via
+`/etc/security/limits.conf` using the `fsize` setting to `unlimited` (note that
+you might have to increase the limits for the `root` user too).
+
 [[max-size-virtual-memory-check]]
 === Maximum size virtual memory check
 
@@ -133,19 +146,6 @@ address space. This can be done via `/etc/security/limits.conf` using
 the `as` setting to `unlimited` (note that you might have to increase
 the limits for the `root` user too).
 
-=== Max file size check
-
-The segment files that are the components of individual shards and the translog
-generations that are components of the translog can get large (exceeding
-multiple gigabytes). On systems where the max size of files that can be created
-by the Elasticsearch process is limited, this can lead to failed
-writes. Therefore, the safest option here is that the max file size is unlimited
-and that is what the max file size bootstrap check enforces. To pass the max
-file check, you must configure your system to allow the Elasticsearch process
-the ability to write files of unlimited size. This can be done via
-`/etc/security/limits.conf` using the `fsize` setting to `unlimited` (note that
-you might have to increase the limits for the `root` user too).
-
 === Maximum map count check
 
 Continuing from the previous <<max-size-virtual-memory-check,point>>, to
@@ -154,6 +154,11 @@ create many memory-mapped areas. The maximum map count check checks that
 the kernel allows a process to have at least 262,144 memory-mapped areas
 and is enforced on Linux only. To pass the maximum map count check, you
 must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
+
+Alternatively, the maximum map count check is only needed if you are using
+`mmapfs` as the <<index-modules-store,store type>> for your indices. If you
+<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
+not be enforced.
 
 === Client JVM check
 

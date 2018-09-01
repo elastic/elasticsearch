@@ -19,25 +19,24 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.TreeMap;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class ReindexFromOldRemoteIT extends ESRestTestCase {
+    /**
+     * Number of documents to test when reindexing from an old version.
+     */
+    private static final int DOCS = 5;
+
     private void oldEsTestCase(String portPropertyName, String requestsPerSecond) throws IOException {
         boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromOld"));
         assumeTrue("test is disabled, probably because this is windows", enabled);
@@ -45,17 +44,19 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
-                HttpEntity entity = new StringEntity("{\"settings\":{\"number_of_shards\": 1}}", ContentType.APPLICATION_JSON);
-                oldEs.performRequest("PUT", "/test", singletonMap("refresh", "true"), entity);
+                Request createIndex = new Request("PUT", "/test");
+                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": 1}}");
+                oldEs.performRequest(createIndex);
 
-                entity = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
-                oldEs.performRequest("PUT", "/test/doc/testdoc1", singletonMap("refresh", "true"), entity);
-                oldEs.performRequest("PUT", "/test/doc/testdoc2", singletonMap("refresh", "true"), entity);
-                oldEs.performRequest("PUT", "/test/doc/testdoc3", singletonMap("refresh", "true"), entity);
-                oldEs.performRequest("PUT", "/test/doc/testdoc4", singletonMap("refresh", "true"), entity);
-                oldEs.performRequest("PUT", "/test/doc/testdoc5", singletonMap("refresh", "true"), entity);
+                for (int i = 0; i < DOCS; i++) {
+                    Request doc = new Request("PUT", "/test/doc/testdoc" + i);
+                    doc.addParameter("refresh", "true");
+                    doc.setJsonEntity("{\"test\":\"test\"}");
+                    oldEs.performRequest(doc);
+                }
 
-                entity = new StringEntity(
+                Request reindex = new Request("POST", "/_reindex");
+                reindex.setJsonEntity(
                         "{\n"
                       + "  \"source\":{\n"
                       + "    \"index\": \"test\",\n"
@@ -67,36 +68,23 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                       + "  \"dest\": {\n"
                       + "    \"index\": \"test\"\n"
                       + "  }\n"
-                      + "}",
-                      ContentType.APPLICATION_JSON);
-                Map<String, String> params = new TreeMap<>();
-                params.put("refresh", "true");
-                params.put("pretty", "true");
+                      + "}");
+                reindex.addParameter("refresh", "true");
+                reindex.addParameter("pretty", "true");
                 if (requestsPerSecond != null) {
-                    params.put("requests_per_second", requestsPerSecond);
+                    reindex.addParameter("requests_per_second", requestsPerSecond);
                 }
-                client().performRequest("POST", "/_reindex", params, entity);
+                client().performRequest(reindex);
 
-                Response response = client().performRequest("POST", "test/_search", singletonMap("pretty", "true"));
+                Request search = new Request("POST", "/test/_search");
+                search.addParameter("pretty", "true");
+                Response response = client().performRequest(search);
                 String result = EntityUtils.toString(response.getEntity());
-                assertThat(result, containsString("\"_id\" : \"testdoc1\""));
-            } finally {
-                try {
-                    oldEs.performRequest("DELETE", "/test");
-                } catch (ResponseException e) {
-                    /* Try not to throw ResponseException for as it'll eat the
-                     * real exception. This is because the rest client throws
-                     * exceptions in a "funny" way that isn't compatible with
-                     * `suppressed`. In the case of 404s we'll just log something
-                     * and move on because that just means that a previous
-                     * failure caused the index not to be created. */
-                    if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                        logger.warn("old index not deleted because it doesn't exist");
-                    } else {
-                        logger.error("failed to remove old index", e);
-                        fail("failed to remove old index, see log");
-                    }
+                for (int i = 0; i < DOCS; i++) {
+                    assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
                 }
+            } finally {
+                oldEs.performRequest(new Request("DELETE", "/test"));
             }
         }
     }

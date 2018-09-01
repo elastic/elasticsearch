@@ -172,7 +172,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
             final NodeEnvironment.NodeLock nodeLock;
             try {
-                nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment);
+                nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, p -> {});
             } catch (LockObtainFailedException lofe) {
                 throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
                     + "], is Elasticsearch still running ?");

@@ -29,6 +29,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -77,6 +78,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -180,28 +182,34 @@ public final class NodeEnvironment  implements Closeable {
         private final Lock[] locks;
         private final NodePath[] nodePaths;
 
-        public NodeLock(final int nodeId, final Logger startupTraceLogger, final Environment environment) throws IOException {
+        public NodeLock(final int nodeId, final Logger startupTraceLogger,
+                        final Environment environment,
+                        final CheckedConsumer<Path, IOException> consumer) throws IOException {
             this.nodeId = nodeId;
             nodePaths = new NodePath[environment.dataWithClusterFiles().length];
             locks = new Lock[nodePaths.length];
-            final Path[] dataPaths = environment.dataFiles();
-            for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
-                Path dataDir = dataPaths[dirIndex];
-                Path dir = resolveNodePath(dataDir, nodeId);
-                Files.createDirectories(dir);
+            try {
+                final Path[] dataPaths = environment.dataFiles();
+                for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
+                    Path dataDir = dataPaths[dirIndex];
+                    Path dir = resolveNodePath(dataDir, nodeId);
+                    consumer.accept(dir);
 
-                try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                    startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                    locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                    nodePaths[dirIndex] = new NodePath(dir);
-                } catch (IOException e) {
-                    startupTraceLogger.trace(() -> new ParameterizedMessage(
-                        "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
-                    // release all the ones that were obtained up until now
-                    releaseAndNullLocks(locks);
-                    throw (e instanceof LockObtainFailedException ? e
-                        : new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e));
+                    try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
+                        startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                        nodePaths[dirIndex] = new NodePath(dir);
+                    } catch (IOException e) {
+                        startupTraceLogger.trace(() -> new ParameterizedMessage(
+                            "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                        // release all the ones that were obtained up until now
+                        throw (e instanceof LockObtainFailedException ? e
+                            : new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e));
+                    }
                 }
+            } catch (IOException e) {
+                releaseAndNullLocks(locks);
+                throw e;
             }
         }
 
@@ -228,51 +236,71 @@ public final class NodeEnvironment  implements Closeable {
         }
         // trace logger to debug issues before the default node name is derived from the node id
         Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
-
-        sharedDataPath = environment.sharedDataFile();
-        IOException lastException = null;
-        int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+        boolean success = false;
         NodeLock nodeLock = null;
-        for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
 
-            try {
-                final NodeLock lock = new NodeLock(possibleLockId, startupTraceLogger, environment);
-                nodeLock = lock;
-                break;
-            } catch (LockObtainFailedException e) {
-                // ignore any LockObtainFailedException
-            } catch (IOException e) {
-                lastException = e;
+        try {
+            sharedDataPath = environment.sharedDataFile();
+            IOException lastException = null;
+            int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+
+            final AtomicReference<IOException> onCreateDirectoriesException = new AtomicReference();
+            for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
+                try {
+                    final NodeLock lock = new NodeLock(possibleLockId, startupTraceLogger, environment,
+                        dir -> {
+                            try {
+                                Files.createDirectories(dir);
+                            } catch (IOException e) {
+                                onCreateDirectoriesException.set(e);
+                                throw e;
+                            }
+                        });
+                    nodeLock = lock;
+                    break;
+                } catch (LockObtainFailedException e) {
+                    // ignore any LockObtainFailedException
+                } catch (IOException e) {
+                    if (onCreateDirectoriesException.get() != null) {
+                        throw onCreateDirectoriesException.get();
+                    }
+                    lastException = e;
+                }
+            }
+
+            if (nodeLock == null) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "failed to obtain node locks, tried [%s] with lock id%s;" +
+                        " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
+                    Arrays.toString(environment.dataWithClusterFiles()),
+                    maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
+                    MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
+                    maxLocalStorageNodes);
+                throw new IllegalStateException(message, lastException);
+            }
+            this.locks = nodeLock.locks;
+            this.nodePaths = nodeLock.nodePaths;
+            this.nodeLockId = nodeLock.nodeId;
+            this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
+            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
+            }
+
+            maybeLogPathDetails();
+            maybeLogHeapDetails();
+
+            applySegmentInfosTrace(settings);
+            assertCanWrite();
+            success = true;
+        }  finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(nodeLock);
             }
         }
-
-        if (nodeLock == null) {
-            final String message = String.format(
-                Locale.ROOT,
-                "failed to obtain node locks, tried [%s] with lock id%s;" +
-                    " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
-                Arrays.toString(environment.dataWithClusterFiles()),
-                maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
-                MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-                maxLocalStorageNodes);
-            throw new IllegalStateException(message, lastException);
-        }
-        this.locks = nodeLock.locks;
-        this.nodePaths = nodeLock.nodePaths;
-        this.nodeLockId = nodeLock.nodeId;
-        this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
-        this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
-
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
-        }
-
-        maybeLogPathDetails();
-        maybeLogHeapDetails();
-
-        applySegmentInfosTrace(settings);
-        assertCanWrite();
     }
 
     /**

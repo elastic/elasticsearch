@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

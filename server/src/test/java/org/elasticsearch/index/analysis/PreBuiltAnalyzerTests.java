@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

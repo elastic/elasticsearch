@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

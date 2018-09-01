@@ -27,7 +27,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 public class LegacyTypeFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

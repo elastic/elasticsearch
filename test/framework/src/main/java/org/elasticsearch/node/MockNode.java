@@ -53,9 +53,7 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -69,37 +67,37 @@ import java.util.function.Function;
 public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
-    private final BooleanSupplier validatePrivateIndexSettings;
+    private final boolean forbidPrivateIndexSettings;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, () -> true);
+        this(settings, classpathPlugins, true);
     }
 
     public MockNode(
             final Settings settings,
             final Collection<Class<? extends Plugin>> classpathPlugins,
-            final BooleanSupplier validatePrivateIndexSettings) {
-        this(settings, classpathPlugins, null, validatePrivateIndexSettings);
+            final boolean forbidPrivateIndexSettings) {
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
     }
 
     public MockNode(
             final Settings settings,
             final Collection<Class<? extends Plugin>> classpathPlugins,
             final Path configPath,
-            final BooleanSupplier validatePrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings) {
         this(
                 InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath),
                 classpathPlugins,
-                validatePrivateIndexSettings);
+                forbidPrivateIndexSettings);
     }
 
     private MockNode(
             final Environment environment,
             final Collection<Class<? extends Plugin>> classpathPlugins,
-            final BooleanSupplier validatePrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings) {
         super(environment, classpathPlugins);
         this.classpathPlugins = classpathPlugins;
-        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
+        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
@@ -180,8 +178,8 @@ public class MockNode extends Node {
     }
 
     @Override
-    boolean validatePrivateIndexSettings() {
-        return validatePrivateIndexSettings.getAsBoolean();
+    boolean forbidPrivateIndexSettings() {
+        return forbidPrivateIndexSettings;
     }
 
 }

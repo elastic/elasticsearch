@@ -981,7 +981,7 @@ public class ScopedSettingsTests extends ESTestCase {
                     final Settings settings = Settings.builder().put("index.internal", "internal").build();
                     indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
                 });
-        final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
+        final String message = "can not update internal setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -995,7 +995,7 @@ public class ScopedSettingsTests extends ESTestCase {
                     final Settings settings = Settings.builder().put("index.private", "private").build();
                     indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
                 });
-        final String message = "can not update private setting [index.internal]; this setting is managed by Elasticsearch";
+        final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -1013,7 +1013,7 @@ public class ScopedSettingsTests extends ESTestCase {
         final IndexScopedSettings indexScopedSettings =
                 new IndexScopedSettings(Settings.EMPTY, Collections.singleton(internalIndexSetting));
         // nothing should happen, validation should not throw an exception
-        final Settings settings = Settings.builder().put("index.private", "internal").build();
+        final Settings settings = Settings.builder().put("index.private", "private").build();
         indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
     }
 

@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoHashGridIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

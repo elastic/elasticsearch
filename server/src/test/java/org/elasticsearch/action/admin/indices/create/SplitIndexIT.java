@@ -80,7 +80,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class SplitIndexIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

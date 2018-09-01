@@ -113,7 +113,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -123,7 +122,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -207,7 +205,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
-    private final BooleanSupplier validatePrivateIndexSettings;
+    private final boolean forbidPrivateIndexSettings;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -244,7 +242,7 @@ public final class InternalTestCluster extends TestCluster {
                 nodePrefix,
                 mockPlugins,
                 clientWrapper,
-                () -> true);
+                true);
     }
 
     public InternalTestCluster(
@@ -260,11 +258,11 @@ public final class InternalTestCluster extends TestCluster {
             final String nodePrefix,
             final Collection<Class<? extends Plugin>> mockPlugins,
             final Function<Client, Client> clientWrapper,
-            final BooleanSupplier validatePrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings) {
         super(clusterSeed);
         this.autoManageMinMasterNodes = autoManageMinMasterNodes;
         this.clientWrapper = clientWrapper;
-        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
+        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -627,8 +625,11 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node =
-                new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId), validatePrivateIndexSettings);
+        MockNode node = new MockNode(
+                finalSettings.build(),
+                plugins,
+                nodeConfigurationSource.nodeConfigPath(nodeId),
+                forbidPrivateIndexSettings);
         try {
             IOUtils.close(secureSettings);
         } catch (IOException e) {

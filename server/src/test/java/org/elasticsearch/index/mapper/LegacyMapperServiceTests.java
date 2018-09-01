@@ -36,7 +36,7 @@ import java.io.IOException;
 public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

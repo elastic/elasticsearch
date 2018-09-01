@@ -60,7 +60,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

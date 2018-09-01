@@ -396,7 +396,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, () -> true);
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         return task.execute(state);
     }
 

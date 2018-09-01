@@ -438,7 +438,7 @@ public class Node implements Closeable {
                     settingsModule.getIndexScopedSettings(),
                     threadPool,
                     xContentRegistry,
-                    this::validatePrivateIndexSettings);
+                    forbidPrivateIndexSettings());
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -586,7 +586,13 @@ public class Node implements Closeable {
         }
     }
 
-    boolean validatePrivateIndexSettings() {
+    /**
+     * Whether or not private index settings are forbidden when creating an index. This is used to override in the test framework for tests
+     * that rely on being able to set private settings.
+     *
+     * @return true if private index settings should be validated when creating an index
+     */
+    boolean forbidPrivateIndexSettings() {
         return true;
     }
 

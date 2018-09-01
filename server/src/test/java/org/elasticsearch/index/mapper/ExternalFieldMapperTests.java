@@ -58,7 +58,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

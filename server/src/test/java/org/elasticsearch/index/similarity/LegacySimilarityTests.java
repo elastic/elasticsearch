@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class LegacySimilarityTests extends ESSingleNodeTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

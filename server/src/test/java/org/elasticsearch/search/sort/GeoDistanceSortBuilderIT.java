@@ -51,7 +51,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
     private static final String LOCATION_FIELD = "location";
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

@@ -211,7 +211,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins, this::validatePrivateIndexSettings);
+        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             build.start();
         } catch (NodeValidationException e) {
@@ -342,7 +342,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
 
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return true;
     }
 

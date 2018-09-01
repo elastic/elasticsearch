@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

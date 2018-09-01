@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

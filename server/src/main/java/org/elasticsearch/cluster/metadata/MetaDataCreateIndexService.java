@@ -82,11 +82,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -111,19 +109,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
-    private final BooleanSupplier validatePrivateIndexSettings;
+    private final boolean forbidPrivateIndexSettings;
 
     public MetaDataCreateIndexService(
-            Settings settings,
-            ClusterService clusterService,
-            IndicesService indicesService,
-            AllocationService allocationService,
-            AliasValidator aliasValidator,
-            Environment env,
-            IndexScopedSettings indexScopedSettings,
-            ThreadPool threadPool,
-            NamedXContentRegistry xContentRegistry,
-            BooleanSupplier validatePrivateIndexSettings) {
+            final Settings settings,
+            final ClusterService clusterService,
+            final IndicesService indicesService,
+            final AllocationService allocationService,
+            final AliasValidator aliasValidator,
+            final Environment env,
+            final IndexScopedSettings indexScopedSettings,
+            final ThreadPool threadPool,
+            final NamedXContentRegistry xContentRegistry,
+            final boolean forbidPrivateIndexSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -133,7 +131,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
-        this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
+        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
@@ -236,8 +234,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         xContentRegistry,
                         settings,
                         this::validate,
-                        indexScopedSettings,
-                        validatePrivateIndexSettings));
+                        indexScopedSettings));
     }
 
     interface IndexValidator {
@@ -255,13 +252,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         private final Settings settings;
         private final IndexValidator validator;
         private final IndexScopedSettings indexScopedSettings;
-        private final BooleanSupplier validatePrivateIndexSettings;
 
         IndexCreationTask(Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
                           ActionListener<ClusterStateUpdateResponse> listener, IndicesService indicesService,
                           AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                          Settings settings, IndexValidator validator, IndexScopedSettings indexScopedSettings,
-                          BooleanSupplier validatePrivateIndexSettings) {
+                          Settings settings, IndexValidator validator, IndexScopedSettings indexScopedSettings) {
             super(Priority.URGENT, request, listener);
             this.request = request;
             this.logger = logger;
@@ -272,7 +267,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             this.settings = settings;
             this.validator = validator;
             this.indexScopedSettings = indexScopedSettings;
-            this.validatePrivateIndexSettings = Objects.requireNonNull(validatePrivateIndexSettings, "validatePrivateIndexSettings");
         }
 
         @Override
@@ -593,12 +587,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), validatePrivateIndexSettings.getAsBoolean());
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
     public void validateIndexSettings(
-            final String indexName, final Settings settings, final boolean validatePrivateSettings) throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, validatePrivateSettings);
+            final String indexName, final Settings settings, final boolean forbidPrivateIndexSettings) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -606,7 +600,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean validatePrivateSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
         String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
         if (Strings.isEmpty(customPath) == false && env.sharedDataFile() == null) {
@@ -617,7 +611,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
-        if (validatePrivateSettings) {
+        if (forbidPrivateIndexSettings) {
             for (final String key : settings.keySet()) {
                 final Setting<?> setting = indexScopedSettings.get(key);
                 if (setting == null) {

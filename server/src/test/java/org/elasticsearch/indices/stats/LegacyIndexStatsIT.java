@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class LegacyIndexStatsIT extends ESIntegTestCase {
 
     @Override
-    protected boolean validatePrivateIndexSettings() {
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 

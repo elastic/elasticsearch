@@ -187,7 +187,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (indexVersion == V_EMPTY) {
             final String message = String.format(
                     Locale.ROOT,
-                    "[%s] is not present in the index settingsfor index with UUID [%s]",
+                    "[%s] is not present in the index settings for index with UUID [%s]",
                     IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
                     indexSettings.get(IndexMetaData.SETTING_INDEX_UUID));
             throw new IllegalStateException(message);

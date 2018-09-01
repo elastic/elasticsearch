@@ -5020,6 +5020,11 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getLocalCheckpoint()));
     }
 
+    public void testAcquireSearcherOnClosingEngine() throws Exception {
+        engine.close();
+        expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
+    }
+
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();

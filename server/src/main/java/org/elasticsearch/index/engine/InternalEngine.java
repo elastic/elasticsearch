@@ -1994,12 +1994,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) {
-        /* Acquire order here is store -> manager since we need
-         * to make sure that the store is not closed before
-         * the searcher is acquired. */
-        store.incRef();
-        Releasable releasable = store::decRef;
+        ensureOpen();
+        Releasable releasable = null;
         try {
+            /* Acquire order here is store -> manager since we need
+             * to make sure that the store is not closed before
+             * the searcher is acquired. */
+            store.incRef();
+            releasable = store::decRef;
             final ReferenceManager<IndexSearcher> referenceManager;
             switch (scope) {
                 case INTERNAL:

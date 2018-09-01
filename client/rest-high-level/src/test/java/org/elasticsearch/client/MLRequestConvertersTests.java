@@ -36,6 +36,7 @@ import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -138,6 +139,27 @@ public class MLRequestConvertersTests extends ESTestCase {
             GetBucketsRequest parsedRequest = GetBucketsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getBucketsRequest));
         }
+    }
+
+    public void testFlushJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        FlushJobRequest flushJobRequest = new FlushJobRequest(jobId);
+
+        Request request = MLRequestConverters.flushJob(flushJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_flush", request.getEndpoint());
+        assertEquals("{\"job_id\":\"" + jobId + "\"}", requestEntityToString(request));
+
+        flushJobRequest.setSkipTime("1000");
+        flushJobRequest.setStart("105");
+        flushJobRequest.setEnd("200");
+        flushJobRequest.setAdvanceTime("100");
+        flushJobRequest.setCalcInterim(true);
+        request = MLRequestConverters.flushJob(flushJobRequest);
+        assertEquals(
+            "{\"job_id\":\"" + jobId + "\",\"calc_interim\":true,\"start\":\"105\"," +
+                "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
+            requestEntityToString(request));
     }
 
     public void testGetJobStats() {

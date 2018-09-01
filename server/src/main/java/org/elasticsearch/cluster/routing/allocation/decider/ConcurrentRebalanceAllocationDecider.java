@@ -76,4 +76,9 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
                 "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
                 clusterConcurrentRebalance, relocatingShards);
     }
+    
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
+        return canRebalance(null, allocation);
+    }
 }

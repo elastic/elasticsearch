@@ -3,7 +3,7 @@
 
 ==== Deprecated flavors of performRequest have been removed
 
-We deprecated the flavors of `performRequest` and `performRequestAsyn` that
+We deprecated the flavors of `performRequest` and `performRequestAsync` that
 do not take `Request` objects in 6.4.0 in favor of the flavors that take
 `Request` objects because those methods can be extended without breaking
 backwards compatibility.

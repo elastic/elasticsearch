@@ -58,13 +58,13 @@ if (!isEclipse && !isIdea) {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
-  
-  /* Enable this when forbiddenapis was updated to 2.6.
-   * See: https://github.com/elastic/elasticsearch/issues/29292
+
   forbiddenApisJava9 {
-    targetCompatibility = 9
+    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9
+      javaHome = project.java9Home
+    }
   }
-  */
 
   jar {
     metaInf {
@@ -303,21 +303,6 @@ thirdPartyAudit.excludes = [
   'com.google.common.geometry.S2$Metric',
   'com.google.common.geometry.S2LatLng',
 ]
-
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
-          // Used by Log4J 2.11.1
-            'java.io.ObjectInputFilter',
-            'java.io.ObjectInputFilter$Config',
-            'java.io.ObjectInputFilter$FilterInfo',
-            'java.io.ObjectInputFilter$Status',
-          // added in 9
-            'java.lang.ProcessHandle',
-            'java.lang.StackWalker',
-            'java.lang.StackWalker$Option',
-            'java.lang.StackWalker$StackFrame'
-  ]
-}
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']

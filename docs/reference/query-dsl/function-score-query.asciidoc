@@ -208,7 +208,7 @@ not. The number value is of type float.
 [[function-random]]
 ==== Random
 
-The `random_score` generates scores that are uniformly distributed in [0, 1[.
+The `random_score` generates scores that are uniformly distributed in [0, 1].
 By default, it uses the internal Lucene doc ids as a source of randomness,
 which is very efficient but unfortunately not reproducible since documents might
 be renumbered by merges.

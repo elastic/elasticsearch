@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.job.stats.JobStats;
@@ -292,6 +294,60 @@ public final class MachineLearningClient {
      }
 
     /**
+     * Flushes internally buffered data for the given Machine Learning Job ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
+     *
+     * Both flush and close operations are similar,
+     * however the flush is more efficient if you are expecting to send more data for analysis.
+     *
+     * When flushing, the job remains open and is available to continue analyzing data.
+     * A close operation additionally prunes and persists the model state to disk and the
+     * job must be opened again before analyzing further data.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
+     *
+     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+     public FlushJobResponse flushJob(FlushJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::flushJob,
+            options,
+            FlushJobResponse::fromXContent,
+            Collections.emptySet());
+     }
+
+    /**
+     * Flushes internally buffered data for the given Machine Learning Job asynchronously ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
+     *
+     * Both flush and close operations are similar,
+     * however the flush is more efficient if you are expecting to send more data for analysis.
+     *
+     * When flushing, the job remains open and is available to continue analyzing data.
+     * A close operation additionally prunes and persists the model state to disk and the
+     * job must be opened again before analyzing further data.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
+     *
+     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+     public void flushJobAsync(FlushJobRequest request, RequestOptions options, ActionListener<FlushJobResponse> listener) {
+         restHighLevelClient.performRequestAsyncAndParseEntity(request,
+             MLRequestConverters::flushJob,
+             options,
+             FlushJobResponse::fromXContent,
+             listener,
+             Collections.emptySet());
+     }
+
+     /**
      * Gets usage statistics for one or more Machine Learning jobs
      *
      * <p>

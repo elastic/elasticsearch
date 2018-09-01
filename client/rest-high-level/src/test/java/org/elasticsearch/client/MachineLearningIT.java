@@ -39,6 +39,9 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
 
 import java.io.IOException;
@@ -142,6 +145,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::closeJob,
             machineLearningClient::closeJobAsync);
         assertTrue(response.isClosed());
+    }
+
+    public void testFlushJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        FlushJobResponse response = execute(new FlushJobRequest(jobId),
+            machineLearningClient::flushJob,
+            machineLearningClient::flushJobAsync);
+        assertTrue(response.isFlushed());
     }
 
     public void testGetJobStats() throws Exception {

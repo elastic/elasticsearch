@@ -33,6 +33,7 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.ml.FlushJobRequest;
 
 import java.io.IOException;
 
@@ -124,6 +125,19 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request flushJob(FlushJobRequest flushJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(flushJobRequest.getJobId())
+            .addPathPartAsIs("_flush")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(flushJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

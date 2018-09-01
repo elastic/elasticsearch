@@ -981,7 +981,7 @@ public class ScopedSettingsTests extends ESTestCase {
                     final Settings settings = Settings.builder().put("index.internal", "internal").build();
                     indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
                 });
-        final String message = "can not update internal setting [index.private]; this setting is managed by Elasticsearch";
+        final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
         assertThat(e, hasToString(containsString(message)));
     }
 

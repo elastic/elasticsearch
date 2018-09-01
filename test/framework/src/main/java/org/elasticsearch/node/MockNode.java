@@ -67,7 +67,6 @@ import java.util.function.Function;
 public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
-    private final boolean forbidPrivateIndexSettings;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
         this(settings, classpathPlugins, true);
@@ -95,9 +94,8 @@ public class MockNode extends Node {
             final Environment environment,
             final Collection<Class<? extends Plugin>> classpathPlugins,
             final boolean forbidPrivateIndexSettings) {
-        super(environment, classpathPlugins);
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
-        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
@@ -175,11 +173,6 @@ public class MockNode extends Node {
         } else {
             return new MockHttpTransport();
         }
-    }
-
-    @Override
-    boolean forbidPrivateIndexSettings() {
-        return forbidPrivateIndexSettings;
     }
 
 }

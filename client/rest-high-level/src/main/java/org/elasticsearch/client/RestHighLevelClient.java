@@ -455,7 +455,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
+        return performRequestAndParseEntity(getRequest, IndicesRequestConverters::get, options, GetResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -466,7 +466,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void getAsync(GetRequest getRequest, RequestOptions options, ActionListener<GetResponse> listener) {
-        performRequestAsyncAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(getRequest, IndicesRequestConverters::get, options, GetResponse::fromXContent, listener,
                 singleton(404));
     }
 
@@ -556,7 +556,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(indexRequest, IndicesRequestConverters::index, options, IndexResponse::fromXContent,
+            emptySet());
     }
 
     /**
@@ -567,7 +568,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
-        performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(indexRequest, IndicesRequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -604,7 +605,7 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
+        return performRequestAndParseEntity(deleteRequest, IndicesRequestConverters::delete, options, DeleteResponse::fromXContent,
                 singleton(404));
     }
 
@@ -616,7 +617,7 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void deleteAsync(DeleteRequest deleteRequest, RequestOptions options, ActionListener<DeleteResponse> listener) {
-        performRequestAsyncAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(deleteRequest, IndicesRequestConverters::delete, options, DeleteResponse::fromXContent, listener,
             Collections.singleton(404));
     }
 

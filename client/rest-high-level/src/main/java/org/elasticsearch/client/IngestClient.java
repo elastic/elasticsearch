@@ -55,7 +55,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putPipeline(PutPipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::putPipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::putPipeline, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -68,7 +68,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::putPipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -82,7 +82,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetPipelineResponse getPipeline(GetPipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::getPipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::getPipeline, options,
             GetPipelineResponse::fromXContent, emptySet());
     }
 
@@ -95,7 +95,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::getPipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
             GetPipelineResponse::fromXContent, listener, emptySet());
     }
 
@@ -110,7 +110,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deletePipeline(DeletePipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::deletePipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -124,7 +124,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::deletePipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -140,7 +140,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public SimulatePipelineResponse simulate(SimulatePipelineRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity( request, RequestConverters::simulatePipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, emptySet());
     }
 
@@ -157,7 +157,7 @@ public final class IngestClient {
     public void simulateAsync(SimulatePipelineRequest request,
                               RequestOptions options,
                               ActionListener<SimulatePipelineResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, RequestConverters::simulatePipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, listener, emptySet());
     }
 }

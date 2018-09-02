@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -338,26 +337,12 @@ public class ShardChangesIT extends ESIntegTestCase {
             ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
-        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
+        long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
             followRequest.getMaxBatchOperationCount() * 10));
         long minNumDocsReplicated = maxNumDocsReplicated / 3L;
         logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
-        awaitBusy(() -> {
-            SearchRequest request = new SearchRequest("index2");
-            request.source(new SearchSourceBuilder().size(0));
-            SearchResponse response = client().search(request).actionGet();
-            if (response.getHits().getTotalHits() >= minNumDocsReplicated) {
-                try {
-                    internalCluster().stopRandomNonMasterNode();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                return true;
-            } else {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS);
-
+        atLeastDocsIndexed("index2", minNumDocsReplicated);
+        internalCluster().stopRandomNonMasterNode();
         logger.info("waiting for at least [{}] documents to be indexed", maxNumDocsReplicated);
         atLeastDocsIndexed("index2", maxNumDocsReplicated);
         run.set(false);
@@ -548,7 +533,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 }
             }
             assertThat(numNodeTasks, equalTo(0));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {
@@ -660,7 +645,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client().search(request).actionGet();
             return response.getHits().getTotalHits() >= numDocsReplicated;
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertSameDocCount(String index1, String index2) throws Exception {
@@ -674,7 +659,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             request2.source(new SearchSourceBuilder().size(0));
             SearchResponse response2 = client().search(request2).actionGet();
             assertThat(response2.getHits().getTotalHits(), equalTo(response1.getHits().getTotalHits()));
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {

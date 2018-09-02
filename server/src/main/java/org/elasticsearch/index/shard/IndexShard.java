@@ -1314,7 +1314,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog();
+        getEngine().recoverFromTranslog(Long.MAX_VALUE);
     }
 
     /**
@@ -1332,7 +1332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
-        if (Booleans.isTrue(checkIndexOnStartup)) {
+        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -1636,15 +1636,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new translog snapshot for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
-     */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        // TODO: Remove this method after primary-replica resync use soft-deletes
-        return getEngine().newSnapshotFromMinSeqNo(minSeqNo);
-    }
-
-    /**
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
     public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {
@@ -1668,19 +1659,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new "translog" snapshot from Lucene for reading operations whose seqno is between minSeqNo and maxSeqNo.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
+     * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
      *
      * @param source            the source of the request
-     * @param minSeqNo          the min_seqno to read - inclusive
-     * @param maxSeqNo          the max_seqno to read - inclusive
-     * @param requiredFullRange if true then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
-     *                          if any operation between minSeqNo and maxSeqNo is missing. This parameter should be only
-     *                          enabled when the requesting range is below the global checkpoint.
+     * @param fromSeqNo         the from seq_no (inclusive) to read
+     * @param toSeqNo           the to seq_no (inclusive) to read
+     * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
+     *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
+     *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
      */
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, long minSeqNo, long maxSeqNo,
-                                                      boolean requiredFullRange) throws IOException {
-        return getEngine().newLuceneChangesSnapshot(source, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -1965,6 +1955,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
+            } catch (IOException e) {
+                store.markStoreCorrupted(e);
+                throw e;
             } finally {
                 store.decRef();
             }
@@ -2008,18 +2001,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return;
                 }
                 logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                if ("fix".equals(checkIndexOnStartup)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("fixing index, writing new segments file ...");
-                    }
-                    store.exorciseIndex(status);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
-                    }
-                } else {
-                    // only throw a failure if we are not going to fix the index
-                    throw new IllegalStateException("index check failure but can't fix it");
-                }
+                throw new IOException("index check failure");
             }
         }
 

@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
+public class UnfollowIndexAction extends Action<AcknowledgedResponse> {
 
     public static final UnfollowIndexAction INSTANCE = new UnfollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/unfollow_index";
@@ -38,8 +38,8 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends ActionRequest {
@@ -72,31 +72,27 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-
-        Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        Response() {
-        }
-    }
-
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, AcknowledgedResponse> {
 
         private final Client client;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService,
-                               ActionFilters actionFilters, Client client, PersistentTasksService persistentTasksService) {
+        public TransportAction(Settings settings,
+                               TransportService transportService,
+                               ActionFilters actionFilters,
+                               Client client,
+                               PersistentTasksService persistentTasksService) {
             super(settings, NAME, transportService, actionFilters, Request::new);
             this.client = client;
             this.persistentTasksService = persistentTasksService;
         }
 
         @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task,
+                                 Request request,
+                                 ActionListener<AcknowledgedResponse> listener) {
+
             client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
                 IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.followIndex);
                 if (followIndexMetadata == null) {
@@ -140,7 +136,7 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
 
                                 if (error == null) {
                                     // include task ids?
-                                    listener.onResponse(new Response(true));
+                                    listener.onResponse(new AcknowledgedResponse(true));
                                 } else {
                                     // TODO: cancel all started tasks
                                     listener.onFailure(error);

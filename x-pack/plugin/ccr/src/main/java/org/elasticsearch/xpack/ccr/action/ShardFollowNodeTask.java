@@ -30,20 +30,25 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * The node task that fetch the write operations from a leader shard and
@@ -62,6 +67,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
+    private final String leaderIndex;
     private final ShardFollowTask params;
     private final TimeValue retryTimeout;
     private final TimeValue idleShardChangesRequestDelay;
@@ -75,7 +81,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long followerMaxSeqNo = 0;
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
-    private long currentIndexMetadataVersion = 0;
+    private long currentMappingVersion = 0;
     private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
@@ -85,7 +91,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfSuccessfulBulkOperations = 0;
     private long numberOfFailedBulkOperations = 0;
     private long numberOfOperationsIndexed = 0;
+    private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
+    private final LinkedHashMap<Long, ElasticsearchException> fetchExceptions;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -95,6 +103,23 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.relativeTimeProvider = relativeTimeProvider;
         this.retryTimeout = params.getRetryTimeout();
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
+        /*
+         * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
+         * concurrent fetches. For each failed fetch, we track the from sequence number associated with the request, and we clear the entry
+         * when the fetch task associated with that from sequence number succeeds.
+         */
+        this.fetchExceptions = new LinkedHashMap<Long, ElasticsearchException>() {
+            @Override
+            protected boolean removeEldestEntry(final Map.Entry<Long, ElasticsearchException> eldest) {
+                return size() > params.getMaxConcurrentReadBatches();
+            }
+        };
+
+        if (params.getLeaderClusterAlias() != null) {
+            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
+        } else {
+            leaderIndex = params.getLeaderShardId().getIndexName();
+        }
     }
 
     void start(
@@ -114,14 +139,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
         }
 
-        // Forcefully updates follower mapping, this gets us the leader imd version and
-        // makes sure that leader and follower mapping are identical.
-        updateMapping(imdVersion -> {
+        // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
+        updateMapping(mappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentIndexMetadataVersion = imdVersion;
+                currentMappingVersion = mappingVersion;
             }
-            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, indexMetaDataVersion={}",
-                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, imdVersion);
+            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, mappingVersion={}",
+                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, mappingVersion);
             coordinateReads();
         });
     }
@@ -219,11 +243,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void sendShardChangesRequest(long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
         final long startTime = relativeTimeProvider.getAsLong();
+        synchronized (this) {
+            lastFetchTime = startTime;
+        }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
                     synchronized (ShardFollowNodeTask.this) {
                         totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfSuccessfulFetches++;
+                        fetchExceptions.remove(from);
                         operationsReceived += response.getOperations().length;
                         totalTransferredBytes += Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                     }
@@ -233,13 +261,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     synchronized (ShardFollowNodeTask.this) {
                         totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedFetches++;
+                        fetchExceptions.put(from, new ElasticsearchException(e));
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(response.getIndexMetadataVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
+        maybeUpdateMapping(response.getMappingVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response));
     }
 
     /** Called when some operations are fetched from the leading */
@@ -325,16 +354,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         coordinateReads();
     }
 
-    private synchronized void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {
-        if (currentIndexMetadataVersion >= minimumRequiredIndexMetadataVersion) {
-            LOGGER.trace("{} index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
-                params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
+    private synchronized void maybeUpdateMapping(Long minimumRequiredMappingVersion, Runnable task) {
+        if (currentMappingVersion >= minimumRequiredMappingVersion) {
+            LOGGER.trace("{} mapping version [{}] is higher or equal than minimum required mapping version [{}]",
+                params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
             task.run();
         } else {
-            LOGGER.trace("{} updating mapping, index metadata version [{}] is lower than minimum required index metadata version [{}]",
-                params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
-            updateMapping(imdVersion -> {
-                currentIndexMetadataVersion = imdVersion;
+            LOGGER.trace("{} updating mapping, mapping version [{}] is lower than minimum required mapping version [{}]",
+                params.getFollowShardId(), currentMappingVersion, minimumRequiredMappingVersion);
+            updateMapping(mappingVersion -> {
+                currentMappingVersion = mappingVersion;
                 task.run();
             });
         }
@@ -393,7 +422,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public synchronized Status getStatus() {
+        final long timeSinceLastFetchMillis;
+        if (lastFetchTime != -1) {
+             timeSinceLastFetchMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - lastFetchTime);
+        } else {
+            // To avoid confusion when ccr didn't yet execute a fetch:
+            timeSinceLastFetchMillis = -1;
+        }
         return new Status(
+                leaderIndex,
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
                 leaderMaxSeqNo,
@@ -403,7 +440,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentReads,
                 numConcurrentWrites,
                 buffer.size(),
-                currentIndexMetadataVersion,
+                currentMappingVersion,
                 totalFetchTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
@@ -412,13 +449,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 totalIndexTimeMillis,
                 numberOfSuccessfulBulkOperations,
                 numberOfFailedBulkOperations,
-                numberOfOperationsIndexed);
+                numberOfOperationsIndexed,
+                new TreeMap<>(fetchExceptions),
+                timeSinceLastFetchMillis);
     }
 
     public static class Status implements Task.Status {
 
-        public static final String NAME = "shard-follow-node-task-status";
+        public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
 
+        static final ParseField LEADER_INDEX = new ParseField("leader_index");
         static final ParseField SHARD_ID = new ParseField("shard_id");
         static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
         static final ParseField LEADER_MAX_SEQ_NO_FIELD = new ParseField("leader_max_seq_no");
@@ -428,7 +468,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
         static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
-        static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
+        static final ParseField MAPPING_VERSION_FIELD = new ParseField("mapping_version");
         static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
         static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
         static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
@@ -438,19 +478,22 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD = new ParseField("number_of_successful_bulk_operations");
         static final ParseField NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD = new ParseField("number_of_failed_bulk_operations");
         static final ParseField NUMBER_OF_OPERATIONS_INDEXED_FIELD = new ParseField("number_of_operations_indexed");
+        static final ParseField FETCH_EXCEPTIONS = new ParseField("fetch_exceptions");
+        static final ParseField TIME_SINCE_LAST_FETCH_MILLIS_FIELD = new ParseField("time_since_last_fetch_millis");
 
-        static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
+        @SuppressWarnings("unchecked")
+        static final ConstructingObjectParser<Status, Void> STATUS_PARSER = new ConstructingObjectParser<>(STATUS_PARSER_NAME,
             args -> new Status(
-                    (int) args[0],
-                    (long) args[1],
+                    (String) args[0],
+                    (int) args[1],
                     (long) args[2],
                     (long) args[3],
                     (long) args[4],
                     (long) args[5],
-                    (int) args[6],
+                    (long) args[6],
                     (int) args[7],
                     (int) args[8],
-                    (long) args[9],
+                    (int) args[9],
                     (long) args[10],
                     (long) args[11],
                     (long) args[12],
@@ -459,28 +502,61 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     (long) args[15],
                     (long) args[16],
                     (long) args[17],
-                    (long) args[18]));
+                    (long) args[18],
+                    (long) args[19],
+                    new TreeMap<>(
+                            ((List<Map.Entry<Long, ElasticsearchException>>) args[20])
+                                    .stream()
+                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                    (long) args[21]));
+
+        public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
+
+        static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> FETCH_EXCEPTIONS_ENTRY_PARSER =
+                new ConstructingObjectParser<>(
+                        FETCH_EXCEPTIONS_ENTRY_PARSER_NAME,
+                        args -> new AbstractMap.SimpleEntry<>((long) args[0], (ElasticsearchException) args[1]));
 
         static {
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_MAX_SEQ_NO_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAX_SEQ_NO_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQ_NO_FIELD);
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_METADATA_VERSION_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_TRANSFERRED_BYTES);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_INDEX_TIME_MILLIS_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
+            STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
+            STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), SHARD_ID);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_MAX_SEQ_NO_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAX_SEQ_NO_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQ_NO_FIELD);
+            STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
+            STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
+            STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAPPING_VERSION_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_TRANSFERRED_BYTES);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_INDEX_TIME_MILLIS_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_OPERATIONS_INDEXED_FIELD);
+            STATUS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_PARSER, FETCH_EXCEPTIONS);
+            STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_FETCH_MILLIS_FIELD);
+        }
+
+        static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
+        static final ParseField FETCH_EXCEPTIONS_ENTRY_EXCEPTION = new ParseField("exception");
+
+        static {
+            FETCH_EXCEPTIONS_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO);
+            FETCH_EXCEPTIONS_ENTRY_PARSER.declareObject(
+                    ConstructingObjectParser.constructorArg(),
+                    (p, c) -> ElasticsearchException.fromXContent(p),
+                    FETCH_EXCEPTIONS_ENTRY_EXCEPTION);
+        }
+
+        private final String leaderIndex;
+
+        public String leaderIndex() {
+            return leaderIndex;
         }
 
         private final int shardId;
@@ -537,10 +613,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return numberOfQueuedWrites;
         }
 
-        private final long indexMetadataVersion;
+        private final long mappingVersion;
 
-        public long indexMetadataVersion() {
-            return indexMetadataVersion;
+        public long mappingVersion() {
+            return mappingVersion;
         }
 
         private final long totalFetchTimeMillis;
@@ -597,7 +673,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return numberOfOperationsIndexed;
         }
 
+        private final NavigableMap<Long, ElasticsearchException> fetchExceptions;
+
+        public NavigableMap<Long, ElasticsearchException> fetchExceptions() {
+            return fetchExceptions;
+        }
+
+        private final long timeSinceLastFetchMillis;
+
+        public long timeSinceLastFetchMillis() {
+            return timeSinceLastFetchMillis;
+        }
+
         Status(
+                final String leaderIndex,
                 final int shardId,
                 final long leaderGlobalCheckpoint,
                 final long leaderMaxSeqNo,
@@ -607,7 +696,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final int numberOfConcurrentReads,
                 final int numberOfConcurrentWrites,
                 final int numberOfQueuedWrites,
-                final long indexMetadataVersion,
+                final long mappingVersion,
                 final long totalFetchTimeMillis,
                 final long numberOfSuccessfulFetches,
                 final long numberOfFailedFetches,
@@ -616,7 +705,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 final long totalIndexTimeMillis,
                 final long numberOfSuccessfulBulkOperations,
                 final long numberOfFailedBulkOperations,
-                final long numberOfOperationsIndexed) {
+                final long numberOfOperationsIndexed,
+                final NavigableMap<Long, ElasticsearchException> fetchExceptions,
+                final long timeSinceLastFetchMillis) {
+            this.leaderIndex = leaderIndex;
             this.shardId = shardId;
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.leaderMaxSeqNo = leaderMaxSeqNo;
@@ -626,7 +718,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentReads = numberOfConcurrentReads;
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
             this.numberOfQueuedWrites = numberOfQueuedWrites;
-            this.indexMetadataVersion = indexMetadataVersion;
+            this.mappingVersion = mappingVersion;
             this.totalFetchTimeMillis = totalFetchTimeMillis;
             this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
             this.numberOfFailedFetches = numberOfFailedFetches;
@@ -636,9 +728,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfSuccessfulBulkOperations = numberOfSuccessfulBulkOperations;
             this.numberOfFailedBulkOperations = numberOfFailedBulkOperations;
             this.numberOfOperationsIndexed = numberOfOperationsIndexed;
+            this.fetchExceptions = Objects.requireNonNull(fetchExceptions);
+            this.timeSinceLastFetchMillis = timeSinceLastFetchMillis;
         }
 
         public Status(final StreamInput in) throws IOException {
+            this.leaderIndex = in.readString();
             this.shardId = in.readVInt();
             this.leaderGlobalCheckpoint = in.readZLong();
             this.leaderMaxSeqNo = in.readZLong();
@@ -648,7 +743,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfConcurrentReads = in.readVInt();
             this.numberOfConcurrentWrites = in.readVInt();
             this.numberOfQueuedWrites = in.readVInt();
-            this.indexMetadataVersion = in.readVLong();
+            this.mappingVersion = in.readVLong();
             this.totalFetchTimeMillis = in.readVLong();
             this.numberOfSuccessfulFetches = in.readVLong();
             this.numberOfFailedFetches = in.readVLong();
@@ -658,15 +753,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.numberOfSuccessfulBulkOperations = in.readVLong();
             this.numberOfFailedBulkOperations = in.readVLong();
             this.numberOfOperationsIndexed = in.readVLong();
+            this.fetchExceptions = new TreeMap<>(in.readMap(StreamInput::readVLong, StreamInput::readException));
+            this.timeSinceLastFetchMillis = in.readZLong();
         }
 
         @Override
         public String getWriteableName() {
-            return NAME;
+            return STATUS_PARSER_NAME;
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
+            out.writeString(leaderIndex);
             out.writeVInt(shardId);
             out.writeZLong(leaderGlobalCheckpoint);
             out.writeZLong(leaderMaxSeqNo);
@@ -676,7 +774,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
             out.writeVInt(numberOfQueuedWrites);
-            out.writeVLong(indexMetadataVersion);
+            out.writeVLong(mappingVersion);
             out.writeVLong(totalFetchTimeMillis);
             out.writeVLong(numberOfSuccessfulFetches);
             out.writeVLong(numberOfFailedFetches);
@@ -686,12 +784,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeVLong(numberOfSuccessfulBulkOperations);
             out.writeVLong(numberOfFailedBulkOperations);
             out.writeVLong(numberOfOperationsIndexed);
+            out.writeMap(fetchExceptions, StreamOutput::writeVLong, StreamOutput::writeException);
+            out.writeZLong(timeSinceLastFetchMillis);
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
+                builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
                 builder.field(SHARD_ID.getPreferredName(), shardId);
                 builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
                 builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
@@ -701,7 +802,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
                 builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
-                builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
+                builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
                 builder.humanReadableField(
                         TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
                         "total_fetch_time",
@@ -720,13 +821,34 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
                 builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
                 builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
+                builder.startArray(FETCH_EXCEPTIONS.getPreferredName());
+                {
+                    for (final Map.Entry<Long, ElasticsearchException> entry : fetchExceptions.entrySet()) {
+                        builder.startObject();
+                        {
+                            builder.field(FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO.getPreferredName(), entry.getKey());
+                            builder.field(FETCH_EXCEPTIONS_ENTRY_EXCEPTION.getPreferredName());
+                            builder.startObject();
+                            {
+                                ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                }
+                builder.endArray();
+                builder.humanReadableField(
+                        TIME_SINCE_LAST_FETCH_MILLIS_FIELD.getPreferredName(),
+                        "time_since_last_fetch",
+                        new TimeValue(timeSinceLastFetchMillis, TimeUnit.MILLISECONDS));
             }
             builder.endObject();
             return builder;
         }
 
         public static Status fromXContent(final XContentParser parser) {
-            return PARSER.apply(parser, null);
+            return STATUS_PARSER.apply(parser, null);
         }
 
         @Override
@@ -734,7 +856,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Status that = (Status) o;
-            return shardId == that.shardId &&
+            return leaderIndex.equals(that.leaderIndex) &&
+                    shardId == that.shardId &&
                     leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
                     leaderMaxSeqNo == that.leaderMaxSeqNo &&
                     followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
@@ -743,19 +866,29 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentReads == that.numberOfConcurrentReads &&
                     numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
                     numberOfQueuedWrites == that.numberOfQueuedWrites &&
-                    indexMetadataVersion == that.indexMetadataVersion &&
+                    mappingVersion == that.mappingVersion &&
                     totalFetchTimeMillis == that.totalFetchTimeMillis &&
                     numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
                     numberOfFailedFetches == that.numberOfFailedFetches &&
                     operationsReceived == that.operationsReceived &&
                     totalTransferredBytes == that.totalTransferredBytes &&
                     numberOfSuccessfulBulkOperations == that.numberOfSuccessfulBulkOperations &&
-                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations;
+                    numberOfFailedBulkOperations == that.numberOfFailedBulkOperations &&
+                    numberOfOperationsIndexed == that.numberOfOperationsIndexed &&
+                    /*
+                     * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
+                     * up to the key set and their messages.  Note that we are relying on the fact that the fetch exceptions are ordered by
+                     * keys.
+                     */
+                    fetchExceptions.keySet().equals(that.fetchExceptions.keySet()) &&
+                    getFetchExceptionMessages(this).equals(getFetchExceptionMessages(that)) &&
+                    timeSinceLastFetchMillis == that.timeSinceLastFetchMillis;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
+                    leaderIndex,
                     shardId,
                     leaderGlobalCheckpoint,
                     leaderMaxSeqNo,
@@ -765,15 +898,26 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     numberOfConcurrentReads,
                     numberOfConcurrentWrites,
                     numberOfQueuedWrites,
-                    indexMetadataVersion,
+                    mappingVersion,
                     totalFetchTimeMillis,
                     numberOfSuccessfulFetches,
                     numberOfFailedFetches,
                     operationsReceived,
                     totalTransferredBytes,
                     numberOfSuccessfulBulkOperations,
-                    numberOfFailedBulkOperations);
+                    numberOfFailedBulkOperations,
+                    numberOfOperationsIndexed,
+                    /*
+                     * ElasticsearchException does not implement hash code so we will compute the hash code based on the key set and the
+                     * messages. Note that we are relying on the fact that the fetch exceptions are ordered by keys.
+                     */
+                    fetchExceptions.keySet(),
+                    getFetchExceptionMessages(this),
+                    timeSinceLastFetchMillis);
+        }
 
+        private static List<String> getFetchExceptionMessages(final Status status) {
+            return status.fetchExceptions().values().stream().map(ElasticsearchException::getMessage).collect(Collectors.toList());
         }
 
         public String toString() {

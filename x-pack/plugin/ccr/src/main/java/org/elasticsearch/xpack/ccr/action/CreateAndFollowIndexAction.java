@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
@@ -11,7 +12,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -36,10 +36,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -185,16 +187,25 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         private final AllocationService allocationService;
         private final RemoteClusterService remoteClusterService;
         private final ActiveShardsObserver activeShardsObserver;
+        private final CcrLicenseChecker ccrLicenseChecker;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                               AllocationService allocationService) {
+        public TransportAction(
+                final Settings settings,
+                final ThreadPool threadPool,
+                final TransportService transportService,
+                final ClusterService clusterService,
+                final ActionFilters actionFilters,
+                final IndexNameExpressionResolver indexNameExpressionResolver,
+                final Client client,
+                final AllocationService allocationService,
+                final CcrLicenseChecker ccrLicenseChecker) {
             super(settings, NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.allocationService = allocationService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+            this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         }
 
         @Override
@@ -208,35 +219,48 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-            Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-            if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                // Following an index in local cluster, so use local cluster state to fetch leader IndexMetaData:
-                IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getFollowRequest().getLeaderIndex());
-                createFollowIndex(leaderIndexMetadata, request, listener);
+        protected void masterOperation(
+                final Request request, final ClusterState state, final ActionListener<Response> listener) throws Exception {
+            if (ccrLicenseChecker.isCcrAllowed()) {
+                final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
+                final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+                if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    createFollowerIndexAndFollowLocalIndex(request, state, listener);
+                } else {
+                    assert remoteClusterIndices.size() == 1;
+                    final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
+                    assert entry.getValue().size() == 1;
+                    final String clusterAlias = entry.getKey();
+                    final String leaderIndex = entry.getValue().get(0);
+                    createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
+                }
             } else {
-                // Following an index in remote cluster, so use remote client to fetch leader IndexMetaData:
-                assert remoteClusterIndices.size() == 1;
-                Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-                assert entry.getValue().size() == 1;
-                String clusterNameAlias = entry.getKey();
-                String leaderIndex = entry.getValue().get(0);
-
-                Client remoteClient = client.getRemoteClusterClient(clusterNameAlias);
-                ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-                clusterStateRequest.clear();
-                clusterStateRequest.metaData(true);
-                clusterStateRequest.indices(leaderIndex);
-                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(r -> {
-                    ClusterState remoteClusterState = r.getState();
-                    IndexMetaData leaderIndexMetadata = remoteClusterState.getMetaData().index(leaderIndex);
-                    createFollowIndex(leaderIndexMetadata, request, listener);
-                }, listener::onFailure));
+                listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             }
         }
 
-        private void createFollowIndex(IndexMetaData leaderIndexMetaData, Request request, ActionListener<Response> listener) {
+        private void createFollowerIndexAndFollowLocalIndex(
+                final Request request, final ClusterState state, final ActionListener<Response> listener) {
+            // following an index in local cluster, so use local cluster state to fetch leader index metadata
+            final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getFollowRequest().getLeaderIndex());
+            createFollowerIndex(leaderIndexMetadata, request, listener);
+        }
+
+        private void createFollowerIndexAndFollowRemoteIndex(
+                final Request request,
+                final String clusterAlias,
+                final String leaderIndex,
+                final ActionListener<Response> listener) {
+            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+                    client,
+                    clusterAlias,
+                    leaderIndex,
+                    listener,
+                    leaderIndexMetaData -> createFollowerIndex(leaderIndexMetaData, request, listener));
+        }
+
+        private void createFollowerIndex(
+                final IndexMetaData leaderIndexMetaData, final Request request, final ActionListener<Response> listener) {
             if (leaderIndexMetaData == null) {
                 listener.onFailure(new IllegalArgumentException("leader index [" + request.getFollowRequest().getLeaderIndex() +
                     "] does not exist"));

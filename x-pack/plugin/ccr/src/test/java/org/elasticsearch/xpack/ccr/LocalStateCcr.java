@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.settings.Settings;
@@ -15,14 +16,16 @@ public class LocalStateCcr extends LocalStateCompositeXPackPlugin {
 
     public LocalStateCcr(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        LocalStateCcr thisVar = this;
 
-        plugins.add(new Ccr(settings){
+        plugins.add(new Ccr(settings, new CcrLicenseChecker(() -> true)) {
+
             @Override
             protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
+                return LocalStateCcr.this.getLicenseState();
             }
+
         });
     }
+
 }
 

@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
 }
 
@@ -14,6 +14,7 @@ task leaderClusterTest(type: RestIntegTestTask) {
 leaderClusterTestCluster {
     numNodes = 1
     clusterName = 'leader-cluster'
+    setting 'xpack.license.self_generated.type', 'trial'
 }
 
 leaderClusterTestRunner {
@@ -26,6 +27,7 @@ followClusterTestCluster {
     dependsOn leaderClusterTestRunner
     numNodes = 1
     clusterName = 'follow-cluster'
+    setting 'xpack.license.self_generated.type', 'trial'
     setting 'search.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
 }
 
@@ -35,4 +37,5 @@ followClusterTestRunner {
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
+check.dependsOn followClusterTest
 test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

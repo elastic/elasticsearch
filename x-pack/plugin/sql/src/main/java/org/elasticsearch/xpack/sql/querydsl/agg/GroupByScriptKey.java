@@ -36,7 +36,8 @@ public class GroupByScriptKey extends GroupByKey {
     public TermsValuesSourceBuilder asValueSource() {
         TermsValuesSourceBuilder builder = new TermsValuesSourceBuilder(id())
                 .script(script.toPainless())
-                .order(direction().asOrder());
+                .order(direction().asOrder())
+                .missingBucket(true);
 
         if (script.outputType().isNumeric()) {
             builder.valueType(ValueType.NUMBER);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -20,8 +21,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -29,6 +32,8 @@ import java.util.function.LongConsumer;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -39,11 +44,17 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private List<List<Translog.Operation>> bulkShardOperationRequests;
     private BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> task.run();
 
+    private Consumer<ShardFollowNodeTask.Status> beforeSendShardChangesRequest = status -> {};
+
+    private AtomicBoolean simulateResponse = new AtomicBoolean();
+
     private Queue<Exception> readFailures;
     private Queue<Exception> writeFailures;
     private Queue<Exception> mappingUpdateFailures;
-    private Queue<Long> imdVersions;
+    private Queue<Long> mappingVersions;
+    private Queue<Long> leaderGlobalCheckpoints;
     private Queue<Long> followerGlobalCheckpoints;
+    private Queue<Long> maxSeqNos;
 
     public void testCoordinateReads() {
         ShardFollowNodeTask task = createShardFollowTask(8, between(8, 20), between(1, 20), Integer.MAX_VALUE, Long.MAX_VALUE);
@@ -169,6 +180,27 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
+        mappingVersions.add(1L);
+        leaderGlobalCheckpoints.add(63L);
+        maxSeqNos.add(63L);
+        simulateResponse.set(true);
+        final AtomicLong retryCounter = new AtomicLong();
+        // before each retry, we assert the fetch failures; after the last retry, the fetch failure should clear
+        beforeSendShardChangesRequest = status -> {
+            assertThat(status.numberOfFailedFetches(), equalTo(retryCounter.get()));
+            if (retryCounter.get() > 0) {
+                assertThat(status.fetchExceptions().entrySet(), hasSize(1));
+                final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+                assertThat(entry.getKey(), equalTo(0L));
+                assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
+                assertNotNull(entry.getValue().getCause());
+                assertThat(entry.getValue().getCause(), instanceOf(ShardNotFoundException.class));
+                final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().getCause();
+                assertThat(cause.getShardId().getIndexName(), equalTo("leader_index"));
+                assertThat(cause.getShardId().getId(), equalTo(0));
+            }
+            retryCounter.incrementAndGet();
+        };
         task.coordinateReads();
 
         // NUmber of requests is equal to initial request + retried attempts
@@ -178,10 +210,14 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             assertThat(shardChangesRequest[1], equalTo(64L));
         }
 
-        assertThat(task.isStopped(), equalTo(false));
+        assertFalse("task is not stopped", task.isStopped());
         ShardFollowNodeTask.Status status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+        assertThat(status.numberOfFailedFetches(), equalTo((long)max));
+        assertThat(status.numberOfSuccessfulFetches(), equalTo(1L));
+        // the fetch failure has cleared
+        assertThat(status.fetchExceptions().entrySet(), hasSize(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
@@ -194,6 +230,23 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
         }
+        final AtomicLong retryCounter = new AtomicLong();
+        // before each retry, we assert the fetch failures; after the last retry, the fetch failure should persist
+        beforeSendShardChangesRequest = status -> {
+            assertThat(status.numberOfFailedFetches(), equalTo(retryCounter.get()));
+            if (retryCounter.get() > 0) {
+                assertThat(status.fetchExceptions().entrySet(), hasSize(1));
+                final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+                assertThat(entry.getKey(), equalTo(0L));
+                assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
+                assertNotNull(entry.getValue().getCause());
+                assertThat(entry.getValue().getCause(), instanceOf(ShardNotFoundException.class));
+                final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().getCause();
+                assertThat(cause.getShardId().getIndexName(), equalTo("leader_index"));
+                assertThat(cause.getShardId().getId(), equalTo(0));
+            }
+            retryCounter.incrementAndGet();
+        };
         task.coordinateReads();
 
         assertThat(shardChangesRequests.size(), equalTo(11));
@@ -202,12 +255,22 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             assertThat(shardChangesRequest[1], equalTo(64L));
         }
 
-        assertThat(task.isStopped(), equalTo(true));
+        assertTrue("task is stopped", task.isStopped());
         assertThat(fatalError, notNullValue());
         assertThat(fatalError.getMessage(), containsString("retrying failed ["));
         ShardFollowNodeTask.Status status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+        assertThat(status.numberOfFailedFetches(), equalTo(11L));
+        assertThat(status.fetchExceptions().entrySet(), hasSize(1));
+        final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+        assertThat(entry.getKey(), equalTo(0L));
+        assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
+        assertNotNull(entry.getValue().getCause());
+        assertThat(entry.getValue().getCause(), instanceOf(ShardNotFoundException.class));
+        final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().getCause();
+        assertThat(cause.getShardId().getIndexName(), equalTo("leader_index"));
+        assertThat(cause.getShardId().getId(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
@@ -216,19 +279,38 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
         startTask(task, 63, -1);
 
-        Exception failure = new RuntimeException();
+        Exception failure = new RuntimeException("replication failed");
         readFailures.add(failure);
+        final AtomicBoolean invoked = new AtomicBoolean();
+        // since there will be only one failure, this should only be invoked once and there should not be a fetch failure
+        beforeSendShardChangesRequest = status -> {
+            if (invoked.compareAndSet(false, true)) {
+                assertThat(status.numberOfFailedFetches(), equalTo(0L));
+                assertThat(status.fetchExceptions().entrySet(), hasSize(0));
+            } else {
+                fail("invoked twice");
+            }
+        };
         task.coordinateReads();
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        assertThat(task.isStopped(), equalTo(true));
+        assertTrue("task is stopped", task.isStopped());
         assertThat(fatalError, sameInstance(failure));
         ShardFollowNodeTask.Status status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+        assertThat(status.numberOfFailedFetches(), equalTo(1L));
+        assertThat(status.fetchExceptions().entrySet(), hasSize(1));
+        final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+        assertThat(entry.getKey(), equalTo(0L));
+        assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
+        assertNotNull(entry.getValue().getCause());
+        assertThat(entry.getValue().getCause(), instanceOf(RuntimeException.class));
+        final RuntimeException cause = (RuntimeException) entry.getValue().getCause();
+        assertThat(cause.getMessage(), equalTo("replication failed"));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
@@ -245,7 +327,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
@@ -351,7 +433,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTask task = createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
         startTask(task, 63, -1);
 
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
@@ -360,7 +442,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(1L));
+        assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -376,7 +458,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             mappingUpdateFailures.add(new ConnectException());
         }
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 1L, 63L);
         task.handleReadResponse(0L, 63L, response);
@@ -385,7 +467,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(task.isStopped(), equalTo(false));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(1L));
+        assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -401,17 +483,17 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         for (int i = 0; i < max; i++) {
             mappingUpdateFailures.add(new ConnectException());
         }
-        imdVersions.add(1L);
+        mappingVersions.add(1L);
         task.coordinateReads();
         ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 1L, 64L);
         task.handleReadResponse(0L, 64L, response);
 
         assertThat(mappingUpdateFailures.size(), equalTo(max - 11));
-        assertThat(imdVersions.size(), equalTo(1));
+        assertThat(mappingVersions.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
         assertThat(task.isStopped(), equalTo(true));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -430,7 +512,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
         assertThat(task.isStopped(), equalTo(true));
         ShardFollowNodeTask.Status status = task.getStatus();
-        assertThat(status.indexMetadataVersion(), equalTo(0L));
+        assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -641,8 +723,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         readFailures = new LinkedList<>();
         writeFailures = new LinkedList<>();
         mappingUpdateFailures = new LinkedList<>();
-        imdVersions = new LinkedList<>();
+        mappingVersions = new LinkedList<>();
+        leaderGlobalCheckpoints = new LinkedList<>();
         followerGlobalCheckpoints = new LinkedList<>();
+        maxSeqNos = new LinkedList<>();
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
 
@@ -654,9 +738,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     return;
                 }
 
-                Long imdVersion = imdVersions.poll();
-                if (imdVersion != null) {
-                    handler.accept(imdVersion);
+                final Long mappingVersion = mappingVersions.poll();
+                if (mappingVersion != null) {
+                    handler.accept(mappingVersion);
                 }
             }
 
@@ -683,10 +767,23 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected void innerSendShardChangesRequest(long from, int requestBatchSize, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
+                beforeSendShardChangesRequest.accept(getStatus());
                 shardChangesRequests.add(new long[]{from, requestBatchSize});
                 Exception readFailure = ShardFollowNodeTaskTests.this.readFailures.poll();
                 if (readFailure != null) {
                     errorHandler.accept(readFailure);
+                } else if (simulateResponse.get()) {
+                    final Translog.Operation[] operations = new Translog.Operation[requestBatchSize];
+                    for (int i = 0; i < requestBatchSize; i++) {
+                        operations[i] = new Translog.NoOp(from + i, 0, "test");
+                    }
+                    final ShardChangesAction.Response response =
+                            new ShardChangesAction.Response(
+                                    mappingVersions.poll(),
+                                    leaderGlobalCheckpoints.poll(),
+                                    maxSeqNos.poll(),
+                                    operations);
+                    handler.accept(response);
                 }
             }
 
@@ -708,7 +805,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         };
     }
 
-    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, long toSeqNo, long imdVersion,
+    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo, long toSeqNo, long mappingVersion,
                                                                             long leaderGlobalCheckPoint) {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
@@ -717,7 +814,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             ops.add(new Translog.Index("doc", id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
-                imdVersion, leaderGlobalCheckPoint, leaderGlobalCheckPoint, ops.toArray(new Translog.Operation[0]));
+                mappingVersion, leaderGlobalCheckPoint, leaderGlobalCheckPoint, ops.toArray(new Translog.Operation[0]));
     }
 
     void startTask(ShardFollowNodeTask task, long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {

@@ -38,8 +38,8 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -62,7 +62,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     private final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private TransportConnectionListener listener;
+    private TransportMessageListener listener;
 
     private boolean connectMode = true;
 
@@ -223,13 +223,15 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         return requestHandlers.get(action);
     }
 
+
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
+    public void addMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
+    public boolean removeMessageListener(TransportMessageListener listener) {
         throw new UnsupportedOperationException();
     }
+
 }

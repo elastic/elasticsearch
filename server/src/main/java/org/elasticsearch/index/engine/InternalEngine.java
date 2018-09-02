@@ -149,7 +149,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
-    private final NumericDocValuesField softDeleteField = Lucene.newSoftDeleteField();
+    private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final boolean softDeleteEnabled;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
@@ -393,7 +393,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog() throws IOException {
+    public InternalEngine recoverFromTranslog(long recoverUpToSeqNo) throws IOException {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -401,7 +401,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal();
+                recoverFromTranslogInternal(recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -423,11 +423,12 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal() throws IOException {
+    private void recoverFromTranslogInternal(long recoverUpToSeqNo) throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
-        final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(translogGen)) {
+        final long translogFileGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
+            new Translog.TranslogGeneration(translog.getTranslogUUID(), translogFileGen), recoverUpToSeqNo)) {
             opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
@@ -479,11 +480,6 @@ public class InternalEngine extends Engine {
         revisitIndexDeletionPolicyOnTranslogSynced();
     }
 
-    @Override
-    public Translog.Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
-    }
-
     /**
      * Creates a new history snapshot for reading operations since the provided seqno.
      * The returned snapshot can be retrieved from either Lucene index or translog files.
@@ -491,7 +487,7 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
+            return newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
         } else {
             return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
         }
@@ -503,12 +499,8 @@ public class InternalEngine extends Engine {
     @Override
     public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            try (Translog.Snapshot snapshot =
-                     newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false)) {
                 return snapshot.totalOperations();
-            } catch (IOException ex) {
-                maybeFailEngine(source, ex);
-                throw ex;
             }
         } else {
             return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
@@ -528,6 +520,7 @@ public class InternalEngine extends Engine {
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
         if (combinedDeletionPolicy.hasUnreferencedCommits()) {
             indexWriter.deleteUnusedFiles();
+            translog.trimUnreferencedReaders();
         }
     }
 
@@ -847,9 +840,9 @@ public class InternalEngine extends Engine {
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        // if we have document failure, record it as a no-op in the translog with the generated seq_no
+                        // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
                         final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
-                            index.startTime(), indexResult.getFailure().getMessage());
+                            index.startTime(), indexResult.getFailure().toString());
                         location = innerNoOp(noOp).getTranslogLocation();
                     } else {
                         location = null;
@@ -1053,7 +1046,9 @@ public class InternalEngine extends Engine {
 
     private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
-        docs.forEach(d -> d.add(softDeleteField));
+        for (ParseContext.Document doc : docs) {
+            doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
+        }
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
@@ -1146,9 +1141,9 @@ public class InternalEngine extends Engine {
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (softDeleteEnabled) {
             if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, softDeleteField);
+                indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
             } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), softDeleteField);
+                indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
             }
         } else {
             if (docs.size() > 1) {
@@ -1185,8 +1180,10 @@ public class InternalEngine extends Engine {
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
-                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                    // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                    final NoOp noOp = new NoOp(deleteResult.getSeqNo(), delete.primaryTerm(), delete.origin(),
+                        delete.startTime(), deleteResult.getFailure().toString());
+                    location = innerNoOp(noOp).getTranslogLocation();
                 } else {
                     location = null;
                 }
@@ -1291,11 +1288,11 @@ public class InternalEngine extends Engine {
                 final ParseContext.Document doc = tombstone.docs().get(0);
                 assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
                     "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
-                doc.add(softDeleteField);
+                doc.add(softDeletesField);
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
                 } else {
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeleteField);
+                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
                 }
             } else if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there
@@ -1406,7 +1403,7 @@ public class InternalEngine extends Engine {
                     final ParseContext.Document doc = tombstone.docs().get(0);
                     assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                         : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
-                    doc.add(softDeleteField);
+                    doc.add(softDeletesField);
                     indexWriter.addDocument(doc);
                 } catch (Exception ex) {
                     if (maybeFailEngine("noop", ex)) {
@@ -1440,6 +1437,7 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
+        final long localCheckpointBeforeRefresh = getLocalCheckpoint();
 
         // this will also cause version map ram to be freed hence we always account for it.
         final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
@@ -1465,6 +1463,7 @@ public class InternalEngine extends Engine {
                 } finally {
                     store.decRef();
                 }
+                lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1479,7 +1478,8 @@ public class InternalEngine extends Engine {
         }  finally {
             writingBytes.addAndGet(-bytes);
         }
-
+        assert lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
+            "local_checkpoint=" + localCheckpointBeforeRefresh + " refresh_checkpoint=" + lastRefreshedCheckpoint();
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
@@ -1869,6 +1869,8 @@ public class InternalEngine extends Engine {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
             ensureOpen();
+            // Here we don't have to trim translog because snapshotting an index commit
+            // does not lock translog or prevents unreferenced files from trimming.
             indexWriter.deleteUnusedFiles();
         }
     }
@@ -2083,9 +2085,9 @@ public class InternalEngine extends Engine {
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
-            iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
+            iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
             mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
-                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy));
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy));
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -2438,19 +2440,26 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
-                                                      long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
-        if (lastRefreshedCheckpoint() < maxSeqNo) {
+        if (lastRefreshedCheckpoint() < toSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, minSeqNo, maxSeqNo, requiredFullRange);
+                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("acquire changes snapshot", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         } finally {
             IOUtils.close(searcher);
         }
@@ -2486,9 +2495,11 @@ public class InternalEngine extends Engine {
 
     @Override
     public Closeable acquireRetentionLockForPeerRecovery() {
-        final Closeable translogLock = translog.acquireRetentionLock();
-        final Releasable softDeletesLock = softDeletesPolicy.acquireRetentionLock();
-        return () -> IOUtils.close(translogLock, softDeletesLock);
+        if (softDeleteEnabled) {
+            return softDeletesPolicy.acquireRetentionLock();
+        } else {
+            return translog.acquireRetentionLock();
+        }
     }
 
     @Override
@@ -2544,21 +2555,31 @@ public class InternalEngine extends Engine {
     final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
+
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
         private long pendingCheckpoint;
+
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
         }
+
         @Override
         public void beforeRefresh() {
-            pendingCheckpoint = localCheckpointTracker.getCheckpoint(); // All change until this point should be visible after refresh
+            // all changes until this point should be visible after refresh
+            pendingCheckpoint = localCheckpointTracker.getCheckpoint();
         }
+
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
-                refreshedCheckpoint.set(pendingCheckpoint);
+                updateRefreshedCheckpoint(pendingCheckpoint);
             }
+        }
+
+        void updateRefreshedCheckpoint(long checkpoint) {
+            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
 }

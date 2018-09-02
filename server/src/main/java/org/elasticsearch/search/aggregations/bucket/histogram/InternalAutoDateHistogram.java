@@ -418,7 +418,7 @@ public final class InternalAutoDateHistogram extends
             return currentResult;
         }
         int roundingIdx = getAppropriateRounding(list.get(0).key, list.get(list.size() - 1).key, currentResult.roundingIdx,
-                bucketInfo.roundingInfos);
+                bucketInfo.roundingInfos, targetBuckets);
         RoundingInfo roundingInfo = bucketInfo.roundingInfos[roundingIdx];
         Rounding rounding = roundingInfo.rounding;
         // merge buckets using the new rounding
@@ -447,8 +447,8 @@ public final class InternalAutoDateHistogram extends
         return new BucketReduceResult(list, roundingInfo, roundingIdx);
     }
 
-    private int getAppropriateRounding(long minKey, long maxKey, int roundingIdx,
-                                              RoundingInfo[] roundings) {
+    static int getAppropriateRounding(long minKey, long maxKey, int roundingIdx,
+                                              RoundingInfo[] roundings, int targetBuckets) {
         if (roundingIdx == roundings.length - 1) {
             return roundingIdx;
         }
@@ -480,7 +480,7 @@ public final class InternalAutoDateHistogram extends
                 currentKey = currentRounding.nextRoundingValue(currentKey);
             }
             currentRoundingIdx++;
-        } while (requiredBuckets > (targetBuckets * roundings[roundingIdx].getMaximumInnerInterval())
+        } while (requiredBuckets > (targetBuckets * roundings[currentRoundingIdx - 1].getMaximumInnerInterval())
                 && currentRoundingIdx < roundings.length);
         // The loop will increase past the correct rounding index here so we
         // need to subtract one to get the rounding index we need

@@ -1173,7 +1173,11 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                    try {
+                        IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                    } catch (AlreadyClosedException ignored) {
+                        // shard is closed
+                    }
                 }
             }
         }

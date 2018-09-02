@@ -17,14 +17,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -34,6 +37,7 @@ public class TransportCcrStatsAction extends TransportTasksAction<
         CcrStatsAction.TasksResponse, CcrStatsAction.TaskResponse> {
 
     private final IndexNameExpressionResolver resolver;
+    private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
     public TransportCcrStatsAction(
@@ -41,7 +45,8 @@ public class TransportCcrStatsAction extends TransportTasksAction<
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver resolver) {
+            final IndexNameExpressionResolver resolver,
+            final CcrLicenseChecker ccrLicenseChecker) {
         super(
                 settings,
                 CcrStatsAction.NAME,
@@ -51,7 +56,20 @@ public class TransportCcrStatsAction extends TransportTasksAction<
                 CcrStatsAction.TasksRequest::new,
                 CcrStatsAction.TasksResponse::new,
                 Ccr.CCR_THREAD_POOL_NAME);
-        this.resolver = resolver;
+        this.resolver = Objects.requireNonNull(resolver);
+        this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
+    }
+
+    @Override
+    protected void doExecute(
+            final Task task,
+            final CcrStatsAction.TasksRequest request,
+            final ActionListener<CcrStatsAction.TasksResponse> listener) {
+        if (ccrLicenseChecker.isCcrAllowed()) {
+            super.doExecute(task, request, listener);
+        } else {
+            listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+        }
     }
 
     @Override

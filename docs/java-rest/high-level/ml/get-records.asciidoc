@@ -1,0 +1,113 @@
+[[java-rest-high-x-pack-ml-get-records]]
+=== Get Records API
+
+The Get Records API retrieves one or more record results.
+It accepts a `GetRecordsRequest` object and responds
+with a `GetRecordsResponse` object.
+
+[[java-rest-high-x-pack-ml-get-records-request]]
+==== Get Records Request
+
+A `GetRecordsRequest` object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-desc]
+--------------------------------------------------
+<1> If `true`, the records are sorted in descending order. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-end]
+--------------------------------------------------
+<1> Records with timestamps earlier than this time will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-exclude-interim]
+--------------------------------------------------
+<1> If `true`, interim results will be excluded. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of records to skip.
+`size` specifies the maximum number of records to get. Defaults to `0` and `100` respectively.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-record-score]
+--------------------------------------------------
+<1> Records with record_score greater or equal than this value will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-sort]
+--------------------------------------------------
+<1> The field to sort records on. Defaults to `influencer_score`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-end]
+--------------------------------------------------
+<1> Records with timestamps on or after this time will be returned.
+
+[[java-rest-high-x-pack-ml-get-records-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-execute]
+--------------------------------------------------
+
+
+[[java-rest-high-x-pack-ml-get-records-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-execute-async]
+--------------------------------------------------
+<1> The `GetRecordsRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `GetRecordsResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs
+
+[[java-rest-high-snapshot-ml-get-records-response]]
+==== Get Records Response
+
+The returned `GetRecordsResponse` contains the requested records:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-response]
+--------------------------------------------------
+<1> The count of records that were matched
+<2> The records retrieved

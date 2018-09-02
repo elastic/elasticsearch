@@ -28,6 +28,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -88,7 +89,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void flushAndClose() throws IOException {
-        // make a flush as a noop so that callers can close (and flush) this engine without worrying the engine type.
+        // make a flush as a noop so that callers can close (and flush) this engine without worrying about the engine type.
         close();
     }
 
@@ -99,9 +100,10 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        store.incRef();
-        Releasable releasable = store::decRef;
+        Releasable releasable = null;
         try (ReleasableLock ignored = readLock.acquire()) {
+            store.incRef();
+            releasable = store::decRef;
             final EngineSearcher searcher = new EngineSearcher(source, searcherManager, store, logger);
             releasable = null; // hand over the reference to the engine searcher
             return searcher;
@@ -171,17 +173,28 @@ public final class SearchOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireTranslogRetentionLock() {
+    public Closeable acquireRetentionLockForPeerRecovery() {
+        return null;
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                long fromSeqNo, long toSeqNo, boolean requiredFullRange) {
         return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) {
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) {
         return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) {
+        return ensureUnsupportedMethodNeverCalled();
+    }
+
+    @Override
+    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) {
         return ensureUnsupportedMethodNeverCalled();
     }
 
@@ -326,6 +339,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void maybePruneDeletes() {
+
     }
 
     private <T> T ensureUnsupportedMethodNeverCalled() {

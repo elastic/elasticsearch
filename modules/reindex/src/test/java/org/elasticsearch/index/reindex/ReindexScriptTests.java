@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -100,7 +99,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest(new SearchRequest(), new IndexRequest());
+        return new ReindexRequest();
     }
 
     @Override

@@ -158,6 +158,7 @@ subprojects {
         } else {
             String systemKeyFile = version.before('6.3.0') ? 'x-pack/system_key' : 'system_key'
             extraConfigFile systemKeyFile, "${mainProject.projectDir}/src/test/resources/system_key"
+            keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
@@ -198,6 +199,9 @@ subprojects {
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+        }
+        if (version.before('6.0.0')) {
+          keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
       }
     }

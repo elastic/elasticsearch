@@ -75,11 +75,10 @@ public final class IndexSettings {
         switch(s) {
             case "false":
             case "true":
-            case "fix":
             case "checksum":
                 return s;
             default:
-                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, fix, checksum] but was: " + s);
+                throw new IllegalArgumentException("unknown value for [index.shard.check_on_startup] must be one of [true, false, checksum] but was: " + s);
         }
     }, Property.IndexScope);
 
@@ -242,7 +241,7 @@ public final class IndexSettings {
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
      */
     public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
-        Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope, Property.Final);
+        Setting.boolSetting("index.soft_deletes.enabled", false, Property.IndexScope, Property.Final);
 
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted

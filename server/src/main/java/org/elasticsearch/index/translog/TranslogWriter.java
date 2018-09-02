@@ -194,7 +194,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 Translog.Operation prvOp = Translog.readOperation(
                         new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
-                // We don't store versionType in Lucene index, we need to exclude it from this check
                 final boolean sameOp;
                 if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
                     final Translog.Index o1 = (Translog.Index) prvOp;

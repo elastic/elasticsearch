@@ -92,7 +92,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.close("test", false);
                 final List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
                 IndexWriterConfig iwc = new IndexWriterConfig(null)
-                    .setSoftDeletesField(Lucene.SOFT_DELETE_FIELD)
+                    .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                     .setCommitOnClose(false)
                     .setMergePolicy(NoMergePolicy.INSTANCE)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND);

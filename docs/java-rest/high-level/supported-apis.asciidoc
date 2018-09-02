@@ -16,6 +16,7 @@ Multi-document APIs::
 * <<java-rest-high-document-bulk>>
 * <<java-rest-high-document-multi-get>>
 * <<java-rest-high-document-reindex>>
+* <<java-rest-high-document-update-by-query>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -25,6 +26,7 @@ include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
+include::document/update-by-query.asciidoc[]
 
 == Search APIs
 
@@ -211,6 +213,8 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-delete-job>>
 * <<java-rest-high-x-pack-ml-open-job>>
 * <<java-rest-high-x-pack-ml-close-job>>
+* <<java-rest-high-x-pack-ml-flush-job>>
+* <<java-rest-high-x-pack-ml-get-job-stats>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
 
@@ -219,6 +223,8 @@ include::ml/get-job.asciidoc[]
 include::ml/delete-job.asciidoc[]
 include::ml/open-job.asciidoc[]
 include::ml/close-job.asciidoc[]
+include::ml/flush-job.asciidoc[]
+include::ml/get-job-stats.asciidoc[]
 include::ml/get-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
 

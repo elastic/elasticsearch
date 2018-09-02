@@ -101,8 +101,7 @@ which returns something similar to:
                      "translog_generation" : "2",
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
-                     "max_unsafe_auto_id_timestamp" : "-1",
-                     "min_retained_seq_no": "0"
+                     "max_unsafe_auto_id_timestamp" : "-1"
                    },
                    "num_docs" : 0
                  }

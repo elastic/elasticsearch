@@ -182,12 +182,17 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             }
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
+        engine.refresh("test");
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, between(1, 100), 0, maxSeqNo, false)) {
+            searcher = null;
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
             assertThat(snapshot.skippedOperations(), equalTo(totalOps - latestOperations.size()));
+        } finally {
+            IOUtils.close(searcher);
         }
     }
 

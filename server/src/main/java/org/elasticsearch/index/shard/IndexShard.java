@@ -509,21 +509,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
                                  * replaying the translog and marking any operations there are completed.
                                  */
+                                Engine engine = getEngine();
                                 if (seqNoStats().getLocalCheckpoint() < maxSeqNoOfResettingEngine) {
                                     // The engine was reset before but hasn't restored all existing operations yet.
                                     // We need to reset the engine again with all the local history.
-                                    getEngine().flush();
+                                    engine.flush();
                                     resetEngineUpToSeqNo(Long.MAX_VALUE);
+                                    engine = getEngine(); // engine was swapped
                                 } else {
-                                    getEngine().restoreLocalCheckpointFromTranslog();
+                                    engine.restoreLocalCheckpointFromTranslog();
                                 }
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
                                  * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
                                  * as a starting point), but it simplifies reasoning about the relationship between primary terms and
                                  * translog generations.
                                  */
-                                getEngine().rollTranslogGeneration();
-                                getEngine().fillSeqNoGaps(newPrimaryTerm);
+                                engine.rollTranslogGeneration();
+                                engine.fillSeqNoGaps(newPrimaryTerm);
                                 replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
@@ -1287,8 +1289,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // package-private for testing
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        recoveryState.getTranslog().setOrIncreaseTotalOperations(snapshot.totalOperations());
-        recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        final boolean isResetting = isEngineResetting();
+        if (isResetting == false) {
+            recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
+            recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        }
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
@@ -1307,7 +1312,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 opsRecovered++;
-                recoveryState.getTranslog().incrementRecoveredOperations();
+                if (isResetting == false) {
+                    recoveryState.getTranslog().incrementRecoveredOperations();
+                }
             } catch (Exception e) {
                 if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
@@ -1460,8 +1467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndexShardState state = this.state; // one time volatile read
 
         if (origin.isRecovery()) {
-            final boolean isResetting = getEngineOrNull() instanceof SearchOnlyEngine;
-            if (state != IndexShardState.RECOVERING && isResetting == false) {
+            if (state != IndexShardState.RECOVERING && isEngineResetting() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when recovering, origin [" + origin + "]");
             }
         } else {
@@ -1475,6 +1481,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");
             }
         }
+    }
+
+    private boolean isEngineResetting() {
+        return getEngineOrNull() instanceof SearchOnlyEngine;
     }
 
     private boolean assertPrimaryMode() {
@@ -2315,13 +2325,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 }
                                 logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
                                     opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
-                                if (localCheckpoint < getEngine().getSeqNoStats(localCheckpoint).getMaxSeqNo()) {
-                                    getEngine().flush(true, true);
-                                    getEngine().resetLocalCheckpoint(localCheckpoint);
+                                Engine engine = getEngine();
+                                if (localCheckpoint < engine.getSeqNoStats(localCheckpoint).getMaxSeqNo()) {
+                                    engine.flush(true, true);
+                                    engine.resetLocalCheckpoint(localCheckpoint);
                                     resetEngineUpToSeqNo(localCheckpoint);
                                 } else {
-                                    getEngine().resetLocalCheckpoint(localCheckpoint);
-                                    getEngine().rollTranslogGeneration();
+                                    engine.resetLocalCheckpoint(localCheckpoint);
+                                    engine.rollTranslogGeneration();
                                 }
                         });
                     }

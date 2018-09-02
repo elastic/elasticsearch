@@ -1851,6 +1851,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
         // Recovering from store should discard doc #1
         final ShardRouting replicaRouting = shard.routingEntry();
+        shard.close("test", false);
         IndexShard newShard = reinitShard(shard,
             newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
                 RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));

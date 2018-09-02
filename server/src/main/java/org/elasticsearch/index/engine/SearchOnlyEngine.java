@@ -21,11 +21,13 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,12 +59,15 @@ public final class SearchOnlyEngine extends Engine {
         this.translogStats = translogStats;
         try {
             store.incRef();
-            ElasticsearchDirectoryReader reader = null;
+            DirectoryReader reader = null;
             boolean success = false;
             try {
                 this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), config.getShardId());
-                this.searcherManager = new SearcherManager(reader, new RamAccountingSearcherFactory(config.getCircuitBreakerService()));
+                reader = DirectoryReader.open(store.directory());
+                if (config.getIndexSettings().isSoftDeleteEnabled()) {
+                    reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+                }
+                this.searcherManager = new SearcherManager(reader, new SearcherFactory());
                 success = true;
             } finally {
                 if (success == false) {
@@ -100,6 +105,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        ensureOpen();
         Releasable releasable = null;
         try (ReleasableLock ignored = readLock.acquire()) {
             store.incRef();
@@ -169,12 +175,12 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void syncTranslog() {
-        ensureUnsupportedMethodNeverCalled();
+        // noop
     }
 
     @Override
     public Closeable acquireRetentionLockForPeerRecovery() {
-        return null;
+        return ensureUnsupportedMethodNeverCalled();
     }
 
     @Override
@@ -205,7 +211,8 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public Translog.Location getTranslogLastWriteLocation() {
-        return ensureUnsupportedMethodNeverCalled();
+        // noop - returns null as the caller treats null as noop.
+        return null;
     }
 
     @Override
@@ -245,7 +252,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        ensureUnsupportedMethodNeverCalled();
+        // noop
     }
 
     @Override
@@ -260,17 +267,17 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        return ensureUnsupportedMethodNeverCalled();
+        return SyncedFlushResult.PENDING_OPERATIONS;
     }
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return ensureUnsupportedMethodNeverCalled();
+        return new CommitId(lastCommittedSegmentInfos.getId());
     }
 
     @Override
     public CommitId flush() throws EngineException {
-        return ensureUnsupportedMethodNeverCalled();
+        return flush(false, false);
     }
 
     @Override
@@ -309,7 +316,7 @@ public final class SearchOnlyEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        ensureUnsupportedMethodNeverCalled();
+        // noop
     }
 
     @Override

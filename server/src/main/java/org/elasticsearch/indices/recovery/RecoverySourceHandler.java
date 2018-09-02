@@ -40,7 +40,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -116,13 +115,12 @@ public class RecoverySourceHandler {
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
                                  final StartRecoveryRequest request,
-                                 final int fileChunkSizeInBytes,
-                                 final Settings nodeSettings) {
+                                 final int fileChunkSizeInBytes) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
-        this.logger = Loggers.getLogger(getClass(), nodeSettings, request.shardId(), "recover to " + request.targetNode().getName());
+        this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
     }

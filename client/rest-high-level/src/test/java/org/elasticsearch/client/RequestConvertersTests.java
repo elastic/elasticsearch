@@ -2768,7 +2768,7 @@ public class RequestConvertersTests extends ESTestCase {
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
     }
-    
+
     public void testGraphExplore() throws Exception {
         Map<String, String> expectedParams = new HashMap<>();
 
@@ -2796,7 +2796,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertToXContentBody(graphExploreRequest, request.getEntity());
-    }    
+    }
 
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();

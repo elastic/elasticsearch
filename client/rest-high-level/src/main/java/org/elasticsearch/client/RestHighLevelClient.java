@@ -329,7 +329,7 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public WatcherClient watcher() { return watcherClient; }
-    
+
     /**
      * Provides methods for accessing the Elastic Licensed Graph explore API that
      * is shipped with the default distribution of Elasticsearch. All of
@@ -338,7 +338,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
      * Graph API on elastic.co</a> for more information.
      */
-    public GraphClient graph() { return graphClient; }    
+    public GraphClient graph() { return graphClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that

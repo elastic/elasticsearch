@@ -413,8 +413,8 @@ public class IngestServiceTests extends ESTestCase {
         ElasticsearchParseException e =
             expectThrows(ElasticsearchParseException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
-        assertEquals("remove", e.getMetadata("es.processor_type").get(0));
-        assertEquals("tag2", e.getMetadata("es.processor_tag").get(0));
+        assertEquals("remove", e.getHeader("processor_type").get(0));
+        assertEquals("tag2", e.getHeader("processor_tag").get(0));
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest);

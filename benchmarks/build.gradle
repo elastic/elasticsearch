@@ -21,10 +21,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'application'
 mainClassName = 'org.openjdk.jmh.Main'
 
-// Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
-
+assemble.enabled = false
 archivesBaseName = 'elasticsearch-benchmarks'
 
 test.enabled = false

@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -61,11 +62,12 @@ public final class SourceOnlySnapshotEngine extends Engine {
             Store store = config.getStore();
             store.incRef();
             DirectoryReader reader = null;
+            Directory directory = store.directory();
             Lock indexWriterLock = null;
             boolean success = false;
             try {
-                indexWriterLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME);
-                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(store.directory());
+                indexWriterLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = new TranslogStats(0, 0, 0, 0, 0);
                 final SequenceNumbers.CommitInfo seqNoStats =
                     SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommittedSegmentInfos.userData.entrySet());
@@ -73,7 +75,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
                 long localCheckpoint = seqNoStats.localCheckpoint;
                 this.seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, localCheckpoint);
                 reader = SeqIdGeneratingDirectoryReader.wrap(ElasticsearchDirectoryReader.wrap(DirectoryReader
-                .open(store.directory()), config.getShardId()), config.getPrimaryTermSupplier().getAsLong());
+                .open(directory), config.getShardId()), config.getPrimaryTermSupplier().getAsLong());
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader, new SearcherFactory());
                 this.indexWriterLock = indexWriterLock;

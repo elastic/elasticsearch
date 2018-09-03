@@ -91,55 +91,47 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
-        try {
-            boolean requireRouting = randomBoolean();
-            boolean useNested = randomBoolean();
-            IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
-            assertHits(sourceIdx, builders.length);
-            assertMappings(sourceIdx, requireRouting, useNested);
-            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-                .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
-            // ensure we can not find hits it's a minimal restore
-            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
-            // make sure deletes work
-            String idToDelete = "" + randomIntBetween(0, builders.length);
-            expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
-                .setRouting("r" + idToDelete).get());
-            internalCluster().ensureAtLeastNumDataNodes(2);
-                client().admin().indices().prepareUpdateSettings(sourceIdx)
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
-            ensureGreen(sourceIdx);
-            assertHits(sourceIdx, builders.length);
-        } finally {
-            client().admin().indices().prepareDelete(sourceIdx).get();
-        }
+        boolean requireRouting = randomBoolean();
+        boolean useNested = randomBoolean();
+        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
+        assertHits(sourceIdx, builders.length);
+        assertMappings(sourceIdx, requireRouting, useNested);
+        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
+            .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
+        // ensure we can not find hits it's a minimal restore
+        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+        // make sure deletes work
+        String idToDelete = "" + randomIntBetween(0, builders.length);
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+            .setRouting("r" + idToDelete).get());
+        internalCluster().ensureAtLeastNumDataNodes(2);
+            client().admin().indices().prepareUpdateSettings(sourceIdx)
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
+        ensureGreen(sourceIdx);
+        assertHits(sourceIdx, builders.length);
     }
 
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
-        try {
-            boolean requireRouting = randomBoolean();
-            IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
-            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
-            assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
-            assertHits(sourceIdx, builders.length);
-            assertMappings(sourceIdx, requireRouting, true);
-            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-                .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
-            // ensure we can not find hits it's a minimal restore
-            assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
-            // make sure deletes work
-            String idToDelete = "" + randomIntBetween(0, builders.length);
-            expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
-                .setRouting("r" + idToDelete).get());
-            internalCluster().ensureAtLeastNumDataNodes(2);
-            client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get();
-            ensureGreen(sourceIdx);
-            assertHits(sourceIdx, builders.length);
-        } finally {
-            client().admin().indices().prepareDelete(sourceIdx).get();
-        }
+        boolean requireRouting = randomBoolean();
+        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
+        assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
+        assertHits(sourceIdx, builders.length);
+        assertMappings(sourceIdx, requireRouting, true);
+        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
+            .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
+        // ensure we can not find hits it's a minimal restore
+        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+        // make sure deletes work
+        String idToDelete = "" + randomIntBetween(0, builders.length);
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
+            .setRouting("r" + idToDelete).get());
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
+            .get();
+        ensureGreen(sourceIdx);
+        assertHits(sourceIdx, builders.length);
     }
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {

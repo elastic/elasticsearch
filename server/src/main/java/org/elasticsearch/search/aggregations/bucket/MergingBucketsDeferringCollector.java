@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = BucketCollector.wrap(deferredCollectors);
+        this.collector = MultiBucketCollector.wrap(deferredCollectors);
     }
 
     @Override

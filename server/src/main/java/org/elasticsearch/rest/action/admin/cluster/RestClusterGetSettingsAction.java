@@ -87,13 +87,19 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
-        return
-            new ClusterGetSettingsResponse(
-                state.metaData().persistentSettings(),
-                state.metaData().transientSettings(),
-                renderDefaults ?
-                    settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)) :
-                    Settings.EMPTY
-            ).toXContent(builder, params);
+        return response(state, renderDefaults, settingsFilter, clusterSettings, settings).toXContent(builder, params);
     }
+
+    static ClusterGetSettingsResponse response(
+            final ClusterState state,
+            final boolean renderDefaults,
+            final SettingsFilter settingsFilter,
+            final ClusterSettings clusterSettings,
+            final Settings settings) {
+        return new ClusterGetSettingsResponse(
+                settingsFilter.filter(state.metaData().persistentSettings()),
+                settingsFilter.filter(state.metaData().transientSettings()),
+                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) : Settings.EMPTY);
+    }
+
 }

@@ -448,6 +448,17 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertNotNull(doc.docs().get(0).getField("_ignored"));
         IndexableField ignoredFields = doc.docs().get(0).getField("_ignored");
         assertThat(ignoredFields.stringValue(), equalTo("completion"));
+
+        // null inputs are ignored
+        ParsedDocument nullDoc = defaultMapper.parse(SourceToParse.source("test", "type1", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .nullField("completion")
+                    .endObject()),
+            XContentType.JSON));
+        assertThat(nullDoc.docs().size(), equalTo(1));
+        assertNull(nullDoc.docs().get(0).get("completion"));
+        assertNull(nullDoc.docs().get(0).getField("_ignored"));
     }
 
     public void testPrefixQueryType() throws Exception {

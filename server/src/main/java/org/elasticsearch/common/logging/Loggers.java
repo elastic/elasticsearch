@@ -49,16 +49,17 @@ public class Loggers {
         Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 
-    public static Logger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+    public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
+        return getLogger(clazz, Settings.EMPTY,
+                shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     /**
-     * Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings, ShardId, String...)} but String loggerName instead of
+     * Just like {@link #getLogger(Class, ShardId, String...)} but String loggerName instead of
      * Class.
      */
-    public static Logger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings,
+    public static Logger getLogger(String loggerName, ShardId shardId, String... prefixes) {
+        return getLogger(loggerName, Settings.EMPTY,
             asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 

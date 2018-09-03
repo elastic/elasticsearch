@@ -9,8 +9,8 @@ public class TextLogStructureFinderFactoryTests extends LogStructureTestCase {
 
     private LogStructureFinderFactory factory = new TextLogStructureFinderFactory();
 
-    // No need to check JSON, XML, CSV, TSV, semi-colon separated values or pipe
-    // separated values because they come earlier in the order we check formats
+    // No need to check JSON, XML, CSV, TSV, semi-colon delimited values or pipe
+    // delimited values because they come earlier in the order we check formats
 
     public void testCanCreateFromSampleGivenText() {
 

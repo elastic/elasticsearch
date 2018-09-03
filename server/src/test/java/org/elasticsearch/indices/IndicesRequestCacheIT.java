@@ -113,6 +113,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
 
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
@@ -158,6 +159,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
 
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
@@ -201,6 +203,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
 
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
@@ -253,6 +256,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
 
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index-1", "index-2", "index-3").setFlush(true)
                 .get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
@@ -311,6 +315,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ensureSearchable("index");
         assertCacheState(client, "index", 0, 0);
 
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
@@ -376,6 +381,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         client.prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
             DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         refresh();
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
 

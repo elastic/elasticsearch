@@ -477,11 +477,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (field.getType() != Version.class) {
                 continue;
             }
-            if ("CURRENT".equals(field.getName())) {
-                continue;
-            }
-            if ("V_EMPTY".equals(field.getName())) {
-                continue;
+            switch (field.getName()) {
+                case "CURRENT":
+                case "V_EMPTY":
+                    continue;
             }
             assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
             try {

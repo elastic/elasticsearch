@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -62,11 +63,11 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final Discovery discovery;
 
     NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
-        TransportService transportService, IndicesService indicesService, PluginsService pluginService,
-        CircuitBreakerService circuitBreakerService, ScriptService scriptService,
-        @Nullable HttpServerTransport httpServerTransport, IngestService ingestService,
-        SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-        SearchTransportService searchTransportService) {
+                TransportService transportService, IndicesService indicesService, PluginsService pluginService,
+                CircuitBreakerService circuitBreakerService, ScriptService scriptService,
+                @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
+                SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
+                SearchTransportService searchTransportService) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -81,6 +82,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
+        clusterService.addStateApplier(ingestService);
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,

@@ -488,7 +488,7 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(), environment.configFile());
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
-                httpServerTransport, ingestService, settingsModule.getSettingsFilter(), responseCollectorService,
+                httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
                 searchTransportService);
 
             final SearchService searchService = newSearchService(clusterService, indicesService,

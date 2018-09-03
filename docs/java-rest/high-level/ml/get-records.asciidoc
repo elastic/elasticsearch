@@ -54,7 +54,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-r
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-sort]
 --------------------------------------------------
-<1> The field to sort records on. Defaults to `influencer_score`.
+<1> The field to sort records on. Defaults to `record_score`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

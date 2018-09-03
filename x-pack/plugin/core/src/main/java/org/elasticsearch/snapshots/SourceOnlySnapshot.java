@@ -87,8 +87,10 @@ public class SourceOnlySnapshot {
                 SegmentCommitInfo info = segmentInfos.info(ctx.ord);
                 LeafReader leafReader = ctx.reader();
                 LiveDocs liveDocs = getLiveDocs(leafReader);
-                SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
-                newInfos.add(newInfo);
+                if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
+                    SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
+                    newInfos.add(newInfo);
+                }
             }
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
@@ -106,11 +108,6 @@ public class SourceOnlySnapshot {
         Lucene.pruneUnreferencedFiles(segmentFileName, targetDirectory);
         assert assertCheckIndex();
         return Collections.unmodifiableList(createdFiles);
-    }
-
-    private String getSoftDeletesField(DirectoryReader reader) {
-
-        return null;
     }
 
     private LiveDocs getLiveDocs(LeafReader reader) throws IOException {

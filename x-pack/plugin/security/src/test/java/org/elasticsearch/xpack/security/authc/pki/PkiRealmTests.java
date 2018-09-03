@@ -59,6 +59,7 @@ import static org.mockito.Mockito.when;
 
 public class PkiRealmTests extends ESTestCase {
 
+    public static final String REALM_NAME = "my_pki";
     private Settings globalSettings;
     private XPackLicenseState licenseState;
 
@@ -160,7 +161,7 @@ public class PkiRealmTests extends ESTestCase {
 
     private PkiRealm buildRealm(UserRoleMapper roleMapper, Settings realmSettings, Realm... otherRealms) {
         final Settings settings = mergeSettings(realmSettings, globalSettings);
-        final RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
+        final RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("pki", REALM_NAME), settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         PkiRealm realm = new PkiRealm(config, roleMapper);
         List<Realm> allRealms = CollectionUtils.arrayAsArrayList(otherRealms);
@@ -362,7 +363,7 @@ public class PkiRealmTests extends ESTestCase {
         otherRealm.registerUser(lookupUser);
 
         final Settings realmSettings = Settings.builder()
-            .putList("authorization_realms", "other_realm")
+            .putList("xpack.security.authc.realms.pki." + REALM_NAME + ".authorization_realms", "other_realm")
             .build();
         final UserRoleMapper roleMapper = buildRoleMapper(Collections.emptySet(), token.dn());
         final PkiRealm pkiRealm = buildRealm(roleMapper, realmSettings, otherRealm);

@@ -61,7 +61,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
 
             // Service Login
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
-            final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
+            final Path keytabPath = getKeytabPath(env);
             // Handle Authz header which contains base64 token
             final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
             new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true, future);

@@ -15,12 +15,11 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData;
 import org.ietf.jgss.GSSException;
 
+import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-
-import javax.security.auth.login.LoginException;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -102,9 +101,8 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
             throws LoginException, GSSException, IOException {
         // if cache.ttl <= 0 then the cache is disabled
-        settings = KerberosTestCase.buildKerberosRealmSettings(
-                KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true,
-                randomBoolean());
+        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.REALM_NAME,
+            KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true, randomBoolean());
         final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);

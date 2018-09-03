@@ -154,9 +154,10 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
-        settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
-        config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, "test-kerb-realm"),
-            settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final String realmName = "test-kerb-realm";
+        settings = KerberosTestCase.buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
+        config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
+            TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,

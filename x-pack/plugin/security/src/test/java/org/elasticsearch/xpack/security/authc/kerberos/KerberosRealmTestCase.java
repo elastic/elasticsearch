@@ -72,8 +72,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString(),
-                100, "10m", true, randomBoolean());
+        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.REALM_NAME,
+            KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
@@ -85,7 +85,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     }
 
     protected void mockKerberosTicketValidator(final byte[] decodedTicket, final Path keytabPath, final boolean krbDebug,
-            final Tuple<String, String> value, final Exception e) {
+                                               final Tuple<String, String> value, final Exception e) {
         assert value != null || e != null;
         doAnswer((i) -> {
             ActionListener<Tuple<String, String>> listener = (ActionListener<Tuple<String, String>>) i.getArguments()[3];
@@ -105,7 +105,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         final Map<String, List<String>> responseHeaders = threadPool.getThreadContext().getResponseHeaders();
         assertThat(responseHeaders, is(notNullValue()));
         assertThat(responseHeaders.get(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0),
-                is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken)));
+            is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken)));
     }
 
     protected KerberosRealm createKerberosRealm(final String... userForRoleMapping) {
@@ -113,13 +113,13 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     }
 
     protected KerberosRealm createKerberosRealm(final List<Realm> delegatedRealms, final String... userForRoleMapping) {
-        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, "test-kerb-realm");
-        config = new RealmConfig(identifier, merge(identifier, settings, globalSettings),
+        final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, KerberosTestCase.REALM_NAME);
+        config = new RealmConfig(id, merge(id, settings, globalSettings),
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList(userForRoleMapping));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
         final KerberosRealm kerberosRealm =
-                new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null);
+            new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null);
         Collections.shuffle(delegatedRealms, random());
         kerberosRealm.initialize(delegatedRealms, licenseState);
         return kerberosRealm;
@@ -149,7 +149,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
                 listener.onResponse(roles);
             } else {
                 listener.onFailure(
-                        Exceptions.authorizationError("Expected UPN '" + expectedUserNames + "' but was '" + userData.getUsername() + "'"));
+                    Exceptions.authorizationError("Expected UPN '" + expectedUserNames + "' but was '" + userData.getUsername() + "'"));
             }
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
@@ -178,7 +178,11 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
      * @return username after removal of realm
      */
     protected String maybeRemoveRealmName(final String principalName) {
-        if (KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(settings)) {
+        return maybeRemoveRealmName(KerberosTestCase.REALM_NAME, principalName);
+    }
+
+    protected String maybeRemoveRealmName(String realmName, final String principalName) {
+        if (KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.getConcreteSettingForNamespace(realmName).get(settings)) {
             int foundAtIndex = principalName.indexOf('@');
             if (foundAtIndex > 0) {
                 return principalName.substring(0, foundAtIndex);

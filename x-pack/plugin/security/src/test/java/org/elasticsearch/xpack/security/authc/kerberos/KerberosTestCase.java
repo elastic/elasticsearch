@@ -11,14 +11,18 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.security.auth.Subject;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,8 +37,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import javax.security.auth.Subject;
-
 /**
  * Base Test class for Kerberos.
  * <p>
@@ -46,6 +48,8 @@ import javax.security.auth.Subject;
  */
 public abstract class KerberosTestCase extends ESTestCase {
 
+    protected static final String REALM_NAME = "test-kerb-realm";
+
     protected Settings globalSettings;
     protected Settings settings;
     protected List<String> serviceUserNames;
@@ -56,6 +60,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     private static Locale restoreLocale;
     private static Set<String> unsupportedLocaleLanguages;
+
     static {
         unsupportedLocaleLanguages = new HashSet<>();
         /*
@@ -88,7 +93,7 @@ public abstract class KerberosTestCase extends ESTestCase {
         if (isLocaleUnsupported()) {
             Logger logger = Loggers.getLogger(KerberosTestCase.class);
             logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
-                    Locale.getDefault());
+                Locale.getDefault());
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -130,7 +135,7 @@ public abstract class KerberosTestCase extends ESTestCase {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings = buildKerberosRealmSettings(ktabPathForService.toString());
+        settings = buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
     }
 
     @After
@@ -141,7 +146,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     /**
      * Creates principals and exports them to the keytab created in the directory.
      *
-     * @param dir Directory where the key tab would be created.
+     * @param dir        Directory where the key tab would be created.
      * @param princNames principal names to be created
      * @return {@link Path} to key tab file.
      * @throws Exception thrown if principal or keytab could not be created
@@ -156,7 +161,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * Creates principal with given name and password.
      *
      * @param principalName Principal name
-     * @param password Password
+     * @param password      Password
      * @throws Exception thrown if principal could not be created
      */
     protected void createPrincipal(final String principalName, final char[] password) throws Exception {
@@ -177,8 +182,8 @@ public abstract class KerberosTestCase extends ESTestCase {
      * Invokes Subject.doAs inside a doPrivileged block
      *
      * @param subject {@link Subject}
-     * @param action {@link PrivilegedExceptionAction} action for performing inside
-     *            Subject.doAs
+     * @param action  {@link PrivilegedExceptionAction} action for performing inside
+     *                Subject.doAs
      * @return T Type of value as returned by PrivilegedAction
      * @throws PrivilegedActionException when privileged action threw exception
      */
@@ -190,7 +195,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      * Write content to provided keytab file.
      *
      * @param keytabPath {@link Path} to keytab file.
-     * @param content Content for keytab
+     * @param content    Content for keytab
      * @return key tab path
      * @throws IOException if I/O error occurs while writing keytab file
      */
@@ -207,28 +212,40 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @param keytabPath key tab file path
      * @return {@link Settings} for kerberos realm
      */
-    public static Settings buildKerberosRealmSettings(final String keytabPath) {
-        return buildKerberosRealmSettings(keytabPath, 100, "10m", true, false);
+    public static Settings buildKerberosRealmSettings(final String realmName, final String keytabPath) {
+        return buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, false);
     }
 
     /**
-     * Build kerberos realm settings
+     * Build Kerberos realm settings. The settings use to the full-key (xpack.security.authc...) for each entry
      *
-     * @param keytabPath key tab file path
+     * @param keytabPath      key tab file path
      * @param maxUsersInCache max users to be maintained in cache
-     * @param cacheTTL time to live for cached entries
+     * @param cacheTTL        time to live for cached entries
      * @param enableDebugging for krb5 logs
      * @param removeRealmName {@code true} if we want to remove realm name from the username of form 'user@REALM'
      * @return {@link Settings} for kerberos realm
      */
-    public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache, final String cacheTTL,
-            final boolean enableDebugging, final boolean removeRealmName) {
-        final Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
-                .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
-                .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
-                .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging)
-                .put(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.getKey(), removeRealmName);
+    public static Settings buildKerberosRealmSettings(final String realmName, final String keytabPath, final int maxUsersInCache,
+                                                      final String cacheTTL, final boolean enableDebugging, final boolean removeRealmName) {
+        final Settings global = Settings.builder().put("path.home", createTempDir()).build();
+        return buildKerberosRealmSettings(realmName, keytabPath, maxUsersInCache, cacheTTL, enableDebugging, removeRealmName, global);
+    }
+
+    public static Settings buildKerberosRealmSettings(String realmName, String keytabPath, int maxUsersInCache, String cacheTTL,
+                                                       boolean enableDebugging, boolean removeRealmName, Settings globalSettings) {
+        final Settings.Builder builder = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH), keytabPath)
+            .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.CACHE_MAX_USERS_SETTING), maxUsersInCache)
+            .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.CACHE_TTL_SETTING), cacheTTL)
+            .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE), enableDebugging)
+            .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.SETTING_REMOVE_REALM_NAME), removeRealmName)
+            .put(globalSettings);
         return builder.build();
     }
 
+    protected Path getKeytabPath(Environment env) {
+        final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
+        return env.configFile().resolve(setting.get(settings));
+    }
 }

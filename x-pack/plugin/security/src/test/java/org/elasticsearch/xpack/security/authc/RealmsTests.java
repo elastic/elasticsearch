@@ -512,10 +512,8 @@ public class RealmsTests extends ESTestCase {
 
     public void testInitRealmsFailsForMultipleKerberosRealms() throws IOException {
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        builder.put("xpack.security.authc.realms.realm_1.type", "kerberos");
-        builder.put("xpack.security.authc.realms.realm_1.order", 1);
-        builder.put("xpack.security.authc.realms.realm_2.type", "kerberos");
-        builder.put("xpack.security.authc.realms.realm_2.order", 2);
+        builder.put("xpack.security.authc.realms.kerberos.realm_1.order", 1);
+        builder.put("xpack.security.authc.realms.kerberos.realm_2.order", 2);
         final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,

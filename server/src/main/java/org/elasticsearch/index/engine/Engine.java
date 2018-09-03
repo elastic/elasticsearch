@@ -58,6 +58,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -97,6 +98,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -585,18 +587,32 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
      */
-    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract TranslogStats getTranslogStats();
 

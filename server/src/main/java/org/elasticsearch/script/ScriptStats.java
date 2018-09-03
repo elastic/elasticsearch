@@ -42,14 +42,14 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? in.readVLong() : 0;
+        compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVLong() : 0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeVLong(compilationLimitTriggered);
         }
     }

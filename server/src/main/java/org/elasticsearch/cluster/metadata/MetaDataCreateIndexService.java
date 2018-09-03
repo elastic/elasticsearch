@@ -559,7 +559,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // TODO: this logic can be removed when the current major version is 8
             assert Version.CURRENT.major == 7;
             final int numberOfShards;
-            if (Version.fromId(Integer.parseInt(indexSettingsBuilder.get(SETTING_VERSION_CREATED))).before(Version.V_7_0_0_alpha1)) {
+            if (Version.fromId(Integer.parseInt(indexSettingsBuilder.get(SETTING_VERSION_CREATED))).before(Version.V_7_0_0)) {
                 numberOfShards = 5;
             } else {
                 numberOfShards = 1;
@@ -751,7 +751,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
             // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
             // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
             // will always have the behavior of the min node in the cluster.

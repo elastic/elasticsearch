@@ -185,7 +185,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         version = in.readLong();
@@ -198,7 +198,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeLong(version);

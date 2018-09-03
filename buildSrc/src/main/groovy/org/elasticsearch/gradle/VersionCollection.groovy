@@ -47,10 +47,12 @@ import java.util.regex.Matcher
  * Notes on terminology:
  * - The case for major+1 being released is accomplished through the isReleasableBranch value. If this is false, then the branch is no longer
  *   releasable, meaning not to test against any snapshots.
- * - Released is defined as having > 1 suffix-free version in a major.minor series. For instance, only 6.2.0 means unreleased, but a
+ * - Released is defined as having > 1 qualifier-free version in a major.minor series. For instance, only 6.2.0 means unreleased, but a
  *   6.2.0 and 6.2.1 mean that 6.2.0 was released already.
  */
 class VersionCollection {
+
+    public static final int LAST_RELEASED_MAJOR = 6
 
     private final List<Version> versions
     Version nextMinorSnapshot
@@ -83,7 +85,7 @@ class VersionCollection {
             if (match.matches()) {
                 final Version foundVersion = new Version(
                         Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', '-'), false)
+                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', ''), false)
                 safeAddToSet(foundVersion)
             }
         }
@@ -93,15 +95,15 @@ class VersionCollection {
         }
 
         // If the major version has been released, then remove all of the alpha/beta/rc versions that exist in the set
-        versionSet.removeAll { it.suffix.isEmpty() == false && isMajorReleased(it, versionSet) }
+        versionSet.removeAll { it.qualifier.isEmpty() == false && isMajorReleased(it, versionSet) }
 
         // set currentVersion
         Version lastVersion = versionSet.last()
-        currentVersion = new Version(lastVersion.major, lastVersion.minor, lastVersion.revision, lastVersion.suffix, buildSnapshot)
+        currentVersion = new Version(lastVersion.major, lastVersion.minor, lastVersion.revision, lastVersion.qualifier, buildSnapshot)
 
         // remove all of the potential alpha/beta/rc from the currentVersion
         versionSet.removeAll {
-            it.suffix.isEmpty() == false &&
+            it.qualifier.isEmpty() == false &&
             it.major == currentVersion.major &&
             it.minor == currentVersion.minor &&
             it.revision == currentVersion.revision }
@@ -280,10 +282,14 @@ class VersionCollection {
      * This means that there is more than just a major.0.0 or major.0.0-alpha in a branch to signify it has been prevously released.
      */
     private boolean isMajorReleased(Version version, TreeSet<Version> items) {
+        if (version.getMajor() <= LAST_RELEASED_MAJOR) {
+            // TODO: Starting with 7.0.0 we no longer store qualifiers in Version.java we are not able to tell from qualifiers
+            return true
+        }
         return items
             .tailSet(Version.fromString("${version.major}.0.0"))
             .headSet(Version.fromString("${version.major + 1}.0.0"))
-            .count { it.suffix.isEmpty() }  // count only non suffix'd versions as actual versions that may be released
+            .count { it.qualifier.isEmpty() }  // count only non qualified versions as actual versions that may be released
             .intValue() > 1
     }
 
@@ -301,7 +307,7 @@ class VersionCollection {
      */
     private Version replaceAsSnapshot(Version version) {
         versionSet.remove(version)
-        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, true)
+        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.qualifier, true)
         safeAddToSet(snapshotVersion)
         return snapshotVersion
     }

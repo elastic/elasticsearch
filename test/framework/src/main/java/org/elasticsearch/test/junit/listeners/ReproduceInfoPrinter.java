@@ -148,8 +148,11 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
+            appendProperties(
+                "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
+                "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot",
+                "build.version_qualifier"
+            );
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

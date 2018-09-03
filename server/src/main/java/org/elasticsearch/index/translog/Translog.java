@@ -1199,7 +1199,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
             out.writeVInt(format);
             out.writeString(id);
             out.writeString(type);
@@ -1359,7 +1359,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            final int format = out.getVersion().onOrAfter(Version.V_7_0_0) ? SERIALIZATION_FORMAT : FORMAT_6_0;
             out.writeVInt(format);
             out.writeString(type);
             out.writeString(id);

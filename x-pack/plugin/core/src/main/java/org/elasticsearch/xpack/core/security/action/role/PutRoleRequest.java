@@ -185,6 +185,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
+
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeStreamableList(applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);

@@ -45,7 +45,7 @@ subprojects {
 
 apply plugin: 'nebula.info-scm'
 String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+if (VersionProperties.elasticsearch.isSnapshot()) {
   licenseCommit = scminfo.change ?: "master" // leniency for non git builds
 } else {
   licenseCommit = "v${version}"
@@ -103,7 +103,7 @@ subprojects {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion != VersionProperties.elasticsearch) {
+if (versions.currentVersion.isSameVersionNumber(VersionProperties.elasticsearch) == false) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
 }

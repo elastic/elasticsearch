@@ -27,11 +27,29 @@ public class VersionProperties {
     private static final Map<String, String> versions = new HashMap<String, String>();
     static {
         Properties props = getVersionProperties();
-        elasticsearch = Version.fromString(props.getProperty("elasticsearch"));
+        Version baseVersion = Version.fromString(props.getProperty("elasticsearch"));
+        if (baseVersion.isSnapshot()) {
+            throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch. " +
+                "Use the `build.snapshot` property instead.");
+        }
+        if (baseVersion.getQualifier().isEmpty() == false) {
+            throw new IllegalArgumentException("version.properties can't contain a version qualifier for elasticsearch." +
+                "Use the `build.version_qualifier` property instead.");
+        }
+        elasticsearch = new Version(
+            baseVersion.getMajor(),
+            baseVersion.getMinor(),
+            baseVersion.getRevision(),
+            // TODO: Change default to "" after CI "warm-up" by adding -Dbuild.version_qualifier="" to ML jobs to produce
+            //       a snapshot.
+            System.getProperty("build.version_qualifier", "alpha1"),
+            Boolean.parseBoolean(System.getProperty("build.snapshot", "true"))
+        );
         lucene = props.getProperty("lucene");
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));
         }
+        versions.put("elasticsearch", elasticsearch.toString());
     }
 
     private static Properties getVersionProperties() {

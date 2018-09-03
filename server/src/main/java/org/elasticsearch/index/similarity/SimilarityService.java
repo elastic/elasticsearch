@@ -52,7 +52,7 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
         defaults.put(CLASSIC_SIMILARITY, version -> {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 return () -> {
                     throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                             + "similarity or build a custom [scripted] similarity instead.");
@@ -79,7 +79,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
         builtIn.put(CLASSIC_SIMILARITY,
                 (settings, version, script) -> {
-                    if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+                    if (version.onOrAfter(Version.V_7_0_0)) {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
@@ -151,7 +151,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 defaultSimilarity;
     }
 
-    
+
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
         if (sim == null) {

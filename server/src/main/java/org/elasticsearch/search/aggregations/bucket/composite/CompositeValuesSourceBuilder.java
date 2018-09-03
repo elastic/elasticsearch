@@ -72,7 +72,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         } else {
             this.missingBucket = false;
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             // skip missing value for BWC
             in.readGenericValue();
         }
@@ -101,7 +101,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(missingBucket);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             // write missing value for BWC
             out.writeGenericValue(null);
         }

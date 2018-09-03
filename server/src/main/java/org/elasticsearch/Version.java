@@ -41,7 +41,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
-     * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
+     * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id.
+     * Starting with 7.0.0, we no longer store AA
      */
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
@@ -101,10 +102,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_4_1 = new Version(V_6_4_1_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final int V_6_5_0_ID = 6050099;
     public static final Version V_6_5_0 = new Version(V_6_5_0_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final int V_7_0_0_alpha1_ID = 7000001;
-    public static final Version V_7_0_0_alpha1 =
-        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
-    public static final Version CURRENT = V_7_0_0_alpha1;
+    public static final int V_7_0_0_ID = 7000099;
+    public static final Version V_7_0_0 = new Version(V_7_0_0_ID, org.apache.lucene.util.Version.LUCENE_7_5_0);
+    public static final Version CURRENT = V_7_0_0;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -117,8 +117,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_7_0_0_alpha1_ID:
-                return V_7_0_0_alpha1;
+            case V_7_0_0_ID:
+                return V_7_0_0;
             case V_6_5_0_ID:
                 return V_6_5_0;
             case V_6_4_1_ID:
@@ -236,6 +236,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             int build = 99;
             if (parts.length == 4) {
                 String buildStr = parts[3];
+                if (rawMajor >= 7) {
+                    throw new IllegalArgumentException("illegal version format - qualifiers are supported until version 7.x");
+                }
                 if (buildStr.startsWith("alpha")) {
                     assert rawMajor >= 5 : "major must be >= 5 but was " + major;
                     build = Integer.parseInt(buildStr.substring(5));

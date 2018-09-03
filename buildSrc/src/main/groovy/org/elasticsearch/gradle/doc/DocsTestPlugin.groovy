@@ -38,12 +38,12 @@ public class DocsTestPlugin extends RestTestPlugin {
         project.tasks.remove(project.assemble)
         project.build.dependsOn.remove('assemble')
         Map<String, String> defaultSubstitutions = [
-            /* These match up with the asciidoc syntax for substitutions but
-             * the values may differ. In particular {version} needs to resolve
-             * to the version being built for testing but needs to resolve to
-             * the last released version for docs. */
-            '\\{version\\}':
-                VersionProperties.elasticsearch.toString().replace('-SNAPSHOT', ''),
+                /* These match up with the asciidoc syntax for substitutions but
+                 * the values may differ. In particular {version} needs to resolve
+                 * to the version being built for testing but needs to resolve to
+                 * the last released version for docs. */
+            '\\{version\\}': VersionProperties.elasticsearch.withoutQualifier().withoutSnapshot().toString(),
+            '\\{plugin_version\\}': VersionProperties.elasticsearch.toString(),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' :
                 project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',

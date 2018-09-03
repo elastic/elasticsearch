@@ -26,7 +26,7 @@ The rollover action takes the following parameters:
 to. Defaults tonull. Optional.
 |max_docs |The maximum number of document the index should
 contain. Defaults tonull. Optional.
-|max_age |The maximum age of the index. Defaults tonull. Optional.
+|max_age |The maximum age of the index. Defaults to `null`. Optional.
 |===
 
 These parameters are used to determine when the index is considered "full" and
@@ -110,6 +110,6 @@ PUT test-000001 <1>
 suffix number for each subsequent index.
 <2> Designates this index as the write index for this alias.
 
-When the rollover is performed the newly created index will be set as the 
-"write index" for the rolled over alias. This new index will then be used to 
-index documents sent to the alias allowing indexing to be uninterrupted.
+When the rollover is performed, the newly-created index is set as the write
+index for the rolled over alias. Documents sent to the alias are indexed into
+the new index, enabling indexing to continue uninterrupted.

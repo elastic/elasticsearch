@@ -133,7 +133,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 }
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = shard.mapperService().hasNested() ? Queries::newNestedFilter : null;
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), null, querySupplier);
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             store.incRef();
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory());

@@ -31,6 +31,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,11 +43,16 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setIndexDeletionPolicy
                 (deletionPolicy))) {
-                String softDeletesField = writer.w.getConfig().getSoftDeletesField();
+                final String softDeletesField = writer.w.getConfig().getSoftDeletesField();
                 // we either use the soft deletes directly or manually delete them to test the additional delete functionality
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, modifyDeletedDocs ? null : softDeletesField,
-                    modifyDeletedDocs? () -> new DocValuesFieldExistsQuery(softDeletesField) : null);
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir,
+                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null) {
+                    @Override
+                    DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
+                        return modifyDeletedDocs ? reader : super.wrapReader(reader);
+                    }
+                };
                 writer.commit();
                 int numDocs = scaledRandomIntBetween(100, 10000);
                 boolean appendOnly = randomBoolean();
@@ -114,7 +120,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig()
-                .setSoftDeletesField("id")
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexDeletionPolicy(deletionPolicy).setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
                     @Override
                     public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
@@ -140,11 +146,11 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             doc.add(new TextField("text", "the quick brown fox", Field.Store.NO));
             doc.add(new NumericDocValuesField("rank", 3));
             doc.add(new StoredField("src", "the quick brown fox"));
-            writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField("id", 1));
+            writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
             writer.commit();
             IndexCommit snapshot = deletionPolicy.snapshot();
             Directory targetDir = newDirectory();
-            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir, "id");
+            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
             snapshoter.syncSnapshot(snapshot);
 
 
@@ -160,7 +166,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 assertEquals(0, id.totalHits);
             }
 
-            snapshoter = new SourceOnlySnapshot(targetDir, "id");
+            snapshoter = new SourceOnlySnapshot(targetDir);
             List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
             assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
@@ -180,7 +186,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, "id");
+                snapshoter = new SourceOnlySnapshot(targetDir);
                 createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(4, createdFiles.size());
                 for (String file : createdFiles) {
@@ -205,7 +211,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             writer.commit();
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir, "id");
+                snapshoter = new SourceOnlySnapshot(targetDir);
                 createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(1, createdFiles.size());
                 for (String file : createdFiles) {

@@ -51,19 +51,17 @@ import java.util.function.Supplier;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
 import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_INDEX_EXTENSION;
 
-public final class SourceOnlySnapshot {
+public class SourceOnlySnapshot {
     private final Directory targetDirectory;
-    private final String softDeletesField;
     private final Supplier<Query> deleteByQuerySupplier;
 
-    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField, Supplier<Query> deleteByQuerySupplier) {
+    public SourceOnlySnapshot(Directory targetDirectory, Supplier<Query> deleteByQuerySupplier) {
         this.targetDirectory = targetDirectory;
-        this.softDeletesField = softDeletesField;
         this.deleteByQuerySupplier = deleteByQuerySupplier;
     }
 
-    public SourceOnlySnapshot(Directory targetDirectory, String softDeletesField) {
-        this(targetDirectory, softDeletesField, null);
+    public SourceOnlySnapshot(Directory targetDirectory) {
+        this(targetDirectory, null);
     }
 
     public synchronized List<String> syncSnapshot(IndexCommit commit) throws IOException {
@@ -108,6 +106,11 @@ public final class SourceOnlySnapshot {
         Lucene.pruneUnreferencedFiles(segmentFileName, targetDirectory);
         assert assertCheckIndex();
         return Collections.unmodifiableList(createdFiles);
+    }
+
+    private String getSoftDeletesField(DirectoryReader reader) {
+
+        return null;
     }
 
     private LiveDocs getLiveDocs(LeafReader reader) throws IOException {
@@ -170,6 +173,14 @@ public final class SourceOnlySnapshot {
     }
 
     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
+        String softDeletesField = null;
+        for (LeafReaderContext ctx : reader.leaves()) {
+            String field = ctx.reader().getFieldInfos().getSoftDeletesField();
+            if (field != null) {
+                softDeletesField = field;
+                break;
+            }
+        }
         return softDeletesField == null ? reader : new SoftDeletesDirectoryReaderWrapper(reader, softDeletesField);
     }
 
@@ -189,7 +200,8 @@ public final class SourceOnlySnapshot {
             List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
             for (FieldInfo fieldInfo : fieldInfos) {
                     fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
-                        false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0, false));
+                        false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
+                        fieldInfo.isSoftDeletesField()));
             }
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
             codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);

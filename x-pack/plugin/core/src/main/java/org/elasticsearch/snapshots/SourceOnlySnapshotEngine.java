@@ -27,6 +27,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineSearcher;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -175,12 +176,17 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireTranslogRetentionLock() {
+    public Closeable acquireRetentionLockForPeerRecovery() {
         return () -> {};
     }
 
     @Override
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) {
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return readHistoryOperations(source, mapperService, fromSeqNo);
+    }
+
+    @Override
+    public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return new Translog.Snapshot() {
 
             @Override
@@ -200,8 +206,13 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+    public int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return 0;
+    }
+
+    @Override
+    public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
+        return false;
     }
 
     @Override

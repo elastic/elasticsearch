@@ -74,7 +74,7 @@ public class ForbiddenApisCliTask extends DefaultTask {
     @OutputFile
     public File getMarkerFile() {
         return new File(
-            new File(getProject().getBuildDir(), "precommit"),
+            new File(getProject().getBuildDir(), "markers"),
             getName()
         );
     }

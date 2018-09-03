@@ -1,7 +1,12 @@
 package org.elasticsearch.gradle;
 
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.tasks.Exec;
+import org.gradle.process.ExecResult;
+import org.gradle.process.ExecSpec;
+import org.gradle.process.JavaExecSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
@@ -39,6 +44,52 @@ public class LoggedExec extends Exec {
                     }
                 }
             );
+        }
+    }
+
+    public static ExecResult exec(Project project, Action<ExecSpec> action) {
+        if (project.getLogger().isInfoEnabled()) {
+            return project.exec(action);
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try {
+            return project.exec(spec -> {
+                spec.setStandardOutput(output);
+                spec.setErrorOutput(output);
+                action.execute(spec);
+            });
+        } catch (Exception e) {
+            try {
+                for (String line : output.toString("UTF-8").split("\\R")) {
+                    project.getLogger().error(line);
+                }
+            } catch (UnsupportedEncodingException ue) {
+                throw new GradleException("Failed to read exec output", ue);
+            }
+            throw e;
+        }
+    }
+
+    public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
+        if (project.getLogger().isInfoEnabled()) {
+            return project.javaexec(action);
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try {
+            return project.javaexec(spec -> {
+                spec.setStandardOutput(output);
+                spec.setErrorOutput(output);
+                action.execute(spec);
+            });
+        } catch (Exception e) {
+            try {
+                for (String line : output.toString("UTF-8").split("\\R")) {
+                    project.getLogger().error(line);
+                }
+            } catch (UnsupportedEncodingException ue) {
+                throw new GradleException("Failed to read exec output", ue);
+            }
+            throw e;
         }
     }
 }

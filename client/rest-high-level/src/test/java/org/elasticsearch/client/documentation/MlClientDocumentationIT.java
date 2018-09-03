@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlRestTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
@@ -595,8 +596,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         String jobId1 = "test-get-overall-buckets-1";
         String jobId2 = "test-get-overall-buckets-2";
-        Job job1 = MachineLearningIT.buildJob(jobId1);
-        Job job2 = MachineLearningIT.buildJob(jobId2);
+        Job job1 = MachineLearningGetResultsIT.buildJob(jobId1);
+        Job job2 = MachineLearningGetResultsIT.buildJob(jobId2);
         client.machineLearning().putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
         client.machineLearning().putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
 
@@ -690,7 +691,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-
 
     public void testGetRecords() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();

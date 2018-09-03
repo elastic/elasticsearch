@@ -387,7 +387,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private static Job buildJob(String jobId) {
+    public static Job buildJob(String jobId) {
         Job.Builder builder = new Job.Builder(jobId);
 
         Detector detector = new Detector.Builder("count", null).build();

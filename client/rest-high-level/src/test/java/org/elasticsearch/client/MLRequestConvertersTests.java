@@ -211,7 +211,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         getRecordsRequest.setDescending(true);
         getRecordsRequest.setExcludeInterim(true);
 
-        Request request = MLRequestConverters.getRecords(getRecordsRequest)
+        Request request = MLRequestConverters.getRecords(getRecordsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/records", request.getEndpoint());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {

@@ -295,8 +295,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
-
         public Builder(String name) {
             this.name = name;
             mappings = ImmutableOpenMap.builder();
@@ -370,7 +368,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build(), autoCreateIndex);
+            return new IndexTemplateMetaData(
+                name, order, version, indexPatterns, settings, mappings.build(), aliases.build(), autoCreateIndex
+            );
 
         }
 

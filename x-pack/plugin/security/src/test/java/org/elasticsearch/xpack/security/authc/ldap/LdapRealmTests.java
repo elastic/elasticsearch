@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -219,7 +218,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getSettingKey(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING, REALM_IDENTIFIER), -1)
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
@@ -287,11 +286,11 @@ public class LdapRealmTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, identifier), ldapUrls())
-                .putList(getSettingKey(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING, identifier), userTemplate)
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, identifier), groupSearchBase)
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, identifier), LdapSearchScope.SUB_TREE)
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, identifier), VerificationMode.CERTIFICATE)
+                .putList(RealmSettings.getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
+                .putList(RealmSettings.getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .put(RealmSettings.getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
         SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(settings, config.env()), threadPool);
@@ -304,13 +303,13 @@ public class LdapRealmTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         Settings settings = Settings.builder()
                 .put(defaultGlobalSettings)
-                .putList(getSettingKey(URLS_SETTING, identifier), ldapUrls())
-                .put(getSettingKey(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN, identifier), "")
-                .put(getSettingKey(PoolingSessionFactorySettings.BIND_DN, identifier), "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
+                .putList(RealmSettings.getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
+                .put(RealmSettings.getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "")
+                .put(RealmSettings.getFullSettingKey(identifier, PoolingSessionFactorySettings.BIND_DN), "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
                 .setSecureSettings(secureSettings(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, identifier, PASSWORD))
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, identifier), groupSearchBase)
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, identifier), LdapSearchScope.SUB_TREE)
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, identifier), VerificationMode.CERTIFICATE)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .put(RealmSettings.getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
         SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.globalSettings(), config.env()), threadPool);
@@ -325,12 +324,12 @@ public class LdapRealmTests extends LdapTestCase {
         final RealmConfig.RealmIdentifier identifier
                 = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "test-ldap-realm-user-search");
         Settings settings = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, identifier), ldapUrls())
-                .putList(getSettingKey(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING, identifier), "cn=foo")
-                .put(getSettingKey(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN, identifier), "cn=bar")
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, identifier), "")
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, identifier), LdapSearchScope.SUB_TREE)
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, identifier), VerificationMode.CERTIFICATE)
+                .putList(RealmSettings.getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
+                .putList(RealmSettings.getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), "cn=foo")
+                .put(RealmSettings.getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "cn=bar")
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .put(RealmSettings.getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -345,10 +344,10 @@ public class LdapRealmTests extends LdapTestCase {
         final RealmConfig.RealmIdentifier identifier
                 = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "test-ldap-realm-user-search");
         Settings settings = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, identifier), ldapUrls())
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, identifier), "")
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, identifier), LdapSearchScope.SUB_TREE)
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, identifier), VerificationMode.CERTIFICATE)
+                .putList(RealmSettings.getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .put(RealmSettings.getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         RealmConfig config = getRealmConfig(identifier, settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -364,7 +363,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getSettingKey(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING, REALM_IDENTIFIER),
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING),
                         getDataPath("/org/elasticsearch/xpack/security/authc/support/role_mapping.yml"))
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
@@ -415,20 +414,20 @@ public class LdapRealmTests extends LdapTestCase {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "ldap-realm");
         String groupSearchBase = "o=sevenSeas";
         Settings.Builder settings = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, identifier), ldapUrls())
-                .put(getSettingKey(PoolingSessionFactorySettings.BIND_DN, identifier), "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
-                .put(getSettingKey(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD, identifier), PASSWORD)
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, identifier), groupSearchBase)
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, identifier), LdapSearchScope.SUB_TREE)
-                .put(getSettingKey(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING, identifier), "--")
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, identifier), VerificationMode.CERTIFICATE);
+                .putList(RealmSettings.getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
+                .put(RealmSettings.getFullSettingKey(identifier, PoolingSessionFactorySettings.BIND_DN), "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
+                .put(RealmSettings.getFullSettingKey(identifier, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), PASSWORD)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+                .put(RealmSettings.getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .put(RealmSettings.getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), "--")
+                .put(RealmSettings.getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE);
 
         int order = randomIntBetween(0, 10);
-        settings.put(getSettingKey(RealmSettings.ORDER_SETTING, identifier), order);
+        settings.put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), order);
 
         boolean userSearch = randomBoolean();
         if (userSearch) {
-            settings.put(getSettingKey(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN, identifier), "");
+            settings.put(RealmSettings.getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "");
         }
 
         RealmConfig config = getRealmConfig(identifier, settings.build());
@@ -451,7 +450,7 @@ public class LdapRealmTests extends LdapTestCase {
     private SecureSettings secureSettings(Function<String, Setting.AffixSetting<SecureString>> settingFactory,
                                           RealmConfig.RealmIdentifier identifier, String value) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(getSettingKey(settingFactory, identifier), value);
+        secureSettings.setString(RealmSettings.getFullSettingKey(identifier, settingFactory), value);
         return secureSettings;
     }
 }

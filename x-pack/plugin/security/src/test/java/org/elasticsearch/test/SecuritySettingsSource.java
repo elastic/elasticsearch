@@ -12,7 +12,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -23,7 +22,6 @@ import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -41,7 +39,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
@@ -349,17 +346,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
             throw new AssertionError("Test settings builder must contain MockSecureSettings, " +
                 "but has [" + secureSettings.getClass().getName() + "]");
         }
-    }
-
-    public static <T> String getSettingKey(Function<String, Setting.AffixSetting<T>> settingFactory,
-                                           RealmConfig.RealmIdentifier identifier) {
-        final Setting.AffixSetting<?> affixSetting = settingFactory.apply(identifier.getType());
-        return getSettingKey(affixSetting, identifier);
-    }
-
-    public static String getSettingKey(Setting.AffixSetting<?> affixSetting, RealmConfig.RealmIdentifier identifier) {
-        final Setting<?> concreteSetting = affixSetting.getConcreteSettingForNamespace(identifier.getName());
-        return concreteSetting.getKey();
     }
 
     private static String[] resolvePathsToString(List<String> resourcePaths) {

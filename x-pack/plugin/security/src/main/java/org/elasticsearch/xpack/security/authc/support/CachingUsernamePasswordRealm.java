@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
@@ -36,23 +34,17 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
         super(config);
-        cacheHasher = Hasher.resolve(setting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
+        cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
-        final TimeValue ttl = setting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
+        final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, ListenableFuture<UserWithHash>>builder()
                     .setExpireAfterWrite(ttl)
-                    .setMaximumWeight(setting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                    .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
                     .build();
         } else {
             cache = null;
         }
-    }
-
-    private <T> T setting(Function<String, Setting.AffixSetting<T>> settingFunction) {
-        final Setting.AffixSetting<T> affixSetting = settingFunction.apply(config.type());
-        final Setting<T> concreteSetting = affixSetting.getConcreteSettingForNamespace(config.name());
-        return concreteSetting.get(config.globalSettings());
     }
 
     @Override

@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -164,8 +164,8 @@ public class OpenLdapTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         Settings settings = Settings.builder()
             .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-            .put(getSettingKey(SearchGroupsResolverSettings.FILTER, realmId), "(&(objectclass=posixGroup)(memberUid={0}))")
-            .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, realmId), "uid")
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(&(objectclass=posixGroup)(memberUid={0}))")
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
             .build();
         RealmConfig config = new RealmConfig(realmId, settings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -183,9 +183,9 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
             .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getSettingKey(SearchGroupsResolverSettings.FILTER, realmId), "(objectClass=*)")
-            .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.CERTIFICATE)
-            .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, realmId), "1ms")
+            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(objectClass=*)")
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+            .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
             .build();
         RealmConfig config = new RealmConfig(realmId, settings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -242,7 +242,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getSettingKey(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING, realmId), "cn", "sn")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "cn", "sn")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -258,7 +258,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getSettingKey(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING, realmId), "objectClass")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "objectClass")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -274,7 +274,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMissingAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getSettingKey(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING, realmId), "alias")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "alias")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -291,13 +291,13 @@ public class OpenLdapTests extends ESTestCase {
         final String[] templates = {userTemplate};
         Settings.Builder builder = Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
-        builder.put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, realmId), "uid");
+        builder.put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid");
         if (useGlobalSSL) {
             return builder.build();
         }
         return builder
-            .put(getSettingKey(SSLConfigurationSettings.TRUST_STORE_PATH_REALM, realmId), getDataPath(LDAPTRUST_PATH))
-            .put(getSettingKey(SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM, realmId), "changeit")
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.TRUST_STORE_PATH_REALM), getDataPath(LDAPTRUST_PATH))
+            .put(getFullSettingKey(realmId, SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM), "changeit")
             .put(globalSettings)
             .build();
     }

@@ -12,8 +12,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 
@@ -39,7 +39,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(LdapRealmSettings.LDAP_TYPE, "my_ldap");
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .putList(SecuritySettingsSource.getSettingKey(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING, realmId),
+                .putList(RealmSettings.getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING),
                         "cn", "uid")
                 .build();
         RealmConfig config = new RealmConfig(realmId,

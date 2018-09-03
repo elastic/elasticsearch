@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -28,7 +29,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -59,7 +59,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, REALM_IDENTIFIER), "1ms") //1 millisecond
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms") //1 millisecond
                 .put("path.home", createTempDir())
                 .build();
 

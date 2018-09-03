@@ -70,7 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -194,11 +194,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
         final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", "saml1");
         final Settings realmSettings = Settings.builder()
-                .put(getSettingKey(SamlRealmSettings.IDP_METADATA_PATH, realmIdentifier), metadata.toString())
-                .put(getSettingKey(SamlRealmSettings.IDP_ENTITY_ID, realmIdentifier), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(getSettingKey(SamlRealmSettings.SP_ENTITY_ID, realmIdentifier), SP_URL)
-                .put(getSettingKey(SamlRealmSettings.SP_ACS, realmIdentifier), SP_URL)
-                .put(getSettingKey(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute(), realmIdentifier), "uid")
+                .put(getFullSettingKey("saml1", SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+                .put(getFullSettingKey("saml1", SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
+                .put(getFullSettingKey("saml1", SamlRealmSettings.SP_ENTITY_ID), SP_URL)
+                .put(getFullSettingKey("saml1", SamlRealmSettings.SP_ACS), SP_URL)
+                .put(getFullSettingKey("saml1", SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
                 .build();
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, mergeSettings(realmSettings, settings),

@@ -29,7 +29,7 @@ import org.junit.After;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -61,8 +61,8 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(options);
 
         final Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_IDENTIFIER), "ou=groups,o=sevenSeas")
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, REALM_IDENTIFIER), LdapSearchScope.SUB_TREE)
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .build();
         final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
         final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
@@ -81,8 +81,8 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_IDENTIFIER), "ou=groups,o=sevenSeas")
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, REALM_IDENTIFIER), LdapSearchScope.SUB_TREE)
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                 .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
@@ -97,8 +97,8 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_IDENTIFIER), "ou=groups,o=sevenSeas")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_IDENTIFIER), "dn")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "dn")
                 .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
@@ -113,8 +113,8 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_IDENTIFIER), "ou=groups,o=sevenSeas")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_IDENTIFIER), "no-such-attribute")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "no-such-attribute")
                 .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
@@ -129,11 +129,11 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
                              new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"), 0, 20))) {
 
             final Settings settings = Settings.builder()
-                    .put(getSettingKey(PoolingSessionFactorySettings.BIND_DN, REALM_IDENTIFIER),
+                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
                             "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                    .put(getSettingKey(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD, REALM_IDENTIFIER), "pass")
-                    .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_IDENTIFIER), "ou=groups,o=sevenSeas")
-                    .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, REALM_IDENTIFIER), LdapSearchScope.SUB_TREE)
+                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), "pass")
+                    .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                    .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
                     .build();
             final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
             final PlainActionFuture<List<String>> future = new PlainActionFuture<>();

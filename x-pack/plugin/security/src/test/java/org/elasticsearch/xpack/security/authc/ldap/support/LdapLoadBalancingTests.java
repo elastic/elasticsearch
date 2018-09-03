@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -38,7 +38,7 @@ public class LdapLoadBalancingTests extends ESTestCase {
 
     public Settings getSettings(String loadBalancerType) {
         return Settings.builder()
-                .put(getSettingKey(LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING, REALM_IDENTIFIER), loadBalancerType)
+                .put(getFullSettingKey(REALM_IDENTIFIER, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), loadBalancerType)
                 .put("path.home", createTempDir())
                 .build();
     }

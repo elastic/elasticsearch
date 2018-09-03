@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 
@@ -125,34 +125,34 @@ public abstract class LdapTestCase extends ESTestCase {
                                              String groupSearchBase, LdapSearchScope scope, LdapLoadBalancing serverSetType,
                                              boolean ignoreReferralErrors) {
         Settings.Builder builder = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, realmId), ldapUrl)
-                .putList(getSettingKey(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING, realmId), userTemplate)
-                .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, realmId), TimeValue.timeValueSeconds(1L))
-                .put(getSettingKey(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING, realmId), ignoreReferralErrors)
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, realmId), groupSearchBase)
-                .put(getSettingKey(SearchGroupsResolverSettings.SCOPE, realmId), scope);
+                .putList(getFullSettingKey(realmId, URLS_SETTING), ldapUrl)
+                .putList(getFullSettingKey(realmId.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), TimeValue.timeValueSeconds(1L))
+                .put(getFullSettingKey(realmId, SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING), ignoreReferralErrors)
+                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.SCOPE), scope);
         if (serverSetType != null) {
-            builder.put(getSettingKey(LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING, realmId), serverSetType.toString());
+            builder.put(getFullSettingKey(realmId, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), serverSetType.toString());
         }
         return builder.build();
     }
 
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
-                .putList(getSettingKey(URLS_SETTING, REALM_IDENTIFIER), ldapUrl)
-                .putList(getSettingKey(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING, REALM_IDENTIFIER), userTemplate);
+                .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrl)
+                .putList(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate);
         if (randomBoolean()) {
-            builder.put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, REALM_IDENTIFIER),
+            builder.put(getFullSettingKey(REALM_IDENTIFIER, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(getSettingKey(HOSTNAME_VERIFICATION_SETTING, REALM_IDENTIFIER), hostnameVerification);
+            builder.put(getFullSettingKey(REALM_IDENTIFIER, HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
         return builder.build();
     }
 
     protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = Settings.builder()
-                .put(getSettingKey(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, REALM_IDENTIFIER), true)
+                .put(getFullSettingKey(REALM_IDENTIFIER, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
                 .put("path.home", createTempDir())
                 .build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,

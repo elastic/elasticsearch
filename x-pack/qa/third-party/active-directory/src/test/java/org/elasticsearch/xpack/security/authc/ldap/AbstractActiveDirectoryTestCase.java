@@ -35,7 +35,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
@@ -103,24 +103,25 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
     Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,
                              LdapSearchScope scope, boolean hostnameVerification) {
+        final String realmName = realmId.getName();
         Settings.Builder builder = Settings.builder()
-                .putList(getSettingKey(SessionFactorySettings.URLS_SETTING, realmId), ldapUrl)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, realmId), adDomainName)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, realmId), userSearchDN)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, realmId), scope)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING, realmId), AD_LDAP_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING, realmId), AD_LDAPS_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING, realmId), AD_GC_LDAP_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING, realmId), AD_GC_LDAPS_PORT)
-                .put(getSettingKey(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, realmId), FOLLOW_REFERRALS);
+                .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+                .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+                .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
-            builder.put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId),
+            builder.put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(getSettingKey(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, realmId), hostnameVerification);
+            builder.put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
         if (useGlobalSSL == false) {
-            builder.putList(getSettingKey(SSLConfigurationSettings.CAPATH_SETTING_REALM, realmId), certificatePaths);
+            builder.putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         }
         return builder.build();
     }

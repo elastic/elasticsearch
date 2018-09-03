@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -44,7 +44,8 @@ import static org.hamcrest.Matchers.is;
 
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
-    public static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ad", "ad-test");
+    private static final String REALM_NAME = "ad-test";
+    private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ad", REALM_NAME);
     private final SecureString SECURED_PASSWORD = new SecureString(PASSWORD);
     private ThreadPool threadPool;
 
@@ -253,7 +254,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         Settings settings = Settings.builder()
                 .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                         LdapSearchScope.SUB_TREE, false))
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING, REALM_ID),
+                .put(getFullSettingKey(REALM_ID.getName(), ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING),
                         "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))")
                 .build();
         RealmConfig config = configureRealm("ad-test", settings);
@@ -395,22 +396,22 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
 
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
         Settings.Builder builder = Settings.builder()
-                .put(getSettingKey(SessionFactorySettings.URLS_SETTING, REALM_ID), ldapUrl)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, REALM_ID), adDomainName)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING, REALM_ID), AD_LDAP_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING, REALM_ID), AD_LDAPS_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING, REALM_ID), AD_GC_LDAP_PORT)
-                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING, REALM_ID), AD_GC_LDAPS_PORT)
-                .put(getSettingKey(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, REALM_ID), FOLLOW_REFERRALS);
+                .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
+                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+                .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
-            builder.put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, REALM_ID),
+            builder.put(getFullSettingKey(REALM_ID, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
                     hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(getSettingKey(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, REALM_ID), hostnameVerification);
+            builder.put(getFullSettingKey(REALM_ID, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
 
         if (useGlobalSSL == false) {
-            builder.putList(getSettingKey(SSLConfigurationSettings.CAPATH_SETTING_REALM, REALM_ID), certificatePaths);
+            builder.putList(getFullSettingKey(REALM_ID, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         }
 
         if (useBindUser) {

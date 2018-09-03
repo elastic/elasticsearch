@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -78,18 +78,19 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         final Settings.Builder realmSettings = Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(realmId, new String[]{OpenLdapTests.OPEN_LDAP_DNS_URL}, Strings.EMPTY_ARRAY,
                         groupSearchBase, LdapSearchScope.ONE_LEVEL, null, false))
-                .put(getSettingKey(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN, realmId), userSearchBase)
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, realmId), "uid")
-                .put(getSettingKey(PoolingSessionFactorySettings.BIND_DN, realmId),
+                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), userSearchBase)
+                .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
+                .put(getFullSettingKey(realmId, PoolingSessionFactorySettings.BIND_DN),
                         "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(LdapUserSearchSessionFactorySettings.POOL_ENABLED, realmId), randomBoolean())
-                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), "full");
+                .put(getFullSettingKey(realmId.getName(), LdapUserSearchSessionFactorySettings.POOL_ENABLED), randomBoolean())
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString(getSettingKey(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD, realmId), OpenLdapTests.PASSWORD);
+            secureSettings.setString(getFullSettingKey(realmId, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD),
+                OpenLdapTests.PASSWORD);
             realmSettings.setSecureSettings(secureSettings);
         } else {
-            realmSettings.put(getSettingKey(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD, realmId), OpenLdapTests.PASSWORD);
+            realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), OpenLdapTests.PASSWORD);
         }
         final Settings settings = realmSettings.put(globalSettings).build();
         RealmConfig config = new RealmConfig(realmId, settings,

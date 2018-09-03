@@ -85,7 +85,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -178,12 +178,12 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final RealmIdentifier identifier = new RealmIdentifier("saml", "saml1");
         final Settings realmSettings = Settings.builder()
-                .put(getSettingKey(SamlRealmSettings.IDP_METADATA_PATH, identifier), metadata.toString())
-                .put(getSettingKey(SamlRealmSettings.IDP_ENTITY_ID, identifier), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(getSettingKey(SamlRealmSettings.SP_ENTITY_ID, identifier), SamlRealmTestHelper.SP_ENTITY_ID)
-                .put(getSettingKey(SamlRealmSettings.SP_ACS, identifier), SamlRealmTestHelper.SP_ACS_URL)
-                .put(getSettingKey(SamlRealmSettings.SP_LOGOUT, identifier), SamlRealmTestHelper.SP_LOGOUT_URL)
-                .put(getSettingKey(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute(), identifier), "uid")
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.SP_ENTITY_ID), SamlRealmTestHelper.SP_ENTITY_ID)
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
+                .put(getFullSettingKey(identifier.getName(), SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
                 .build();
 
         final RealmConfig realmConfig = new RealmConfig(

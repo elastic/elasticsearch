@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 
 import java.util.List;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -31,8 +31,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
@@ -47,9 +47,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveOneLevel() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN),
+                    "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("group_search.scope", LdapSearchScope.ONE_LEVEL)
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
@@ -64,10 +65,10 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveBase() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID),
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN),
                         "cn=Avengers,ou=People,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("group_search.scope", LdapSearchScope.BASE)
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
@@ -78,9 +79,9 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testResolveCustomFilter() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
@@ -92,8 +93,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testFilterIncludesPosixGroups() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid")
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
@@ -118,8 +119,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testReadUserAttributeUid() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "uid").build();
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid").build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
         PlainActionFuture<String> future = new PlainActionFuture<>();
         resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), future);
@@ -128,8 +129,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testReadUserAttributeCn() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "cn")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "cn")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
 
@@ -140,8 +141,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testReadNonExistentUserAttribute() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "doesntExists")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "doesntExists")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
 
@@ -152,8 +153,8 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public void testReadBinaryUserAttribute() throws Exception {
         Settings settings = Settings.builder()
-                .put(getSettingKey(SearchGroupsResolverSettings.BASE_DN, REALM_ID), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put(getSettingKey(SearchGroupsResolverSettings.USER_ATTRIBUTE, REALM_ID), "userPassword")
+                .put(getFullSettingKey(REALM_ID, SearchGroupsResolverSettings.BASE_DN), "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put(getFullSettingKey(REALM_ID.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "userPassword")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(config(REALM_ID, settings));
 

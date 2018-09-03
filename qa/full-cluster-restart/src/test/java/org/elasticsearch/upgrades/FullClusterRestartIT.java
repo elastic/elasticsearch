@@ -908,9 +908,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        if (false == (runningAgainstOldCluster && oldClusterVersion.before(Version.V_5_5_0))) {
-            listSnapshotRequest.addParameter("verbose", "true");
-        }
         Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", listSnapshotResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", listSnapshotResponse));

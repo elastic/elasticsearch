@@ -347,10 +347,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
             SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_5_0_0::before));
+            Version.V_6_0_0::before));
         assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
             SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_5_0_0::after));
+            Version.V_6_0_0::after));
     }
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {

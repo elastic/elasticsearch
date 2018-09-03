@@ -272,11 +272,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             documents = document != null ? Collections.singletonList(document) : Collections.emptyList();
         }
         if (documents.isEmpty() == false) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = in.readEnum(XContentType.class);
-            } else {
-                documentXContentType = XContentHelper.xContentType(documents.iterator().next());
-            }
+            documentXContentType = in.readEnum(XContentType.class);
         } else {
             documentXContentType = null;
         }
@@ -329,7 +325,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             BytesReference doc = documents.isEmpty() ? null : documents.iterator().next();
             out.writeOptionalBytesReference(doc);
         }
-        if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
+        if (documents.isEmpty() == false) {
             out.writeEnum(documentXContentType);
         }
     }

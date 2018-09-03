@@ -55,11 +55,14 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
         return StatusOrException.fromXContent(parser);
     }
 
-    public static void assertEqualStatusOrException(StatusOrException expected, StatusOrException actual) {
+    public static void assertEqualStatusOrException(StatusOrException expected, StatusOrException actual,
+                                                    boolean includeUpdated, boolean includeCreated) {
         if (expected != null && actual != null) {
             assertNotSame(expected, actual);
             if (expected.getException() == null) {
-                BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus());
+                BulkByScrollTaskStatusTests
+                    // we test includeCreated params in the Status tests
+                    .assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
             } else {
                 assertThat(
                     actual.getException().getMessage(),
@@ -74,7 +77,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
 
     @Override
     protected void assertEqualInstances(StatusOrException expected, StatusOrException actual) {
-        assertEqualStatusOrException(expected, actual);
+        assertEqualStatusOrException(expected, actual, true, true);
     }
 
     @Override

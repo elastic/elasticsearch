@@ -33,6 +33,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -69,7 +70,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc",
                 "{\"_source\":{\"enabled\": false}}").build();
-        IndexShard shard = newShard(shardRouting, metaData);
+        IndexShard shard = newShard(shardRouting, metaData, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
         for (int i = 0; i < 1; i++) {
@@ -244,11 +245,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, primaryTerm);
         metaData.putMapping(mapping);
-        IndexShard targetShard = newShard(targetShardRouting, metaData.build());
+        IndexShard targetShard = newShard(targetShardRouting, metaData.build(), new InternalEngineFactory());
         boolean success = false;
         try {
             recoverShardFromStore(targetShard);
-            long primaryTerm = targetShard.getPendingPrimaryTerm();
             String index = targetShard.shardId().getIndexName();
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(true);
             for (LeafReaderContext ctx : reader.leaves()) {
@@ -263,7 +263,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, source
-                            (index, uid.type(), uid.id(), source, XContentHelper.xContentType(source), false)
+                            (index, uid.type(), uid.id(), source, XContentHelper.xContentType(source))
                             .routing(rootFieldsVisitor.routing()), 1, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result

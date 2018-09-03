@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -185,9 +186,11 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         SearchHits hits = searchResponse.getHits();
         List<ForecastRequestStats> allStats = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
-            allStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
+            try (InputStream stream = hit.getSourceRef().streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                allStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
+            }
         }
         return new HashSet<>(allStats);
     }

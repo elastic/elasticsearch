@@ -343,6 +343,12 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
 
         {
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), MetaData.ALL);
+            AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
+            assertTrue(response.isAcknowledged());
+        }
+
+        {
             Job.Builder otherJob = new Job.Builder("forecasts-delete-with-all-and-allow-no-forecasts");
             otherJob.setAnalysisConfig(analysisConfig);
             otherJob.setDataDescription(dataDescription);

@@ -264,9 +264,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse using the provided {@link ParseContext} and return a mapping
-     * update if dynamic mappings modified the mappings, or {@code null} if
-     * mappings were not modified.
+     * Parse the field value using the provided {@link ParseContext}.
      */
     public void parse(ParseContext context) throws IOException {
         final List<IndexableField> fields = new ArrayList<>(2);

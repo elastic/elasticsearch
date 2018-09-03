@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -30,7 +32,7 @@ import java.util.Set;
  */
 public class RollupJobIdentifierUtils {
 
-    private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
+    static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
 
     /**
      * Given the aggregation tree and a list of available job capabilities, this method will return a set
@@ -131,6 +133,57 @@ public class RollupJobIdentifierUtils {
             // otherwise keep working down the tree
             source.getSubAggregations().forEach(sub -> doFindBestJobs(sub, localCaps, bestCaps));
         }
+    }
+
+    private static boolean isCalendarInterval(DateHistogramInterval interval) {
+        return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
+    }
+
+    static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
+                                                    DateHistogramInterval configInterval) {
+        // Both must be calendar intervals
+        if (isCalendarInterval(requestInterval) == false || isCalendarInterval(configInterval) == false) {
+            return false;
+        }
+
+        // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
+        // relative orders between the calendar units
+        DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        long requestOrder = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        long configOrder = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+
+        // All calendar units are multiples naturally, so we just care about gte
+        return requestOrder >= configOrder;
+    }
+
+    static boolean validateFixedInterval(DateHistogramInterval requestInterval,
+                                                 DateHistogramInterval configInterval) {
+        // Neither can be calendar intervals
+        if (isCalendarInterval(requestInterval) || isCalendarInterval(configInterval)) {
+            return false;
+        }
+
+        // Both are fixed, good to convert to millis now
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
+            "date_histo.config.interval").getMillis();
+        long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(),
+            "date_histo.request.interval").getMillis();
+
+        // Must be a multiple and gte the config
+        return requestIntervalMillis >= configIntervalMillis && requestIntervalMillis % configIntervalMillis == 0;
+    }
+
+    static boolean validateFixedInterval(long requestInterval, DateHistogramInterval configInterval) {
+        // config must not be a calendar interval
+        if (isCalendarInterval(configInterval)) {
+            return false;
+        }
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
+            "date_histo.config.interval").getMillis();
+
+        // Must be a multiple and gte the config
+        return requestInterval >= configIntervalMillis && requestInterval % configIntervalMillis == 0;
     }
 
     /**
@@ -247,8 +300,8 @@ public class RollupJobIdentifierUtils {
                 return 0;
             }
 
-            TimeValue thisTime = null;
-            TimeValue thatTime = null;
+            long thisTime = Long.MAX_VALUE;
+            long thatTime = Long.MAX_VALUE;
 
             // histogram intervals are averaged and compared, with the idea that
             // a larger average == better, because it will generate fewer documents
@@ -265,7 +318,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o1.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thisTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thisTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thisHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -281,7 +334,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o2.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thatTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thatTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thatHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -292,13 +345,9 @@ public class RollupJobIdentifierUtils {
             }
             thatHistoWeights = counter == 0 ? 0 : thatHistoWeights / counter;
 
-            // DateHistos are mandatory so these should always be present no matter what
-            assert thisTime != null;
-            assert thatTime != null;
-
             // Compare on date interval first
             // The "smaller" job is the one with the larger interval
-            int timeCompare = thisTime.compareTo(thatTime);
+            int timeCompare = Long.compare(thisTime, thatTime);
             if (timeCompare != 0) {
                 return -timeCompare;
             }
@@ -329,5 +378,15 @@ public class RollupJobIdentifierUtils {
             // Could potentially optimize there in the future to choose jobs with more metric
             // coverage
         };
+    }
+
+    static long getMillisFixedOrCalendar(String value) {
+        DateHistogramInterval interval = new DateHistogramInterval(value);
+        if (isCalendarInterval(interval)) {
+            DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+            return intervalUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        } else {
+            return TimeValue.parseTimeValue(value, "date_histo.comparator.interval").getMillis();
+        }
     }
 }

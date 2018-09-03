@@ -211,7 +211,7 @@ public final class LogConfigWriter {
         "  }\n" +
         "}\n";
 
-    private static final String SEPARATED_VALUES_FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
+    private static final String DELIMITED_FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
         "%s" +
@@ -225,7 +225,7 @@ public final class LogConfigWriter {
     private static final String LOGSTASH_STRIP_FILTER_TEMPLATE = "  mutate {\n" +
         "    strip => [ %s ]\n" +
         "  }\n";
-    private static final String SEPARATED_VALUES_LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
+    private static final String DELIMITED_LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
         "    port => 5044\n" +
         "    host => \"0.0.0.0\"\n" +
@@ -250,7 +250,7 @@ public final class LogConfigWriter {
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
         "}\n";
-    private static final String SEPARATED_VALUES_LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
+    private static final String DELIMITED_LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
         "%s" +
         "}\n" +
         "\n" +
@@ -616,9 +616,9 @@ public final class LogConfigWriter {
             elasticsearchHost, indexName);
     }
 
-    private void createSeparatedValuesConfigs(LogStructure structure) {
+    private void createDelimitedConfigs(LogStructure structure) {
 
-        char delimiter = structure.getSeparator();
+        char delimiter = structure.getDelimiter();
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (structure.getTimestampField() != null) {
@@ -628,20 +628,20 @@ public final class LogConfigWriter {
                 structure.needClientTimezone(), false);
         }
 
-        filebeatToLogstashConfig = String.format(Locale.ROOT, SEPARATED_VALUES_FILEBEAT_TO_LOGSTASH_TEMPLATE,
+        filebeatToLogstashConfig = String.format(Locale.ROOT, DELIMITED_FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions(structure.getMultilineStartPattern(), structure.getExcludeLinesPattern(), structure.getCharset()),
             makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
         String logstashColumns = structure.getInputFields().stream()
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
-        String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
+        String delimiterIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
         String logstashColumnConversions = makeColumnConversions(structure.getMappings());
         String logstashStripFilter = Boolean.TRUE.equals(structure.getShouldTrimFields()) ?
             String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, SEPARATED_VALUES_LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired,
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, DELIMITED_LOGSTASH_FROM_FILEBEAT_TEMPLATE, delimiterIfRequired,
             logstashColumns, logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
         String skipHeaderIfRequired = structure.getHasHeaderRow() ? "    skip_header => true\n": "";
-        logstashFromFileConfig = String.format(Locale.ROOT, SEPARATED_VALUES_LOGSTASH_FROM_FILE_TEMPLATE,
-            makeLogstashFileInput(structure.getMultilineStartPattern(), structure.getCharset()), separatorIfRequired, logstashColumns,
+        logstashFromFileConfig = String.format(Locale.ROOT, DELIMITED_LOGSTASH_FROM_FILE_TEMPLATE,
+            makeLogstashFileInput(structure.getMultilineStartPattern(), structure.getCharset()), delimiterIfRequired, logstashColumns,
             skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
@@ -695,11 +695,8 @@ public final class LogConfigWriter {
             case XML:
                 createXmlConfigs(structure);
                 break;
-            case CSV:
-            case TSV:
-            case SEMI_COLON_SEPARATED_VALUES:
-            case PIPE_SEPARATED_VALUES:
-                createSeparatedValuesConfigs(structure);
+            case DELIMITED:
+                createDelimitedConfigs(structure);
                 break;
             case SEMI_STRUCTURED_TEXT:
                 createTextConfigs(structure, sampleMessages);

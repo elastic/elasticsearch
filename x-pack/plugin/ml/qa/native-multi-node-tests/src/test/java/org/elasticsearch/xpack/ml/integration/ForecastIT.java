@@ -339,7 +339,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
             assertThat(e.getMessage(),
-                equalTo(String.format("No forecast(s) [forecast-does-not-exist] exists for job [%s]", job.getId())));
+                equalTo("No forecast(s) [forecast-does-not-exist] exists for job [forecast-it-test-delete]"));
         }
 
         {
@@ -373,7 +373,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
             assertThat(e.getMessage(),
-                equalTo(String.format("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]")));
+                equalTo("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]"));
         }
     }
 

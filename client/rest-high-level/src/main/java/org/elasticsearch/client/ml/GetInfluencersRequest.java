@@ -21,7 +21,6 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.results.Result;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -32,81 +31,52 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A request to retrieve buckets of a given job
+ * A request to retrieve influencers of a given job
  */
-public class GetBucketsRequest extends ActionRequest implements ToXContentObject {
+public class GetInfluencersRequest extends ActionRequest implements ToXContentObject {
 
-    public static final ParseField EXPAND = new ParseField("expand");
     public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
-    public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
+    public static final ParseField INFLUENCER_SCORE = new ParseField("influencer_score");
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField DESCENDING = new ParseField("desc");
 
-    public static final ObjectParser<GetBucketsRequest, Void> PARSER = new ObjectParser<>("get_buckets_request", GetBucketsRequest::new);
+    public static final ObjectParser<GetInfluencersRequest, Void> PARSER = new ObjectParser<>("get_influencers_request",
+            GetInfluencersRequest::new);
 
     static {
         PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-        PARSER.declareString(GetBucketsRequest::setTimestamp, Result.TIMESTAMP);
-        PARSER.declareBoolean(GetBucketsRequest::setExpand, EXPAND);
-        PARSER.declareBoolean(GetBucketsRequest::setExcludeInterim, EXCLUDE_INTERIM);
-        PARSER.declareStringOrNull(GetBucketsRequest::setStart, START);
-        PARSER.declareStringOrNull(GetBucketsRequest::setEnd, END);
-        PARSER.declareObject(GetBucketsRequest::setPageParams, PageParams.PARSER, PageParams.PAGE);
-        PARSER.declareDouble(GetBucketsRequest::setAnomalyScore, ANOMALY_SCORE);
-        PARSER.declareString(GetBucketsRequest::setSort, SORT);
-        PARSER.declareBoolean(GetBucketsRequest::setDescending, DESCENDING);
+        PARSER.declareBoolean(GetInfluencersRequest::setExcludeInterim, EXCLUDE_INTERIM);
+        PARSER.declareStringOrNull(GetInfluencersRequest::setStart, START);
+        PARSER.declareStringOrNull(GetInfluencersRequest::setEnd, END);
+        PARSER.declareObject(GetInfluencersRequest::setPageParams, PageParams.PARSER, PageParams.PAGE);
+        PARSER.declareDouble(GetInfluencersRequest::setInfluencerScore, INFLUENCER_SCORE);
+        PARSER.declareString(GetInfluencersRequest::setSort, SORT);
+        PARSER.declareBoolean(GetInfluencersRequest::setDescending, DESCENDING);
     }
 
     private String jobId;
-    private String timestamp;
-    private Boolean expand;
     private Boolean excludeInterim;
     private String start;
     private String end;
+    private Double influencerScore;
     private PageParams pageParams;
-    private Double anomalyScore;
     private String sort;
     private Boolean descending;
 
-    private GetBucketsRequest() {}
+    private GetInfluencersRequest() {}
 
     /**
-     * Constructs a request to retrieve buckets of a given job
-     * @param jobId id of the job to retrieve buckets of
+     * Constructs a request to retrieve influencers of a given job
+     * @param jobId id of the job to retrieve influencers of
      */
-    public GetBucketsRequest(String jobId) {
+    public GetInfluencersRequest(String jobId) {
         this.jobId = Objects.requireNonNull(jobId);
     }
 
     public String getJobId() {
         return jobId;
-    }
-
-    /**
-     * Sets the timestamp of a specific bucket to be retrieved.
-     * @param timestamp the timestamp of a specific bucket to be retrieved
-     */
-    public void setTimestamp(String timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public String getTimestamp() {
-        return timestamp;
-    }
-
-    public boolean isExpand() {
-        return expand;
-    }
-
-    /**
-     * Sets the value of "expand".
-     * When {@code true}, buckets will be expanded to include their records.
-     * @param expand value of "expand" to be set
-     */
-    public void setExpand(Boolean expand) {
-        this.expand = expand;
     }
 
     public Boolean isExcludeInterim() {
@@ -115,7 +85,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the value of "exclude_interim".
-     * When {@code true}, interim buckets will be filtered out.
+     * When {@code true}, interim influencers will be filtered out.
      * @param excludeInterim value of "exclude_interim" to be set
      */
     public void setExcludeInterim(Boolean excludeInterim) {
@@ -128,7 +98,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the value of "start" which is a timestamp.
-     * Only buckets whose timestamp is on or after the "start" value will be returned.
+     * Only influencers whose timestamp is on or after the "start" value will be returned.
      * @param start value of "start" to be set
      */
     public void setStart(String start) {
@@ -141,7 +111,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the value of "end" which is a timestamp.
-     * Only buckets whose timestamp is before the "end" value will be returned.
+     * Only influencers whose timestamp is before the "end" value will be returned.
      * @param end value of "end" to be set
      */
     public void setEnd(String end) {
@@ -154,23 +124,23 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the paging parameters
-     * @param pageParams the paging parameters
+     * @param pageParams The paging parameters
      */
     public void setPageParams(PageParams pageParams) {
         this.pageParams = pageParams;
     }
 
-    public Double getAnomalyScore() {
-        return anomalyScore;
+    public Double getInfluencerScore() {
+        return influencerScore;
     }
 
     /**
-     * Sets the value of "anomaly_score".
-     * Only buckets with "anomaly_score" equal or greater will be returned.
-     * @param anomalyScore value of "anomaly_score".
+     * Sets the value of "influencer_score".
+     * Only influencers with "influencer_score" equal or greater will be returned.
+     * @param influencerScore value of "influencer_score".
      */
-    public void setAnomalyScore(Double anomalyScore) {
-        this.anomalyScore = anomalyScore;
+    public void setInfluencerScore(Double influencerScore) {
+        this.influencerScore = influencerScore;
     }
 
     public String getSort() {
@@ -179,7 +149,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the value of "sort".
-     * Specifies the bucket field to sort on.
+     * Specifies the influencer field to sort on.
      * @param sort value of "sort".
      */
     public void setSort(String sort) {
@@ -195,7 +165,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
      * Specifies the sorting order.
      * @param descending value of "desc"
      */
-    public void setDescending(boolean descending) {
+    public void setDescending(Boolean descending) {
         this.descending = descending;
     }
 
@@ -208,12 +178,6 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        if (timestamp != null) {
-            builder.field(Result.TIMESTAMP.getPreferredName(), timestamp);
-        }
-        if (expand != null) {
-            builder.field(EXPAND.getPreferredName(), expand);
-        }
         if (excludeInterim != null) {
             builder.field(EXCLUDE_INTERIM.getPreferredName(), excludeInterim);
         }
@@ -226,8 +190,8 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
         if (pageParams != null) {
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
         }
-        if (anomalyScore != null) {
-            builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
+        if (influencerScore != null) {
+            builder.field(INFLUENCER_SCORE.getPreferredName(), influencerScore);
         }
         if (sort != null) {
             builder.field(SORT.getPreferredName(), sort);
@@ -241,7 +205,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, expand, excludeInterim, anomalyScore, pageParams, start, end, sort, descending);
+        return Objects.hash(jobId, excludeInterim, influencerScore, pageParams, start, end, sort, descending);
     }
 
     @Override
@@ -252,12 +216,10 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GetBucketsRequest other = (GetBucketsRequest) obj;
+        GetInfluencersRequest other = (GetInfluencersRequest) obj;
         return Objects.equals(jobId, other.jobId) &&
-                Objects.equals(timestamp, other.timestamp) &&
-                Objects.equals(expand, other.expand) &&
                 Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(anomalyScore, other.anomalyScore) &&
+                Objects.equals(influencerScore, other.influencerScore) &&
                 Objects.equals(pageParams, other.pageParams) &&
                 Objects.equals(start, other.start) &&
                 Objects.equals(end, other.end) &&

@@ -25,11 +25,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class GetRecordsRequestTests extends AbstractXContentTestCase<GetInfluencersRequest> {
+public class GetInfluencersRequestTests extends AbstractXContentTestCase<GetRecordsRequest> {
 
     @Override
-    protected GetInfluencersRequest createTestInstance() {
-        GetInfluencersRequest request = new GetInfluencersRequest(ESTestCase.randomAlphaOfLengthBetween(1, 20));
+    protected GetRecordsRequest createTestInstance() {
+        GetRecordsRequest request = new GetRecordsRequest(ESTestCase.randomAlphaOfLengthBetween(1, 20));
 
         if (ESTestCase.randomBoolean()) {
             request.setStart(String.valueOf(ESTestCase.randomLong()));
@@ -41,7 +41,7 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetInfluenc
             request.setExcludeInterim(ESTestCase.randomBoolean());
         }
         if (ESTestCase.randomBoolean()) {
-            request.setInfluencerScore(ESTestCase.randomDouble());
+            request.setRecordScore(ESTestCase.randomDouble());
         }
         if (ESTestCase.randomBoolean()) {
             int from = ESTestCase.randomInt(10000);
@@ -49,7 +49,7 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetInfluenc
             request.setPageParams(new PageParams(from, size));
         }
         if (ESTestCase.randomBoolean()) {
-            request.setSort("influencer_score");
+            request.setSort("anomaly_score");
         }
         if (ESTestCase.randomBoolean()) {
             request.setDescending(ESTestCase.randomBoolean());
@@ -61,8 +61,8 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetInfluenc
     }
 
     @Override
-    protected GetInfluencersRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetInfluencersRequest.PARSER.apply(parser, null);
+    protected GetRecordsRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetRecordsRequest.PARSER.apply(parser, null);
     }
 
     @Override

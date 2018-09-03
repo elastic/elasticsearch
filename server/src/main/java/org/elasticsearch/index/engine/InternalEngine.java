@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -52,7 +51,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -2010,35 +2008,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Searcher acquireSearcher(String source, SearcherScope scope) {
-        /* Acquire order here is store -> manager since we need
-         * to make sure that the store is not closed before
-         * the searcher is acquired. */
-        store.incRef();
-        Releasable releasable = store::decRef;
-        try {
-            final ReferenceManager<IndexSearcher> referenceManager;
-            switch (scope) {
-                case INTERNAL:
-                    referenceManager = internalSearcherManager;
-                    break;
-                case EXTERNAL:
-                    referenceManager = externalSearcherManager;
-                    break;
-                default:
-                    throw new IllegalStateException("unknown scope: " + scope);
-            }
-            EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
-            releasable = null; // success - hand over the reference to the engine searcher
-            return engineSearcher;
-        } catch (AlreadyClosedException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            Releasables.close(releasable);
+    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
+        switch (scope) {
+            case INTERNAL:
+                return internalSearcherManager;
+            case EXTERNAL:
+                return externalSearcherManager;
+            default:
+                throw new IllegalStateException("unknown scope: " + scope);
         }
     }
 

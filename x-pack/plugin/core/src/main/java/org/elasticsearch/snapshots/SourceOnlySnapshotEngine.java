@@ -9,23 +9,22 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.apache.lucene.store.Lock;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.EngineSearcher;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -54,6 +53,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
     private final TranslogStats translogStats;
     private final SearcherManager searcherManager;
     private final IndexCommit indexCommit;
+    private final Lock indexWriterLock;
 
     public SourceOnlySnapshotEngine(EngineConfig config) {
         super(config);
@@ -61,8 +61,10 @@ public final class SourceOnlySnapshotEngine extends Engine {
             Store store = config.getStore();
             store.incRef();
             DirectoryReader reader = null;
+            Lock indexWriterLock = null;
             boolean success = false;
             try {
+                indexWriterLock = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME);
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(store.directory());
                 this.translogStats = new TranslogStats(0, 0, 0, 0, 0);
                 final SequenceNumbers.CommitInfo seqNoStats =
@@ -74,10 +76,11 @@ public final class SourceOnlySnapshotEngine extends Engine {
                 .open(store.directory()), config.getShardId()), config.getPrimaryTermSupplier().getAsLong());
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader, new SearcherFactory());
+                this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
                 if (success == false) {
-                    IOUtils.close(reader, store::decRef);
+                    IOUtils.close(reader, indexWriterLock, store::decRef);
                 }
             }
         } catch (IOException e) {
@@ -89,7 +92,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(searcherManager, store::decRef);
+                IOUtils.close(searcherManager, indexWriterLock, store::decRef);
             } catch (Exception ex) {
                 logger.warn("failed to close searcher", ex);
             } finally {
@@ -104,21 +107,8 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        store.incRef();
-        Releasable releasable = store::decRef;
-        try (ReleasableLock ignored = readLock.acquire()) {
-            final EngineSearcher searcher = new EngineSearcher(source, searcherManager, store, logger);
-            releasable = null; // hand over the reference to the engine searcher
-            return searcher;
-        } catch (AlreadyClosedException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            ensureOpen(ex); // throw AlreadyClosedException if it's closed
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            Releasables.close(releasable);
-        }
+    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
+        return searcherManager;
     }
 
     @Override
@@ -181,7 +171,8 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+    public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
+                                                boolean requiredFullRange) throws IOException {
         return readHistoryOperations(source, mapperService, fromSeqNo);
     }
 
@@ -190,8 +181,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
         return new Translog.Snapshot() {
 
             @Override
-            public void close() throws IOException {
-            }
+            public void close() { }
 
             @Override
             public int totalOperations() {
@@ -199,7 +189,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
             }
 
             @Override
-            public Translog.Operation next() throws IOException {
+            public Translog.Operation next() {
                 return null;
             }
         };
@@ -231,8 +221,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public void waitForOpsToComplete(long seqNo) {
-    }
+    public void waitForOpsToComplete(long seqNo) { }
 
     @Override
     public void resetLocalCheckpoint(long newCheckpoint) {

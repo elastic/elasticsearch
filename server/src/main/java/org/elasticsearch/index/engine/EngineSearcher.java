@@ -31,14 +31,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Searcher for an Engine
  */
-public final class EngineSearcher extends Engine.Searcher {
+final class EngineSearcher extends Engine.Searcher {
     private final AtomicBoolean released = new AtomicBoolean(false);
     private final Store store;
     private final Logger logger;
     private final ReferenceManager<IndexSearcher> referenceManager;
 
-    public EngineSearcher(String source, ReferenceManager<IndexSearcher> searcherReferenceManager, Store store, Logger logger) throws
-        IOException {
+    EngineSearcher(String source, ReferenceManager<IndexSearcher> searcherReferenceManager, Store store, Logger logger) throws IOException {
         super(source, searcherReferenceManager.acquire());
         this.store = store;
         this.logger = logger;

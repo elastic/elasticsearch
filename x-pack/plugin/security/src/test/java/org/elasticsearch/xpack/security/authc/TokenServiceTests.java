@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -187,7 +187,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
@@ -234,7 +234,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
@@ -258,7 +258,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         PlainActionFuture<Tuple<UserToken, String>> newTokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
         assertNotEquals(tokenService.getUserTokenString(newToken), tokenService.getUserTokenString(token));
@@ -294,7 +294,7 @@ public class TokenServiceTests extends ESTestCase {
         otherTokenService.refreshMetaData(tokenService.getTokenMetaData());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
@@ -325,7 +325,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
@@ -355,7 +355,7 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         PlainActionFuture<Tuple<UserToken, String>> newTokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, newTokenFuture, Collections.emptyMap(), true);
         final UserToken newToken = newTokenFuture.get().v1();
         assertNotNull(newToken);
         assertNotEquals(tokenService.getUserTokenString(newToken), tokenService.getUserTokenString(token));
@@ -386,7 +386,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
@@ -420,7 +420,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
 
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         UserToken token = tokenFuture.get().v1();
         assertThat(tokenService.getUserTokenString(token), notNullValue());
 
@@ -434,7 +434,7 @@ public class TokenServiceTests extends ESTestCase {
             new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         doAnswer(invocationOnMock -> {
@@ -488,7 +488,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, clock, client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         mockGetTokenFromId(token);
 
@@ -538,7 +538,8 @@ public class TokenServiceTests extends ESTestCase {
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false)
                 .build(),
                 systemUTC(), client, securityIndex, clusterService);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> tokenService.createUserToken(null, null, null, null));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> tokenService.createUserToken(null, null, null, null, true));
         assertEquals("tokens are not enabled", e.getMessage());
 
         PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -596,7 +597,7 @@ public class TokenServiceTests extends ESTestCase {
             new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap());
+        tokenService.createUserToken(authentication, authentication, tokenFuture, Collections.emptyMap(), true);
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);

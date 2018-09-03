@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -93,7 +94,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
         RequestOptions options = optionsBuilder.build();
-        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
+        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME)) {
             Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             request.setOptions(options);

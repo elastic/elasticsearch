@@ -198,10 +198,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        Exception e = expectThrows(RuntimeException.class,
-                () -> RollupResponseTranslator.combineResponses(msearch,
-                        new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
-        assertThat(e.getMessage(), equalTo("Expected to find aggregations in rollup response, but none found."));
+        SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
+            new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
+        assertNotNull(response);
+        Aggregations responseAggs = response.getAggregations();
+        assertThat(responseAggs.asList().size(), equalTo(0));
     }
 
     public void testMissingRolledIndex() {

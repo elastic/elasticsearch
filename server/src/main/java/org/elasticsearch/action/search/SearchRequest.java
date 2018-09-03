@@ -137,6 +137,10 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         if (source != null && source.size() == 0 && scroll != null) {
             validationException = addValidationError("[size] cannot be [0] in a scroll context", validationException);
         }
+        if (source != null && source.rescores() != null && source.rescores().isEmpty() == false && scroll != null) {
+            DEPRECATION_LOGGER.deprecated("Using [rescore] for a scroll query is deprecated and will be ignored. From 7.0 on will " +
+                    "return a 400 error");
+        }
         return validationException;
     }
 

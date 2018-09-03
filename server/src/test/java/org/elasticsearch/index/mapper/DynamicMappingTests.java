@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -211,7 +213,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetaData build = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", BytesReference.bytes(builder), builder.contentType());
         try (XContentParser xContentParser = createParser(JsonXContent.jsonXContent, source.source())) {
             ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
@@ -786,4 +791,13 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type", "1").setSource("foo", "abc").get();
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
+
+    public void testMappingVersionAfterDynamicMappingUpdate() {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+        client().prepareIndex("test", "type", "1").setSource("field", "text").get();
+        assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+    }
+
 }

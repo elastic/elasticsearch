@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -300,7 +301,7 @@ public class IndexResolver {
     private static GetIndexRequest createGetIndexRequest(String index) {
         return new GetIndexRequest()
                 .local(true)
-                .indices(index)
+                .indices(Strings.commaDelimitedListToStringArray(index))
                 .features(Feature.MAPPINGS)
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honours ignore_unavailable

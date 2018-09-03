@@ -55,8 +55,8 @@ help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
-to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
-`logstash_system` users:
+to enter new passwords for the `elastic`, `kibana`, `beats_system`,
+`logstash_system`, and `apm_system` users:
 
 [source,shell]
 --------------------------------------------------

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -63,7 +64,6 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
@@ -78,59 +78,6 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragment {
-
-    /**
-     * This class will be removed in v7.0
-     */
-    @Deprecated
-    public interface Custom extends Diffable<Custom>, ToXContent {
-
-        String type();
-
-        Custom fromMap(Map<String, Object> map) throws IOException;
-
-        Custom fromXContent(XContentParser parser) throws IOException;
-
-        /**
-         * Reads the {@link org.elasticsearch.cluster.Diff} from StreamInput
-         */
-        Diff<Custom> readDiffFrom(StreamInput in) throws IOException;
-
-        /**
-         * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
-         */
-        Custom readFrom(StreamInput in) throws IOException;
-
-        /**
-         * Merges from this to another, with this being more important, i.e., if something exists in this and another,
-         * this will prevail.
-         */
-        Custom mergeWith(Custom another);
-    }
-
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
-    }
-
-    public static <T extends Custom> T lookupPrototypeSafe(String type) {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
-        }
-        return proto;
-    }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
@@ -291,6 +238,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
+    static final String KEY_MAPPING_VERSION = "mapping_version";
     static final String KEY_ROUTING_NUM_SHARDS = "routing_num_shards";
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
@@ -309,6 +257,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     private final Index index;
     private final long version;
+
+    private final long mappingVersion;
+
     private final long[] primaryTerms;
 
     private final State state;
@@ -319,7 +270,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     private final ImmutableOpenMap<String, MappingMetaData> mappings;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final ImmutableOpenMap<String, DiffableStringMap> customData;
 
     private final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds;
 
@@ -336,15 +287,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
 
-    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
+    private IndexMetaData(Index index, long version, long mappingVersion, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
-                          ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
+                          ImmutableOpenMap<String, DiffableStringMap> customData, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
                           Version indexCreatedVersion, Version indexUpgradedVersion,
                           int routingNumShards, int routingPartitionSize, ActiveShardCount waitForActiveShards, ImmutableOpenMap<String, RolloverInfo> rolloverInfos) {
 
         this.index = index;
         this.version = version;
+        assert mappingVersion >= 0 : mappingVersion;
+        this.mappingVersion = mappingVersion;
         this.primaryTerms = primaryTerms;
         assert primaryTerms.length == numberOfShards;
         this.state = state;
@@ -353,7 +306,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.settings = settings;
         this.mappings = mappings;
-        this.customs = customs;
+        this.customData = customData;
         this.aliases = aliases;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.requireFilters = requireFilters;
@@ -394,6 +347,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return this.version;
     }
 
+    public long getMappingVersion() {
+        return mappingVersion;
+    }
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
@@ -509,13 +465,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
-        return this.customs;
+    ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
+        return this.customData;
     }
 
-    @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
-        return (T) customs.get(type);
+    public Map<String, String> getCustomData(final String key) {
+        return Collections.unmodifiableMap(this.customData.get(key));
     }
 
     public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {
@@ -581,7 +536,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (state != that.state) {
             return false;
         }
-        if (!customs.equals(that.customs)) {
+        if (!customData.equals(that.customData)) {
             return false;
         }
         if (routingNumShards != that.routingNumShards) {
@@ -610,7 +565,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         result = 31 * result + aliases.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
-        result = 31 * result + customs.hashCode();
+        result = 31 * result + customData.hashCode();
         result = 31 * result + Long.hashCode(routingFactor);
         result = 31 * result + Long.hashCode(routingNumShards);
         result = 31 * result + Arrays.hashCode(primaryTerms);
@@ -644,25 +599,27 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         private final String index;
         private final int routingNumShards;
         private final long version;
+        private final long mappingVersion;
         private final long[] primaryTerms;
         private final State state;
         private final Settings settings;
         private final Diff<ImmutableOpenMap<String, MappingMetaData>> mappings;
         private final Diff<ImmutableOpenMap<String, AliasMetaData>> aliases;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
 
         IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
             version = after.version;
+            mappingVersion = after.mappingVersion;
             routingNumShards = after.routingNumShards;
             state = after.state;
             settings = after.settings;
             primaryTerms = after.primaryTerms;
             mappings = DiffableUtils.diff(before.mappings, after.mappings, DiffableUtils.getStringKeySerializer());
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
+            customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(before.inSyncAllocationIds, after.inSyncAllocationIds,
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
@@ -672,6 +629,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+                mappingVersion = in.readVLong();
+            } else {
+                mappingVersion = 1;
+            }
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
@@ -679,19 +641,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 MappingMetaData::readDiffFrom);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData::new,
                 AliasMetaData::readDiffFrom);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                    @Override
-                    public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readFrom(in);
-                    }
-
-                    @SuppressWarnings("unchecked")
-                    @Override
-                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototypeSafe(key).readDiffFrom(in);
-                    }
-                });
+            customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DiffableStringMap::new,
+                DiffableStringMap::readDiffFrom);
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
             if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
@@ -708,12 +659,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeString(index);
             out.writeInt(routingNumShards);
             out.writeLong(version);
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+                out.writeVLong(mappingVersion);
+            }
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
             aliases.writeTo(out);
-            customs.writeTo(out);
+            customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 rolloverInfos.writeTo(out);
@@ -724,13 +678,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         public IndexMetaData apply(IndexMetaData part) {
             Builder builder = builder(index);
             builder.version(version);
+            builder.mappingVersion(mappingVersion);
             builder.setRoutingNumShards(routingNumShards);
             builder.state(state);
             builder.settings(settings);
             builder.primaryTerms(primaryTerms);
             builder.mappings.putAll(mappings.apply(part.mappings));
             builder.aliases.putAll(aliases.apply(part.aliases));
-            builder.customs.putAll(customs.apply(part.customs));
+            builder.customMetaData.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             return builder.build();
@@ -740,6 +695,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static IndexMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            builder.mappingVersion(in.readVLong());
+        } else {
+            builder.mappingVersion(1);
+        }
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -755,10 +715,17 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.putAlias(aliasMd);
         }
         int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            for (int i = 0; i < customSize; i++) {
+                String key = in.readString();
+                DiffableStringMap custom = new DiffableStringMap(in);
+                builder.putCustom(key, custom);
+            }
+        } else {
+            assert customSize == 0 : "expected no custom index metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
         }
         int inSyncAllocationIdsSize = in.readVInt();
         for (int i = 0; i < inSyncAllocationIdsSize; i++) {
@@ -779,6 +746,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeVLong(mappingVersion);
+        }
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -791,10 +761,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
             cursor.value.writeTo(out);
         }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+            out.writeVInt(customData.size());
+            for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
+                out.writeString(cursor.key);
+                cursor.value.writeTo(out);
+            }
+        } else {
+            out.writeVInt(0);
         }
         out.writeVInt(inSyncAllocationIds.size());
         for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
@@ -822,11 +796,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         private String index;
         private State state = State.OPEN;
         private long version = 1;
+        private long mappingVersion = 1;
         private long[] primaryTerms = null;
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
         private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetaData;
         private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
@@ -835,7 +810,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.index = index;
             this.mappings = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
-            this.customs = ImmutableOpenMap.builder();
+            this.customMetaData = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
             this.rolloverInfos = ImmutableOpenMap.builder();
         }
@@ -844,11 +819,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.index = indexMetaData.getIndex().getName();
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
+            this.mappingVersion = indexMetaData.mappingVersion;
             this.settings = indexMetaData.getSettings();
             this.primaryTerms = indexMetaData.primaryTerms.clone();
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
-            this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
+            this.customMetaData = ImmutableOpenMap.builder(indexMetaData.customData);
             this.routingNumShards = indexMetaData.routingNumShards;
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetaData.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetaData.rolloverInfos);
@@ -978,8 +954,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        public Builder putCustom(String type, Custom customIndexMetaData) {
-            this.customs.put(type, customIndexMetaData);
+        public Builder putCustom(String type, Map<String, String> customIndexMetaData) {
+            this.customMetaData.put(type, new DiffableStringMap(customIndexMetaData));
             return this;
         }
 
@@ -1007,6 +983,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
         public Builder version(long version) {
             this.version = version;
+            return this;
+        }
+
+        public long mappingVersion() {
+            return mappingVersion;
+        }
+
+        public Builder mappingVersion(final long mappingVersion) {
+            this.mappingVersion = mappingVersion;
             return this;
         }
 
@@ -1137,8 +1122,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
-            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
-                tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
+            return new IndexMetaData(new Index(index, uuid), version, mappingVersion, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
+                tmpAliases.build(), customMetaData.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
                 indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards, rolloverInfos.build());
         }
 
@@ -1146,6 +1131,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
+            builder.field(KEY_MAPPING_VERSION, indexMetaData.getMappingVersion());
             builder.field(KEY_ROUTING_NUM_SHARDS, indexMetaData.getRoutingNumShards());
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -1165,10 +1151,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             builder.endArray();
 
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.getCustoms()) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
-                builder.endObject();
+            for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.customData) {
+                builder.field(cursor.key);
+                builder.map(cursor.value);
             }
 
             builder.startObject(KEY_ALIASES);
@@ -1219,6 +1204,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("expected object but got a " + token);
             }
+            boolean mappingVersion = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -1276,15 +1262,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else {
-                        // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
-                        if (proto == null) {
-                            //TODO warn
-                            parser.skipChildren();
-                        } else {
-                            Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
-                        }
+                        // assume it's custom index metadata
+                        builder.putCustom(currentFieldName, parser.mapStrings());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
@@ -1317,6 +1296,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         builder.state(State.fromString(parser.text()));
                     } else if (KEY_VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());
+                    } else if (KEY_MAPPING_VERSION.equals(currentFieldName)) {
+                        mappingVersion = true;
+                        builder.mappingVersion(parser.longValue());
                     } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
                         builder.setRoutingNumShards(parser.intValue());
                     } else {
@@ -1325,6 +1307,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
+            }
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
+                assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             }
             return builder.build();
         }

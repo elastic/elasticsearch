@@ -26,8 +26,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
 import java.io.IOException;
@@ -180,7 +180,14 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(JOBS.getPreferredName(), jobs);
+
+            // XContentBuilder does not support passing the params object for Iterables
+            builder.field(JOBS.getPreferredName());
+            builder.startArray();
+            for (JobWrapper job : jobs) {
+                job.toXContent(builder, params);
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }
@@ -210,20 +217,20 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
 
     public static class JobWrapper implements Writeable, ToXContentObject {
         private final RollupJobConfig job;
-        private final RollupJobStats stats;
+        private final RollupIndexerJobStats stats;
         private final RollupJobStatus status;
 
         public static final ConstructingObjectParser<JobWrapper, Void> PARSER
                 = new ConstructingObjectParser<>(NAME, a -> new JobWrapper((RollupJobConfig) a[0],
-                (RollupJobStats) a[1], (RollupJobStatus)a[2]));
+                (RollupIndexerJobStats) a[1], (RollupJobStatus)a[2]));
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStats.PARSER::apply, STATS);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupIndexerJobStats.PARSER::apply, STATS);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupJobStatus.PARSER::apply, STATUS);
         }
 
-        public JobWrapper(RollupJobConfig job, RollupJobStats stats, RollupJobStatus status) {
+        public JobWrapper(RollupJobConfig job, RollupIndexerJobStats stats, RollupJobStatus status) {
             this.job = job;
             this.stats = stats;
             this.status = status;
@@ -231,7 +238,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
 
         public JobWrapper(StreamInput in) throws IOException {
             this.job = new RollupJobConfig(in);
-            this.stats = new RollupJobStats(in);
+            this.stats = new RollupIndexerJobStats(in);
             this.status = new RollupJobStatus(in);
         }
 
@@ -246,7 +253,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
             return job;
         }
 
-        public RollupJobStats getStats() {
+        public RollupIndexerJobStats getStats() {
             return stats;
         }
 
@@ -260,7 +267,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, Get
             builder.field(CONFIG.getPreferredName());
             job.toXContent(builder, params);
             builder.field(STATUS.getPreferredName(), status);
-            builder.field(STATS.getPreferredName(), stats);
+            builder.field(STATS.getPreferredName(), stats, params);
             builder.endObject();
             return builder;
         }

@@ -236,16 +236,15 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         private final TranslogHandler translogHandler;
         private final AtomicBoolean isDone;
         private final CountDownLatch readLatch;
-        private final Path tempDir;
+        private final Path translogPath;
 
-        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch,
-            Path tempDir) {
+        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch, Path translogPath) {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
             this.translogHandler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
                 engine.engineConfig.getIndexSettings().getSettings()));
-            this.tempDir = tempDir;
+            this.translogPath = translogPath;
         }
 
         void pullOperations(Engine follower) throws IOException {
@@ -264,7 +263,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         @Override
         public void run() {
             try (Store store = createStore();
-                 InternalEngine follower = createEngine(store, tempDir)) {
+                 InternalEngine follower = createEngine(store, translogPath)) {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||

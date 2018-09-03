@@ -51,6 +51,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -688,6 +689,72 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(1, bulkResponse.getBatches());
             assertEquals(0, bulkResponse.getBulkFailures().size());
             assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+    }
+
+    public void testUpdateByQuery() throws IOException {
+        final String sourceIndex = "source1";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "type", "1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "type", "2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test1: create one doc in dest
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+            updateByQueryRequest.indices(sourceIndex);
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            updateByQueryRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse =
+                execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
+            assertEquals(1, bulkResponse.getTotal());
+            assertEquals(1, bulkResponse.getUpdated());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // test2: update using script
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+            updateByQueryRequest.indices(sourceIndex);
+            updateByQueryRequest.setScript(new Script("if (ctx._source.foo == 2) ctx._source.foo++;"));
+            updateByQueryRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse =
+                execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
+            assertEquals(2, bulkResponse.getTotal());
+            assertEquals(2, bulkResponse.getUpdated());
+            assertEquals(0, bulkResponse.getDeleted());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+            assertEquals(
+                3,
+                (int) (highLevelClient().get(new GetRequest(sourceIndex, "type", "2"), RequestOptions.DEFAULT)
+                    .getSourceAsMap().get("foo"))
+            );
         }
     }
 

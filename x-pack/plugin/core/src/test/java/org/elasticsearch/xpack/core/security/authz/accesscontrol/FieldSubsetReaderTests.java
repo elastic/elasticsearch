@@ -737,7 +737,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
     /**
      * test special handling for _field_names field.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33261")
     public void testFieldNames() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -784,7 +783,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
     /**
      * test special handling for _field_names field (three fields, to exercise termsenum better)
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33261")
     public void testFieldNamesThreeFields() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -832,7 +830,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
     /**
      * test _field_names where a field is permitted, but doesn't exist in the segment.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33261")
     public void testFieldNamesMissing() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -869,7 +866,6 @@ public class FieldSubsetReaderTests extends ESTestCase {
     /**
      * test where _field_names does not exist
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/33261")
     public void testFieldNamesOldIndex() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);

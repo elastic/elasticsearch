@@ -39,6 +39,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -894,6 +896,125 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-execute-async
             client.reindexAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::reindex-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateByQuery() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String mapping =
+                "\"doc\": {\n" +
+                    "    \"properties\": {\n" +
+                    "      \"user\": {\n" +
+                    "        \"type\": \"text\"\n" +
+                    "      },\n" +
+                    "      \"field1\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      },\n" +
+                    "      \"field2\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }";
+            createIndex("source1", Settings.EMPTY, mapping);
+            createIndex("source2", Settings.EMPTY, mapping);
+            createPipeline("my_pipeline");
+        }
+        {
+            // tag::update-by-query-request
+            UpdateByQueryRequest request = new UpdateByQueryRequest("source1", "source2"); // <1>
+            // end::update-by-query-request
+            // tag::update-by-query-request-conflicts
+            request.setConflicts("proceed"); // <1>
+            // end::update-by-query-request-conflicts
+            // tag::update-by-query-request-typeOrQuery
+            request.setDocTypes("doc"); // <1>
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
+            // end::update-by-query-request-typeOrQuery
+            // tag::update-by-query-request-size
+            request.setSize(10); // <1>
+            // end::update-by-query-request-size
+            // tag::update-by-query-request-scrollSize
+            request.setBatchSize(100); // <1>
+            // end::update-by-query-request-scrollSize
+            // tag::update-by-query-request-pipeline
+            request.setPipeline("my_pipeline"); // <1>
+            // end::update-by-query-request-pipeline
+            // tag::update-by-query-request-script
+            request.setScript(
+                new Script(
+                    ScriptType.INLINE, "painless",
+                    "if (ctx._source.user == 'kimchy') {ctx._source.likes++;}",
+                    Collections.emptyMap())); // <1>
+            // end::update-by-query-request-script
+            // tag::update-by-query-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::update-by-query-request-timeout
+            // tag::update-by-query-request-refresh
+            request.setRefresh(true); // <1>
+            // end::update-by-query-request-refresh
+            // tag::update-by-query-request-slices
+            request.setSlices(2); // <1>
+            // end::update-by-query-request-slices
+            // tag::update-by-query-request-scroll
+            request.setScroll(TimeValue.timeValueMinutes(10)); // <1>
+            // end::update-by-query-request-scroll
+            // tag::update-by-query-request-routing
+            request.setRouting("=cat"); // <1>
+            // end::update-by-query-request-routing
+            // tag::update-by-query-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
+            // end::update-by-query-request-indicesOptions
+
+            // tag::update-by-query-execute
+            BulkByScrollResponse bulkResponse = client.updateByQuery(request, RequestOptions.DEFAULT);
+            // end::update-by-query-execute
+            assertSame(0, bulkResponse.getSearchFailures().size());
+            assertSame(0, bulkResponse.getBulkFailures().size());
+            // tag::update-by-query-response
+            TimeValue timeTaken = bulkResponse.getTook(); // <1>
+            boolean timedOut = bulkResponse.isTimedOut(); // <2>
+            long totalDocs = bulkResponse.getTotal(); // <3>
+            long updatedDocs = bulkResponse.getUpdated(); // <4>
+            long deletedDocs = bulkResponse.getDeleted(); // <5>
+            long batches = bulkResponse.getBatches(); // <6>
+            long noops = bulkResponse.getNoops(); // <7>
+            long versionConflicts = bulkResponse.getVersionConflicts(); // <8>
+            long bulkRetries = bulkResponse.getBulkRetries(); // <9>
+            long searchRetries = bulkResponse.getSearchRetries(); // <10>
+            TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <11>
+            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <12>
+            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <13>
+            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <14>
+            // end::update-by-query-response
+        }
+        {
+            UpdateByQueryRequest request = new UpdateByQueryRequest();
+            request.indices("source1");
+
+            // tag::update-by-query-execute-listener
+            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+                @Override
+                public void onResponse(BulkByScrollResponse bulkResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-by-query-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-by-query-execute-async
+            client.updateByQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-by-query-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -396,7 +396,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         for (String a : attributeSpec.values(options)) {
             attributes.put(a, null);
         }
-        final Settings attributeSettings = realm.getSettingsByPrefix(SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX);
+        final String prefix = RealmSettings.realmSettingPrefix(realm.identifier()) + SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX;
+        final Settings attributeSettings = realm.globalSettings().getByPrefix(prefix);
         for (String key : sorted(attributeSettings.keySet())) {
             final String attr = attributeSettings.get(key);
             attributes.put(attr, key);

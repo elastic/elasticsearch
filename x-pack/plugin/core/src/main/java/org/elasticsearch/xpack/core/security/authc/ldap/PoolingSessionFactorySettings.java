@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.security.authc.ldap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.SecureSetting.secureString;
 
@@ -61,9 +61,9 @@ public final class PoolingSessionFactorySettings {
     }
 
     public static Set<Setting.AffixSetting<?>> getSettings(String realmType) {
-        return Sets.newHashSet(
-                POOL_INITIAL_SIZE, POOL_SIZE, HEALTH_CHECK_ENABLED, HEALTH_CHECK_INTERVAL, HEALTH_CHECK_DN, BIND_DN,
-                LEGACY_BIND_PASSWORD, SECURE_BIND_PASSWORD
-        ).stream().map(f -> f.apply(realmType)).collect(Collectors.toSet());
+        return Stream.of(
+            POOL_INITIAL_SIZE, POOL_SIZE, HEALTH_CHECK_ENABLED, HEALTH_CHECK_INTERVAL, HEALTH_CHECK_DN, BIND_DN,
+            LEGACY_BIND_PASSWORD, SECURE_BIND_PASSWORD
+        ).map(f -> f.apply(realmType)).collect(Collectors.toSet());
     }
 }

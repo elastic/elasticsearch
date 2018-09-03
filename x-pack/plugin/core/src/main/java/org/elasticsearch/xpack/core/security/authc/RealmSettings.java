@@ -67,19 +67,11 @@ public class RealmSettings {
     }
 
     /**
-     * Extract the child {@link Settings} for the {@link #PREFIX realms prefix}.
-     * The top level names in the returned <code>Settings</code> will be the types of the configured realms.
-     */
-    public static Settings get(Settings settings) {
-        return settings.getByPrefix(RealmSettings.PREFIX);
-    }
-
-    /**
      * Extracts the realm settings from a global settings object.
      * Returns a Map of realm-id to realm-settings.
      */
     public static Map<RealmConfig.RealmIdentifier, Settings> getRealmSettings(Settings globalSettings) {
-        Settings settingsByType = RealmSettings.get(globalSettings);
+        Settings settingsByType = globalSettings.getByPrefix(RealmSettings.PREFIX);
         return settingsByType.names().stream()
                 .flatMap(type -> {
                     final Settings settingsByName = settingsByType.getAsSettings(type);

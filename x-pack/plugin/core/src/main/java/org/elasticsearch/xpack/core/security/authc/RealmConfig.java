@@ -77,26 +77,72 @@ public class RealmConfig {
         return threadContext;
     }
 
+    /**
+     * Return the {@link Setting.AffixSetting#getConcreteSettingForNamespace concrete setting}
+     * that is produced by applying this realm's name as the namespace.
+     * Realm configuration is defined using affix settings in the form {@code xpack.security.authc.realms.type.(name).key},
+     * where
+     * <ul>
+     *     <li>{@code type} is a fixed string (known at compile time) that identifies the type of the realm being configured.</li>
+     *     <li>{@code (name)} is a variable string (known only at runtime) that uniquely names the realm.</li>
+     *     <li>{@code key} is a fixed string (known at compile time) that identifies a specific setting within the realm.</li>
+     * </ul>
+     * In order to extract an individual value from the runtime {@link Settings} object, it is necessary to convert an
+     * {@link Setting.AffixSetting} object into a concrete {@link Setting} object that has a fixed key, for a specific name.
+     */
     public <T> Setting<T> getConcreteSetting(Setting.AffixSetting<T> setting) {
         return setting.getConcreteSettingForNamespace(name());
     }
 
+    /**
+     * Return the {@link Setting.AffixSetting#getConcreteSettingForNamespace concrete setting} that is produced by applying this realm's
+     * type as a parameter to the provided function, and the realm's name (as the namespace) to the resulting {@link Setting.AffixSetting}.
+     * Because some settings (e.g. {@link RealmSettings#ORDER_SETTING "order"}) are defined for multiple "types", but the Settings
+     * infrastructure treats the type as a fixed part of the setting key, it is common to define such multi-realm settings using a
+     * {@link Function} of this form.
+     * @see #getConcreteSetting(Setting.AffixSetting)
+     */
     public <T> Setting<T> getConcreteSetting(Function<String, Setting.AffixSetting<T>> settingFactory) {
         return getConcreteSetting(settingFactory.apply(type()));
     }
 
+    /**
+     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * The {@link Setting.AffixSetting} is made <em>concrete</em> through {@link #getConcreteSetting(Setting.AffixSetting)}, which is then
+     * used to {@link Setting#get(Settings) retrieve} the setting value.
+     */
     public <T> T getSetting(Setting.AffixSetting<T> setting) {
         return getConcreteSetting(setting).get(globalSettings);
     }
 
+    /**
+     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
+     * {@link Function}/{@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to
+     * {@link Setting#get(Settings) retrieve} the setting value.
+     */
     public <T> T getSetting(Function<String, Setting.AffixSetting<T>> settingFactory) {
         return getSetting(settingFactory.apply(type()));
     }
 
+    /**
+     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
+     * {@link Function}/{@link Setting.AffixSetting}.
+     * If this <em>concrete setting</em> {@link Setting#exists(Settings) exists} in the global settings, then its value is returned,
+     * otherwise the {@code onElse} {@link Supplier} is executed and returned.
+     */
     public <T> T getSetting(Function<String, Setting.AffixSetting<T>> settingFactory, Supplier<T> orElse) {
         return getSetting(settingFactory.apply(type()), orElse);
     }
 
+    /**
+     * Obtain the value of the provided {@code setting} from the node's {@link #globalSettings global settings}.
+     * {@link #getConcreteSetting(Setting.AffixSetting)} is used to obtain a <em>concrete setting</em> from the provided
+     * {@link Setting.AffixSetting}.
+     * If this <em>concrete setting</em> {@link Setting#exists(Settings) exists} in the global settings, then its value is returned,
+     * otherwise the {@code onElse} {@link Supplier} is executed and returned.
+     */
     public <T> T getSetting(Setting.AffixSetting<T> setting, Supplier<T> orElse) {
         final Setting<T> concrete = setting.getConcreteSettingForNamespace(name());
         if (concrete.exists(globalSettings)) {
@@ -106,19 +152,31 @@ public class RealmConfig {
         }
     }
 
+    /**
+     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #globalSettings global settings}.
+     * {@link #getConcreteSetting(Function)} is used to obtain a <em>concrete setting</em> from the provided
+     * {@link Function}/{@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to
+     * {@link Setting#exists(Settings) check} for a value.
+     */
     public <T> boolean hasSetting(Function<String, Setting.AffixSetting<T>> settingFactory) {
         return getConcreteSetting(settingFactory).exists(globalSettings);
     }
 
+    /**
+     * Determines whether the provided {@code setting} has an explicit value in the node's {@link #globalSettings global settings}.
+     * {@link #getConcreteSetting(Setting.AffixSetting)} is used to obtain a <em>concrete setting</em> from the provided
+     * {@link Setting.AffixSetting}, and this <em>concrete setting</em> is then used to {@link Setting#exists(Settings) check} for a value.
+     */
     public <T> boolean hasSetting(Setting.AffixSetting<T> setting) {
         return getConcreteSetting(setting).exists(globalSettings);
     }
 
-    public Settings getSettingsByPrefix(String prefix) {
-        final String sslPrefix = "xpack.security.authc.realms." + identifier.type + "." + identifier.name + "." + prefix;
-        return globalSettings().getByPrefix(sslPrefix);
-    }
-
+    /**
+     * A realm identifier consists of a realm's {@link RealmConfig#type() type} and {@link RealmConfig#name() name}.
+     * Because realms are configured using a key that contains both of these parts
+     * (e.g. {@code xpack.security.authc.realms.native.native_realm.order}), it is often necessary to be able to
+     * pass this pair of variables as a single type (e.g. in method parameters, or return values).
+     */
     public static class RealmIdentifier {
         private final String type;
         private final String name;

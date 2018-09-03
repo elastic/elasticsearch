@@ -24,11 +24,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -37,6 +41,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
+
+    private boolean includeUpdated;
+    private boolean includeCreated;
 
     public void testRountTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
@@ -97,10 +104,11 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         }
     }
 
-    @Override
-    protected void assertEqualInstances(BulkByScrollResponse expected, BulkByScrollResponse actual) {
+    public static void assertEqualBulkResponse(BulkByScrollResponse expected, BulkByScrollResponse actual,
+                                        boolean includeUpdated, boolean includeCreated) {
         assertEquals(expected.getTook(), actual.getTook());
-        BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus());
+        BulkByScrollTaskStatusTests
+            .assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);
@@ -123,6 +131,11 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     }
 
     @Override
+    protected void assertEqualInstances(BulkByScrollResponse expected, BulkByScrollResponse actual) {
+        assertEqualBulkResponse(expected, actual, includeUpdated, includeCreated);
+    }
+
+    @Override
     protected BulkByScrollResponse createTestInstance() {
         // failures are tested separately, so we can test XContent equivalence at least when we have no failures
         return
@@ -140,5 +153,23 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        Map<String, String> params = new HashMap<>();
+        if (randomBoolean()) {
+            includeUpdated = false;
+            params.put(Status.INCLUDE_UPDATED, "false");
+        } else {
+            includeUpdated = true;
+        }
+        if (randomBoolean()) {
+            includeCreated = false;
+            params.put(Status.INCLUDE_CREATED, "false");
+        } else {
+            includeCreated = true;
+        }
+        return new ToXContent.MapParams(params);
     }
 }

@@ -2596,6 +2596,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33345")
     public void testIndexCheckOnStartup() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
 
@@ -2796,16 +2797,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(stop.compareAndSet(false, true));
         snapshotter.join();
         closeShards(newShard);
-    }
-
-    public void testCheckOnStartupDeprecatedValue() throws Exception {
-        final Settings settings = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "fix").build();
-
-        final IndexShard newShard = newShard(true, settings);
-        closeShards(newShard);
-
-        assertWarnings("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
-            + "which has no effect and will not be accepted in future");
     }
 
     class Result {

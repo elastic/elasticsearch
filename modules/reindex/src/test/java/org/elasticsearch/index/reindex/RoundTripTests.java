@@ -81,7 +81,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testUpdateByQueryRequest() throws IOException {
-        UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
+        UpdateByQueryRequest update = new UpdateByQueryRequest();
         randomRequest(update);
         if (randomBoolean()) {
             update.setPipeline(randomAlphaOfLength(5));

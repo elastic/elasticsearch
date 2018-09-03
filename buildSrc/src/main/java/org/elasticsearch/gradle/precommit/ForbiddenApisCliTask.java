@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
@@ -153,7 +154,7 @@ public class ForbiddenApisCliTask extends DefaultTask {
 
     @TaskAction
     public void runForbiddenApisAndWriteMarker() throws IOException {
-        getProject().javaexec((JavaExecSpec spec) -> {
+        LoggedExec.javaexec(getProject(), (JavaExecSpec spec) -> {
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
                 getClassPathFromSourceSet()

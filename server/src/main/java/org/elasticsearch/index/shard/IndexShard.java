@@ -387,6 +387,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.pendingPrimaryTerm;
     }
 
+    /** Returns the primary term that is currently being used to assign to operations */
+    public long getOperationPrimaryTerm() {
+        return this.operationPrimaryTerm;
+    }
+
     /**
      * Returns the latest cluster routing entry received with this shard.
      */
@@ -1688,6 +1693,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
         return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
+     * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
+     *
+     * @param source            the source of the request
+     * @param fromSeqNo         the from seq_no (inclusive) to read
+     * @param toSeqNo           the to seq_no (inclusive) to read
+     * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
+     *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
+     *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
+     */
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {

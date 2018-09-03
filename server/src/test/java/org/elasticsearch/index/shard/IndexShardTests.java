@@ -2596,6 +2596,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33345")
     public void testIndexCheckOnStartup() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
 

@@ -58,7 +58,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-s
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-end]
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-start]
 --------------------------------------------------
 <1> Records with timestamps on or after this time will be returned.
 

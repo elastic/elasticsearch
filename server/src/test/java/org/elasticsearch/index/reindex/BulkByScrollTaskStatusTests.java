@@ -33,7 +33,9 @@ import org.hamcrest.Matchers;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -44,6 +46,10 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkByScrollTask.Status> {
+
+    private boolean includeUpdated;
+    private boolean includeCreated;
+
     public void testBulkByTaskStatus() throws IOException {
         BulkByScrollTask.Status status = randomStatus();
         BytesStreamOutput out = new BytesStreamOutput();
@@ -144,21 +150,21 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
             );
     }
 
-    public static void assertEqualStatus(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    public static void assertEqualStatus(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual,
+                                         boolean includeUpdated, boolean includeCreated) {
         assertNotSame(expected, actual);
-        assertTrue(expected.equalsWithoutSliceStatus(actual));
+        assertTrue(expected.equalsWithoutSliceStatus(actual, includeUpdated, includeCreated));
         assertThat(expected.getSliceStatuses().size(), equalTo(actual.getSliceStatuses().size()));
         for (int i = 0; i< expected.getSliceStatuses().size(); i++) {
             BulkByScrollTaskStatusOrExceptionTests.assertEqualStatusOrException(
-                expected.getSliceStatuses().get(i),
-                actual.getSliceStatuses().get(i)
+                expected.getSliceStatuses().get(i), actual.getSliceStatuses().get(i), includeUpdated, includeCreated
             );
         }
     }
 
     @Override
     protected void assertEqualInstances(BulkByScrollTask.Status first, BulkByScrollTask.Status second) {
-        assertEqualStatus(first, second);
+        assertEqualStatus(first, second, includeUpdated, includeCreated);
     }
 
     @Override
@@ -192,5 +198,23 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
             getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
             this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        Map<String, String> params = new HashMap<>();
+        if (randomBoolean()) {
+            includeUpdated = false;
+            params.put(Status.INCLUDE_UPDATED, "false");
+        } else {
+            includeUpdated = true;
+        }
+        if (randomBoolean()) {
+            includeCreated = false;
+            params.put(Status.INCLUDE_CREATED, "false");
+        } else {
+            includeCreated = true;
+        }
+        return new ToXContent.MapParams(params);
     }
 }

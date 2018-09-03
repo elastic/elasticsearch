@@ -26,14 +26,15 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.client.ml.FlushJobRequest;
 
 import java.io.IOException;
 
@@ -70,6 +71,23 @@ final class MLRequestConverters {
             params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.isAllowNoJobs()));
         }
 
+        return request;
+    }
+
+    static Request getJobStats(GetJobStatsRequest getJobStatsRequest) {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
+                .addPathPartAsIs("_stats")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getJobStatsRequest.isAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.isAllowNoJobs()));
+        }
         return request;
     }
 
@@ -114,6 +132,19 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request flushJob(FlushJobRequest flushJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(flushJobRequest.getJobId())
+                .addPathPartAsIs("_flush")
+                .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(flushJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -128,33 +159,17 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request flushJob(FlushJobRequest flushJobRequest) throws IOException {
+    static Request getOverallBuckets(GetOverallBucketsRequest getOverallBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(flushJobRequest.getJobId())
-            .addPathPartAsIs("_flush")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(flushJobRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getJobStats(GetJobStatsRequest getJobStatsRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
-            .addPathPartAsIs("anomaly_detectors")
-            .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
-            .addPathPartAsIs("_stats")
-            .build();
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(Strings.collectionToCommaDelimitedString(getOverallBucketsRequest.getJobIds()))
+                .addPathPartAsIs("results")
+                .addPathPartAsIs("overall_buckets")
+                .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getJobStatsRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.isAllowNoJobs()));
-        }
+        request.setEntity(createEntity(getOverallBucketsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

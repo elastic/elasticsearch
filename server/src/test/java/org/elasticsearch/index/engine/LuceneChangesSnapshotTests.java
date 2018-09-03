@@ -191,6 +191,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33344")
     public void testUpdateAndReadChangesConcurrently() throws Exception {
         Follower[] followers = new Follower[between(1, 3)];
         CountDownLatch readyLatch = new CountDownLatch(followers.length + 1);

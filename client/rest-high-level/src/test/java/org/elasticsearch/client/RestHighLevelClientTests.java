@@ -660,13 +660,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "mtermvectors",
             "put_script",
-            "reindex",
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
-            "termvectors",
-            "update_by_query"
+            "termvectors"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

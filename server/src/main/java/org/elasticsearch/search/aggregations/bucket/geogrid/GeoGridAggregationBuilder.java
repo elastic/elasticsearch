@@ -157,7 +157,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < 0) {
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting
-            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
+            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards() == 1);
         }
 
         if (requiredSize <= 0 || shardSize <= 0) {

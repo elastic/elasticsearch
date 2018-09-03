@@ -273,7 +273,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
+        public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
             failRandomly();
             return false;
         }

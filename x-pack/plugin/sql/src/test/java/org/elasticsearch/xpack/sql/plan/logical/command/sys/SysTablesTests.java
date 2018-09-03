@@ -49,6 +49,22 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
 
+    public void testSysTablesEnumerateCatalog() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%'", r -> {
+            assertEquals(1, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+        });
+    }
+
+    public void testSysTablesEnumerateTypes() throws Exception {
+        executeCommand("SYS TABLES TYPE '%'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("ALIAS", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("BASE TABLE", r.column(3));
+        });
+    }
+
     public void testSysTablesDifferentCatalog() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE 'foo'", r -> {
             assertEquals(0, r.size());
@@ -58,10 +74,10 @@ public class SysTablesTests extends ESTestCase {
 
     public void testSysTablesNoTypes() throws Exception {
         executeCommand("SYS TABLES", r -> {
-            assertEquals("alias", r.column(2));
-            assertTrue(r.advanceRow());
             assertEquals(2, r.size());
-            assertEquals("test", r.column(2));
+            assertEquals("ALIAS", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("BASE TABLE", r.column(3));
         }, index, alias);
     }
 

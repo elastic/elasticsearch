@@ -253,8 +253,10 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 client.prepareIndex("index-3", "type", "7").setSource("d", now.minusDays(6)),
                 client.prepareIndex("index-3", "type", "8").setSource("d", now.minusDays(7)),
                 client.prepareIndex("index-3", "type", "9").setSource("d", now.minusDays(8)));
-        ensureSearchable("index");
-        assertCacheState(client, "index", 0, 0);
+        ensureSearchable("index-1", "index-2", "index-3");
+        assertCacheState(client, "index-1", 0, 0);
+        assertCacheState(client, "index-2", 0, 0);
+        assertCacheState(client, "index-3", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index-1", "index-2", "index-3").setFlush(true)

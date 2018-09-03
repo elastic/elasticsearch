@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -83,6 +84,11 @@ class PrecommitTasks {
     private static Task configureJarHell(Project project) {
         Task task = project.tasks.create('jarHell', JarHellTask.class)
         task.classpath = project.sourceSets.test.runtimeClasspath
+        if (project.plugins.hasPlugin(ShadowPlugin)) {
+            task.classpath += project.configurations.bundle
+        }
+        task.dependsOn(project.sourceSets.test.classesTaskName)
+        task.javaHome = project.runtimeJavaHome
         return task
     }
 

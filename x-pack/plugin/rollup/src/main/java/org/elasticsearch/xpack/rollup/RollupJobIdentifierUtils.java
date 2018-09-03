@@ -35,8 +35,6 @@ import java.util.Set;
 public class RollupJobIdentifierUtils {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RollupJobIdentifierUtils.class));
-    private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
-
     static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
 
     /**

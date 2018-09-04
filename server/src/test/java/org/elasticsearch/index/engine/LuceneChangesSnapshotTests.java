@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import java.nio.file.Path;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -196,13 +197,12 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33344")
     public void testUpdateAndReadChangesConcurrently() throws Exception {
         Follower[] followers = new Follower[between(1, 3)];
         CountDownLatch readyLatch = new CountDownLatch(followers.length + 1);
         AtomicBoolean isDone = new AtomicBoolean();
         for (int i = 0; i < followers.length; i++) {
-            followers[i] = new Follower(engine, isDone, readyLatch);
+            followers[i] = new Follower(engine, isDone, readyLatch, createTempDir());
             followers[i].start();
         }
         boolean onPrimary = randomBoolean();
@@ -241,13 +241,15 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         private final TranslogHandler translogHandler;
         private final AtomicBoolean isDone;
         private final CountDownLatch readLatch;
+        private final Path translogPath;
 
-        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) {
+        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch, Path translogPath) {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
             this.translogHandler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
                 engine.engineConfig.getIndexSettings().getSettings()));
+            this.translogPath = translogPath;
         }
 
         void pullOperations(Engine follower) throws IOException {
@@ -266,7 +268,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         @Override
         public void run() {
             try (Store store = createStore();
-                 InternalEngine follower = createEngine(store, createTempDir())) {
+                 InternalEngine follower = createEngine(store, translogPath)) {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||

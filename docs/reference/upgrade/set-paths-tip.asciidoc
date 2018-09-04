@@ -2,7 +2,7 @@
 ================================================
 
 When you extract the zip or tarball packages, the `elasticsearch-n.n.n`
-directory contains the Elasticsearh `config`, `data`, `logs` and
+directory contains the Elasticsearch `config`, `data`, `logs` and
 `plugins` directories.
 
 We recommend moving these directories out of the Elasticsearch directory

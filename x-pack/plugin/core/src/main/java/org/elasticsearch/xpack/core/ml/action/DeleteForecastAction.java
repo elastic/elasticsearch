@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteForecastAction extends Action<AcknowledgedResponse> {
+public class DeleteForecastAction extends Action<DeleteForecastAction.Request, AcknowledgedResponse, DeleteForecastAction.RequestBuilder> {
 
     public static final DeleteForecastAction INSTANCE = new DeleteForecastAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast/delete";
@@ -31,6 +31,11 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
     @Override
     public AcknowledgedResponse newResponse() {
         return new AcknowledgedResponse();
+    }
+
+    @Override
+    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RequestBuilder(client, this);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -85,7 +90,7 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteForecastAction action) {
             super(client, action, new Request());

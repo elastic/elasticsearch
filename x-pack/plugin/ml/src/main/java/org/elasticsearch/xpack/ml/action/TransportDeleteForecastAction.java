@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -38,8 +39,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -73,13 +75,17 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         EnumSet.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED);
 
     @Inject
-    public TransportDeleteForecastAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
+    public TransportDeleteForecastAction(Settings settings, ThreadPool threadPool,
+                                         TransportService transportService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver,
+                                         Client client) {
+        super(settings, DeleteForecastAction.NAME, threadPool, transportService, actionFilters,
+            indexNameExpressionResolver, DeleteForecastAction.Request::new);
         this.client = client;
     }
 
     @Override
-    protected void doExecute(Task task, DeleteForecastAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(DeleteForecastAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String jobId = request.getJobId();
         final String forecastsExpression = request.getForecastId();
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(

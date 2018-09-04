@@ -1,0 +1,64 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-forecast]]
+=== Delete Forecast API
+++++
+<titleabbrev>Delete Forecast</titleabbrev>
+++++
+
+Deletes forecasts from a {ml} job.  
+
+==== Request
+
+`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast` +
+
+`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast/<forecast_id>` +
+
+`DELETE _xpack/ml/anomaly_detectors/<job_id>/_forecast/_all` 
+
+
+==== Description
+
+By default, forecasts are retained for 14 days. You can specify a different 
+retention period with the `expires_in` parameter in the <<ml-forecast,forecast jobs API>>. The delete forecast API enables you to delete one or more forecasts before they expire.
+
+NOTE: When you delete a job its associated forecasts are deleted. 
+
+For more information, see {xpack-ref}/ml-overview.html#ml-forecasting[Forecasting the Future].
+
+
+==== Path Parameters
+
+`job_id` (required)::
+  (string) Identifier for the job.
+
+`forecast_id`::
+  (string) A comma-separated list of forecast identifiers. 
+//TBD: Can this ID be retrieved somehow?
+  If you do not specify this optional parameter or if you specify `_all`, the 
+  API deletes all forecasts from the job.  
+
+==== Request Parameters
+
+`allow_no_forecasts`::
+  (boolean) Whether to ignore if `_all` matches no forecasts. 
+//TBD: This description is unclear.  Does this mean that if this parameter is 
+//false and there are no forecasts in the job, an error is returned?
+
+`timeout`::
+  (time units) Controls the time to wait until the forecasts are deleted. 
+  Defaults to 30 seconds. For more information about time units, see <<time-units>>.
+//TBD: This description is unclear.  Is it the time to wait until the deletion 
+//is initiated?  Or is it the time to wait for the deletion to complete? If the
+//latter, I presume an error is returned and you must try again. 
+  
+
+//==== Authorization
+
+////
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+////
+
+// ==== Examples
+

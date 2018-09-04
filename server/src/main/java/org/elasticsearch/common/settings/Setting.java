@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -753,7 +755,7 @@ public class Setting<T> implements ToXContentObject {
 
         /**
          * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: {@code search.} and suffix: {@code username}
-         * will return {@code remote} as a namespace for the setting {@code search.remote.username}
+         * will return {@code remote} as a namespace for the setting {@code cluster.remote.username}
          */
         public String getNamespace(Setting<T> concreteSetting) {
             return key.getNamespace(concreteSetting.getKey());
@@ -1043,7 +1045,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
-        return new Setting<>(key, fallback, Function.identity(), properties);
+        return simpleString(key, fallback, Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(
+            final String key,
+            final Setting<String> fallback,
+            final Function<String, String> parser,
+            final Property... properties) {
+        return new Setting<>(key, fallback, parser, properties);
     }
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
@@ -1275,15 +1285,47 @@ public class Setting<T> implements ToXContentObject {
         return new GroupSetting(key, validator, properties);
     }
 
+    public static Setting<TimeValue> timeSetting(
+            final String key,
+            final Setting<TimeValue> fallbackSetting,
+            final TimeValue minValue,
+            final Property... properties) {
+        final SimpleKey simpleKey = new SimpleKey(key);
+        return new Setting<>(
+                simpleKey,
+                fallbackSetting,
+                fallbackSetting::getRaw,
+                timeValueParser(key),
+                minTimeValueValidator(simpleKey, minValue),
+                properties);
+    }
+
     public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
-            TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
-            if (timeValue.millis() < minValue.millis()) {
-                throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+        final SimpleKey simpleKey = new SimpleKey(key);
+        return new Setting<>(
+                simpleKey,
+                s -> defaultValue.apply(s).getStringRep(),
+                timeValueParser(key),
+                minTimeValueValidator(simpleKey, minValue), properties);
+    }
+
+    private static Function<String, TimeValue> timeValueParser(final String key) {
+        return s -> TimeValue.parseTimeValue(s, null, key);
+    }
+
+    private static Validator<TimeValue> minTimeValueValidator(final Key key, final TimeValue minValue) {
+        return (v, s) -> {
+            if (v.millis() < minValue.millis()) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "failed to parse value [%s] for setting [%s], must be >= [%s]",
+                        v.getStringRep(),
+                        key,
+                        minValue.getStringRep());
+                throw new IllegalArgumentException(message);
             }
-            return timeValue;
-        }, properties);
+        };
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
@@ -1300,6 +1342,14 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
+    }
+
+    public static Setting<TimeValue> positiveTimeSetting(
+            final String key,
+            final Setting<TimeValue> fallbackSetting,
+            final TimeValue minValue,
+            final Property... properties) {
+        return timeSetting(key, fallbackSetting, minValue, properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {

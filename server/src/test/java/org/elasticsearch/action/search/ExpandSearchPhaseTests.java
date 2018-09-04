@@ -70,7 +70,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         .collect(Collectors.toList()))));
             mockSearchPhaseContext.getRequest().source().query(originalQuery);
             mockSearchPhaseContext.searchTransport = new SearchTransportService(
-                Settings.builder().put("search.remote.connect", false).build(), null, null) {
+                Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
                 @Override
                 void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -145,7 +145,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -187,7 +187,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testSkipPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -218,7 +218,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testSkipExpandCollapseNoHits() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
@@ -250,7 +250,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         boolean version = randomBoolean();
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {

@@ -60,7 +60,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard2 = randomBoolean();
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
@@ -119,7 +119,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
@@ -186,7 +186,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-                new SearchTransportService(Settings.builder().put("search.remote.connect", false).build(), null, null) {
+                new SearchTransportService(Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
                     @Override
                     public void sendCanMatch(
                             Transport.Connection connection,

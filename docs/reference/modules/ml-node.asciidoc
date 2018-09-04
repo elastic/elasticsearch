@@ -59,7 +59,7 @@ To create a dedicated ingest node when {xpack} is installed, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: true <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
@@ -75,7 +75,7 @@ To create a dedicated coordinating node when {xpack} is installed, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
@@ -105,7 +105,7 @@ To create a dedicated {ml} node, set:
 node.master: false <1>
 node.data: false <2>
 node.ingest: false <3>
-search.remote.connect: false <4>
+cluster.remote.connect: false <4>
 node.ml: true <5>
 xpack.ml.enabled: true <6>
 -------------------

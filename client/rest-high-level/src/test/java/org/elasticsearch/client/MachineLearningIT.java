@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
@@ -216,6 +218,23 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testUpdateJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        UpdateJobRequest request = new UpdateJobRequest(new JobUpdate.Builder(jobId).setDescription("Updated description").build());
+
+        PutJobResponse response = execute(request, machineLearningClient::updateJob, machineLearningClient::updateJobAsync);
+
+        assertEquals("Updated description", response.getResponse().getDescription());
+
+        GetJobRequest getRequest = new GetJobRequest(jobId);
+        GetJobResponse getResponse = machineLearningClient.getJob(getRequest, RequestOptions.DEFAULT);
+        assertEquals("Updated description", getResponse.jobs().get(0).getDescription());
     }
 
     public static String randomValidJobId() {

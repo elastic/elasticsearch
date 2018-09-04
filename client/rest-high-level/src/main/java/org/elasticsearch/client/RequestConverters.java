@@ -88,6 +88,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -1285,7 +1286,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request lifecycleManagementStatus(TimedRequest lifecycleManagementStatusRequest){
+    static Request lifecycleManagementStatus(LifecycleManagementStatusRequest lifecycleManagementStatusRequest){
         Request request = new Request(HttpGet.METHOD_NAME,
             new EndpointBuilder()
                 .addPathPartAsIs("_ilm")

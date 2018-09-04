@@ -27,6 +27,7 @@ import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.OperationMode;
@@ -89,7 +90,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
         createIndex("squash", Settings.EMPTY);
 
-        TimedRequest statusRequest = new TimedRequest();
+        LifecycleManagementStatusRequest statusRequest = new LifecycleManagementStatusRequest();
         LifecycleManagementStatusResponse statusResponse = execute(
             statusRequest,
             highLevelClient().indexLifecycle()::lifecycleManagementStatus,

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -29,14 +28,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Function;
 
@@ -46,11 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NestedObjectMapperTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
 
     public void testEmptyNested() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -461,37 +452,6 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
 
         // do not check nested fields limit if mapping is not updated
         createIndex("test4", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
-            .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_RECOVERY, false);
-    }
-
-    public void testLimitOfNestedFieldsWithMultiTypePerIndex() throws Exception {
-        Function<String, String> mapping = type -> {
-            try {
-                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
-                    .startObject("nested1").field("type", "nested").startObject("properties")
-                    .startObject("nested2").field("type", "nested")
-                    .endObject().endObject().endObject()
-                    .endObject().endObject().endObject());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
-
-        MapperService mapperService = createIndex("test4", Settings.builder()
-            .put("index.version.created", Version.V_5_6_0)
-            .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2).build()).mapperService();
-        mapperService.merge("type1", new CompressedXContent(mapping.apply("type1")), MergeReason.MAPPING_UPDATE, false);
-        // merging same fields, but different type is ok
-        mapperService.merge("type2", new CompressedXContent(mapping.apply("type2")), MergeReason.MAPPING_UPDATE, false);
-        // adding new fields from different type is not ok
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type3").startObject("properties").startObject("nested3")
-            .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            mapperService.merge("type3", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false));
-        assertThat(e.getMessage(), containsString("Limit of nested fields [2] in index [test4] has been exceeded"));
-
-        // do not check nested fields limit if mapping is not updated
-        createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
             .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_RECOVERY, false);
     }
 

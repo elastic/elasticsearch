@@ -3,11 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -73,8 +72,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
-                InternalSettingsPlugin.class);
+        return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, InternalSettingsPlugin.class, ParentJoinPlugin.class);
     }
 
     @Override
@@ -1337,31 +1335,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
     }
 
-    public void testParentChild_parentField() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-            .startObject("_parent")
-                .field("type", "parent")
-            .endObject()
-            .startObject("properties")
-                .startObject("field1")
-                    .field("type", "keyword")
-                .endObject()
-            .endObject()
-        .endObject();
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("parent")
-                .addMapping("child", mapping));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "child", "c1").setSource("field1", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("field1", "yellow").setParent("p1").get();
-        refresh();
-        verifyParentChild();
-    }
-
     public void testParentChild_joinField() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
@@ -1419,7 +1392,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    private void verifyParentChild() {
+    static void verifyParentChild() {
         SearchResponse searchResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")

@@ -8,7 +8,6 @@ package org.elasticsearch.integration;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -32,8 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.join.aggregations.Children;
-import org.elasticsearch.join.aggregations.JoinAggregationBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -608,79 +605,6 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(termsAgg.getBuckets().size(), equalTo(1));
     }
 
-    public void testChildrenAggregation() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
-                        .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
-        );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-        client().prepareIndex("test", "type2", "2").setSource("field3", "value3")
-                .setParent("1")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        SearchResponse response = client().prepareSearch("test")
-                .setTypes("type1")
-                .addAggregation(JoinAggregationBuilders.children("children", "type2")
-                        .subAggregation(AggregationBuilders.terms("field3").field("field3")))
-                .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
-
-        Children children = response.getAggregations().get("children");
-        assertThat(children.getDocCount(), equalTo(1L));
-        Terms termsAgg = children.getAggregations().get("field3");
-        assertThat(termsAgg.getBuckets().get(0).getKeyAsString(), equalTo("value3"));
-        assertThat(termsAgg.getBuckets().get(0).getDocCount(), equalTo(1L));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareSearch("test")
-                .setTypes("type1")
-                .addAggregation(JoinAggregationBuilders.children("children", "type2")
-                        .subAggregation(AggregationBuilders.terms("field3").field("field3")))
-                .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
-
-        children = response.getAggregations().get("children");
-        assertThat(children.getDocCount(), equalTo(0L));
-        termsAgg = children.getAggregations().get("field3");
-        assertThat(termsAgg.getBuckets().size(), equalTo(0));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareSearch("test")
-                .setTypes("type1")
-                .addAggregation(JoinAggregationBuilders.children("children", "type2")
-                        .subAggregation(AggregationBuilders.terms("field3").field("field3")))
-                .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
-
-        children = response.getAggregations().get("children");
-        assertThat(children.getDocCount(), equalTo(0L));
-        termsAgg = children.getAggregations().get("field3");
-        assertThat(termsAgg.getBuckets().size(), equalTo(0));
-    }
-
-    public void testParentChild_parentField() {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent", "field1", "type=text", "field2", "type=text", "field3", "type=text"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("field1", "value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("field2", "value2").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("field2", "value2").setParent("p1").get();
-        client().prepareIndex("test", "child", "c3").setSource("field3", "value3").setParent("p1").get();
-        refresh();
-        verifyParentChild();
-    }
-
     public void testParentChild_joinField() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("properties")
@@ -724,7 +648,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         verifyParentChild();
     }
 
-    private void verifyParentChild() {
+    static void verifyParentChild() {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
                 .get();

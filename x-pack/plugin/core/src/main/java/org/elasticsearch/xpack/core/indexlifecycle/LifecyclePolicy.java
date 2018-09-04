@@ -28,7 +28,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -165,10 +164,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
-     * @param nowSupplier The supplier of the current time for {@link PhaseAfterStep} steps.
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client, LongSupplier nowSupplier) {
+    public List<Step> toSteps(Client client) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -187,8 +185,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             if (phase != null) {
                 // after step should have the name of the previous phase since the index is still in the
                 // previous phase until the after condition is reached
-                Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-                Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+                Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+                Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
                 steps.add(phaseAfterStep);
                 lastStepKey = phaseAfterStep.getKey();
             }
@@ -211,8 +209,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
         if (phase != null) {
             // The very first after step is in a phase before the hot phase so call this "new"
-            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseAfterStep.NAME, PhaseAfterStep.NAME);
-            Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+            Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+            Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();
         }
@@ -289,7 +287,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             // there are no more steps we should execute
             return TerminalPolicyStep.KEY;
         } else {
-            return new StepKey(currentPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+            return new StepKey(currentPhaseName, PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
         }
     }
 
@@ -306,7 +304,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                 // InitializePolicyContextStep
                 return InitializePolicyContextStep.KEY;
             }
-            return new StepKey(prevPhaseName, PhaseAfterStep.NAME, PhaseAfterStep.NAME);
+            return new StepKey(prevPhaseName, PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
         }
     }
 

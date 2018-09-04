@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -51,7 +52,12 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        Settings indexSettings = currentState.getMetaData().index(index).getSettings();
+        IndexMetaData indexMetaData = currentState.getMetaData().index(index);
+        if (indexMetaData == null) {
+            // Index must have been since deleted, ignore it
+            return currentState;
+        }
+        Settings indexSettings = indexMetaData.getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
             return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);

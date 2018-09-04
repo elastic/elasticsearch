@@ -98,8 +98,8 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.RETRY_TIMEOUT.getPreferredName()),
-                ShardFollowTask.RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.MAX_RETRY_DELAY.getPreferredName()),
+                ShardFollowTask.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
                 ShardFollowTask.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -126,7 +126,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
         private long maxOperationSizeInBytes;
         private int maxConcurrentWriteBatches;
         private int maxWriteBufferSize;
-        private TimeValue retryTimeout;
+        private TimeValue maxRetryDelay;
         private TimeValue idleShardRetryDelay;
 
         public Request(
@@ -137,7 +137,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             Long maxOperationSizeInBytes,
             Integer maxConcurrentWriteBatches,
             Integer maxWriteBufferSize,
-            TimeValue retryTimeout,
+            TimeValue maxRetryDelay,
             TimeValue idleShardRetryDelay) {
 
             if (leaderIndex == null) {
@@ -161,8 +161,8 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             if (maxWriteBufferSize == null) {
                 maxWriteBufferSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE;
             }
-            if (retryTimeout == null) {
-                retryTimeout = ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT;
+            if (maxRetryDelay == null) {
+                maxRetryDelay = ShardFollowNodeTask.DEFAULT_MAX_RETRY_DELAY;
             }
             if (idleShardRetryDelay == null) {
                 idleShardRetryDelay = ShardFollowNodeTask.DEFAULT_IDLE_SHARD_RETRY_DELAY;
@@ -191,7 +191,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
-            this.retryTimeout = retryTimeout;
+            this.maxRetryDelay = maxRetryDelay;
             this.idleShardRetryDelay = idleShardRetryDelay;
         }
 
@@ -225,7 +225,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             maxOperationSizeInBytes = in.readVLong();
             maxConcurrentWriteBatches = in.readVInt();
             maxWriteBufferSize = in.readVInt();
-            retryTimeout = in.readOptionalTimeValue();
+            maxRetryDelay = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
         }
 
@@ -239,7 +239,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             out.writeVLong(maxOperationSizeInBytes);
             out.writeVInt(maxConcurrentWriteBatches);
             out.writeVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(retryTimeout);
+            out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(idleShardRetryDelay);
         }
 
@@ -254,7 +254,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                 builder.field(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
                 builder.field(ShardFollowTask.MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
                 builder.field(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                builder.field(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+                builder.field(ShardFollowTask.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 builder.field(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
             }
             builder.endObject();
@@ -271,7 +271,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                 maxOperationSizeInBytes == request.maxOperationSizeInBytes &&
                 maxConcurrentWriteBatches == request.maxConcurrentWriteBatches &&
                 maxWriteBufferSize == request.maxWriteBufferSize &&
-                Objects.equals(retryTimeout, request.retryTimeout) &&
+                Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                 Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
                 Objects.equals(followerIndex, request.followerIndex);
@@ -287,7 +287,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                 maxOperationSizeInBytes,
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
-                retryTimeout,
+                maxRetryDelay,
                 idleShardRetryDelay
             );
         }
@@ -412,7 +412,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
                         request.maxBatchOperationCount, request.maxConcurrentReadBatches, request.maxOperationSizeInBytes,
-                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, request.retryTimeout,
+                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, request.maxRetryDelay,
                         request.idleShardRetryDelay, filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {

@@ -61,15 +61,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     public static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
-    private static final int RETRY_LIMIT = 10;
-    public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
+    public static final TimeValue DEFAULT_MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
     public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
     private final String leaderIndex;
     private final ShardFollowTask params;
-    private final TimeValue retryTimeout;
+    private final TimeValue maxRetryDelay;
     private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -101,7 +100,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.retryTimeout = params.getRetryTimeout();
+        this.maxRetryDelay = params.getMaxRetryDelay();
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
         /*
          * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
@@ -379,20 +378,22 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(e)) {
-            if (isStopped() == false && retryCounter.incrementAndGet() <= RETRY_LIMIT) {
-                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...", params.getFollowShardId()), e);
-                scheduler.accept(retryTimeout, task);
-            } else {
-                markAsFailed(new ElasticsearchException("retrying failed [" + retryCounter.get() +
-                    "] times, aborting...", e));
-            }
+        if (shouldRetry(e) && isStopped() == false) {
+            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...", params.getFollowShardId()), e);
+            int currentRetry = retryCounter.incrementAndGet();
+            long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
+            scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             markAsFailed(e);
         }
     }
 
-    private boolean shouldRetry(Exception e) {
+    static long computeDelay(int currentRetry, long maxRetryDelayInMillis) {
+        long expectedBackOff = Math.round(10 * Math.exp(0.8d * currentRetry) - 1);
+        return Math.min(expectedBackOff, maxRetryDelayInMillis);
+    }
+
+    private static boolean shouldRetry(Exception e) {
         return NetworkExceptionHelper.isConnectException(e) ||
             NetworkExceptionHelper.isCloseConnectionException(e) ||
             TransportActions.isShardNotAvailableException(e);

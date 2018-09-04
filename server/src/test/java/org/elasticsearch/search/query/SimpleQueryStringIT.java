@@ -44,12 +44,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -79,7 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleQueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockAnalysisPlugin.class, InternalSettingsPlugin.class); // uses index.version.created
+        return Collections.singletonList(MockAnalysisPlugin.class);
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {

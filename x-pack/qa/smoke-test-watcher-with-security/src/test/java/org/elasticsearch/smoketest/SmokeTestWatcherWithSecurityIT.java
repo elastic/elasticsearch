@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,7 +20,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,27 +39,28 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        StringEntity entity = new StringEntity("{ \"value\" : \"15\" }", ContentType.APPLICATION_JSON);
-        assertOK(adminClient().performRequest("PUT", "my_test_index/doc/1", Collections.singletonMap("refresh", "true"), entity));
+        Request createAllowedDoc = new Request("PUT", "/my_test_index/doc/1");
+        createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
+        createAllowedDoc.addParameter("refresh", "true");
+        adminClient().performRequest(createAllowedDoc);
 
         // delete the watcher history to not clutter with entries from other test
-        adminClient().performRequest("DELETE", ".watcher-history-*", Collections.emptyMap());
+        adminClient().performRequest(new Request("DELETE", ".watcher-history-*"));
 
         // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
-        Response resp = adminClient().performRequest("PUT", "/index_not_allowed_to_read/doc/1", Collections.emptyMap(),
-                new StringEntity("{\"foo\":\"bar\"}", ContentType.APPLICATION_JSON));
-        assertThat(resp.getStatusLine().getStatusCode(), is(201));
+        Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/doc/1");
+        createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
+        adminClient().performRequest(createNotAllowedDoc);
 
         assertBusy(() -> {
             try {
-                Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
+                Response statsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                 case "stopped":
-                    Response startResponse = adminClient().performRequest("POST", "_xpack/watcher/_start");
-                    assertOK(startResponse);
+                    Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
                     String body = EntityUtils.toString(startResponse.getEntity());
                     assertThat(body, containsString("\"acknowledged\":true"));
                     break;
@@ -82,18 +81,18 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
-                assertOK(adminClient().performRequest("HEAD", "_template/" + template));
+                assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
             }
         });
     }
 
     @After
     public void stopWatcher() throws Exception {
-        assertOK(adminClient().performRequest("DELETE", "my_test_index"));
+        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
 
         assertBusy(() -> {
             try {
-                Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
+                Response statsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
 
@@ -106,8 +105,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
-                    Response stopResponse = adminClient().performRequest("POST", "_xpack/watcher/_stop", Collections.emptyMap());
-                    assertOK(stopResponse);
+                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
                     String body = EntityUtils.toString(stopResponse.getEntity());
                     assertThat(body, containsString("\"acknowledged\":true"));
                     break;
@@ -137,6 +135,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchInputHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -160,6 +159,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29893")
     public void testSearchInputWithInsufficientPrivileges() throws Exception {
         String indexName = "index_not_allowed_to_read";
         try (XContentBuilder builder = jsonBuilder()) {
@@ -186,6 +186,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchTransformHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -210,11 +211,12 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest("GET", "my_test_index/doc/my-id"));
+        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/doc/my-id")));
         String value = getObjectPath.evaluate("_source.hits.hits.0._source.value");
         assertThat(value, is("15"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33291")
     public void testSearchTransformInsufficientPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -238,11 +240,11 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         getWatchHistoryEntry(watchId);
 
-        Response response = adminClient().performRequest("GET", "my_test_index/doc/some-id",
-                Collections.singletonMap("ignore", "404"));
+        Response response = adminClient().performRequest(new Request("HEAD", "/my_test_index/doc/some-id"));
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30777")
     public void testIndexActionHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -262,11 +264,12 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest("GET", "my_test_index/doc/my-id"));
+        ObjectPath getObjectPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/my_test_index/doc/my-id")));
         String spam = getObjectPath.evaluate("_source.spam");
         assertThat(spam, is("eggs"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testIndexActionInsufficientPrivileges() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -286,16 +289,14 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
-        Response response = adminClient().performRequest("GET", "index_not_allowed_to_read/doc/my-id",
-                Collections.singletonMap("ignore", "404"));
+        Response response = adminClient().performRequest(new Request("HEAD", "/index_not_allowed_to_read/doc/my-id"));
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-
-        Response response = client().performRequest("PUT", "_xpack/watcher/watch/" + watchId, Collections.emptyMap(), entity);
-        assertOK(response);
+        Request request = new Request("PUT", "/_xpack/watcher/watch/" + watchId);
+        request.setJsonEntity(Strings.toString(builder));
+        Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
     }
@@ -307,7 +308,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     private ObjectPath getWatchHistoryEntry(String watchId, String state) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
         assertBusy(() -> {
-            client().performRequest("POST", ".watcher-history-*/_refresh");
+            client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
 
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -323,8 +324,9 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                         .endObject().endArray();
                 builder.endObject();
 
-                StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-                Response response = client().performRequest("POST", ".watcher-history-*/_search", Collections.emptyMap(), entity);
+                Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.setJsonEntity(Strings.toString(builder));
+                Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));

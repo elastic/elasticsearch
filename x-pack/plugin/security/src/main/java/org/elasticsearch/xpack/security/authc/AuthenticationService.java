@@ -31,13 +31,15 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -381,33 +383,18 @@ public class AuthenticationService extends AbstractComponent {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final List<Realm> realmsList = realms.asList();
-            final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) ->
-                    realm.lookupUser(runAsUsername, ActionListener.wrap((lookedupUser) -> {
-                        if (lookedupUser != null) {
-                            lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
-                            lookupUserListener.onResponse(lookedupUser);
-                        } else {
-                            lookupUserListener.onResponse(null);
-                        }
-                    }, lookupUserListener::onFailure));
-
-            final IteratingActionListener<User, Realm> userLookupListener =
-                    new IteratingActionListener<>(ActionListener.wrap((lookupUser) -> {
-                                if (lookupUser == null) {
-                                    // the user does not exist, but we still create a User object, which will later be rejected by authz
-                                    userConsumer.accept(new User(runAsUsername, null, user));
-                                } else {
-                                    userConsumer.accept(new User(lookupUser, user));
-                                }
-                            },
-                            (e) -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken))),
-                            realmLookupConsumer, realmsList, threadContext);
-            try {
-                userLookupListener.run();
-            } catch (Exception e) {
-                listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken));
-            }
+            final RealmUserLookup lookup = new RealmUserLookup(realms.asList(), threadContext);
+            lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
+                if (tuple == null) {
+                    // the user does not exist, but we still create a User object, which will later be rejected by authz
+                    userConsumer.accept(new User(runAsUsername, null, user));
+                } else {
+                    User foundUser = Objects.requireNonNull(tuple.v1());
+                    Realm realm = Objects.requireNonNull(tuple.v2());
+                    lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                    userConsumer.accept(new User(foundUser, user));
+                }
+            }, exception -> listener.onFailure(request.exceptionProcessingRequest(exception, authenticationToken))));
         }
 
         /**

@@ -660,13 +660,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "mtermvectors",
             "put_script",
-            "reindex",
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
             "tasks.get",
-            "termvectors",
-            "update_by_query"
+            "termvectors"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -685,6 +683,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -758,6 +757,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
                             apiName.startsWith("watcher.") == false &&
+                            apiName.startsWith("graph.") == false &&
                             apiName.startsWith("migration.") == false) {
                             apiNotFound.add(apiName);
                         }

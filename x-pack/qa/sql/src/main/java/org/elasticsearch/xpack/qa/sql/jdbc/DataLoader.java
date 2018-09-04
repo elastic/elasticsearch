@@ -42,14 +42,15 @@ public class DataLoader {
     }
 
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
-        loadEmpDatasetIntoEs(client, "test_emp");
-        loadEmpDatasetIntoEs(client, "test_emp_copy");
+        loadEmpDatasetIntoEs(client, "test_emp", "employees");
+        loadEmpDatasetIntoEs(client, "test_emp_copy", "employees");
+        loadEmpDatasetIntoEs(client, "test_emp_with_nulls", "employees_with_nulls");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
-        loadEmpDatasetIntoEs(client, "emp");
+        loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");
     }
@@ -62,7 +63,7 @@ public class DataLoader {
        .endObject();
     }
 
-    protected static void loadEmpDatasetIntoEs(RestClient client, String index) throws Exception {
+    protected static void loadEmpDatasetIntoEs(RestClient client, String index, String fileName) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -129,15 +130,18 @@ public class DataLoader {
         request = new Request("POST", "/" + index + "/emp/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
-        csvToLines("employees", (titles, fields) -> {
+        csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
             bulk.append('{');
             String emp_no = fields.get(1);
             for (int f = 0; f < fields.size(); f++) {
-                if (f != 0) {
-                    bulk.append(',');
+                // an empty value in the csv file is treated as 'null', thus skipping it in the bulk request
+                if (fields.get(f).trim().length() > 0) {
+                    if (f != 0) {
+                        bulk.append(',');
+                    }
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
                 }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             // append department
             List<List<String>> list = dep_emp.get(emp_no);

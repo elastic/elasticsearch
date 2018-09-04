@@ -735,11 +735,18 @@ public class SettingTests extends ESTestCase {
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [NotCopyableOnResize]")));
     }
 
-    public void testRejectNonIndexScopedIndexInternalSetting() {
+    public void testRejectNonIndexScopedInternalIndexSetting() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> Setting.simpleString("foo.bar", Property.InternalIndex));
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [InternalIndex]")));
+    }
+
+    public void testRejectNonIndexScopedPrivateIndexSetting() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Setting.simpleString("foo.bar", Property.PrivateIndex));
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [PrivateIndex]")));
     }
 
     public void testTimeValue() {
@@ -757,7 +764,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
@@ -768,7 +775,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdaterRemoval() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.same", 5555).build();
@@ -783,7 +790,7 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<String> affixSetting =
             Setting.affixKeySetting("prefix.foo.", "suffix", key -> Setting.simpleString(key,Property.NodeScope, Property.Dynamic));
 
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, prefixKeySetting, affixSetting));
 
         Settings.Builder currentSettingsBuilder = Settings.builder()

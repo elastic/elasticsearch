@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -144,6 +146,14 @@ public abstract class Realm implements Comparable<Realm> {
     @Override
     public String toString() {
         return type + "/" + config.name;
+    }
+
+    /**
+     * This is no-op in the base class, but allows realms to be aware of what other realms are configured
+     *
+     * @see DelegatedAuthorizationSettings
+     */
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
     }
 
     /**

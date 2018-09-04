@@ -116,8 +116,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -125,12 +127,18 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -169,6 +177,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
@@ -176,6 +185,7 @@ import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -402,6 +412,118 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/_aliases", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(indicesAliasesRequest, request.getEntity());
+    }
+
+    public void testReindex() throws IOException {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source_idx");
+        reindexRequest.setDestIndex("dest_idx");
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            RemoteInfo remoteInfo = new RemoteInfo("http", "remote-host", 9200, null,
+                BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),
+                "user",
+                "pass",
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            );
+            reindexRequest.setRemoteInfo(remoteInfo);
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceDocTypes("doc", "tweet");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestDocType("tweet_and_doc");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSize(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            reindexRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+        }
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
+        expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
+        Request request = RequestConverters.reindex(reindexRequest);
+        assertEquals("/_reindex", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(reindexRequest, request.getEntity());
+    }
+
+    public void testUpdateByQuery() throws IOException {
+        UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+        updateByQueryRequest.indices(randomIndicesNames(1, 5));
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            updateByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
+        }
+        if (randomBoolean()) {
+            int batchSize = randomInt(100);
+            updateByQueryRequest.setBatchSize(batchSize);
+            expectedParams.put("scroll_size", Integer.toString(batchSize));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setPipeline("my_pipeline");
+            expectedParams.put("pipeline", "my_pipeline");
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setRouting("=cat");
+            expectedParams.put("routing", "=cat");
+        }
+        if (randomBoolean()) {
+            int size = randomIntBetween(100, 1000);
+            updateByQueryRequest.setSize(size);
+            expectedParams.put("size", Integer.toString(size));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setAbortOnVersionConflict(false);
+            expectedParams.put("conflicts", "proceed");
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            updateByQueryRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+            expectedParams.put("scroll", ts);
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setScript(new Script("ctx._source.last = \"lastname\""));
+        }
+        setRandomIndicesOptions(updateByQueryRequest::setIndicesOptions, updateByQueryRequest::indicesOptions, expectedParams);
+        setRandomTimeout(updateByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        Request request = RequestConverters.updateByQuery(updateByQueryRequest);
+        StringJoiner joiner = new StringJoiner("/", "/", "");
+        joiner.add(String.join(",", updateByQueryRequest.indices()));
+        if (updateByQueryRequest.getDocTypes().length > 0)
+            joiner.add(String.join(",", updateByQueryRequest.getDocTypes()));
+        joiner.add("_update_by_query");
+        assertEquals(joiner.toString(), request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(updateByQueryRequest, request.getEntity());
     }
 
     public void testPutMapping() throws IOException {
@@ -2598,6 +2720,35 @@ public class RequestConvertersTests extends ESTestCase {
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
     }
+    
+    public void testGraphExplore() throws Exception {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
+        graphExploreRequest.sampleDiversityField("diversity");
+        graphExploreRequest.indices("index1", "index2");
+        graphExploreRequest.types("type1", "type2");
+        int timeout = randomIntBetween(10000, 20000);
+        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
+        for (int i = 0; i < numHops; i++) {
+            int hopNumber = i + 1;
+            QueryBuilder guidingQuery = null;
+            if (randomBoolean()) {
+                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
+            }
+            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
+            hop.addVertexRequest("field" + hopNumber);
+            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
+        }
+        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertToXContentBody(graphExploreRequest, request.getEntity());
+    }    
 
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();

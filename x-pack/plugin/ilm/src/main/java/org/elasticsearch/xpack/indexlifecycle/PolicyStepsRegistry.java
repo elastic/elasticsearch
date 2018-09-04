@@ -190,7 +190,9 @@ public class PolicyStepsRegistry {
                         }
                         policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
                     }
-                    final List<Step> steps = policyToExecute.toSteps(client, nowSupplier);
+                    LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
+                        ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
+                    final List<Step> steps = policyToExecute.toSteps(policyClient, nowSupplier);
                     // Build a list of steps that correspond with the phase the index is currently in
                     final List<Step> phaseSteps;
                     if (steps == null) {

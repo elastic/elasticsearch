@@ -167,8 +167,8 @@ SHOW TABLES "*,-l*";
 ---------------+---------------
 emp            |BASE TABLE     
 employees      |ALIAS
-          
-// end:showTablesEsMultiIndex
+
+// end::showTablesEsMultiIndex
 ;
 
 ///////////////////////////////

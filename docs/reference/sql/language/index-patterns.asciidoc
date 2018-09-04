@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[sql-index-pattern]]
+[[sql-index-patterns]]
 == Index patterns
 
 {es-sql} supports two types of patterns for matching multiple indices or tables:

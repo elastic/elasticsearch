@@ -205,9 +205,8 @@ public class UidFieldMapper extends MetadataFieldMapper {
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we do everything in preParse
-        return null;
     }
 
     @Override

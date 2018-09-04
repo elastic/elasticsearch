@@ -244,9 +244,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // we parse in post parse
-        return null;
     }
 
     @Override

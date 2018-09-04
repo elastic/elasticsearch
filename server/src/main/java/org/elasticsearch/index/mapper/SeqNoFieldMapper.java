@@ -242,9 +242,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // fields are added in parseCreateField
-        return null;
     }
 
     @Override

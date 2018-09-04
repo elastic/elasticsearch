@@ -224,22 +224,7 @@ public class SysTablesTests extends ESTestCase {
 
     public void testSysTablesTypesEnumerationWoString() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' ", r -> {
-            assertEquals(2, r.size());
-
-            Iterator<IndexType> it = IndexType.VALID.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
-
-            for (int t = 0; t < r.size(); t++) {
-                assertEquals(it.next().toSql(), r.column(3));
-
-                // everything else should be null
-                for (int i = 0; i < 10; i++) {
-                    if (i != 3) {
-                        assertNull(r.column(i));
-                    }
-                }
-
-                r.advanceRow();
-            }
+            assertEquals(0, r.size());
         }, new IndexInfo[0]);
     }
 

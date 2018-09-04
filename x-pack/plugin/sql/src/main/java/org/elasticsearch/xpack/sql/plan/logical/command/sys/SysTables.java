@@ -86,7 +86,7 @@ public class SysTables extends Command {
         }
         
         // if no types were specified (the parser takes care of the % case)
-        if (CollectionUtils.isEmpty(types)) {
+        if (IndexType.VALID.equals(types)) {
             if ((clusterPattern == null || clusterPattern.pattern().isEmpty())
                     && (pattern == null || pattern.pattern().isEmpty())) {
                 List<List<?>> values = new ArrayList<>();

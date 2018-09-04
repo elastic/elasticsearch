@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
@@ -49,7 +50,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -99,7 +99,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             }
 
             // build a new shard using the same store directory as the closed shard
-            ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(), EXISTING_STORE_INSTANCE);
+            ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(shard.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE);
             shard = newShard(
                     shardRouting,
                     shard.shardPath(),

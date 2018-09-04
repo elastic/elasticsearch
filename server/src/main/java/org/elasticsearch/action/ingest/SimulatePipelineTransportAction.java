@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,13 +35,13 @@ import java.util.Map;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
 
-    private final PipelineStore pipelineStore;
+    private final IngestService ingestService;
     private final SimulateExecutionService executionService;
 
     @Inject
     public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
         super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SimulatePipelineRequest::new);
-        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
+        this.ingestService = nodeService.getIngestService();
         this.executionService = new SimulateExecutionService(threadPool);
     }
 
@@ -52,9 +52,9 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {
             if (request.getId() != null) {
-                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), pipelineStore);
+                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), ingestService);
             } else {
-                simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), pipelineStore);
+                simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), ingestService);
             }
         } catch (Exception e) {
             listener.onFailure(e);

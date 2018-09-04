@@ -43,6 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -216,6 +217,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    @Ignore("Awaiting post data endpoint to be created")
+    public void testForecastJob() throws Exception {
+        String jobId = "ml-forecast-job-test";
+
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
     }
 
     public static String randomValidJobId() {

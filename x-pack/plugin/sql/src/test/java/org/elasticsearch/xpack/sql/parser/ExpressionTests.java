@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
@@ -18,6 +19,12 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
+import java.util.Locale;
+
+import static java.lang.String.format;
 import static org.hamcrest.core.StringStartsWith.startsWith;
 
 public class ExpressionTests extends ESTestCase {
@@ -72,9 +79,9 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongNegative() {
-        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
+        Expression lt = parser.createExpression(String.valueOf(-Long.MAX_VALUE));
         assertTrue(lt.foldable());
-        assertEquals(Long.MIN_VALUE, lt.fold());
+        assertEquals(-Long.MAX_VALUE, lt.fold());
         assertEquals(DataType.LONG, lt.dataType());
     }
 
@@ -118,6 +125,59 @@ public class ExpressionTests extends ESTestCase {
     public void testLiteralDecimalTooBig() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("1.9976931348623157e+308"));
         assertEquals("Number [1.9976931348623157e+308] is too large", ex.getErrorMessage());
+    }
+
+    public void testExactDayTimeInterval() throws Exception {
+        int number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofDays(number), intervalOf("INTERVAL " + number + " DAY"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofHours(number), intervalOf("INTERVAL " + number + " HOUR"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofMinutes(number), intervalOf("INTERVAL " + number + " MINUTE"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Duration.ofSeconds(number), intervalOf("INTERVAL " + number + " SECOND"));
+    }
+
+    public void testExactYearMonthInterval() throws Exception {
+        int number = randomIntBetween(-100, 100);
+        assertEquals(Period.ofYears(number), intervalOf("INTERVAL " + number + " YEAR"));
+        number = randomIntBetween(-100, 100);
+        assertEquals(Period.ofMonths(number), intervalOf("INTERVAL " + number + " MONTH"));
+    }
+
+    public void testStringInterval() throws Exception {
+        int randomDay = randomInt(1024);
+        int randomHour = randomInt(23);
+        int randomMinute = randomInt(59);
+        int randomSecond = randomInt(59);
+        int randomMilli = randomInt(999999999);
+
+        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+                randomMilli);
+        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
+                .plusMillis(randomMilli), intervalOf(value));
+    }
+
+    public void testNegativeStringInterval() throws Exception {
+        int randomDay = randomInt(1024);
+        int randomHour = randomInt(23);
+        int randomMinute = randomInt(59);
+        int randomSecond = randomInt(59);
+        int randomMilli = randomInt(999999999);
+
+        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
+                randomMilli);
+        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
+                .plusMillis(randomMilli).negated(), intervalOf(value));
+    }
+
+    private TemporalAmount intervalOf(String query) {
+        Expression lt = parser.createExpression(query);
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        Object value = l.value();
+        assertTrue(Interval.class.isAssignableFrom(value.getClass()));
+        return ((Interval<?>) value).interval();
     }
 
     public void testLiteralTimesLiteral() {

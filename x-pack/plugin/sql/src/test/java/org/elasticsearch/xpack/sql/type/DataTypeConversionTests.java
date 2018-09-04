@@ -252,7 +252,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testEsDataTypes() {
         for (DataType type : DataType.values()) {
-            assertEquals(type, DataType.fromEsType(type.esType));
+            assertEquals(type, DataType.fromTypeName(type.esType));
         }
     }
 

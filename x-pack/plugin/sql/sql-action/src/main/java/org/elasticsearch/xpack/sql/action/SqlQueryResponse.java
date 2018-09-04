@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
-import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -180,11 +179,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String table = in.readString();
         String name = in.readString();
         String esType = in.readString();
-        JDBCType jdbcType;
+        Integer jdbcType;
         int displaySize;
         if (in.readBoolean()) {
-            // FIXME: this needs changing to allow custom types
-            jdbcType = JDBCType.valueOf(in.readVInt());
+            jdbcType = in.readVInt();
             displaySize = in.readVInt();
         } else {
             jdbcType = null;
@@ -199,7 +197,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         out.writeString(columnInfo.esType());
         if (columnInfo.jdbcType() != null) {
             out.writeBoolean(true);
-            out.writeVInt(columnInfo.jdbcType().getVendorTypeNumber());
+            out.writeVInt(columnInfo.jdbcType());
             out.writeVInt(columnInfo.displaySize());
         } else {
             out.writeBoolean(false);

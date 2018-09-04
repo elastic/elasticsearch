@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.joda.time.DateTime;
 
 public final class DataTypes {
@@ -51,6 +52,9 @@ public final class DataTypes {
         if (value instanceof String || value instanceof Character) {
             return DataType.KEYWORD;
         }
+        if (value instanceof Interval) {
+            return ((Interval<?>) value).dataType();
+        }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
 
@@ -68,7 +72,7 @@ public final class DataTypes {
             return Integer.valueOf(9);
         }
         // this is safe since the vendor SQL types are short despite the return value
-        return t.jdbcType.getVendorTypeNumber();
+        return t.sqlType.getVendorTypeNumber();
     }
 
     // https://github.com/elastic/elasticsearch/issues/30386
@@ -88,11 +92,11 @@ public final class DataTypes {
         if (t == DataType.DATE) {
             return Short.valueOf((short) 3);
         }
-        if (t.isInteger) {
+        if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
         // minimum scale?
-        if (t.isRational) {
+        if (t.isRational()) {
             return Short.valueOf((short) 0);
         }
         return null;
@@ -103,10 +107,10 @@ public final class DataTypes {
         if (t == DataType.DATE) {
             return Short.valueOf((short) 3);
         }
-        if (t.isInteger) {
+        if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t.isRational) {
+        if (t.isRational()) {
             return Short.valueOf((short) t.defaultPrecision);
         }
         return null;
@@ -118,6 +122,6 @@ public final class DataTypes {
         // 10 means they represent the number of decimal digits allowed for the column.
         // 2 means they represent the number of bits allowed for the column.
         // null means radix is not applicable for the given type.
-        return t.isInteger ? Integer.valueOf(10) : (t.isRational ? Integer.valueOf(2) : null);
+        return t.isInteger() ? Integer.valueOf(10) : (t.isRational() ? Integer.valueOf(2) : null);
     }
 }

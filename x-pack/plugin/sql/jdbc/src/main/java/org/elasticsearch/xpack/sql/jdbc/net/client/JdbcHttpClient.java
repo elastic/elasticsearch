@@ -10,18 +10,20 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.TypeUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
@@ -87,9 +89,11 @@ public class JdbcHttpClient {
     /**
      * Converts REST column metadata into JDBC column metadata
      */
-    private List<ColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.proto.ColumnInfo> columns) {
-        return columns.stream().map(columnInfo ->
-                new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize())
-        ).collect(Collectors.toList());
+    private List<JdbcColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.proto.ColumnInfo> columns) throws SQLException {
+        List<JdbcColumnInfo> cols = new ArrayList<>(columns.size());
+        for (ColumnInfo info : columns) {
+            cols.add(new JdbcColumnInfo(info.name(), TypeUtils.of(info.esType()), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
+        }
+        return cols;
     }
 }

@@ -9,7 +9,8 @@ import org.elasticsearch.xpack.sql.client.ObjectUtils;
 import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.JdbcColumnInfo;
+import org.elasticsearch.xpack.sql.jdbc.type.DataType;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -19,7 +20,6 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLType;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -764,7 +764,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        List<ColumnInfo> info = columnInfo("SCHEMATA",
+        List<JdbcColumnInfo> info = columnInfo("SCHEMATA",
                                            "TABLE_SCHEM",
                                            "TABLE_CATALOG");
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
@@ -1117,23 +1117,28 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return false;
     }
 
-    private static List<ColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
-        List<ColumnInfo> columns = new ArrayList<>();
+    private static List<JdbcColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
+        List<JdbcColumnInfo> columns = new ArrayList<>();
 
         for (int i = 0; i < cols.length; i++) {
             Object obj = cols[i];
             if (obj instanceof String) {
                 String name = obj.toString();
-                SQLType type = JDBCType.VARCHAR;
+                DataType type = DataType.KEYWORD;
                 if (i + 1 < cols.length) {
+                    Object next = cols[i + 1];
                     // check if the next item it's a type
-                    if (cols[i + 1] instanceof SQLType) {
-                        type = (SQLType) cols[i + 1];
-                        i++;
+                    if (next instanceof DataType || next instanceof JDBCType) {
+                        try {
+                            type = TypeUtils.of((JDBCType) next);
+                            i++;
+                        } catch (SQLException ex) {
+                            throw new JdbcSQLException(ex, "Invalid metadata schema definition");
+                        }
                     }
                     // it's not, use the default and move on
                 }
-                columns.add(new ColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", "", "", 0));
+                columns.add(new JdbcColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", "", "", 0));
             }
             else {
                 throw new JdbcSQLException("Invalid metadata schema definition");
@@ -1146,28 +1151,28 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
     }
 
-    private static ResultSet emptySet(JdbcConfiguration cfg, List<ColumnInfo> columns) {
+    private static ResultSet emptySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns) {
         return memorySet(cfg, columns, null);
     }
 
-    private static ResultSet memorySet(JdbcConfiguration cfg, List<ColumnInfo> columns, Object[][] data) {
+    private static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columns, data));
     }
 
     static class InMemoryCursor implements Cursor {
 
-        private final List<ColumnInfo> columns;
+        private final List<JdbcColumnInfo> columns;
         private final Object[][] data;
 
         private int row = -1;
 
-        InMemoryCursor(List<ColumnInfo> info, Object[][] data) {
+        InMemoryCursor(List<JdbcColumnInfo> info, Object[][] data) {
             this.columns = info;
             this.data = data;
         }
 
         @Override
-        public List<ColumnInfo> columns() {
+        public List<JdbcColumnInfo> columns() {
             return columns;
         }
 

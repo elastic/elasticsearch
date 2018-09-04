@@ -22,7 +22,7 @@ public class DataTypesTests extends ESTestCase {
     public void testMetaDataType() {
         assertEquals(Integer.valueOf(9), metaSqlDataType(DATE));
         DataType t = randomDataTypeNoDate();
-        assertEquals(t.jdbcType.getVendorTypeNumber(), metaSqlDataType(t));
+        assertEquals(t.sqlType.getVendorTypeNumber(), metaSqlDataType(t));
     }
 
     public void testMetaDateTypeSub() {

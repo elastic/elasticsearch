@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionExpressionContex
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GuidEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LikePatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
@@ -218,6 +219,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return pCtx.NOT() != null ? new Not(loc, e) : e;
+    }
+
+    @Override
+    public LikePattern visitLikePattern(LikePatternContext ctx) {
+        return ctx == null ? null : visitPattern(ctx.pattern());
     }
 
     @Override

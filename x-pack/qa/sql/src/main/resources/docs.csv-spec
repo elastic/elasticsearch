@@ -148,6 +148,29 @@ emp            |BASE TABLE
 // end::showTablesLikeMixed
 ;
 
+showTablesLikeEscape
+// tag::showTablesLikeEscape
+SHOW TABLES LIKE 'emp!%' ESCAPE '!';
+
+     name      |     type      
+---------------+---------------
+
+// end::showTablesLikeEscape
+;
+
+
+showTablesEsMultiIndex
+// tag::showTablesEsMultiIndex
+SHOW TABLES "*,-l*";
+
+     name      |     type      
+---------------+---------------
+emp            |BASE TABLE     
+employees      |ALIAS
+          
+// end:showTablesEsMultiIndex
+;
+
 ///////////////////////////////
 //
 // Show Functions
@@ -286,7 +309,7 @@ ABS            |SCALAR
 
 showFunctionsWithPattern
 // tag::showFunctionsWithPattern
-SHOW FUNCTIONS '%DAY%';
+SHOW FUNCTIONS LIKE '%DAY%';
 
      name      |     type      
 ---------------+---------------

@@ -32,16 +32,18 @@ import static org.elasticsearch.xpack.sql.util.StringUtils.SQL_WILDCARD;
 
 public class SysTables extends Command {
 
+    private final String index;
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
     private final EnumSet<IndexType> types;
     // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
     private final boolean legacyTableTypes;
 
-    public SysTables(Location location, LikePattern clusterPattern, LikePattern pattern, EnumSet<IndexType> types,
+    public SysTables(Location location, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
             boolean legacyTableTypes) {
         super(location);
         this.clusterPattern = clusterPattern;
+        this.index = index;
         this.pattern = pattern;
         this.types = types;
         this.legacyTableTypes = legacyTableTypes;
@@ -49,7 +51,7 @@ public class SysTables extends Command {
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, pattern, types, legacyTableTypes);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types, legacyTableTypes);
     }
 
     @Override
@@ -111,10 +113,10 @@ public class SysTables extends Command {
             return;
         }
 
-        String index = pattern != null ? pattern.asIndexNameWildcard() : "*";
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
-        session.indexResolver().resolveNames(index, regex, types, ActionListener.wrap(result -> listener.onResponse(
+        session.indexResolver().resolveNames(idx, regex, types, ActionListener.wrap(result -> listener.onResponse(
                 Rows.of(output(), result.stream()
                  // sort by type (which might be legacy), then by name
                  .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
@@ -139,7 +141,7 @@ public class SysTables extends Command {
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterPattern, pattern, types);
+        return Objects.hash(clusterPattern, index, pattern, types);
     }
 
     @Override
@@ -154,6 +156,7 @@ public class SysTables extends Command {
 
         SysTables other = (SysTables) obj;
         return Objects.equals(clusterPattern, other.clusterPattern)
+                && Objects.equals(index, other.index)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(types, other.types);
     }

@@ -24,6 +24,9 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         if (randomBoolean()) {
             request.setAllowNoDatafeeds(randomBoolean());
         }
+        if (randomBoolean()) {
+            request.setResolvedStartedDatafeedIds(generateRandomStringArray(4, 8, false));
+        }
         return request;
     }
 

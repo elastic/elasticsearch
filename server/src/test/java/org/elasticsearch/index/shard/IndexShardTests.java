@@ -2649,7 +2649,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             closeShards(corruptedShard);
         } catch (RuntimeException e) {
-            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
+            // Ignored because corrupted shard can throw various exceptions on close
         }
     }
 

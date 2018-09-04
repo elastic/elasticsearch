@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,6 +45,12 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
                 "\nBut they did not. Output is:\n\n```" + output + "\n```\n"
             );
+        }
+    }
+
+    protected void assertOutputContains(String output, Set<String> lines) {
+        for (String line : lines) {
+            assertOutputContains(output, line);
         }
     }
 
@@ -82,7 +89,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
-            "Expected task to be successful but it was: " + task.getOutcome() +
+            "Expected task `" + taskName +"` to be successful but it was: " + task.getOutcome() +
                 taskOutcome + "\n\nOutput is:\n" + result.getOutput() ,
             taskOutcome,
             task.getOutcome()

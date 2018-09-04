@@ -264,11 +264,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse using the provided {@link ParseContext} and return a mapping
-     * update if dynamic mappings modified the mappings, or {@code null} if
-     * mappings were not modified.
+     * Parse the field value using the provided {@link ParseContext}.
      */
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         final List<IndexableField> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
@@ -280,7 +278,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     fieldType().typeName());
         }
         multiFields.parse(this, context);
-        return null;
     }
 
     /**

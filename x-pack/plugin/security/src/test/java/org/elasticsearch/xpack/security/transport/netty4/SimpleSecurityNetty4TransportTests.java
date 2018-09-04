@@ -268,8 +268,10 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
                         public boolean matches(SNIServerName sniServerName) {
                             if (sniHostName.equals(sniServerName)) {
                                 latch.countDown();
+                                return true;
+                            } else {
+                                return false;
                             }
-                            return true;
                         }
                     }));
                     serverEngine.setSSLParameters(sslParameters);
@@ -294,7 +296,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
                 serviceC.acceptIncomingRequests();
 
                 HashMap<String, String> attributes = new HashMap<>();
-                attributes.put("sni_server_name", sniIp);
+                attributes.put("server_name", sniIp);
                 DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
                     EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
 

@@ -184,11 +184,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                List<SNIServerName> sniServerNames = new ArrayList<>(2);
+                List<SNIServerName> sniServerNames = new ArrayList<>(1);
                 String configuredServerName = node.getAttributes().get("server_name");
-                sniServerNames.add(new SNIHostName(node.getHostName()));
                 if (configuredServerName != null) {
                     sniServerNames.add(new SNIHostName(configuredServerName));
+                } else {
+                    sniServerNames.add(new SNIHostName(node.getHostName()));
                 }
                 ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
                     sniServerNames));

@@ -91,7 +91,9 @@ integTestRunner {
     'ml/validate/Test invalid job config',
     'ml/validate/Test job config is invalid because model snapshot id set',
     'ml/validate/Test job config that is invalid only because of the job ID',
-    'ml/validate_detector/Test invalid detector'
+    'ml/validate_detector/Test invalid detector',
+    'ml/delete_forecast/Test delete on _all forecasts not allow no forecasts',
+    'ml/delete_forecast/Test delete forecast on missing forecast'
   ].join(',')
 }
 

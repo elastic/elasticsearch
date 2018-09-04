@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-monitoring]]
-== Configuring Monitoring in {es}
+== Configuring monitoring in {es}
 ++++
-<titleabbrev>Configuring Monitoring</titleabbrev>
+<titleabbrev>Configuring monitoring</titleabbrev>
 ++++
 
 By default, {monitoring} is enabled but data collection is disabled. Advanced
@@ -47,21 +47,19 @@ as {kib}, Beats, and Logstash to a monitoring cluster:
 .. Verify that `xpack.monitoring.collection.enabled` settings are `true` on each 
 node in the cluster. 
 
-..  {xpack-ref}/xpack-monitoring.html[Configure {monitoring} across the Elastic Stack].
+..  {stack-ov}/xpack-monitoring.html[Configure {monitoring} across the Elastic Stack].
 
 . Identify where to store monitoring data. 
 +
 --
 By default, {monitoring} uses a `local` exporter that indexes monitoring data 
-on the same cluster. 
-//See <<es-monitoring-default-exporter>> and <<local-exporter>>. 
+on the same cluster. See <<es-monitoring-default-exporter>> and <<local-exporter>>. 
 
 Alternatively, you can use an `http` exporter to send data to a separate 
-monitoring cluster. 
-//See <<http-exporter>>. 
+monitoring cluster. See <<http-exporter>>. 
 
 For more information about typical monitoring architectures, 
-see {xpack-ref}/how-monitoring-works.html[How Monitoring Works].
+see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
 --
 
 . If {security} is enabled and you are using an `http` exporter to send data to 
@@ -82,6 +80,7 @@ POST /_xpack/security/user/remote_monitor
 }
 ---------------------------------------------------------------
 // CONSOLE
+// TEST[skip:needs-gold+-license]
 --
 
 .. On each node in the cluster that is being monitored, configure the `http` 
@@ -136,7 +135,7 @@ read from the monitoring indices.
 You set up {monitoring} UI users on the cluster where the monitoring data is 
 stored, that is to say the monitoring cluster. To grant all of the necessary permissions, assign users the
 `monitoring_user` and `kibana_user` roles. For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping users and groups to roles].
+{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
 --
 
 . Optional: 

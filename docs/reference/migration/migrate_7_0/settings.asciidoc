@@ -40,3 +40,29 @@ will be removed in the future, thus requiring HTTP to always be enabled.
 This setting has been removed, as disabling http pipelining support on the server
 provided little value. The setting `http.pipelining.max_events` can still be used to
 limit the number of pipelined requests in-flight.
+
+[[include-realm-type-in-setting]]
+==== Security realms settings
+
+The settings for all security realms must now include the realm type as part
+of the setting name, and the explicit `type` setting has been removed.
+
+A realm that was previous configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap1:
+    type: ldap
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+
+Must be migrated to: 
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap.ldap1:
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+

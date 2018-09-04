@@ -384,19 +384,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     public void testUserMetadata() {
         String key = "cluster.metadata." + randomAlphaOfLengthBetween(5, 20);
         String value = randomRealisticUnicodeOfCodepointLengthBetween(5, 50);
-
-        // Make sure we have both key and value in case this fails
-        logger.info("Attempting to store [{}]: [{}]", key, value);
+        String updatedValue = randomRealisticUnicodeOfCodepointLengthBetween(5, 50);
+        logger.info("Attempting to store [{}]: [{}], then update to [{}]", key, value, updatedValue);
 
         final Settings settings = Settings.builder().put(key, value).build();
+        final Settings updatedSettings = Settings.builder().put(key, updatedValue).build();
         if (randomBoolean()) {
+            logger.info("Using persistent settings");
+
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet();
             ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
             assertEquals(value, state.getState().getMetaData().persistentSettings().get(key));
+
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(updatedSettings).execute().actionGet();
+            ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(updatedValue, updatedState.getState().getMetaData().persistentSettings().get(key));
         } else {
+            logger.info("Using transient settings");
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
             ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
             assertEquals(value, state.getState().getMetaData().transientSettings().get(key));
+
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(updatedSettings).execute().actionGet();
+            ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(updatedValue, updatedState.getState().getMetaData().transientSettings().get(key));
         }
     }
 

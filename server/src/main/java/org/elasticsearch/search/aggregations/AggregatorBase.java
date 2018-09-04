@@ -183,7 +183,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = BucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();
     }

@@ -54,6 +54,7 @@ public class ScriptModule {
             BucketAggregationSelectorScript.CONTEXT,
             SignificantTermsHeuristicScoreScript.CONTEXT,
             IngestScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,

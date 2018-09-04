@@ -176,7 +176,9 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
-        Pipeline pipeline = Pipeline.create(SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories());
+        Pipeline pipeline = Pipeline.create(
+            SIMULATED_PIPELINE_ID, pipelineConfig, ingestService.getProcessorFactories(), ingestService.getScriptService()
+        );
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }

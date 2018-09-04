@@ -35,9 +35,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,19 +45,19 @@ import java.util.Map;
 
 public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, AcknowledgedResponse> {
 
-    private final PipelineStore pipelineStore;
+    private final IngestService ingestService;
     private final ClusterService clusterService;
     private final TransportNodesInfoAction nodesInfoAction;
 
     @Inject
     public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService,
+                                      IndexNameExpressionResolver indexNameExpressionResolver, IngestService ingestService,
                                       TransportNodesInfoAction nodesInfoAction) {
         super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
         this.clusterService = clusterService;
         this.nodesInfoAction = nodesInfoAction;
-        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -84,7 +83,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
                     for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
                         ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
                     }
-                    pipelineStore.put(clusterService, ingestInfos, request, listener);
+                    ingestService.putPipeline(ingestInfos, request, listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }

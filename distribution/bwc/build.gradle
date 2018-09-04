@@ -50,8 +50,7 @@ subprojects {
 
   apply plugin: 'distribution'
   // Not published so no need to assemble
-  tasks.remove(assemble)
-  build.dependsOn.remove('assemble')
+  assemble.enabled = false
 
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 

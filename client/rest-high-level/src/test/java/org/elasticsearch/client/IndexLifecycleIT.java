@@ -160,14 +160,6 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             .put("index.lifecycle.rollover_alias", "baz-alias").build(), "", "\"baz-alias\" : {}");
 
         createIndex("squash", Settings.EMPTY);
-        assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo-01", "baz-01");
-            GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
-            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.phase"), equalTo("hot"));
-            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.phase"), equalTo("hot"));
-        });
 
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
         req.indices("foo-01", "baz-01", "squash");

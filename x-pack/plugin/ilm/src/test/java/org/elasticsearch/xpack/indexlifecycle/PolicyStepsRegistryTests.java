@@ -23,9 +23,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -118,6 +120,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
                 new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase("new");
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
@@ -127,8 +131,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, "new")))
+                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -160,11 +164,13 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
         for (Step step : policySteps) {
+            LifecycleExecutionState.Builder newIndexState = LifecycleExecutionState.builder();
+            newIndexState.setPhase(step.getKey().getPhase());
             currentState = ClusterState.builder(currentState)
                 .metaData(MetaData.builder(currentState.metaData())
                     .put(IndexMetaData.builder(currentState.metaData().index("test"))
-                        .settings(Settings.builder().put(currentState.metaData().index("test").getSettings())
-                            .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase()))))
+                        .settings(Settings.builder().put(currentState.metaData().index("test").getSettings()))
+                        .putCustom(ILM_CUSTOM_METADATA_KEY, newIndexState.build().asMap())))
                 .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
             registry.update(currentState);
@@ -259,6 +265,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
             new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase("warm");
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
@@ -268,8 +276,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .put("index.version.created", Version.CURRENT.id)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, "warm")))
+                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))
             .build();
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();

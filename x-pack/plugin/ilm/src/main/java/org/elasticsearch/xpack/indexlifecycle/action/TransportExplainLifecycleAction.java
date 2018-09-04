@@ -19,11 +19,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 
@@ -64,20 +65,21 @@ public class TransportExplainLifecycleAction
         for (String index : concreteIndices) {
             IndexMetaData idxMetadata = state.metaData().index(index);
             Settings idxSettings = idxMetadata.getSettings();
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMetadata);
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
             final IndexLifecycleExplainResponse indexResponse;
             if (Strings.hasLength(policyName)) {
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
-                        LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_STEP_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(idxSettings),
-                        LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(idxSettings),
-                        new BytesArray(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(idxSettings)));
+                    LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
+                    lifecycleState.getIndexCreationDate(),
+                    lifecycleState.getPhase(),
+                    lifecycleState.getAction(),
+                    lifecycleState.getStep(),
+                    lifecycleState.getFailedStep(),
+                    lifecycleState.getPhaseTime(),
+                    lifecycleState.getActionTime(),
+                    lifecycleState.getStepTime(),
+                    new BytesArray(lifecycleState.getStepInfo()));
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }

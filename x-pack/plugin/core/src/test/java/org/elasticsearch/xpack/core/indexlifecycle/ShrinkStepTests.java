@@ -84,13 +84,14 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         String lifecycleName = randomAlphaOfLength(5);
         long creationDate = randomNonNegativeLong();
         ShrinkStep step = createRandomInstance();
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setPhase(step.getKey().getPhase());
+        lifecycleState.setAction(step.getKey().getAction());
+        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setIndexCreationDate(creationDate);
         IndexMetaData sourceIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
-                .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
             )
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetaData.builder("my_alias"))
@@ -114,11 +115,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
-                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
                     .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                    .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
-                    .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
-                    .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
                     .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null)
                     .build()));
                 assertThat(request.getTargetIndexRequest().settings()

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -161,15 +163,19 @@ public class PolicyStepsRegistry {
                 final String existingPhase = (currentSteps == null || currentSteps.size() == 0) ?
                     "_none_" : currentSteps.get(0).getKey().getPhase();
                 // Retrieve the current phase, defaulting to "new" if no phase is set
-                final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE,
-                    InitializePolicyContextStep.INITIALIZATION_PHASE);
+                LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(imd.value);
+                final String currentPhase = Strings.isNullOrEmpty(lifecycleState.getPhase())
+                    ? InitializePolicyContextStep.INITIALIZATION_PHASE
+                    : lifecycleState.getPhase();
+
 
                 if (existingPhase.equals(currentPhase) == false) {
                     logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
                         index, existingPhase, currentPhase);
                     // parse existing phase steps from the phase definition in the index settings
-                    String phaseDef = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION,
-                        InitializePolicyContextStep.INITIALIZATION_PHASE);
+                    String phaseDef = Strings.isNullOrEmpty(lifecycleState.getPhaseDefinition()) ?
+                        InitializePolicyContextStep.INITIALIZATION_PHASE
+                        : lifecycleState.getPhaseDefinition();
                     final Phase phase;
                     LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
                     final LifecyclePolicy policyToExecute;

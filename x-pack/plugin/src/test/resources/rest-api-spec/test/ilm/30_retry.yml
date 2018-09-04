@@ -70,12 +70,12 @@ teardown:
 
   - do:
       acknowledge: true
-      indices.get:
-        index: my_index
-  - match: { my_index.settings.index.lifecycle.name: "my_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "complete" }
-  - match: { my_index.settings.index.lifecycle.action: "complete" }
-  - match: { my_index.settings.index.lifecycle.phase: "new" }
+      ilm.explain_lifecycle:
+        index: "my_index"
+  - match: { indices.my_index.policy: "my_lifecycle" }
+  - match: { indices.my_index.step: "complete" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.phase: "new" }
 
 
 ---

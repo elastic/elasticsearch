@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1054,8 +1055,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(step));
         PolicyStepsRegistry policyStepsRegistry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
         ClusterService clusterService = mock(ClusterService.class);
-        long now = 5;
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyStepsRegistry, clusterService, () -> now);
+        final AtomicLong now = new AtomicLong(5);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyStepsRegistry, clusterService, now::get);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -1071,6 +1072,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .build();
         // Index is not old enough to transition
         assertFalse("index is not able to transition if it isn't old enough",
+            runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
+
+        // Set to the fuuuuuttuuuuuuurre
+        now.set(Long.MAX_VALUE);
+        assertTrue("index should be able to transition with no creation date",
             runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
     }
 

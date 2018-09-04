@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -456,7 +456,6 @@ public class ReservedRealmTests extends ESTestCase {
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             case APMSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_5_6_9), is(false));
                 assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
                 assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
                 break;

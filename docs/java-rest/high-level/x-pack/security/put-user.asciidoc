@@ -31,7 +31,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-user-execute-async]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[x-pack-put-user-execute-async]
 --------------------------------------------------
 <1> The `PutUserResponse` to execute and the `ActionListener` to use when
 the execution completes

@@ -543,6 +543,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
+    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
+            + ", \"mappings\" : {" + mapping + "}"
+            + ", \"aliases\": {" + aliases + "} }");
+        client().performRequest(request);
+    }
+
     protected static void deleteIndex(String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         client().performRequest(request);

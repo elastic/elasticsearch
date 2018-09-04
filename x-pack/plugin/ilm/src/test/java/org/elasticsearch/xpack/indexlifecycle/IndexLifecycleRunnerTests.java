@@ -1076,7 +1076,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // Set to the fuuuuuttuuuuuuurre
         now.set(Long.MAX_VALUE);
-        assertTrue("index should be able to transition with no creation date",
+        assertTrue("index should be able to transition past phase's age",
             runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
     }
 

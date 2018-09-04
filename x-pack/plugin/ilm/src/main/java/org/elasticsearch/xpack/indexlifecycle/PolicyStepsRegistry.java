@@ -225,19 +225,19 @@ public class PolicyStepsRegistry {
     public TimeValue getIndexAgeForPhase(final String policy, final String phase) {
         // These built in phases should never wait
         if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phase) || TerminalPolicyStep.TERMINAL_PHASE.equals(phase)) {
-        return TimeValue.ZERO;
-    }
-    final LifecyclePolicyMetadata meta = lifecyclePolicyMap.get(policy);
-        if (meta == null) {
-        throw new IllegalArgumentException("no policy found with name \"" + policy + "\"");
-    } else {
-        final Phase retrievedPhase = meta.getPolicy().getPhases().get(phase);
-        if (retrievedPhase == null) {
-            // We don't have that phase registered, proceed right through it
             return TimeValue.ZERO;
+        }
+        final LifecyclePolicyMetadata meta = lifecyclePolicyMap.get(policy);
+        if (meta == null) {
+            throw new IllegalArgumentException("no policy found with name \"" + policy + "\"");
         } else {
-            return retrievedPhase.getAfter();
+            final Phase retrievedPhase = meta.getPolicy().getPhases().get(phase);
+            if (retrievedPhase == null) {
+                // We don't have that phase registered, proceed right through it
+                return TimeValue.ZERO;
+            } else {
+                return retrievedPhase.getAfter();
+            }
         }
     }
-}
 }

@@ -141,13 +141,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(List<ForecastRequestStats> forecastsToDelete) {
-        SearchRequest searchRequest = new SearchRequest();
-        // We need to create the DeleteByQueryRequest before we modify the SearchRequest
-        // because the constructor of the former wipes the latter
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(5);
 
-        searchRequest.indices(RESULTS_INDEX_PATTERN);
+        request.indices(RESULTS_INDEX_PATTERN);
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE));
@@ -157,7 +154,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                     .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastToDelete.getForecastId())));
         }
         QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
-        searchRequest.source(new SearchSourceBuilder().query(query));
+        request.setQuery(query);
         return request;
     }
 }

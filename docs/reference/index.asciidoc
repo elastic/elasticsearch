@@ -18,7 +18,7 @@ include::setup/installing-xes.asciidoc[]
 
 include::setup/setup-xes.asciidoc[]
 
-include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
+include::monitoring/configuring-monitoring.asciidoc[]
 
 include::{xes-repo-dir}/security/configuring-es.asciidoc[]
 

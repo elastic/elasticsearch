@@ -60,7 +60,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
             expectedParams = Collections.emptyMap();
         }
 
-        PutUserRequest putUserRequest =new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, refreshPolicy);
+        PutUserRequest putUserRequest = new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, refreshPolicy);
         Request request = SecurityRequestConverters.putUser(putUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());

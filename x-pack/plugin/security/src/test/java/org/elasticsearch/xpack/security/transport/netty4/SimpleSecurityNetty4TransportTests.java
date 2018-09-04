@@ -244,6 +244,13 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     public void testTcpHandshake() {
     }
 
+    // TODO: These tests as configured do not currently work with the security transport
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
+    public void testTransportProfilesWithPortAndHost() {
+    }
+
     public void testSNIServerNameIsPropogated() throws Exception {
         SSLService sslService = createSSLService();
         final ServerBootstrap serverBootstrap = new ServerBootstrap();

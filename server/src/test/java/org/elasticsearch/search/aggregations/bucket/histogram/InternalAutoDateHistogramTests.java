@@ -80,7 +80,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
     }
 
     /*
@@ -201,7 +201,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         DateHistogramInterval expectedInterval;
         if (reduced.getBuckets().size() == 1) {
-            expectedInterval = new DateHistogramInterval(roundingInfo.innerIntervals[0]+roundingInfo.unitAbbreviation);
+            expectedInterval = reduced.getInterval();
         } else {
             expectedInterval = new DateHistogramInterval(innerIntervalToUse+roundingInfo.unitAbbreviation);
         }
@@ -260,6 +260,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
     }
 }

@@ -134,6 +134,7 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("username", username);
         if (password != null) {
             byte[] charBytes = CharArrays.toUtf8Bytes(password);
             builder.field("password").utf8Value(charBytes, 0, charBytes.length);

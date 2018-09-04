@@ -17,16 +17,8 @@
  * under the License.
  */
 
+package org.elasticsearch.client.indexlifecycle;
 
-package org.elasticsearch.client;
-
-import org.elasticsearch.client.indexlifecycle.AllocateAction;
-import org.elasticsearch.client.indexlifecycle.DeleteAction;
-import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
-import org.elasticsearch.client.indexlifecycle.LifecycleAction;
-import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.client.indexlifecycle.RolloverAction;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
@@ -34,7 +26,8 @@ import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import java.util.Arrays;
 import java.util.List;
 
-public class RestClientNamedContentProvider implements NamedXContentProvider {
+public class IndexLifecycleNamedXContentProvider implements NamedXContentProvider {
+
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

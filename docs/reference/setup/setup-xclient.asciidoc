@@ -11,7 +11,7 @@ cluster where {xpack} is installed, then you must download and configure the
 
 . Add the {xpack} transport JAR file to your *CLASSPATH*. You can download the {xpack}
 distribution and extract the JAR file manually or you can get it from the
-https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.jar[Elasticsearc Maven repository].
+https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.jar[Elasticsearch Maven repository].
 As with any dependency, you will also need its transitive dependencies. Refer to the
 https://artifacts.elastic.co/maven/org/elasticsearch/client/x-pack-transport/{version}/x-pack-transport-{version}.pom[X-Pack POM file
 for your version] when downloading for offline usage.

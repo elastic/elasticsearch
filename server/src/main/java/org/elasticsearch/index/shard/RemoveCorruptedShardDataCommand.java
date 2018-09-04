@@ -230,7 +230,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         return found;
     }
 
-    protected void dropCorruptMarkerFiles(Terminal terminal, Directory directory, boolean clean) throws IOException {
+    protected void dropCorruptMarkerFiles(Terminal terminal, Path path, Directory directory, boolean clean) throws IOException {
         if (clean) {
             confirm("This shard has been marked as corrupted but no corruption can now be detected.\n"
                 + "This may indicate an intermittent hardware problem. The corruption marker can be \n"
@@ -244,7 +244,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             if (file.startsWith(Store.CORRUPTED)) {
                 directory.deleteFile(file);
 
-                terminal.println("Deleted corrupt marker " + file);
+                terminal.println("Deleted corrupt marker " + file + " from " + path);
             }
         }
     }
@@ -410,7 +410,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
                 newAllocationId(environment, shardPath, terminal);
                 if (indexStatus != CleanStatus.CLEAN) {
-                    dropCorruptMarkerFiles(terminal, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
+                    dropCorruptMarkerFiles(terminal, indexPath, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
             }
         }

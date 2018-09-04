@@ -477,6 +477,62 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Test upgrading after a rollover. Specifically:
+     * <ol>
+     *  <li>Create an index with a write alias
+     *  <li>Write some documents to the write alias
+     *  <li>Roll over the index
+     *  <li>Make sure the document count is correct
+     *  <li>Upgrade
+     *  <li>Write some more documents to the write alias
+     *  <li>Make sure the document count is correct
+     * </ol>
+     */
+    public void testRollover() throws IOException {
+        if (runningAgainstOldCluster) {
+            Request createIndex = new Request("PUT", "/" + index + "-000001");
+            createIndex.setJsonEntity("{"
+                    + "  \"aliases\": {"
+                    + "    \"" + index + "_write\": {}"
+                    + "  }"
+                    + "}");
+            client().performRequest(createIndex);
+        }
+
+        int bulkCount = 10;
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < bulkCount; i++) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"test\":\"test\"}\n");
+        }
+        Request bulkRequest = new Request("POST", "/" + index + "_write/doc/_bulk");
+        bulkRequest.setJsonEntity(bulk.toString());
+        bulkRequest.addParameter("refresh", "");
+        assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
+
+        if (runningAgainstOldCluster) {
+            Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
+            rolloverRequest.setJsonEntity("{"
+                    + "  \"conditions\": {"
+                    + "    \"max_docs\": 5"
+                    + "  }"
+                    + "}");
+            client().performRequest(rolloverRequest);
+
+            assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),
+                    containsString("testrollover-000002"));
+        }
+
+        Request countRequest = new Request("POST", "/" + index + "-*/_search");
+        countRequest.addParameter("size", "0");
+        Map<String, Object> count = entityAsMap(client().performRequest(countRequest));
+        assertNoFailures(count);
+
+        int expectedCount = bulkCount + (runningAgainstOldCluster ? 0 : bulkCount);
+        assertEquals(expectedCount, (int) XContentMapValues.extractValue("hits.total", count));
+    }
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         {
@@ -947,7 +1003,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
-        client().performRequest(writeToRestoredRequest);
+        assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
         // Make sure search finds all documents

@@ -238,7 +238,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        // security actions should not work!
+        // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();

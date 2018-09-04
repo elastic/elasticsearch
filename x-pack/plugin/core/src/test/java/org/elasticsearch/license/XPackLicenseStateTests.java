@@ -92,13 +92,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
 
         licenseState = new XPackLicenseState(Settings.EMPTY);
-        assertThat(licenseState.isAuthAllowed(), is(true));
-        assertThat(licenseState.isIpFilteringAllowed(), is(true));
-        assertThat(licenseState.isAuditingAllowed(), is(true));
+        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
-        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
-        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
     public void testSecurityBasic() {
@@ -217,21 +217,21 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT));
 
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertThat(licenseState.isAuthAllowed(), is(true));
-        assertThat(licenseState.isIpFilteringAllowed(), is(true));
-        assertThat(licenseState.isAuditingAllowed(), is(true));
+        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(true));
+        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
         assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
-        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
-        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
-        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
     public void testOldTrialDefaultsSecurityOn() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, rarely() ? null : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_2_4));
 
-        assertThat(licenseState.isSecurityEnabled(), is(true));
+        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(false));
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));

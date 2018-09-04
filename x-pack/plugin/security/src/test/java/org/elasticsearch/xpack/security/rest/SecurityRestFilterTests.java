@@ -60,7 +60,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         filter = new SecurityRestFilter(licenseState,
                 new ThreadContext(Settings.EMPTY), authcService, restHandler, false);

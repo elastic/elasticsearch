@@ -72,7 +72,6 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
                                                                                        ActionListener<Response> listener,
                                                                                        ActionFilterChain<Request, Response> chain) {
-
         /*
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
          to operate normally, except all read operations will be blocked.
@@ -84,8 +83,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        final boolean securityEnabled = licenseState.isSecurityEnabled();
-        if (securityEnabled && licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
@@ -117,7 +115,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (securityEnabled == false && licenseState.isTrialLicense()) {
+            if (licenseState.isSecurityDisabledByTrialLicense()) {
                 listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));

@@ -69,7 +69,6 @@ public class RealmsTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
     }

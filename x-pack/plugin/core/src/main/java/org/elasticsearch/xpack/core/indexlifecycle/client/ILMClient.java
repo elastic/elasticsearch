@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.client;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -45,10 +46,24 @@ public class ILMClient {
     }
 
     /**
+     * Create or modify a lifecycle policy definition
+     */
+    public ActionFuture<PutLifecycleAction.Response> putLifecyclePolicy(PutLifecycleAction.Request request) {
+        return client.execute(PutLifecycleAction.INSTANCE, request);
+    }
+
+    /**
      * Get a lifecycle policy definition
      */
     public void getLifecyclePolicy(GetLifecycleAction.Request request, ActionListener<GetLifecycleAction.Response> listener) {
         client.execute(GetLifecycleAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Get a lifecycle policy definition
+     */
+    public ActionFuture<GetLifecycleAction.Response> getLifecyclePolicy(GetLifecycleAction.Request request) {
+        return client.execute(GetLifecycleAction.INSTANCE, request);
     }
 
     /**
@@ -59,10 +74,24 @@ public class ILMClient {
     }
 
     /**
+     * Delete a lifecycle policy definition
+     */
+    public ActionFuture<DeleteLifecycleAction.Response> deleteLifecyclePolicy(DeleteLifecycleAction.Request request) {
+        return client.execute(DeleteLifecycleAction.INSTANCE, request);
+    }
+
+    /**
      * Explain the current lifecycle state for an index
      */
     public void explainLifecycle(ExplainLifecycleRequest request, ActionListener<ExplainLifecycleResponse> listener) {
         client.execute(ExplainLifecycleAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Explain the current lifecycle state for an index
+     */
+    public ActionFuture<ExplainLifecycleResponse> explainLifecycle(ExplainLifecycleRequest request) {
+        return client.execute(ExplainLifecycleAction.INSTANCE, request);
     }
 
     /**
@@ -73,10 +102,24 @@ public class ILMClient {
     }
 
     /**
+     * Returns the current status of the ILM plugin
+     */
+    public ActionFuture<GetStatusAction.Response> getStatus(GetStatusAction.Request request) {
+        return client.execute(GetStatusAction.INSTANCE, request);
+    }
+
+    /**
      * Sets the lifecycle policy to use for an index
      */
     public void setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request, ActionListener<SetIndexLifecyclePolicyResponse> listener) {
         client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Sets the lifecycle policy to use for an index
+     */
+    public ActionFuture<SetIndexLifecyclePolicyResponse> setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request) {
+        return client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request);
     }
 
     /**
@@ -88,10 +131,24 @@ public class ILMClient {
     }
 
     /**
+     * Removes index lifecycle management from an index
+     */
+    public ActionFuture<RemovePolicyForIndexAction.Response> removePolicyForIndex(RemovePolicyForIndexAction.Request request) {
+        return client.execute(RemovePolicyForIndexAction.INSTANCE, request);
+    }
+
+    /**
      * Retries the policy for an index which is currently in ERROR
      */
     public void retryPolicy(RetryAction.Request request, ActionListener<RetryAction.Response> listener) {
         client.execute(RetryAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Removes index lifecycle management from an index
+     */
+    public ActionFuture<RetryAction.Response> retryPolicy(RetryAction.Request request) {
+        return client.execute(RetryAction.INSTANCE, request);
     }
 
     /**
@@ -102,9 +159,23 @@ public class ILMClient {
     }
 
     /**
+     * Starts the ILM plugin
+     */
+    public ActionFuture<AcknowledgedResponse> startILM(StartILMRequest request) {
+        return client.execute(StartILMAction.INSTANCE, request);
+    }
+
+    /**
      * Stops the ILM plugin
      */
     public void stopILM(StopILMRequest request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(StopILMAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Stops the ILM plugin
+     */
+    public ActionFuture<AcknowledgedResponse> stopILM(StopILMRequest request) {
+        return client.execute(StopILMAction.INSTANCE, request);
     }
 }

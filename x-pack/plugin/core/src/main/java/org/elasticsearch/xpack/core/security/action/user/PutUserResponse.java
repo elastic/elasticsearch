@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Response when adding a user to the security index. Returns a
@@ -44,19 +43,6 @@ public class PutUserResponse extends ActionResponse implements ToXContentFragmen
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.created = in.readBoolean();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PutUserResponse that = (PutUserResponse) o;
-        return created == that.created;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(created);
     }
 
     @Override

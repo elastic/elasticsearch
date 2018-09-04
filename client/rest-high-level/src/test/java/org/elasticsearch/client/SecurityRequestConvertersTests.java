@@ -45,7 +45,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = new HashMap<>();
-            for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            for (int i = 0; i < randomIntBetween(0, 10); i++) {
                 metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
             }
         } else {

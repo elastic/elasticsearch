@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -43,16 +46,18 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat formatter;
+    final CheckedFunction<LeafReader, Number, IOException>  maxFunc;
 
     DoubleArray maxes;
 
     public MaxAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metaData, CheckedFunction<LeafReader, Number, IOException> maxFunc) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
+        this.maxFunc = maxFunc;
         if (valuesSource != null) {
             maxes = context.bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
@@ -69,7 +74,14 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-    }
+        }
+        Number segMax = maxFunc.apply(ctx.reader());
+        if (segMax != null) {
+            double max = maxes.get(0);
+            max = Math.max(max, segMax.doubleValue());
+            maxes.set(0, max);
+            throw new CollectionTerminatedException();
+        }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);

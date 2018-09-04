@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics.min;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -43,12 +46,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat format;
+    final CheckedFunction<LeafReader, Number, IOException> shortcutMinFunc;
 
     DoubleArray mins;
 
     public MinAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metaData, CheckedFunction<LeafReader, Number, IOException> shortcutMinFunc) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -56,6 +60,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = formatter;
+        this.shortcutMinFunc = shortcutMinFunc;
     }
 
     @Override
@@ -68,6 +73,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        Number segMin = shortcutMinFunc.apply(ctx.reader());
+        if (segMin != null) {
+            double min = mins.get(0);
+            min = Math.min(min, segMin.doubleValue());
+            mins.set(0, min);
+            throw new CollectionTerminatedException();
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);

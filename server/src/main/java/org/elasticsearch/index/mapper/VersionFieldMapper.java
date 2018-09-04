@@ -117,9 +117,8 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // _version added in preparse
-        return null;
     }
 
     @Override

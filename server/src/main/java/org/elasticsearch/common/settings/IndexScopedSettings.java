@@ -61,6 +61,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+        IndexMetaData.SETTING_INDEX_VERSION_CREATED,
         IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -129,6 +130,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
         IndexSettings.INDEX_GC_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
@@ -198,12 +201,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:
-            case IndexMetaData.SETTING_VERSION_CREATED:
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
-            case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
-            case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
+                // we keep the shrink settings for BWC - this can be removed in 8.0
+                // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
+            case "index.shrink.source.uuid":
+            case "index.shrink.source.name":
             case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
                 return true;

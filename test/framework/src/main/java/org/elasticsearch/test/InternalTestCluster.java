@@ -1153,12 +1153,12 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
-                            try {
+                        try {
+                            if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
                                 IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();
-                            } catch (AlreadyClosedException ok) {
-                                // all good
                             }
+                        } catch (AlreadyClosedException ok) {
+                            // all good
                         }
                     }
                 }

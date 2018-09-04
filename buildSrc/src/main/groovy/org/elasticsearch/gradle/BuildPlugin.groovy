@@ -56,6 +56,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -546,7 +547,7 @@ class BuildPlugin implements Plugin<Project> {
             }
             // build poms with assemble (if the assemble task exists)
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
+            if (assemble && assemble.enabled) {
                 assemble.dependsOn(generatePOMTask)
             }
         }
@@ -739,6 +740,7 @@ class BuildPlugin implements Plugin<Project> {
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name
+                        rename { 'NOTICE.txt' }
                     }
                 }
             }

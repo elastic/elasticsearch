@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,7 +17,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -76,15 +74,12 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
-        SearchRequest searchRequest = new SearchRequest(MlMetaIndex.INDEX_NAME);
-        // The DBQ request constructor wipes the search request source
-        // so it has to be set after
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.INDEX_NAME);
         request.setSlices(5);
         request.setRefresh(true);
 
         QueryBuilder query = QueryBuilders.termsQuery(Calendar.ID.getPreferredName(), calendarId);
-        searchRequest.source(new SearchSourceBuilder().query(query));
+        request.setQuery(query);
         return request;
     }
 }

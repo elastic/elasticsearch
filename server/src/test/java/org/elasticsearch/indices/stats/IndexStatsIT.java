@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -724,54 +723,6 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         stats = builder.setIndices("*2").execute().actionGet();
         assertThat(stats.getTotalShards(), equalTo(numShards2));
-
-    }
-
-    public void testFieldDataFieldsParam() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test1")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_6_0_0.id))
-                .addMapping("_doc", "bar", "type=text,fielddata=true",
-                        "baz", "type=text,fielddata=true").get());
-
-        ensureGreen();
-
-        client().prepareIndex("test1", "_doc", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
-        client().prepareIndex("test1", "_doc", Integer.toString(2)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
-        refresh();
-
-        client().prepareSearch("_all").addSort("bar", SortOrder.ASC).addSort("baz", SortOrder.ASC).execute().actionGet();
-
-        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
-        IndicesStatsResponse stats = builder.execute().actionGet();
-
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields(), is(nullValue()));
-
-        stats = builder.setFieldDataFields("bar").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("baz"), is(false));
-
-        stats = builder.setFieldDataFields("bar", "baz").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0L));
-
-        stats = builder.setFieldDataFields("*").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("baz"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("baz"), greaterThan(0L));
-
-        stats = builder.setFieldDataFields("*r").execute().actionGet();
-        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("bar"), is(true));
-        assertThat(stats.getTotal().fieldData.getFields().get("bar"), greaterThan(0L));
-        assertThat(stats.getTotal().fieldData.getFields().containsField("baz"), is(false));
 
     }
 

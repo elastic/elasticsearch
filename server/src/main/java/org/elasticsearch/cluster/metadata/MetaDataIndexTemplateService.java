@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -301,7 +300,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 validationErrors.add(t.getMessage());
             }
         }
-        List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
+        List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings, true);
         validationErrors.addAll(indexSettingsValidation);
         if (!validationErrors.isEmpty()) {
             ValidationException validationException = new ValidationException();

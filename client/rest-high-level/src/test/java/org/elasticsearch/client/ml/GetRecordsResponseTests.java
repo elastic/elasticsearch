@@ -22,7 +22,6 @@ import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.AnomalyRecordTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,8 +31,8 @@ public class GetRecordsResponseTests extends AbstractXContentTestCase<GetRecords
 
     @Override
     protected GetRecordsResponse createTestInstance() {
-        String jobId = ESTestCase.randomAlphaOfLength(20);
-        int listSize = ESTestCase.randomInt(10);
+        String jobId = randomAlphaOfLength(20);
+        int listSize = randomInt(10);
         List<AnomalyRecord> records = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             AnomalyRecord record = AnomalyRecordTests.createTestInstance(jobId);

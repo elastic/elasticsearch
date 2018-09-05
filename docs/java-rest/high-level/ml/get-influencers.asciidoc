@@ -1,7 +1,7 @@
 [[java-rest-high-x-pack-ml-get-influencers]]
 === Get Influencers API
 
-The Get Records API retrieves one or more influencer results.
+The Get Influencers API retrieves one or more influencer results.
 It accepts a `GetInfluencersRequest` object and responds
 with a `GetInfluencersResponse` object.
 

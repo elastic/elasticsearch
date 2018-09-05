@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -42,11 +42,11 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField DESCENDING = new ParseField("desc");
 
-    public static final ObjectParser<GetInfluencersRequest, Void> PARSER = new ObjectParser<>("get_influencers_request",
-            GetInfluencersRequest::new);
+    public static final ConstructingObjectParser<GetInfluencersRequest, Void> PARSER = new ConstructingObjectParser<>(
+            "get_influencers_request", a -> new GetInfluencersRequest((String) a[0]));
 
     static {
-        PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareBoolean(GetInfluencersRequest::setExcludeInterim, EXCLUDE_INTERIM);
         PARSER.declareStringOrNull(GetInfluencersRequest::setStart, START);
         PARSER.declareStringOrNull(GetInfluencersRequest::setEnd, END);
@@ -64,8 +64,6 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
     private PageParams pageParams;
     private String sort;
     private Boolean descending;
-
-    private GetInfluencersRequest() {}
 
     /**
      * Constructs a request to retrieve influencers of a given job
@@ -99,7 +97,7 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
     /**
      * Sets the value of "start" which is a timestamp.
      * Only influencers whose timestamp is on or after the "start" value will be returned.
-     * @param start value of "start" to be set
+     * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -112,7 +110,7 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
     /**
      * Sets the value of "end" which is a timestamp.
      * Only influencers whose timestamp is before the "end" value will be returned.
-     * @param end value of "end" to be set
+     * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;

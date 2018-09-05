@@ -21,48 +21,47 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class GetRecordsRequestTests extends AbstractXContentTestCase<GetInfluencersRequest> {
+public class GetRecordsRequestTests extends AbstractXContentTestCase<GetRecordsRequest> {
 
     @Override
-    protected GetInfluencersRequest createTestInstance() {
-        GetInfluencersRequest request = new GetInfluencersRequest(ESTestCase.randomAlphaOfLengthBetween(1, 20));
+    protected GetRecordsRequest createTestInstance() {
+        GetRecordsRequest request = new GetRecordsRequest(randomAlphaOfLengthBetween(1, 20));
 
-        if (ESTestCase.randomBoolean()) {
-            request.setStart(String.valueOf(ESTestCase.randomLong()));
+        if (randomBoolean()) {
+            request.setStart(String.valueOf(randomLong()));
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setEnd(String.valueOf(ESTestCase.randomLong()));
+        if (randomBoolean()) {
+            request.setEnd(String.valueOf(randomLong()));
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setExcludeInterim(ESTestCase.randomBoolean());
+        if (randomBoolean()) {
+            request.setExcludeInterim(randomBoolean());
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setInfluencerScore(ESTestCase.randomDouble());
+        if (randomBoolean()) {
+            request.setRecordScore(randomDouble());
         }
-        if (ESTestCase.randomBoolean()) {
-            int from = ESTestCase.randomInt(10000);
-            int size = ESTestCase.randomInt(10000);
+        if (randomBoolean()) {
+            int from = randomInt(10000);
+            int size = randomInt(10000);
             request.setPageParams(new PageParams(from, size));
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setSort("influencer_score");
+        if (randomBoolean()) {
+            request.setSort("anomaly_score");
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setDescending(ESTestCase.randomBoolean());
+        if (randomBoolean()) {
+            request.setDescending(randomBoolean());
         }
-        if (ESTestCase.randomBoolean()) {
-            request.setExcludeInterim(ESTestCase.randomBoolean());
+        if (randomBoolean()) {
+            request.setExcludeInterim(randomBoolean());
         }
         return request;
     }
 
     @Override
-    protected GetInfluencersRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetInfluencersRequest.PARSER.apply(parser, null);
+    protected GetRecordsRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetRecordsRequest.PARSER.apply(parser, null);
     }
 
     @Override

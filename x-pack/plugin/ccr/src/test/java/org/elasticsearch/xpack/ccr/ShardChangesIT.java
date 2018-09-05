@@ -409,34 +409,6 @@ public class ShardChangesIT extends ESIntegTestCase {
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
-    // Replaced by a unit test as first follow requests needs to go via create_and_follow api
-    /*@TestLogging("_root:DEBUG")
-    public void testValidateFollowingIndexSettings() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-leader")
-            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)));
-        // TODO: indexing should be optional but the current mapping logic requires for now.
-        client().prepareIndex("test-leader", "doc", "id").setSource("{\"f\": \"v\"}", XContentType.JSON).get();
-        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
-        IllegalArgumentException followError = expectThrows(IllegalArgumentException.class, () -> client().execute(
-            FollowIndexAction.INSTANCE, createFollowRequest("test-leader", "test-follower")).actionGet());
-        assertThat(followError.getMessage(), equalTo("the following index [test-follower] is not ready to follow;" +
-            " the setting [index.xpack.ccr.following_index] must be enabled."));
-        // updating the `following_index` with an open index must not be allowed.
-        IllegalArgumentException updateError = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin().indices().prepareUpdateSettings("test-follower")
-                .setSettings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)).get();
-        });
-        assertThat(updateError.getMessage(), containsString("Can't update non dynamic settings " +
-            "[[index.xpack.ccr.following_index]] for open indices [[test-follower/"));
-        assertAcked(client().admin().indices().prepareClose("test-follower"));
-        assertAcked(client().admin().indices().prepareUpdateSettings("test-follower")
-            .setSettings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)));
-        assertAcked(client().admin().indices().prepareOpen("test-follower"));
-        assertAcked(client().execute(FollowIndexAction.INSTANCE,
-            createFollowRequest("test-leader", "test-follower")).actionGet());
-        unfollowIndex("test-follower");
-    }*/
-
     public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, between(0, 1),
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

@@ -17,16 +17,15 @@ package org.elasticsearch.client.documentation;/*
  * under the License.
  */
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -154,7 +152,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-stored-script-request-timeout
 
         // tag::delete-stored-script-execute
-        DeleteStoredScriptResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
+        AcknowledgedResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
         // end::delete-stored-script-execute
 
         // tag::delete-stored-script-response
@@ -164,10 +162,10 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         putStoredScript("calculate-score", scriptSource);
 
         // tag::delete-stored-script-execute-listener
-        ActionListener<DeleteStoredScriptResponse> listener =
-            new ActionListener<DeleteStoredScriptResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteStoredScriptResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     // <1>
                 }
 
@@ -193,11 +191,9 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         final String script = Strings.toString(scriptSource.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
         // TODO: change to HighLevel PutStoredScriptRequest when it will be ready
         // so far - using low-level REST API
-        Response putResponse =
-            adminClient()
-                .performRequest("PUT", "/_scripts/" + id, emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
-                        ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/_scripts/" + id);
+        request.setJsonEntity("{\"script\":" + script + "}");
+        Response putResponse = adminClient().performRequest(request);
         assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
     }

@@ -39,12 +39,12 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -78,8 +78,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -88,6 +88,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -96,7 +97,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -106,12 +107,19 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -423,8 +431,14 @@ final class RequestConverters {
                 BytesReference indexSource = indexRequest.source();
                 XContentType indexXContentType = indexRequest.getContentType();
 
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
+                try (XContentParser parser = XContentHelper.createParser(
+                        /*
+                         * EMPTY and THROW are fine here because we just call
+                         * copyCurrentStructure which doesn't touch the
+                         * registry or deprecation.
+                         */
+                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = BytesReference.bytes(builder).toBytesRef();
@@ -811,6 +825,74 @@ final class RequestConverters {
         return request;
     }
 
+    static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRefresh(reindexRequest.isRefresh())
+            .withTimeout(reindexRequest.getTimeout())
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
+
+        if (reindexRequest.getScrollTime() != null) {
+            params.putParam("scroll", reindexRequest.getScrollTime());
+        }
+        request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(updateByQueryRequest.getRouting())
+            .withPipeline(updateByQueryRequest.getPipeline())
+            .withRefresh(updateByQueryRequest.isRefresh())
+            .withTimeout(updateByQueryRequest.getTimeout())
+            .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(updateByQueryRequest.getBatchSize()));
+        }
+        if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", updateByQueryRequest.getScrollTime());
+        }
+        if (updateByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
+            .withTimeout(deleteByQueryRequest.getTimeout())
+            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
+        }
+        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
+        }
+        if (deleteByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
@@ -1116,6 +1198,13 @@ final class RequestConverters {
         return request;
     }
 
+    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
+        String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1170,7 +1259,6 @@ final class RequestConverters {
         return request;
     }
 
-
     static Request getLicense(GetLicenseRequest getLicenseRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1182,7 +1270,26 @@ final class RequestConverters {
         return request;
     }
 
-    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteLicenseRequest.timeout());
+        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
+        EndpointBuilder endpointBuilder = new EndpointBuilder()
+            .addPathPartAsIs("_xpack/migration/assistance")
+            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
+        String endpoint = endpointBuilder.build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
+        return request;
+    }
+
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
@@ -1303,13 +1410,25 @@ final class RequestConverters {
 
         Params withRefresh(boolean refresh) {
             if (refresh) {
-                return withRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                return withRefreshPolicy(RefreshPolicy.IMMEDIATE);
             }
             return this;
         }
 
+        /**
+         *  @deprecated If creating a new HLRC ReST API call, use {@link RefreshPolicy}
+         *  instead of {@link WriteRequest.RefreshPolicy} from the server project
+         */
+        @Deprecated
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                return putParam("refresh", refreshPolicy.getValue());
+            }
+            return this;
+        }
+
+        Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
+            if (refreshPolicy != RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
             }
             return this;

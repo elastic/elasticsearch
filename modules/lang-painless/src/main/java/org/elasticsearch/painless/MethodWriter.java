@@ -135,52 +135,52 @@ public final class MethodWriter extends GeneratorAdapter {
 
     public void writeCast(PainlessCast cast) {
         if (cast != null) {
-            if (cast.from == char.class && cast.to == String.class) {
+            if (cast.originalType == char.class && cast.targetType == String.class) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (cast.from == String.class && cast.to == char.class) {
+            } else if (cast.originalType == String.class && cast.targetType == char.class) {
                 invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            } else if (cast.unboxFrom != null) {
-                unbox(getType(cast.unboxFrom));
-                writeCast(cast.from, cast.to);
-            } else if (cast.unboxTo != null) {
-                if (cast.from == def.class) {
-                    if (cast.explicit) {
-                        if      (cast.to == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.to == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.to == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.to == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.to == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.to == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.to == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
+            } else if (cast.unboxOriginalType != null) {
+                unbox(getType(cast.unboxOriginalType));
+                writeCast(cast.originalType, cast.targetType);
+            } else if (cast.unboxTargetType != null) {
+                if (cast.originalType == def.class) {
+                    if (cast.explicitCast) {
+                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }
                     } else {
-                        if      (cast.to == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.to == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.to == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.to == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.to == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.to == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.to == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
+                        if      (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
+                        else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
+                        else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
+                        else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
+                        else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
+                        else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
+                        else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
+                        else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
                         else {
                             throw new IllegalStateException("Illegal tree structure.");
                         }
                     }
                 } else {
-                    writeCast(cast.from, cast.to);
-                    unbox(getType(cast.unboxTo));
+                    writeCast(cast.originalType, cast.targetType);
+                    unbox(getType(cast.unboxTargetType));
                 }
-            } else if (cast.boxFrom != null) {
-                box(getType(cast.boxFrom));
-                writeCast(cast.from, cast.to);
-            } else if (cast.boxTo != null) {
-                writeCast(cast.from, cast.to);
-                box(getType(cast.boxTo));
+            } else if (cast.boxOriginalType != null) {
+                box(getType(cast.boxOriginalType));
+                writeCast(cast.originalType, cast.targetType);
+            } else if (cast.boxTargetType != null) {
+                writeCast(cast.originalType, cast.targetType);
+                box(getType(cast.boxTargetType));
             } else {
-                writeCast(cast.from, cast.to);
+                writeCast(cast.originalType, cast.targetType);
             }
         }
     }

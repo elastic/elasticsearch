@@ -147,7 +147,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             }
             return new BucketAggregationScript(parameters) {
                 @Override
-                public double execute() {
+                public Double execute() {
                     getParams().forEach((name, value) -> {
                         ReplaceableConstDoubleValues placeholder = functionValuesMap.get(name);
                         if (placeholder == null) {

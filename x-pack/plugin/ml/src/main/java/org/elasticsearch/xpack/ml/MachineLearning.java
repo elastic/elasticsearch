@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
@@ -162,12 +164,12 @@ import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
-import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
@@ -200,6 +202,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
+import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestForecastJobAction;
@@ -284,8 +287,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
                         MAX_MACHINE_MEMORY_PERCENT,
-                        ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
-                        ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
+                        AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
+                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
@@ -384,8 +387,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
-            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
-                                        executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
+            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) ->
+                    new MultiplyingNormalizerProcess(settings, 1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -489,6 +492,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestDeleteModelSnapshotAction(settings, restController),
             new RestDeleteExpiredDataAction(settings, restController),
             new RestForecastJobAction(settings, restController),
+            new RestDeleteForecastAction(settings, restController),
             new RestGetCalendarsAction(settings, restController),
             new RestPutCalendarAction(settings, restController),
             new RestDeleteCalendarAction(settings, restController),
@@ -545,6 +549,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(UpdateProcessAction.INSTANCE, TransportUpdateProcessAction.class),
                 new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, TransportDeleteExpiredDataAction.class),
                 new ActionHandler<>(ForecastJobAction.INSTANCE, TransportForecastJobAction.class),
+                new ActionHandler<>(DeleteForecastAction.INSTANCE, TransportDeleteForecastAction.class),
                 new ActionHandler<>(GetCalendarsAction.INSTANCE, TransportGetCalendarsAction.class),
                 new ActionHandler<>(PutCalendarAction.INSTANCE, TransportPutCalendarAction.class),
                 new ActionHandler<>(DeleteCalendarAction.INSTANCE, TransportDeleteCalendarAction.class),

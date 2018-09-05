@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
@@ -87,6 +88,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        client().admin().indices()
+            .preparePutTemplate("random-soft-deletes-template")
+            .setPatterns(Collections.singletonList("*"))
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            ).get();
     }
 
     private static void stopNode() throws IOException {
@@ -202,7 +211,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins);
+        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             build.start();
         } catch (NodeValidationException e) {
@@ -332,4 +341,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return true;
+    }
+
 }

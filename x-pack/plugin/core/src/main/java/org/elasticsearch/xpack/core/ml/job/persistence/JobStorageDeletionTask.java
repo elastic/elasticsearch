@@ -9,13 +9,12 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -95,12 +93,11 @@ public class JobStorageDeletionTask extends Task {
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
                 response -> {
                     logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
-                    SearchRequest searchRequest = new SearchRequest(indexName, indexPattern);
-                    DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+                    DeleteByQueryRequest request = new DeleteByQueryRequest(indexName, indexPattern);
                     ConstantScoreQueryBuilder query =
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                    searchRequest.source(new SearchSourceBuilder().query(query));
-                    searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+                    request.setQuery(query);
+                    request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
                     request.setSlices(5);
                     request.setAbortOnVersionConflict(false);
                     request.setRefresh(true);
@@ -125,14 +122,13 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteQuantiles(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
         // The quantiles type and doc ID changed in v5.5 so delete both the old and new format
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexName());
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId),
                 // TODO: remove in 7.0
                 Quantiles.v54DocumentId(jobId));
-        searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        request.setQuery(query);
+        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
@@ -162,14 +158,13 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteCategorizerState(String jobId, Client client, int docNum, ActionListener<Boolean> finishedHandler) {
         // The categorizer state type and doc ID changed in v5.5 so delete both the old and new format
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexName());
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexName());
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum),
                 // TODO: remove in 7.0
                 CategorizerState.v54DocumentId(jobId, docNum));
-        searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        request.setQuery(query);
+        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
@@ -213,7 +208,7 @@ public class JobStorageDeletionTask extends Task {
                                 return;
                             }
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                                    ActionListener.<IndicesAliasesResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
+                                    ActionListener.<AcknowledgedResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
                                             finishedHandler::onFailure),
                                     client.admin().indices()::aliases);
                         },

@@ -321,7 +321,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         assertThat(response.getHits().getTotalHits(), equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
-        assertThat(response.getHits().getMaxScore(), equalTo(0f));
+        assertThat(response.getHits().getMaxScore(), equalTo(Float.NaN));
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
@@ -356,7 +356,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         assertThat(response.getHits().getTotalHits(), equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
-        assertThat(response.getHits().getMaxScore(), equalTo(0f));
+        assertThat(response.getHits().getMaxScore(), equalTo(Float.NaN));
         terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
@@ -1052,7 +1052,7 @@ public class TopHitsIT extends ESIntegTestCase {
             for (SearchHit hit : hits) {
                 assertThat(hit.getSourceAsMap(), nullValue());
                 assertThat(hit.getId(), nullValue());
-                assertThat(hit.getType(), nullValue());
+                assertThat(hit.getType(), equalTo("type"));
             }
         }
     }

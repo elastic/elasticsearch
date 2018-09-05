@@ -46,11 +46,20 @@ settings for the ad1 realm: `xpack.security.authc.realms.ad1.*`. The API already
 omits all `ssl` settings, `bind_dn`, and `bind_password` due to the
 sensitive nature of the information.
 
+`xpack.security.fips_mode.enabled`::
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+
 [float]
 [[password-security-settings]]
 ==== Default password security settings
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
+
+[[password-hashing-settings]]
+==== Password hashing settings
+`xpack.security.authc.password_hashing.algorithm`::
+Specifies the hashing algorithm that is used for secure user credential storage. 
+See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 
 [float]
 [[anonymous-access-settings]]
@@ -164,9 +173,8 @@ the standard {es} <<time-units,time units>>. Defaults to `20m`.
 cache at any given time. Defaults to 100,000.
 
 `cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
-in-memory cached user credentials. For possible values, see 
-{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
-`ssha256`.
+in-memory cached user credentials. For possible values, see <<cache-hash-algo>>. 
+Defaults to `ssha256`.
 
 
 [[ref-users-settings]]
@@ -190,8 +198,7 @@ Defaults to 100,000.
 
 `cache.hash_algo`::
 (Expert Setting) The hashing algorithm that is used for the in-memory cached
-user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
-all possible values. Defaults to `ssha256`.
+user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ldap-settings]]
 [float]
@@ -239,6 +246,13 @@ This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the LDAP realm does not perform role mapping and
+instead loads the user from the listed realms. The referenced realms are
+consulted in the order that they are defined in this list.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -327,7 +341,7 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-not referenced in a 
+referenced in a
 {xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
 role mappings are not considered. Defaults to `false`.
 
@@ -444,8 +458,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values. Defaults to `ssha256`.
+in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
@@ -473,7 +486,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the the `url` and `user_search_dn` 
+The domain name of Active Directory. If the `url` and the `user_search_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 
@@ -684,7 +697,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for
-the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `follow_referrals`::
 If set to `true` {security} follows referrals returned by the LDAP server. 
@@ -726,6 +739,12 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the PKI realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
@@ -850,10 +869,25 @@ Defaults to `false`.
 Specifies whether to populate the {es} user's metadata with the values that are 
 provided by the SAML attributes. Defaults to `true`.
 
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the SAML realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
+
+`req_authn_context_class_ref`::
+A comma separated list of Authentication Context Class Reference values to be
+included in the Requested Authentication Context when requesting the IdP to
+authenticate the current user. The Authentication Context of the corresponding
+authentication response should contain at least one of the requested values.
++
+For more information, see
+{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
 
 [float]
 [[ref-saml-signing-settings]]
@@ -1057,6 +1091,33 @@ Specifies the
 cipher suites that should be supported.
 
 [float]
+[[ref-kerberos-settings]]
+===== Kerberos realm settings
+
+For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+the following settings:
+
+`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the 
+service principal used by this {es} node. This must be a location within the
+{es} configuration directory and the file must have read permissions. Required.
+
+`remove_realm_name`:: Set to `true` to remove the realm part of principal names. 
+Principal names in Kerberos have the form `user/instance@REALM`. If this option 
+is `true`, the realm part (`@REALM`) will not be included in the username.
+Defaults to `false`.
+
+`krb.debug`:: Set to `true` to enable debug logs for the Java login module that
+provides support for Kerberos authentication. Defaults to `false`.
+
+`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+this period of time. Specify the time period using the standard {es}
+<<time-units,time units>>. Defaults to `20m`.
+
+`cache.max_users`:: The maximum number of user entries that can live in the
+cache at any given time. Defaults to 100,000.
+
+[float]
 [[load-balancing]]
 ===== Load balancing and failover
 
@@ -1094,7 +1155,12 @@ settings such as those for HTTP or Transport.
 `xpack.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`.
+`TLSv1`. 
++
+--
+NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
+or `SSLv3`. See <<fips-140-compliance>>.
+--
 
 `xpack.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
@@ -1193,6 +1259,9 @@ Password to the truststore.
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use Java 
+keystore files. See <<fips-140-compliance>>. 
+
 [float]
 ===== PKCS#12 files
 
@@ -1230,6 +1299,9 @@ Password to the truststore.
 
 `xpack.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 Password to the truststore.
+
+WARNING: If `xpack.security.fips_mode.enabled` is `true`, you cannot use PKCS#12 
+keystore files. See <<fips-140-compliance>>. 
 
 [[pkcs12-truststore-note]]
 [NOTE]
@@ -1308,3 +1380,5 @@ List of IP addresses to allow for this profile.
 
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 List of IP addresses to deny for this profile.
+
+include::security-hash-settings.asciidoc[]

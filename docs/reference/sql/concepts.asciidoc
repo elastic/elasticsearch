@@ -9,7 +9,7 @@ NOTE: This documentation while trying to be complete, does assume the reader has
 
 As a general rule, {es-sql} as the name indicates provides a SQL interface to {es}. As such, it follows the SQL terminology and conventions first, whenever possible. However the backing engine itself is {es} for which {es-sql} was purposely created hence why features or concepts that are not available, or cannot be mapped correctly, in SQL appear
 in {es-sql}.
-Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least suprise], though as all things in the world, everything is relative.
+Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
 
 === Mapping concepts across SQL and {es}
 
@@ -25,8 +25,8 @@ So let's start from the bottom; these roughly are:
 
 |`column`
 |`field`
-|In both cases, at the lowest level, data is stored in in _named_ entries, of a variety of <<sql-data-types, data types>>, containing _one_ value. SQL calls such an entry a _column_ while {es} a _field_.
-Notice that in {es} a field can contain _multiple_ values of the same type (esentially a list) while in SQL, a _column_ can contain _exactly_ one value of said type.
+|In both cases, at the lowest level, data is stored in _named_ entries, of a variety of <<sql-data-types, data types>>, containing _one_ value. SQL calls such an entry a _column_ while {es} a _field_.
+Notice that in {es} a field can contain _multiple_ values of the same type (essentially a list) while in SQL, a _column_ can contain _exactly_ one value of said type.
 {es-sql} will do its best to preserve the SQL semantic and, depending on the query, reject those that return fields with more than one value.
 
 |`row`
@@ -43,7 +43,7 @@ Notice that in {es} a field can contain _multiple_ values of the same type (esen
 
 |`catalog` or `database`
 |`cluster` instance 
-|In SQL, `catalog` or `database` are used interchangebly and represent a set of schemas that is, a number of tables.
+|In SQL, `catalog` or `database` are used interchangeably and represent a set of schemas that is, a number of tables.
 In {es} the set of indices available are grouped in a `cluster`. The semantics also differ a bit; a `database` is essentially yet another namespace (which can have some implications on the way data is stored) while an {es} `cluster` is a runtime instance, or rather a set of at least one {es} instance (typically running distributed).
 In practice this means that while in SQL one can potentially have multiple catalogs inside an instance, in {es} one is restricted to only _one_.
 
@@ -62,4 +62,4 @@ Multiple clusters, each with its own namespace, connected to each other in a fed
 
 |===
 
-As one can see while the mapping between the concepts are not exactly one to one and the semantics somewhat different, there are more things in common than differences. In fact, thanks to SQL declarative nature, many concepts can move across {es} transparently and the terminology of the two likely to be used interchangebly through-out the rest of the material.
+As one can see while the mapping between the concepts are not exactly one to one and the semantics somewhat different, there are more things in common than differences. In fact, thanks to SQL declarative nature, many concepts can move across {es} transparently and the terminology of the two likely to be used interchangeably through-out the rest of the material.

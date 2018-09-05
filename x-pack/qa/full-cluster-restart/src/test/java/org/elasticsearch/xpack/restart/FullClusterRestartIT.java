@@ -382,6 +382,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 }
             });
 
+            // After we've confirmed the doc, wait until we move back to STARTED so that we know the
+            // state was saved at the end
+            waitForRollUpJob("rollup-id-test", equalTo("started"));
+
         } else {
 
             final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/2");
@@ -389,6 +393,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest(indexRequest);
 
             assertRollUpJob("rollup-id-test");
+
+            // stop the rollup job to force a state save, which will upgrade the ID
+            final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
+            Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
+            assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
+
+            waitForRollUpJob("rollup-id-test", equalTo("stopped"));
+
+            // start the rollup job again
+            final Request startRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_start");
+            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
+            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
+
+            waitForRollUpJob("rollup-id-test", anyOf(equalTo("indexing"), equalTo("started")));
 
             assertBusy(() -> {
                 client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));

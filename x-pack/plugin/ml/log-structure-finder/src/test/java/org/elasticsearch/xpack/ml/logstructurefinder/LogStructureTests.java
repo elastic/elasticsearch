@@ -66,6 +66,14 @@ public class LogStructureTests extends AbstractXContentTestCase<LogStructure> {
         }
         builder.setMappings(mappings);
 
+        //if (randomBoolean()) {
+            Map<String, FieldStats> fieldStats = new TreeMap<>();
+            for (String field : generateRandomStringArray(5, 20, false, false)) {
+                fieldStats.put(field, FieldStatsTests.createTestFieldStats());
+            }
+            builder.setFieldStats(fieldStats);
+        //}
+
         builder.setExplanation(Arrays.asList(generateRandomStringArray(10, 150, false, false)));
 
         return builder.build();

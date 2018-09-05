@@ -110,8 +110,8 @@ teardown:
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
@@ -131,8 +131,8 @@ teardown:
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
@@ -140,8 +140,8 @@ teardown:
   - match: { indices.my_index2.index: "my_index2" }
   - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.my_index2.phase: "new" }
-  - match: { indices.my_index2.action: "after" }
-  - match: { indices.my_index2.step: "after" }
+  - match: { indices.my_index2.action: "complete" }
+  - match: { indices.my_index2.step: "complete" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
 
@@ -161,8 +161,8 @@ teardown:
   - match: { indices.my_index.index: "my_index" }
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.my_index.phase: "new" }
-  - match: { indices.my_index.action: "after" }
-  - match: { indices.my_index.step: "after" }
+  - match: { indices.my_index.action: "complete" }
+  - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
 
@@ -170,8 +170,8 @@ teardown:
   - match: { indices.my_index2.index: "my_index2" }
   - match: { indices.my_index2.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.my_index2.phase: "new" }
-  - match: { indices.my_index2.action: "after" }
-  - match: { indices.my_index2.step: "after" }
+  - match: { indices.my_index2.action: "complete" }
+  - match: { indices.my_index2.step: "complete" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   
@@ -179,8 +179,8 @@ teardown:
   - match: { indices.another_index.index: "another_index" }
   - match: { indices.another_index.policy: "my_moveable_timeseries_lifecycle" }
   - match: { indices.another_index.phase: "new" }
-  - match: { indices.another_index.action: "after" }
-  - match: { indices.another_index.step: "after" }
+  - match: { indices.another_index.action: "complete" }
+  - match: { indices.another_index.step: "complete" }
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   

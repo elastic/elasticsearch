@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -51,6 +53,31 @@ public class IndexLifecycleRunner {
         this.nowSupplier = nowSupplier;
     }
 
+    /**
+     * Return true or false depending on whether the index is ready to be in {@code phase}
+     */
+    boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
+        final Settings indexSettings = indexMetaData.getSettings();
+        if (indexSettings.hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE) == false) {
+            logger.trace("no index creation date has been set yet");
+            return true;
+        }
+        final long lifecycleDate = indexSettings.getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
+        assert lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
+        final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
+        final long now = nowSupplier.getAsLong();
+        final TimeValue age = new TimeValue(now - lifecycleDate);
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}] checking for index age to be at least [{}] before performing actions in " +
+                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}/{}s]",
+                indexMetaData.getIndex().getName(), after, phase,
+                new TimeValue(now).seconds(),
+                new TimeValue(lifecycleDate).seconds(),
+                age, age.seconds());
+        }
+        return now >= lifecycleDate + after.getMillis();
+    }
+
     public void runPolicy(String policy, IndexMetaData indexMetaData, ClusterState currentState,
             boolean fromClusterStateChange) {
         Settings indexSettings = indexMetaData.getSettings();
@@ -67,13 +94,23 @@ public class IndexLifecycleRunner {
                 + "] with policy [" + policy + "] is not recognized");
             return;
         }
-        logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
+        logger.debug("running policy with current-step [" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
+            return;
         } else if (currentStep instanceof ErrorStep) {
             logger.debug(
-                    "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
-        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
+                "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
+            return;
+        } else if (currentStep instanceof PhaseCompleteStep) {
+            // Only proceed to the next step if enough time has elapsed to go into the next phase
+            if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
+                moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+            }
+            return;
+        }
+
+        if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {

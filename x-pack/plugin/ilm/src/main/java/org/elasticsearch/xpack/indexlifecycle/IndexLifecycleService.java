@@ -146,7 +146,7 @@ public class IndexLifecycleService extends AbstractComponent
                 policyRegistry.removeIndices(event.indicesDeleted());
             }
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
-                policyRegistry.update(event.state(), client, nowSupplier);
+                policyRegistry.update(event.state(), client);
             }
         }
     }

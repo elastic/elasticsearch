@@ -22,8 +22,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
@@ -35,9 +33,11 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -54,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1057,6 +1059,47 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertTrue(failedIndexes.isEmpty());
         assertIndexNotManagedByILM(newClusterState, index);
     }
+
+    public void testIsReadyToTransition() {
+        String policyName = "async_action_policy";
+        StepKey stepKey = new StepKey("phase", MockAction.NAME, MockAction.NAME);
+        MockAsyncActionStep step = new MockAsyncActionStep(stepKey, null);
+        step.setWillComplete(true);
+        SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = new TreeMap<>(Collections.singletonMap(policyName,
+            new LifecyclePolicyMetadata(createPolicy(policyName, null, step.getKey()), new HashMap<>())));
+        Index index = new Index("my_index",  "uuid");
+        Map<String, Step> firstStepMap = Collections.singletonMap(policyName, step);
+        Map<StepKey, Step> policySteps = Collections.singletonMap(step.getKey(), step);
+        Map<String, Map<StepKey, Step>> stepMap = Collections.singletonMap(policyName, policySteps);
+        Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(step));
+        PolicyStepsRegistry policyStepsRegistry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap,
+            stepMap, indexSteps, NamedXContentRegistry.EMPTY);
+        ClusterService clusterService = mock(ClusterService.class);
+        final AtomicLong now = new AtomicLong(5);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(policyStepsRegistry, clusterService, now::get);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        // With no time, always transition
+        assertTrue("index should be able to transition with no creation date",
+            runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
+        indexMetaData = IndexMetaData.builder(indexMetaData)
+            .settings(Settings.builder()
+                .put(indexMetaData.getSettings())
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, 10L)
+                .build())
+            .build();
+        // Index is not old enough to transition
+        assertFalse("index is not able to transition if it isn't old enough",
+            runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
+
+        // Set to the fuuuuuttuuuuuuurre
+        now.set(Long.MAX_VALUE);
+        assertTrue("index should be able to transition past phase's age",
+            runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
+    }
+
 
     public static void assertIndexNotManagedByILM(ClusterState clusterState, Index index) {
         MetaData metadata = clusterState.metaData();

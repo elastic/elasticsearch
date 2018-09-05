@@ -76,8 +76,8 @@ teardown:
         body:
           current_step:
             phase: "new"
-            action: "after"
-            name: "after"
+            action: "complete"
+            name: "complete"
           next_step:
             phase: "warm"
             action: "forcemerge"
@@ -116,8 +116,8 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.step: "complete" }
+  - match: { my_index.settings.index.lifecycle.action: "complete" }
   - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---
@@ -130,8 +130,8 @@ teardown:
         body:
           current_step:
             phase: "new"
-            action: "after"
-            name: "after"
+            action: "complete"
+            name: "complete"
           next_step:
             phase: "invalid"
             action: "invalid"
@@ -144,8 +144,8 @@ teardown:
       indices.get:
         index: my_index
   - match: { my_index.settings.index.lifecycle.name: "my_moveable_timeseries_lifecycle" }
-  - match: { my_index.settings.index.lifecycle.step: "after" }
-  - match: { my_index.settings.index.lifecycle.action: "after" }
+  - match: { my_index.settings.index.lifecycle.step: "complete" }
+  - match: { my_index.settings.index.lifecycle.action: "complete" }
   - match: { my_index.settings.index.lifecycle.phase: "new" }
 
 ---

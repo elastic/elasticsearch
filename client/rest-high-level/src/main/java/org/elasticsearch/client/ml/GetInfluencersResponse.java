@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.results.AnomalyRecord;
+import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,34 +28,34 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A response containing the requested records
+ * A response containing the requested influencers
  */
-public class GetRecordsResponse extends AbstractResultResponse<AnomalyRecord> {
+public class GetInfluencersResponse extends AbstractResultResponse<Influencer> {
 
-    public static final ParseField RECORDS = new ParseField("records");
+    public static final ParseField INFLUENCERS = new ParseField("influencers");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetRecordsResponse, Void> PARSER = new ConstructingObjectParser<>("get_records_response",
-            true, a -> new GetRecordsResponse((List<AnomalyRecord>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetInfluencersResponse, Void> PARSER = new ConstructingObjectParser<>(
+            "get_influencers_response", true, a -> new GetInfluencersResponse((List<Influencer>) a[0], (long) a[1]));
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARSER, RECORDS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), Influencer.PARSER, INFLUENCERS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), COUNT);
     }
 
-    public static GetRecordsResponse fromXContent(XContentParser parser) throws IOException {
+    public static GetInfluencersResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    GetRecordsResponse(List<AnomalyRecord> records, long count) {
-        super(RECORDS, records, count);
+    GetInfluencersResponse(List<Influencer> influencers, long count) {
+        super(INFLUENCERS, influencers, count);
     }
 
     /**
-     * The retrieved records
-     * @return the retrieved records
+     * The retrieved influencers
+     * @return the retrieved influencers
      */
-    public List<AnomalyRecord> records() {
+    public List<Influencer> influencers() {
         return results;
     }
 
@@ -72,7 +72,7 @@ public class GetRecordsResponse extends AbstractResultResponse<AnomalyRecord> {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GetRecordsResponse other = (GetRecordsResponse) obj;
+        GetInfluencersResponse other = (GetInfluencersResponse) obj;
         return count == other.count && Objects.equals(results, other.results);
     }
 }

@@ -2689,7 +2689,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 }

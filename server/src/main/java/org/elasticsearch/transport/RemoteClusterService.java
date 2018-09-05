@@ -297,8 +297,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                         @Override
                         public void onFailure(Exception e) {
-                            RemoteTransportException exception = new RemoteTransportException("error while communicating with remote cluster ["
-                                    + clusterName + "]", e);
+                            RemoteTransportException exception =
+                                    new RemoteTransportException("error while communicating with remote cluster [" + clusterName + "]", e);
                             if (transportException.compareAndSet(null, exception) == false) {
                                 exception = transportException.accumulateAndGet(exception, (previous, current) -> {
                                     current.addSuppressed(previous);

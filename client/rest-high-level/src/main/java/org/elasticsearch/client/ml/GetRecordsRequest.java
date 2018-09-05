@@ -41,7 +41,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField DESCENDING = new ParseField("desc");
 
-    public static final ObjectParser<GetRecordsRequest, Void> PARSER = new ObjectParser<>("get_buckets_request", GetRecordsRequest::new);
+    public static final ObjectParser<GetRecordsRequest, Void> PARSER = new ObjectParser<>("get_records_request", GetRecordsRequest::new);
 
     static {
         PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
@@ -77,7 +77,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
         return jobId;
     }
 
-    public boolean isExcludeInterim() {
+    public Boolean isExcludeInterim() {
         return excludeInterim;
     }
 
@@ -86,7 +86,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
      * When {@code true}, interim records will be filtered out.
      * @param excludeInterim value of "exclude_interim" to be set
      */
-    public void setExcludeInterim(boolean excludeInterim) {
+    public void setExcludeInterim(Boolean excludeInterim) {
         this.excludeInterim = excludeInterim;
     }
 
@@ -97,7 +97,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
     /**
      * Sets the value of "start" which is a timestamp.
      * Only records whose timestamp is on or after the "start" value will be returned.
-     * @param start value of "start" to be set
+     * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -110,7 +110,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
     /**
      * Sets the value of "end" which is a timestamp.
      * Only records whose timestamp is before the "end" value will be returned.
-     * @param end value of "end" to be set
+     * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;
@@ -137,7 +137,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
      * Only records with "record_score" equal or greater will be returned.
      * @param recordScore value of "record_score".
      */
-    public void setRecordScore(double recordScore) {
+    public void setRecordScore(Double recordScore) {
         this.recordScore = recordScore;
     }
 
@@ -147,14 +147,14 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the value of "sort".
-     * Specifies the bucket field to sort on.
+     * Specifies the record field to sort on.
      * @param sort value of "sort".
      */
     public void setSort(String sort) {
         this.sort = sort;
     }
 
-    public boolean isDescending() {
+    public Boolean isDescending() {
         return descending;
     }
 
@@ -163,7 +163,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
      * Specifies the sorting order.
      * @param descending value of "desc"
      */
-    public void setDescending(boolean descending) {
+    public void setDescending(Boolean descending) {
         this.descending = descending;
     }
 

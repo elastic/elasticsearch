@@ -76,10 +76,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -127,10 +123,10 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -155,7 +151,6 @@ import org.elasticsearch.test.RandomObjects;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1830,83 +1825,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(resizeRequest, request.getEntity());
-    }
-
-    public void testPutPipeline() throws IOException {
-        String pipelineId = "some_pipeline_id";
-        PutPipelineRequest request = new PutPipelineRequest(
-            "some_pipeline_id",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request expectedRequest = RequestConverters.putPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testGetPipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
-        setRandomMasterTimeout(request, expectedParams);
-        Request expectedRequest = RequestConverters.getPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testDeletePipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        Request expectedRequest = RequestConverters.deletePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testSimulatePipeline() throws IOException {
-        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
-        boolean verbose = randomBoolean();
-        String json = "{\"pipeline\":{" +
-            "\"description\":\"_description\"," +
-            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
-            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        request.setId(pipelineId);
-        request.setVerbose(verbose);
-        Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("verbose", Boolean.toString(verbose));
-
-        Request expectedRequest = RequestConverters.simulatePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        if (pipelineId != null && !pipelineId.isEmpty())
-            endpoint.add(pipelineId);
-        endpoint.add("_simulate");
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-        assertToXContentBody(request, expectedRequest.getEntity());
     }
 
     public void testRollover() throws IOException {

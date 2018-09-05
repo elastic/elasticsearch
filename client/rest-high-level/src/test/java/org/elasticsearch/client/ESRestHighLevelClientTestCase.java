@@ -130,7 +130,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
+        assertTrue(execute(
+            putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync).isAcknowledged());
     }
 
     protected static void clusterUpdateSettings(Settings persistentSettings,

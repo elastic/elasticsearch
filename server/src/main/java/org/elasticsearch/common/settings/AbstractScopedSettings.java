@@ -352,13 +352,13 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that all settings are registered and valid.
      *
-     * @param settings              the settings to validate
-     * @param validateDependencies  true if dependent settings should be validated
-     * @param validateInternalIndex true if internal index settings should be validated
+     * @param settings                       the settings to validate
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
-        validate(settings, validateDependencies, false, false, validateInternalIndex);
+    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
+        validate(settings, validateDependencies, false, false, validateInternalOrPrivateIndex);
     }
 
     /**
@@ -381,11 +381,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that all settings are registered and valid.
      *
-     * @param settings               the settings
-     * @param validateDependencies   true if dependent settings should be validated
-     * @param ignorePrivateSettings  true if private settings should be ignored during validation
-     * @param ignoreArchivedSettings true if archived settings should be ignored during validation
-     * @param validateInternalIndex  true if index internal settings should be validated
+     * @param settings                       the settings
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param ignorePrivateSettings          true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
+     * @param validateInternalOrPrivateIndex true if index internal settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(
@@ -393,17 +393,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             final boolean validateDependencies,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings,
-            final boolean validateInternalIndex) {
+            final boolean validateInternalOrPrivateIndex) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
-            if (isPrivateSetting(key) && ignorePrivateSettings) {
+            final Setting<?> setting = getRaw(key);
+            if (((isPrivateSetting(key) || (setting != null && setting.isPrivateIndex())) && ignorePrivateSettings)) {
                 continue;
             }
             if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) && ignoreArchivedSettings) {
                 continue;
             }
             try {
-                validate(key, settings, validateDependencies, validateInternalIndex);
+                validate(key, settings, validateDependencies, validateInternalOrPrivateIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -426,14 +427,15 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that the settings is valid.
      *
-     * @param key the key of the setting to validate
-     * @param settings the settings
-     * @param validateDependencies true if dependent settings should be validated
-     * @param validateInternalIndex true if internal index settings should be validated
+     * @param key                            the key of the setting to validate
+     * @param settings                       the settings
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
-        Setting<?> setting = getRaw(key);
+    void validate(
+            final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
+        Setting setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
@@ -472,10 +474,15 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     }
                 }
             }
-            // the only time that validateInternalIndex should be true is if this call is coming via the update settings API
-            if (validateInternalIndex && setting.getProperties().contains(Setting.Property.InternalIndex)) {
-                throw new IllegalArgumentException(
-                        "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
+            // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API
+            if (validateInternalOrPrivateIndex) {
+                if (setting.isInternalIndex()) {
+                    throw new IllegalArgumentException(
+                            "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
+                } else if (setting.isPrivateIndex()) {
+                    throw new IllegalArgumentException(
+                            "can not update private setting [" + setting.getKey() + "]; this setting is managed by Elasticsearch");
+                }
             }
         }
         setting.get(settings);

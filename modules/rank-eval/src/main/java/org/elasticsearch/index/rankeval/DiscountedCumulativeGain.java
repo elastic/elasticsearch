@@ -44,7 +44,7 @@ import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRati
  * Metric implementing Discounted Cumulative Gain.
  * The `normalize` parameter can be set to calculate the normalized NDCG (set to {@code false} by default).<br>
  * The optional `unknown_doc_rating` parameter can be used to specify a default rating for unlabeled documents.
- * @see <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Discounted_Cumulative_Gain">Discounted Cumulative Gain</a><br>
+ * @see <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Discounted_Cumulative_Gain">Discounted Cumulative Gain</a>
  */
 public class DiscountedCumulativeGain implements EvaluationMetric {
 
@@ -337,4 +337,3 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         }
     }
 }
-

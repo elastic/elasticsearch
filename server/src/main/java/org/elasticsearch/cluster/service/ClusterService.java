@@ -28,10 +28,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
-import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -168,34 +166,10 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Removes a timeout listener for updated cluster states.
-     */
-    public void removeTimeoutListener(TimeoutClusterStateListener listener) {
-        clusterApplierService.removeTimeoutListener(listener);
-    }
-
-    /**
      * Add a listener for on/off local node master events
      */
     public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         clusterApplierService.addLocalNodeMasterListener(listener);
-    }
-
-    /**
-     * Remove the given listener for on/off local master events
-     */
-    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        clusterApplierService.removeLocalNodeMasterListener(listener);
-    }
-
-    /**
-     * Adds a cluster state listener that is expected to be removed during a short period of time.
-     * If provided, the listener will be notified once a specific time has elapsed.
-     *
-     * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
-     */
-    public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
-        clusterApplierService.addTimeoutListener(timeout, listener);
     }
 
     public MasterService getMasterService() {

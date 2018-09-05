@@ -758,6 +758,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("watcher.") == false &&
                             apiName.startsWith("graph.") == false &&
                             apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false &&
                             apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);
                         }

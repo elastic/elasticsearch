@@ -29,15 +29,12 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -100,10 +97,8 @@ import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -163,7 +158,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -1846,33 +1840,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(resizeRequest, request.getEntity());
     }
 
-    public void testClusterPutSettings() throws IOException {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request expectedRequest = RequestConverters.clusterPutSettings(request);
-        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
-        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testClusterGetSettings() throws IOException {
-        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        request.includeDefaults(randomBoolean());
-        if (request.includeDefaults()) {
-            expectedParams.put("include_defaults", String.valueOf(true));
-        }
-
-        Request expectedRequest = RequestConverters.clusterGetSettings(request);
-        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
-        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
     public void testPutPipeline() throws IOException {
         String pipelineId = "some_pipeline_id";
         PutPipelineRequest request = new PutPipelineRequest(
@@ -1948,85 +1915,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
         assertToXContentBody(request, expectedRequest.getEntity());
-    }
-
-    public void testClusterHealth() {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomLocal(healthRequest, expectedParams);
-        String timeoutType = randomFrom("timeout", "masterTimeout", "both", "none");
-        String timeout = randomTimeValue();
-        String masterTimeout = randomTimeValue();
-        switch (timeoutType) {
-            case "timeout":
-                healthRequest.timeout(timeout);
-                expectedParams.put("timeout", timeout);
-                // If Master Timeout wasn't set it uses the same value as Timeout
-                expectedParams.put("master_timeout", timeout);
-                break;
-            case "masterTimeout":
-                expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
-                break;
-            case "both":
-                healthRequest.timeout(timeout);
-                expectedParams.put("timeout", timeout);
-                healthRequest.masterNodeTimeout(timeout);
-                expectedParams.put("master_timeout", timeout);
-                break;
-            case "none":
-                expectedParams.put("timeout", "30s");
-                expectedParams.put("master_timeout", "30s");
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
-        if (randomBoolean()) {
-            ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
-            healthRequest.level(level);
-            expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
-        } else {
-            expectedParams.put("level", "cluster");
-        }
-        if (randomBoolean()) {
-            Priority priority = randomFrom(Priority.values());
-            healthRequest.waitForEvents(priority);
-            expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
-        }
-        if (randomBoolean()) {
-            ClusterHealthStatus status = randomFrom(ClusterHealthStatus.values());
-            healthRequest.waitForStatus(status);
-            expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
-        }
-        if (randomBoolean()) {
-            boolean waitForNoInitializingShards = randomBoolean();
-            healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
-            if (waitForNoInitializingShards) {
-                expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
-            }
-        }
-        if (randomBoolean()) {
-            boolean waitForNoRelocatingShards = randomBoolean();
-            healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
-            if (waitForNoRelocatingShards) {
-                expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
-            }
-        }
-        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
-        healthRequest.indices(indices);
-
-        Request request = RequestConverters.clusterHealth(healthRequest);
-        assertThat(request, CoreMatchers.notNullValue());
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getEntity(), nullValue());
-        if (indices != null && indices.length > 0) {
-            assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
-        } else {
-            assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
-        }
-        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testRollover() throws IOException {
@@ -2558,7 +2446,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+    static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
@@ -3013,11 +2901,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         setRandomLocal(request::local, expectedParams);
     }
 
-    private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             setter.accept(timeout);
@@ -3038,7 +2926,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+    static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             request.masterNodeTimeout(masterTimeout);
@@ -3062,8 +2950,8 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
     }
 
-    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
-                                                     Map<String, String> expectedParams) {
+    static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                             Map<String, String> expectedParams) {
         if (randomBoolean()) {
             int waitForActiveShardsInt = randomIntBetween(-1, 5);
             String waitForActiveShardsString;
@@ -3123,7 +3011,7 @@ public class RequestConvertersTests extends ESTestCase {
         return excludesParam.toString();
     }
 
-    private static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
+    static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
         int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

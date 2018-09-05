@@ -94,17 +94,19 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         for (Processor processor : processors) {
             try {
-                processor.execute(ingestDocument);
+                if (processor.execute(ingestDocument) == null) {
+                    return null;
+                }
             } catch (Exception e) {
                 if (ignoreFailure) {
                     continue;
                 }
 
                 ElasticsearchException compoundProcessorException =
-                        newCompoundProcessorException(e, processor.getType(), processor.getTag());
+                    newCompoundProcessorException(e, processor.getType(), processor.getTag());
                 if (onFailureProcessors.isEmpty()) {
                     throw compoundProcessorException;
                 } else {
@@ -113,6 +115,7 @@ public class CompoundProcessor implements Processor {
                 }
             }
         }
+        return ingestDocument;
     }
 
     void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
@@ -149,7 +152,7 @@ public class CompoundProcessor implements Processor {
     }
 
     private ElasticsearchException newCompoundProcessorException(Exception e, String processorType, String processorTag) {
-        if (e instanceof ElasticsearchException && ((ElasticsearchException)e).getHeader("processor_type") != null) {
+        if (e instanceof ElasticsearchException && ((ElasticsearchException) e).getHeader("processor_type") != null) {
             return (ElasticsearchException) e;
         }
 

@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.qa.sql.jdbc.DataLoader;
-import org.elasticsearch.xpack.qa.sql.jdbc.JdbcTestUtils;
+import org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert;
 import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.qa.sql.jdbc.SqlSpecTestCase;
 
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.specParser;
  * That's not to say the two cannot be merged however that felt like too much of an effort
  * at this stage and, to not keep things stalling, started with this approach.
  */
-public class JdbcDocCsvSpectIT extends SpecBaseIntegrationTestCase {
+public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     private final CsvTestCase testCase;
 
@@ -56,7 +56,7 @@ public class JdbcDocCsvSpectIT extends SpecBaseIntegrationTestCase {
         return readScriptSpec("/docs.csv-spec", parser);
     }
 
-    public JdbcDocCsvSpectIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
+    public JdbcDocCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber);
         this.testCase = testCase;
     }
@@ -68,8 +68,8 @@ public class JdbcDocCsvSpectIT extends SpecBaseIntegrationTestCase {
         //
         // uncomment this to printout the result set and create new CSV tests
         //
-        JdbcTestUtils.logLikeCLI(elastic, log);
-        //JdbcAssert.assertResultSets(expected, elastic, log, true);
+        //JdbcTestUtils.logLikeCLI(elastic, log);
+        JdbcAssert.assertResultSets(expected, elastic, log, true);
     }
 
     @Override

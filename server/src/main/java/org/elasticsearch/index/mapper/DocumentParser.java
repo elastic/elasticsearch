@@ -462,10 +462,7 @@ final class DocumentParser {
             parseObjectOrNested(context, (ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
             FieldMapper fieldMapper = (FieldMapper) mapper;
-            Mapper update = fieldMapper.parse(context);
-            if (update != null) {
-                context.addDynamicMapper(update);
-            }
+            fieldMapper.parse(context);
             parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");

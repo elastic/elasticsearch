@@ -76,6 +76,7 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -240,6 +241,35 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
+    public void testStandardFilterBWC() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT.minimumCompatibilityVersion());
+        // bwc deprecation
+        {
+            Settings settings = Settings.builder()
+                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+                .put("index.analysis.analyzer.my_standard.filter", "standard")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .build();
+            IndexAnalyzers analyzers = getIndexAnalyzers(settings);
+            assertTokenStreamContents(analyzers.get("my_standard").tokenStream("", "test"), new String[]{"test"});
+            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
+        }
+        // removal
+        {
+            final Settings settings = Settings.builder()
+                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+                .put("index.analysis.analyzer.my_standard.filter", "standard")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0_alpha1)
+                .build();
+            IndexAnalyzers analyzers = getIndexAnalyzers(settings);
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+                analyzers.get("my_standard").tokenStream("", ""));
+            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
+        }
+    }
+
     /**
      * Tests that plugins can register pre-configured char filters that vary in behavior based on Elasticsearch version, Lucene version,
      * and that do not vary based on version at all.
@@ -376,42 +406,41 @@ public class AnalysisModuleTests extends ESTestCase {
             }
         }
         AnalysisRegistry registry = new AnalysisModule(TestEnvironment.newEnvironment(emptyNodeSettings),
-                singletonList(new AnalysisPlugin() {
-            @Override
-            public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
-                return Arrays.asList(
+            singletonList(new AnalysisPlugin() {
+                @Override
+                public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
+                    return Arrays.asList(
                         PreConfiguredTokenizer.singleton("no_version", () -> new FixedTokenizer("no_version"),
-                                noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
+                            noVersionSupportsMultiTerm ? () -> AppendTokenFilter.factoryForSuffix("no_version") : null),
                         PreConfiguredTokenizer.luceneVersion("lucene_version",
-                                luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
-                                luceneVersionSupportsMultiTerm ?
-                                        luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
+                            luceneVersion -> new FixedTokenizer(luceneVersion.toString()),
+                            luceneVersionSupportsMultiTerm ?
+                                luceneVersion -> AppendTokenFilter.factoryForSuffix(luceneVersion.toString()) : null),
                         PreConfiguredTokenizer.elasticsearchVersion("elasticsearch_version",
-                                esVersion -> new FixedTokenizer(esVersion.toString()),
-                                elasticsearchVersionSupportsMultiTerm ?
-                                        esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
-                        );
-            }
-        })).getAnalysisRegistry();
+                            esVersion -> new FixedTokenizer(esVersion.toString()),
+                            elasticsearchVersionSupportsMultiTerm ?
+                                esVersion -> AppendTokenFilter.factoryForSuffix(esVersion.toString()) : null)
+                    );
+                }
+            })).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(registry, Settings.builder()
-                .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
-                .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
-                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "elasticsearch_version")
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
-                .build());
-        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] {"no_version"});
-        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] {version.luceneVersion.toString()});
-        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] {version.toString()});
+            .put("index.analysis.analyzer.no_version.tokenizer", "no_version")
+            .put("index.analysis.analyzer.lucene_version.tokenizer", "lucene_version")
+            .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "elasticsearch_version")
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .build());
+        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[]{"no_version"});
+        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[]{version.luceneVersion.toString()});
+        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[]{version.toString()});
 
-        // These are current broken by https://github.com/elastic/elasticsearch/issues/24752
-//        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
-//                analyzers.get("no_version").normalize("", "test").utf8ToString());
-//        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
-//                analyzers.get("lucene_version").normalize("", "test").utf8ToString());
-//        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-//                analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (noVersionSupportsMultiTerm ? "no_version" : ""),
+            analyzers.get("no_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+            analyzers.get("lucene_version").normalize("", "test").utf8ToString());
+        assertEquals("test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+            analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString());
     }
 
     public void testRegisterHunspellDictionary() throws Exception {

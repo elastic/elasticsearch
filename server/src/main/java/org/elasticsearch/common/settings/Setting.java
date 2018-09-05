@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -126,7 +127,12 @@ public class Setting<T> implements ToXContentObject {
          * Indicates an index-level setting that is managed internally. Such a setting can only be added to an index on index creation but
          * can not be updated via the update API.
          */
-        InternalIndex
+        InternalIndex,
+
+        /**
+         * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
+         */
+        PrivateIndex
     }
 
     private final Key key;
@@ -160,6 +166,7 @@ public class Setting<T> implements ToXContentObject {
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             this.properties = propertiesAsSet;
         }
     }
@@ -282,6 +289,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isFinal() {
         return properties.contains(Property.Final);
+    }
+
+    public final boolean isInternalIndex() {
+        return properties.contains(Property.InternalIndex);
+    }
+
+    public final boolean isPrivateIndex() {
+        return properties.contains(Property.PrivateIndex);
     }
 
     /**
@@ -968,6 +983,9 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
+        return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);

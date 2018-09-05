@@ -307,6 +307,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPredicate(SqlBaseParser.PredicateContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#likePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLikePattern(SqlBaseParser.LikePatternContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#pattern}.
    * @param ctx the parse tree
    * @return the visitor result

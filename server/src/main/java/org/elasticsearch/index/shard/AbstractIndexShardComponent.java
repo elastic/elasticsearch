@@ -34,7 +34,7 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        this.logger = Loggers.getLogger(getClass(), this.indexSettings.getSettings(), shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId);
         this.deprecationLogger = new DeprecationLogger(logger);
     }
 

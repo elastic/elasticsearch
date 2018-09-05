@@ -434,6 +434,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         internalCluster().startNodes(2, Settings.EMPTY);
 
         final String node2 = internalCluster().getNodeNames()[1];
+        logger.info("--> nodes name: {}, {}", internalCluster().getNodeNames());
 
         final String indexName = "test";
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
@@ -498,9 +499,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
 
-        internalCluster().restartNode(node2, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
+                logger.info("--> node {} stopped", nodeName);
                 for (Path translogDir : translogDirs) {
                     final Path idxLocation = translogDir.getParent().resolve(ShardPath.INDEX_FOLDER_NAME);
                     assertBusy(() -> {

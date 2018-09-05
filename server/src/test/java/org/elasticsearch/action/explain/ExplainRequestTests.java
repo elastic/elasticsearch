@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -34,6 +35,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ExplainRequestTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -68,6 +73,26 @@ public class ExplainRequestTests extends ESTestCase {
                 assertEquals(request.routing(), readRequest.routing());
                 assertEquals(request.fetchSourceContext(), readRequest.fetchSourceContext());
             }
+        }
+    }
+
+    public void testValidation() {
+        {
+            final ExplainRequest request = new ExplainRequest("index4", "_doc", "0");
+            request.query(QueryBuilders.termQuery("field", "value"));
+
+            final ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, nullValue());
+        }
+
+        {
+            final ExplainRequest request = new ExplainRequest("index4", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            request.query(QueryBuilders.termQuery("field", "value"));
+            final ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
         }
     }
 }

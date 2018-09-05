@@ -181,7 +181,7 @@ public final class AnalysisModule {
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
-            PreConfiguredTokenFilter.singletonWithVersion("standard", false, (reader, version) -> {
+            PreConfiguredTokenFilter.singletonWithVersion("standard", true, (reader, version) -> {
                 if (version.before(Version.V_7_0_0_alpha1)) {
                     DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");

@@ -8,7 +8,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -31,14 +30,14 @@ public class NamingConventionsTask extends DefaultTask {
 
     public NamingConventionsTask() {
         setDescription("Tests that test classes aren't misnamed or misplaced");
-        //dependsOn(project.getTasks().matching(it -> "testCompileClasspath".equals(it.getName())));
+        dependsOn(getJavaSourceSets().getByName(checkForTestsInMain ? "main" : "test").getClassesTaskName());
     }
 
     @TaskAction
     public void runNamingConventions() {
         LoggedExec.javaexec(getProject(), spec -> {
             spec.classpath(
-                getNamingConventionsCheckClassFile(),
+                getNamingConventionsCheckClassFiles(),
                 getSourceSetClassPath()
             );
             spec.executable(getJavaHome() + "/bin/java");
@@ -87,8 +86,8 @@ public class NamingConventionsTask extends DefaultTask {
         );
     }
 
-    @InputFile
-    public File getNamingConventionsCheckClassFile() {
+    @InputFiles
+    public File getNamingConventionsCheckClassFiles() {
         // This works because the class only depends on one class from junit that will be available from the
         // tests compile classpath. It's the most straight forward way of telling Java where to find the main
         // class.

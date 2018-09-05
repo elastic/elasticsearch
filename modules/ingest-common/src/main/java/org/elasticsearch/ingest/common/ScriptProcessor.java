@@ -69,9 +69,10 @@ public final class ScriptProcessor extends AbstractProcessor {
      * @param document The Ingest document passed into the script context under the "ctx" object.
      */
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
         factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        return document;
     }
 
     @Override

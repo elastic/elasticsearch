@@ -31,6 +31,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
@@ -195,12 +196,12 @@ final class MLRequestConverters {
 
     static Request postData(PostDataRequest postDataRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
-                .addPathPartAsIs("anomaly_detectors")
-                .addPathPart(postDataRequest.getJobId())
-                .addPathPartAsIs("_data")
-                .build();
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(postDataRequest.getJobId())
+            .addPathPartAsIs("_data")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
@@ -219,6 +220,20 @@ final class MLRequestConverters {
                 createContentType(postDataRequest.getXContentType()));
             request.setEntity(byteEntity);
         }
+        return request;
+    }
+
+    static Request getInfluencers(GetInfluencersRequest getInfluencersRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("anomaly_detectors")
+                .addPathPart(getInfluencersRequest.getJobId())
+                .addPathPartAsIs("results")
+                .addPathPartAsIs("influencers")
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getInfluencersRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

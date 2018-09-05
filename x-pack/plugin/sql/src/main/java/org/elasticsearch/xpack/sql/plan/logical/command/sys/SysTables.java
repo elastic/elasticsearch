@@ -78,7 +78,7 @@ public class SysTables extends Command {
         // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=ssdt-18vs2017#comments
 
         if (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            if (pattern != null && pattern.pattern().isEmpty() && CollectionUtils.isEmpty(types)) {
+            if ((pattern == null || pattern.pattern().isEmpty()) && CollectionUtils.isEmpty(types)) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -88,8 +88,9 @@ public class SysTables extends Command {
         }
         
         // if no types were specified (the parser takes care of the % case)
-        if (CollectionUtils.isEmpty(types)) {
-            if (clusterPattern != null && clusterPattern.pattern().isEmpty()) {
+        if (IndexType.VALID.equals(types)) {
+            if ((clusterPattern == null || clusterPattern.pattern().isEmpty())
+                    && (pattern == null || pattern.pattern().isEmpty())) {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else null
                 for (IndexType type : IndexType.VALID) {

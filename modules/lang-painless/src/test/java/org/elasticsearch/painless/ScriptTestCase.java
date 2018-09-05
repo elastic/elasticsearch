@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
-    private static PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     protected PainlessScriptEngine scriptEngine;
 

@@ -63,6 +63,6 @@ public enum OperationMode {
     static OperationMode fromString(String string) {
         return EnumSet.allOf(OperationMode.class).stream()
             .filter(e -> string.equalsIgnoreCase(e.name())).findFirst()
-            .orElseThrow(() -> new IllegalArgumentException(String.format(Locale.ENGLISH, "%s is not a valid operation_mode", string)));
+            .orElseThrow(() -> new IllegalArgumentException(String.format(Locale.ROOT, "%s is not a valid operation_mode", string)));
     }
 }

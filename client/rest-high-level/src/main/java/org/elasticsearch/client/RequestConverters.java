@@ -36,8 +36,6 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -724,28 +722,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
-        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
-
-        Params parameters = new Params(request);
-        parameters.withLocal(clusterGetSettingsRequest.local());
-        parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
-        parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
-
-        return request;
-    }
-
     static Request getPipeline(GetPipelineRequest getPipelineRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
@@ -800,28 +776,6 @@ final class RequestConverters {
             .withNodes(listTaskRequest.getNodes())
             .withActions(listTaskRequest.getActions())
             .putParam("group_by", "none");
-        return request;
-    }
-
-    static Request clusterHealth(ClusterHealthRequest healthRequest) {
-        String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_cluster/health")
-            .addCommaSeparatedPathParts(indices)
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        new Params(request)
-            .withWaitForStatus(healthRequest.waitForStatus())
-            .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
-            .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
-            .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
-            .withWaitForNodes(healthRequest.waitForNodes())
-            .withWaitForEvents(healthRequest.waitForEvents())
-            .withTimeout(healthRequest.timeout())
-            .withMasterTimeout(healthRequest.masterNodeTimeout())
-            .withLocal(healthRequest.local())
-            .withLevel(healthRequest.level());
         return request;
     }
 

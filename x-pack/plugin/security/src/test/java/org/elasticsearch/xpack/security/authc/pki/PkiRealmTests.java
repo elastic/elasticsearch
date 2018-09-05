@@ -74,7 +74,8 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTokenSupport() {
-        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         PkiRealm realm = new PkiRealm(config, mock(UserRoleMapper.class));
 
         assertThat(realm.supports(null), is(false));

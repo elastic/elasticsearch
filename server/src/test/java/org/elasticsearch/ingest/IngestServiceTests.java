@@ -126,7 +126,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
 
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(null);
@@ -424,7 +424,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
             "mock", (factories, tag, config) -> new AbstractProcessor("mock") {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     throw new IllegalStateException("error");
                 }
 
@@ -453,7 +453,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
 
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(null);
@@ -481,7 +481,7 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(bulkRequest.requests(), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(bulkRequest.requests(), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, times(1)).accept(
             argThat(new CustomTypeSafeMatcher<IndexRequest>("failure handler was not called with the expected arguments") {
                 @Override
@@ -514,7 +514,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
     }
@@ -532,7 +532,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
     }
@@ -560,14 +560,14 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
                 }
             }
-            return null;
+            return ingestDocument;
         }).when(processor).execute(any());
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(any());
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
@@ -597,7 +597,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()));
         verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
@@ -624,7 +624,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(failureHandler, never()).accept(eq(indexRequest), any(ElasticsearchException.class));
         verify(completionHandler, times(1)).accept(null);
     }
@@ -661,7 +661,7 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()));
         verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
@@ -707,7 +707,7 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<IndexRequest, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
+        ingestService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(any(IndexRequest.class), argThat(new ArgumentMatcher<Exception>() {
             @Override
@@ -741,7 +741,7 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<IndexRequest, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         Consumer<Exception> completionHandler = mock(Consumer.class);
-        ingestService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler);
+        ingestService.executeBulkRequest(bulkRequest.requests(), requestItemErrorHandler, completionHandler, indexReq -> {});
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
@@ -779,7 +779,7 @@ public class IngestServiceTests extends ESTestCase {
 
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1");
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
         assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
@@ -787,7 +787,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(afterFirstRequestStats.getTotalStats().getIngestCount(), equalTo(1L));
 
         indexRequest.setPipeline("_id2");
-        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, indexReq -> {});
         final IngestStats afterSecondRequestStats = ingestService.stats();
         assertThat(afterSecondRequestStats.getStatsPerPipeline().size(), equalTo(2));
         assertThat(afterSecondRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
@@ -827,8 +827,9 @@ public class IngestServiceTests extends ESTestCase {
             String value = (String) config.remove("value");
             return new Processor() {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     ingestDocument.setFieldValue(field, value);
+                    return ingestDocument;
                 }
 
                 @Override
@@ -846,8 +847,9 @@ public class IngestServiceTests extends ESTestCase {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
-                public void execute(IngestDocument ingestDocument) {
+                public IngestDocument execute(IngestDocument ingestDocument) {
                     ingestDocument.removeField(field);
+                    return ingestDocument;
                 }
 
                 @Override

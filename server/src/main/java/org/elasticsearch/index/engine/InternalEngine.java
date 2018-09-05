@@ -393,7 +393,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog(long recoverUpToSeqNo) throws IOException {
+    public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -401,7 +401,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal(recoverUpToSeqNo);
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -423,13 +423,13 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal(long recoverUpToSeqNo) throws IOException {
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         final long translogFileGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
             new Translog.TranslogGeneration(translog.getTranslogUUID(), translogFileGen), recoverUpToSeqNo)) {
-            opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
+            opsRecovered = translogRecoveryRunner.run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }

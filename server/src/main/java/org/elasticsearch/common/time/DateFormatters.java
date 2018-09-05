@@ -25,10 +25,12 @@ import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -48,6 +50,7 @@ import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
@@ -81,7 +84,7 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .optionalEnd()
         .optionalStart()
-        .appendOffset("+HHmm", "Z")
+        .appendZoneOrOffsetId()
         .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
@@ -95,7 +98,7 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .optionalEnd()
         .optionalStart()
-        .appendZoneOrOffsetId()
+        .appendOffset("+HHmm", "Z")
         .optionalEnd()
         .optionalEnd()
         .toFormatter(Locale.ROOT);
@@ -105,6 +108,40 @@ public class DateFormatters {
      */
     private static final CompoundDateTimeFormatter STRICT_DATE_OPTIONAL_TIME =
         new CompoundDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_FORMATTER_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_2);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1 = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_2 = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendOffset("+HHmm", "Z")
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    /**
+     * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
+     */
+    private static final CompoundDateTimeFormatter STRICT_DATE_OPTIONAL_TIME_NANOS =
+        new CompoundDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_1, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS_2);
 
     /////////////////////////////////////////
     //
@@ -844,11 +881,47 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for parsing the milliseconds since the epoch
+     * This one needs a custom implementation, because the standard date formatter can not parse negative values
+     * or anything +- 999 milliseconds around the epoch
+     *
+     * This implementation just resorts to parsing the input directly to an Instant by trying to parse a number.
      */
-    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter EPOCH_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS, 1, 19, SignStyle.NEVER)
         .appendValue(ChronoField.MILLI_OF_SECOND, 3)
-        .toFormatter(Locale.ROOT));
+        .toFormatter(Locale.ROOT);
+
+    private static final class EpochDateTimeFormatter extends CompoundDateTimeFormatter {
+
+        private EpochDateTimeFormatter() {
+            super(EPOCH_MILLIS_FORMATTER);
+        }
+
+        private EpochDateTimeFormatter(ZoneId zoneId) {
+            super(EPOCH_MILLIS_FORMATTER.withZone(zoneId));
+        }
+
+        @Override
+        public TemporalAccessor parse(String input) {
+            try {
+                return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
+            } catch (NumberFormatException e) {
+                throw new DateTimeParseException("invalid number", input, 0, e);
+            }
+        }
+
+        @Override
+        public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
+            return new EpochDateTimeFormatter(zoneId);
+        }
+
+        @Override
+        public String format(TemporalAccessor accessor) {
+            return String.valueOf(Instant.from(accessor).toEpochMilli());
+        }
+    }
+
+    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new EpochDateTimeFormatter();
 
     /*
      * Returns a formatter that combines a full date and two digit hour of
@@ -1326,6 +1399,8 @@ public class DateFormatters {
             return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
         } else if ("strictDateOptionalTime".equals(input) || "strict_date_optional_time".equals(input)) {
             return STRICT_DATE_OPTIONAL_TIME;
+        } else if ("strictDateOptionalTimeNanos".equals(input) || "strict_date_optional_time_nanos".equals(input)) {
+            return STRICT_DATE_OPTIONAL_TIME_NANOS;
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             return STRICT_DATE_TIME;
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {

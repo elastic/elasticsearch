@@ -392,6 +392,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
             client().performRequest(indexRequest);
 
+            assertRollUpJob("rollup-id-test");
+
             // stop the rollup job to force a state save, which will upgrade the ID
             final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
             Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));

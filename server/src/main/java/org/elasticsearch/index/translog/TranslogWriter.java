@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -51,7 +52,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /* the number of translog operations written to this file */
     private volatile int operationCounter;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
-    private volatile Exception tragedy;
+    private final TragicExceptionHolder tragedy;
     /* A buffered outputstream what writes to the writers channel */
     private final OutputStream outputStream;
     /* the total offset of this file including the bytes written to the file as well as into the buffer */
@@ -76,7 +77,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel channel,
         final Path path,
         final ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header) throws IOException {
+        final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
+        TragicExceptionHolder tragedy)
+            throws
+            IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position() :
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel position ["
@@ -94,12 +98,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
+        this.tragedy = tragedy;
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
                                         ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
-                                        final long primaryTerm)
+                                        final long primaryTerm, TragicExceptionHolder tragedy)
         throws IOException {
         final FileChannel channel = channelFactory.open(file);
         try {
@@ -120,7 +125,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
-                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header);
+                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
@@ -129,24 +134,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
-    /**
-     * If this {@code TranslogWriter} was closed as a side-effect of a tragic exception,
-     * e.g. disk full while flushing a new segment, this returns the root cause exception.
-     * Otherwise (no tragic exception has occurred) it returns null.
-     */
-    public Exception getTragicException() {
-        return tragedy;
-    }
-
     private synchronized void closeWithTragicEvent(final Exception ex) {
-        assert ex != null;
-        if (tragedy == null) {
-            tragedy = ex;
-        } else if (tragedy != ex) {
-            // it should be safe to call closeWithTragicEvents on multiple layers without
-            // worrying about self suppression.
-            tragedy.addSuppressed(ex);
-        }
+        tragedy.setTragicException(ex);
         try {
             close();
         } catch (final IOException | RuntimeException e) {
@@ -204,7 +193,24 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
                 Translog.Operation prvOp = Translog.readOperation(
                         new BufferedChecksumStreamInput(previous.v1().streamInput(), "assertion"));
-                if (newOp.equals(prvOp) == false) {
+                // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
+                final boolean sameOp;
+                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
+                    final Translog.Index o1 = (Translog.Index) prvOp;
+                    final Translog.Index o2 = (Translog.Index) newOp;
+                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                        && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
+                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo()
+                        && o1.version() == o2.version();
+                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
+                    final Translog.Delete o1 = (Translog.Delete) newOp;
+                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo() && o1.version() == o2.version();
+                } else {
+                    sameOp = false;
+                }
+                if (sameOp == false) {
                     throw new AssertionError(
                         "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
                             "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
@@ -296,7 +302,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 if (closed.compareAndSet(false, true)) {
                     return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header);
                 } else {
-                    throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
+                    throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]",
+                            tragedy.get());
                 }
             }
         }
@@ -406,7 +413,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final void ensureOpen() {
         if (isClosed()) {
-            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy);
+            throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed", tragedy.get());
         }
     }
 

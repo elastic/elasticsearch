@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -63,7 +62,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
          * it to set its own defaults which differ from SearchRequest's
          * defaults. Then the parse can override them.
          */
-        UpdateByQueryRequest internal = new UpdateByQueryRequest(new SearchRequest());
+        UpdateByQueryRequest internal = new UpdateByQueryRequest();
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));

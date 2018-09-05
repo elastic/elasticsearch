@@ -462,7 +462,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool, anonymousUser, tokenService));
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+                anonymousUser, tokenService));
         components.add(authcService.get());
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
@@ -688,8 +689,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                         // based on index statistics, which is probably safer...
                                         null,
                                         () -> {
-                                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
-
+                                            throw new IllegalArgumentException(
+                                                "permission filters are not allowed to use the current timestamp");
                                         }, null),
                                 indexService.cache().bitsetFilterCache(),
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
@@ -759,7 +760,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
             return emptyList();
@@ -856,8 +858,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         Map<String, Settings> realmsSettings = settings.getGroups(SecurityField.setting("authc.realms"), true);
         final boolean hasNativeRealm = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) ||
                 realmsSettings.isEmpty() ||
-                realmsSettings.entrySet().stream()
-                        .anyMatch((e) -> NativeRealmSettings.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
+                realmsSettings.entrySet().stream().anyMatch(e ->
+                        NativeRealmSettings.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
         if (hasNativeRealm) {
             if (settings.get("tribe.on_conflict", "").startsWith("prefer_") == false) {
                 throw new IllegalArgumentException("use of security on tribe nodes requires setting [tribe.on_conflict] to specify the " +
@@ -905,13 +907,20 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover
             indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusDays(1), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(1), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(2), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(3), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(4), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(5), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(6), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusDays(1),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(1),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(2),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(3),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(4),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(5),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(6),
+                    IndexNameResolver.Rollover.DAILY));
 
             for (String index : indices) {
                 boolean matched = false;
@@ -977,8 +986,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService, bigArrays,
-                namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService,
+                bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
     }
 
     @Override
@@ -1058,7 +1067,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl indicesAccessControl = threadContext.get()
+                        .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;

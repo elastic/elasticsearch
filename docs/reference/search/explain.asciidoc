@@ -45,9 +45,7 @@ This will yield the following result:
                {
                   "value":2.2,
                   "description":"scaling factor, k1 + 1",
-                  "details":[
-
-                  ]
+                  "details":[]
                },
                {
                   "value":1.3862944,
@@ -56,16 +54,12 @@ This will yield the following result:
                      {
                         "value":1,
                         "description":"n, number of documents containing term",
-                        "details":[
-
-                        ]
+                        "details":[]
                      },
                      {
                         "value":5,
                         "description":"N, total number of documents with field",
-                        "details":[
-
-                        ]
+                        "details":[]
                      }
                   ]
                },
@@ -76,37 +70,27 @@ This will yield the following result:
                      {
                         "value":1.0,
                         "description":"freq, occurrences of term within document",
-                        "details":[
-
-                        ]
+                        "details":[]
                      },
                      {
                         "value":1.2,
                         "description":"k1, term saturation parameter",
-                        "details":[
-
-                        ]
+                        "details":[]
                      },
                      {
                         "value":0.75,
                         "description":"b, length normalization parameter",
-                        "details":[
-
-                        ]
+                        "details":[]
                      },
                      {
                         "value":3.0,
                         "description":"dl, length of field",
-                        "details":[
-
-                        ]
+                        "details":[]
                      },
                      {
                         "value":5.4,
                         "description":"avgdl, average length of field",
-                        "details":[
-
-                        ]
+                        "details":[]
                      }
                   ]
                }

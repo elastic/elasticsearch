@@ -470,7 +470,6 @@ public final class MachineLearningClient {
     }
 
     /**
-<<<<<<< HEAD
      * Sends data to an anomaly detection job for analysis.
      *
      * NOTE: The job must have a state of open to receive and process the data.

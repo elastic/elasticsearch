@@ -201,7 +201,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-
+    private final TransportLogger transportLogger;
     private final TcpTransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final String nodeName;
@@ -220,6 +220,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
+        this.transportLogger = new TransportLogger();
         this.handshaker = new TcpTransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
@@ -819,6 +820,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     private void internalSendMessage(TcpChannel channel, BytesReference message, ActionListener<Void> listener) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        transportLogger.logOutboundMessage(channel, message);
         try {
             channel.sendMessage(message, new SendListener(channel, message.length(), listener));
         } catch (Exception ex) {
@@ -928,7 +930,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param length          the payload length in bytes
      * @see TcpHeader
      */
-    final BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
             TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
@@ -973,6 +975,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void inboundMessage(TcpChannel channel, BytesReference message) {
         try {
             channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+            transportLogger.logInboundMessage(channel, message);
             // Message length of 0 is a ping
             if (message.length() != 0) {
                 messageReceived(message, channel);

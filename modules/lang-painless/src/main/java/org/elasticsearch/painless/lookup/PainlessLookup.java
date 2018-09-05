@@ -37,16 +37,23 @@ public final class PainlessLookup {
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
+    private final Map<String, PainlessMethod> painlessMethodKeysToPainlessStatics;
     private final Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings;
 
     PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses,
+            Map<String, PainlessMethod> painlessMethodKeysToPainlessStatics,
             Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings) {
+
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
+
+        Objects.requireNonNull(painlessMethodKeysToPainlessStatics);
+        Objects.requireNonNull(painlessMethodKeysToPainlessBindings);
 
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
 
+        this.painlessMethodKeysToPainlessStatics = Collections.unmodifiableMap(painlessMethodKeysToPainlessStatics);
         this.painlessMethodKeysToPainlessBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessBindings);
     }
 
@@ -165,6 +172,14 @@ public final class PainlessLookup {
         }
 
         return painlessField;
+    }
+
+    public PainlessMethod lookupPainlessStatic(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToPainlessStatics.get(painlessMethodKey);
     }
 
     public PainlessBinding lookupPainlessBinding(String methodName, int arity) {

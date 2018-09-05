@@ -133,6 +133,7 @@ public final class WhitelistLoader {
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
+        List<WhitelistMethod> whitelistStatics = new ArrayList<>();
         List<WhitelistBinding> whitelistBindings = new ArrayList<>();
 
         // Execute a single pass through the whitelist text files.  This will gather all the
@@ -230,7 +231,7 @@ public final class WhitelistLoader {
                         parseType = null;
 
                     // Handle static definition types.
-                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' 'bound_to' ID '\n'
+                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from' | 'bound_to' ) ID '\n'
                     } else if ("static".equals(parseType)) {
                         // Mark the origin of this parsable object.
                         String origin = "[" + filepath + "]:[" + number + "]";
@@ -286,14 +287,17 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid static definition: unexpected format [" + line + "]");
                         }
 
-                        // Check the static type is valid.
-                        if ("bound_to".equals(staticType) == false) {
+                        // Add a static method or binding depending on the static type.
+                        if ("from".equals(staticType)) {
+                            whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                        } else if ("bound_to".equals(staticType)) {
+                            whitelistBindings.add(new WhitelistBinding(origin, targetJavaClassName,
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                        } else {
                             throw new IllegalArgumentException(
                                     "invalid static definition: unexpected static type [" + staticType + "] [" + line + "]");
                         }
-
-                        whitelistBindings.add(new WhitelistBinding(origin, targetJavaClassName,
-                                methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
 
                     // Handle class definition types.
                     } else if ("class".equals(parseType)) {
@@ -393,7 +397,7 @@ public final class WhitelistLoader {
 
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistClasses, whitelistBindings);
+        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistBindings);
     }
 
     private WhitelistLoader() {}

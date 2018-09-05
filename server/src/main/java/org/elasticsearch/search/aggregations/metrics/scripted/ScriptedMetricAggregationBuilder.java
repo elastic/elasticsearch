@@ -222,8 +222,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
                 ScriptedMetricAggContexts.CombineScript.CONTEXT);
             combineScriptParams = combineScript.getParams();
         } else {
-            compiledCombineScript = (p, a) -> null;
-            combineScriptParams = Collections.emptyMap();
+            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+        }
+
+        if(reduceScript == null) {
+            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
         }
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,

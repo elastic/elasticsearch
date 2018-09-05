@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.netty4;
+package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,21 +29,19 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportLogger;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace")
-public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
+@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace")
+public class NioTransportLoggingIT extends NioIntegTestCase {
 
     private MockLogAppender appender;
 
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
         Loggers.addAppender(Loggers.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
         Loggers.removeAppender(Loggers.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
@@ -61,9 +59,6 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 new MockLogAppender.PatternSeenEventExcpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
-        final MockLogAppender.LoggingExpectation flushExpectation =
-                new MockLogAppender.SeenEventExpectation("flush", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
-
         final String readPattern =
                 ".*\\[length: \\d+" +
                         ", request id: \\d+" +
@@ -77,10 +72,8 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);
-        appender.addExpectation(flushExpectation);
         appender.addExpectation(readExpectation);
         client().admin().cluster().nodesHotThreads(new NodesHotThreadsRequest()).actionGet();
         appender.assertAllExpectationsMatched();
     }
-
 }

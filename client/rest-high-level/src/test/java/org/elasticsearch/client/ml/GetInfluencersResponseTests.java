@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.job.results.AnomalyRecord;
-import org.elasticsearch.client.ml.job.results.AnomalyRecordTests;
+import org.elasticsearch.client.ml.job.results.Influencer;
+import org.elasticsearch.client.ml.job.results.InfluencerTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -27,23 +27,23 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetRecordsResponseTests extends AbstractXContentTestCase<GetRecordsResponse> {
+public class GetInfluencersResponseTests extends AbstractXContentTestCase<GetInfluencersResponse> {
 
     @Override
-    protected GetRecordsResponse createTestInstance() {
+    protected GetInfluencersResponse createTestInstance() {
         String jobId = randomAlphaOfLength(20);
         int listSize = randomInt(10);
-        List<AnomalyRecord> records = new ArrayList<>(listSize);
+        List<Influencer> influencers = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            AnomalyRecord record = AnomalyRecordTests.createTestInstance(jobId);
-            records.add(record);
+            Influencer influencer = InfluencerTests.createTestInstance(jobId);
+            influencers.add(influencer);
         }
-        return new GetRecordsResponse(records, listSize);
+        return new GetInfluencersResponse(influencers, listSize);
     }
 
     @Override
-    protected GetRecordsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetRecordsResponse.fromXContent(parser);
+    protected GetInfluencersResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetInfluencersResponse.fromXContent(parser);
     }
 
     @Override

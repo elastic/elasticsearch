@@ -24,11 +24,11 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class GetRecordsRequestTests extends AbstractXContentTestCase<GetRecordsRequest> {
+public class GetInfluencersRequestTests extends AbstractXContentTestCase<GetInfluencersRequest> {
 
     @Override
-    protected GetRecordsRequest createTestInstance() {
-        GetRecordsRequest request = new GetRecordsRequest(randomAlphaOfLengthBetween(1, 20));
+    protected GetInfluencersRequest createTestInstance() {
+        GetInfluencersRequest request = new GetInfluencersRequest(randomAlphaOfLengthBetween(1, 20));
 
         if (randomBoolean()) {
             request.setStart(String.valueOf(randomLong()));
@@ -40,7 +40,7 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetRecordsR
             request.setExcludeInterim(randomBoolean());
         }
         if (randomBoolean()) {
-            request.setRecordScore(randomDouble());
+            request.setInfluencerScore(randomDouble());
         }
         if (randomBoolean()) {
             int from = randomInt(10000);
@@ -48,7 +48,7 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetRecordsR
             request.setPageParams(new PageParams(from, size));
         }
         if (randomBoolean()) {
-            request.setSort("anomaly_score");
+            request.setSort("influencer_score");
         }
         if (randomBoolean()) {
             request.setDescending(randomBoolean());
@@ -60,8 +60,8 @@ public class GetRecordsRequestTests extends AbstractXContentTestCase<GetRecordsR
     }
 
     @Override
-    protected GetRecordsRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetRecordsRequest.PARSER.apply(parser, null);
+    protected GetInfluencersRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetInfluencersRequest.PARSER.apply(parser, null);
     }
 
     @Override

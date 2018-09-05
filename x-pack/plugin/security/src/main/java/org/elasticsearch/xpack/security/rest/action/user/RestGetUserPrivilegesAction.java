@@ -20,6 +20,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -61,16 +62,16 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             public RestResponse buildResponse(GetUserPrivilegesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
 
-                builder.field("cluster", response.getClusterPrivileges());
-                builder.startArray("global");
+                builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
+                builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
                 for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
                     ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
                 }
                 builder.endArray();
 
-                builder.field("index", response.getIndexPrivileges());
-                builder.field("application", response.getApplicationPrivileges());
-                builder.field("run_as", response.getRunAs());
+                builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
+                builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
+                builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
 
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);

@@ -1214,7 +1214,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             try {
                                 Query query = leaf.apply(doc);
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
-                                if (topDocs.totalHits.value > 0) {
+                                if (topDocs.scoreDocs.length > 0) {
                                     if (scoreMode.needsScores()) {
                                         _score[0] = topDocs.scoreDocs[0].score;
                                     }

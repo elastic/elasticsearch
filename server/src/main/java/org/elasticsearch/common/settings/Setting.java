@@ -1294,36 +1294,30 @@ public class Setting<T> implements ToXContentObject {
                 simpleKey,
                 fallbackSetting,
                 fallbackSetting::getRaw,
-                timeValueParser(key),
-                minTimeValueValidator(simpleKey, minValue),
+                minTimeValueParser(key, minValue),
+                (v, s) -> {},
                 properties);
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
-                                                 Property... properties) {
+    public static Setting<TimeValue> timeSetting(
+            final String key, Function<Settings, TimeValue> defaultValue, final TimeValue minValue, final Property... properties) {
         final SimpleKey simpleKey = new SimpleKey(key);
-        return new Setting<>(
-                simpleKey,
-                s -> defaultValue.apply(s).getStringRep(),
-                timeValueParser(key),
-                minTimeValueValidator(simpleKey, minValue), properties);
+        return new Setting<>(simpleKey, s -> defaultValue.apply(s).getStringRep(), minTimeValueParser(key, minValue), properties);
     }
 
-    private static Function<String, TimeValue> timeValueParser(final String key) {
-        return s -> TimeValue.parseTimeValue(s, null, key);
-    }
-
-    private static Validator<TimeValue> minTimeValueValidator(final Key key, final TimeValue minValue) {
-        return (v, s) -> {
-            if (v.millis() < minValue.millis()) {
+    private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue) {
+        return s -> {
+            final TimeValue value = TimeValue.parseTimeValue(s, null, key);
+            if (value.millis() < minValue.millis()) {
                 final String message = String.format(
                         Locale.ROOT,
                         "failed to parse value [%s] for setting [%s], must be >= [%s]",
-                        v.getStringRep(),
+                        s,
                         key,
                         minValue.getStringRep());
                 throw new IllegalArgumentException(message);
             }
+            return value;
         };
     }
 

@@ -492,13 +492,13 @@ public class GeoShapeFieldMapper extends FieldMapper {
         return (GeoShapeFieldType) super.fieldType();
     }
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
                 ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
                 if (shapeBuilder == null) {
-                    return null;
+                    return;
                 }
                 shape = shapeBuilder.build();
             }
@@ -510,7 +510,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     for (Shape s : shapes) {
                         indexShape(context, s);
                     }
-                    return null;
+                    return;
                 } else if (shape instanceof Point == false) {
                     throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
@@ -524,7 +524,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             context.addIgnoredField(fieldType.name());
         }
-        return null;
     }
 
     private void indexShape(ParseContext context, Shape shape) {

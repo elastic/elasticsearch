@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -65,7 +64,6 @@ public class ReindexParentChildTests extends ReindexTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(ParentJoinPlugin.class);
-        plugins.add(InternalSettingsPlugin.class);
         plugins.add(CustomScriptPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
@@ -73,6 +71,11 @@ public class ReindexParentChildTests extends ReindexTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testParentChild() throws Exception {

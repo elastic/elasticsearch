@@ -21,14 +21,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -44,10 +42,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -66,7 +62,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +72,7 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
+        return Collections.singletonList(CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -646,30 +641,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
-    }
-
-    public void testInnerHitsWithIgnoreUnmapped() throws Exception {
-        assertAcked(prepareCreate("index1")
-            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-            .addMapping("parent_type", "nested_type", "type=nested")
-            .addMapping("child_type", "_parent", "type=parent_type")
-        );
-        createIndex("index2");
-        client().prepareIndex("index1", "parent_type", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
-        refresh();
-
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(boolQuery()
-                .should(nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true)))
-                .should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {

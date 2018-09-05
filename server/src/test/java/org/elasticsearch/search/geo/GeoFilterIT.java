@@ -49,10 +49,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 import org.locationtech.spatial4j.context.SpatialContext;
@@ -65,8 +63,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -87,8 +83,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     private static boolean intersectSupport;

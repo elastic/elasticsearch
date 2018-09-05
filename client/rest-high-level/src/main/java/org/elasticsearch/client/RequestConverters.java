@@ -109,7 +109,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
@@ -851,6 +854,59 @@ final class RequestConverters {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(updateByQueryRequest.getRouting())
+            .withPipeline(updateByQueryRequest.getPipeline())
+            .withRefresh(updateByQueryRequest.isRefresh())
+            .withTimeout(updateByQueryRequest.getTimeout())
+            .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards(), ActiveShardCount.DEFAULT)
+            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(updateByQueryRequest.getBatchSize()));
+        }
+        if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", updateByQueryRequest.getScrollTime());
+        }
+        if (updateByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
+            .withTimeout(deleteByQueryRequest.getTimeout())
+            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards(), ActiveShardCount.DEFAULT)
+            .withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
+        }
+        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
+        }
+        if (deleteByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

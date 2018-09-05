@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.morelikethis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,14 +34,10 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -65,11 +60,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
 
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
@@ -426,39 +416,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, ids("1")).include(true).minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
         assertHitCount(mltResponse, 3L);
-    }
-
-    public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
-        logger.info("Creating index test");
-        int numOfTypes = randomIntBetween(2, 10);
-        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id));
-        for (int i = 0; i < numOfTypes; i++) {
-            createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
-                    .startObject("text").field("type", "text").endObject()
-                    .endObject().endObject().endObject());
-        }
-        assertAcked(createRequestBuilder);
-
-        logger.info("Running Cluster Health");
-        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
-
-        logger.info("Indexing...");
-        List<IndexRequestBuilder> builders = new ArrayList<>(numOfTypes);
-        for (int i = 0; i < numOfTypes; i++) {
-            builders.add(client().prepareIndex("test", "type" + i).setSource("text", "lucene" + " " + i).setId(String.valueOf(i)));
-        }
-        indexRandom(true, builders);
-
-        logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item("test", "type0", "0")}).include(true).minTermFreq(1).minDocFreq(1);
-
-        String[] types = new String[numOfTypes];
-        for (int i = 0; i < numOfTypes; i++) {
-            types[i] = "type"+i;
-        }
-        SearchResponse mltResponse = client().prepareSearch().setTypes(types).setQuery(queryBuilder).execute().actionGet();
-        assertHitCount(mltResponse, numOfTypes);
     }
 
     public void testMoreLikeThisMultiValueFields() throws Exception {

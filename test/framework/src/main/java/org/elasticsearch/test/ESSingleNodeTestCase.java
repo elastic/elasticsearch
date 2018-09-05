@@ -202,7 +202,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins = new ArrayList<>(plugins);
             plugins.add(TestZenDiscovery.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins);
+        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             build.start();
         } catch (NodeValidationException e) {
@@ -332,4 +332,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return true;
+    }
+
 }

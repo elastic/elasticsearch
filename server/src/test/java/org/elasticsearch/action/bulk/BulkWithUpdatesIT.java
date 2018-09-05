@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -42,11 +41,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,7 +63,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
+        return Collections.singletonList(CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -454,76 +450,6 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
-    }
-
-
-
-    /*
-     * Test for https://github.com/elastic/elasticsearch/issues/8365
-     */
-    public void testBulkUpdateChildMissingParentRouting() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allows for multiple types
-                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        byte[] addParent = (
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").getBytes(StandardCharsets.UTF_8);
-
-        byte[] addChildOK = (
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").getBytes(StandardCharsets.UTF_8);
-
-        byte[] addChildMissingRouting = (
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").getBytes(StandardCharsets.UTF_8);
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChildOK, 0, addChildOK.length, XContentType.JSON);
-        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, XContentType.JSON);
-        builder.add(addChildOK, 0, addChildOK.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(4));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
     }
 
     public void testFailingVersionedUpdatedOnBulk() throws Exception {

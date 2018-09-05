@@ -41,12 +41,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,7 +75,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleQueryStringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockAnalysisPlugin.class, InternalSettingsPlugin.class); // uses index.version.created
+        return Collections.singletonList(MockAnalysisPlugin.class);
     }
 
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
@@ -539,28 +538,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    public void testExplicitAllFieldsRequested() throws Exception {
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        prepareCreate("test")
-                .setSource(indexBody, XContentType.JSON)
-                // .setSettings(Settings.builder().put("index.version.created", Version.V_5_0_0.id)).get();
-                .get();
-        ensureGreen("test");
-
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test", "doc", "1").setSource("f1", "foo", "f2", "eggplant"));
-        indexRandom(true, false, reqs);
-
-        SearchResponse resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
-        assertHitCount(resp, 0L);
-
-        resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-    }
-
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
@@ -634,7 +611,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
-    private void assertHits(SearchHits hits, String... ids) {
+    static void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {

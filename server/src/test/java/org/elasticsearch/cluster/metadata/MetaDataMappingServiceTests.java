@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -29,25 +28,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
 
     // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
     public void testAddChildTypePointingToAlreadyExistingType() throws Exception {
@@ -62,27 +51,6 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
                 .get());
         assertThat(e.getMessage(),
                 equalTo("can't add a _parent field that points to an already existing type, that isn't already a parent"));
-    }
-
-    // Tests _parent meta field logic, because part of the validation is in MetaDataMappingService
-    public void testAddExtraChildTypePointingToAlreadyParentExistingType() throws Exception {
-        IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("parent")
-                .addMapping("child1", "_parent", "type=parent")
-        );
-
-        // adding the extra child type that points to an already existing parent type is allowed:
-        client().admin()
-                .indices()
-                .preparePutMapping("test")
-                .setType("child2")
-                .setSource("_parent", "type=parent")
-                .get();
-
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper("child2");
-        assertThat(documentMapper.parentFieldMapper().type(), equalTo("parent"));
-        assertThat(documentMapper.parentFieldMapper().active(), is(true));
     }
 
     public void testParentIsAString() throws Exception {

@@ -176,7 +176,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
-        assertOK(client().performRequest(RequestConverters.clusterPutSettings(request)));
+        assertTrue(execute(
+            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
     }
 
     @Override

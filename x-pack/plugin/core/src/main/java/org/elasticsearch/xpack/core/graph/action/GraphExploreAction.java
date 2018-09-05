@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.graph.action;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 
 public class GraphExploreAction extends Action<GraphExploreResponse> {
 

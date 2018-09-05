@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,17 +57,13 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
-        if (in.getVersion().after(Version.V_5_5_0)) {
-            lastFinalizedBucketEnd = new Date(in.readVLong());
-        }
+        lastFinalizedBucketEnd = new Date(in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getVersion().after(Version.V_5_5_0)) {
-            out.writeVLong(lastFinalizedBucketEnd.getTime());
-        }
+        out.writeVLong(lastFinalizedBucketEnd.getTime());
     }
 
     public String getId() {

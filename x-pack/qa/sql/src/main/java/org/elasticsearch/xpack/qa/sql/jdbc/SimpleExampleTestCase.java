@@ -25,7 +25,8 @@ public class SimpleExampleTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Don Quixote", results.getString(1));
                 assertEquals(1072, results.getInt(2));
                 SQLException e = expectThrows(SQLException.class, () -> results.getInt(1));
-                assertTrue(e.getMessage(), e.getMessage().contains("unable to convert column 1 to an int"));
+                assertTrue(e.getMessage(), 
+                        e.getMessage().contains("Unable to convert value [Don Quixote] of type [VARCHAR] to an Integer"));
                 assertFalse(results.next());
             }
             // end::simple_example

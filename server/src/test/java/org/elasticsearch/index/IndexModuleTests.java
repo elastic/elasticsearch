@@ -87,6 +87,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexModuleTests extends ESTestCase {
@@ -374,6 +376,21 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
         indexService.close("simon says", false);
+    }
+
+    public void testMmapfsStoreTypeNotAllowed() {
+        final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put("index.store.type", "mmapfs")
+                .build();
+        final Settings nodeSettings = Settings.builder()
+                .put(IndexModule.NODE_STORE_ALLOW_MMAPFS.getKey(), false)
+                .build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
+        final IndexModule module =
+                new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
+        assertThat(e, hasToString(containsString("store type [mmapfs] is not allowed")));
     }
 
     class CustomQueryCache implements QueryCache {

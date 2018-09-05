@@ -111,13 +111,11 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1156,37 +1154,6 @@ final class RequestConverters {
         String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(putWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request).withVersion(putWatchRequest.getVersion());
-        if (putWatchRequest.isActive() == false) {
-            params.putParam("active", "false");
-        }
-        ContentType contentType = createContentType(putWatchRequest.xContentType());
-        BytesReference source = putWatchRequest.getSource();
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
-        return request;
-    }
-
-    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(deleteWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 

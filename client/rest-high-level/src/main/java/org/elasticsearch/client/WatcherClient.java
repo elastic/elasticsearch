@@ -47,7 +47,7 @@ public final class WatcherClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutWatchResponse putWatch(PutWatchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xPackWatcherPutWatch, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::putWatch, options,
             PutWatchResponse::fromXContent, emptySet());
     }
 
@@ -61,7 +61,7 @@ public final class WatcherClient {
      */
     public void putWatchAsync(PutWatchRequest request, RequestOptions options,
                               ActionListener<PutWatchResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackWatcherPutWatch, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::putWatch, options,
             PutWatchResponse::fromXContent, listener, emptySet());
     }
 
@@ -75,7 +75,7 @@ public final class WatcherClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteWatchResponse deleteWatch(DeleteWatchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xPackWatcherDeleteWatch, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::deleteWatch, options,
             DeleteWatchResponse::fromXContent, singleton(404));
     }
 
@@ -88,7 +88,7 @@ public final class WatcherClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteWatchAsync(DeleteWatchRequest request, RequestOptions options, ActionListener<DeleteWatchResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackWatcherDeleteWatch, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::deleteWatch, options,
             DeleteWatchResponse::fromXContent, listener, singleton(404));
     }
 }

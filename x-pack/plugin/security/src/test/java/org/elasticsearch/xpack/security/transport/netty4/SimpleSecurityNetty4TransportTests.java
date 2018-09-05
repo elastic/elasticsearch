@@ -251,7 +251,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     public void testTransportProfilesWithPortAndHost() {
     }
 
-    public void testSNIServerNameIsPropogated() throws Exception {
+    public void testSNIServerNameIsPropagated() throws Exception {
         SSLService sslService = createSSLService();
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
         boolean success = false;
@@ -259,7 +259,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
             serverBootstrap.group(new NioEventLoopGroup(1));
             serverBootstrap.channel(NioServerSocketChannel.class);
 
-            final String sniIp = "1.2.3.4";
+            final String sniIp = "sni-hostname";
             final SNIHostName sniHostName = new SNIHostName(sniIp);
             final CountDownLatch latch = new CountDownLatch(2);
             serverBootstrap.childHandler(new ChannelInitializer<Channel>() {
@@ -316,6 +316,61 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
                 }).start();
 
                 latch.await();
+                serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
+                success = true;
+            }
+        } finally {
+            if (success == false) {
+                serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    public void testInvalidSNIServerName() throws Exception {
+        SSLService sslService = createSSLService();
+        final ServerBootstrap serverBootstrap = new ServerBootstrap();
+        boolean success = false;
+        try {
+            serverBootstrap.group(new NioEventLoopGroup(1));
+            serverBootstrap.channel(NioServerSocketChannel.class);
+
+            final String sniIp = "invalid_hostname";
+            serverBootstrap.childHandler(new ChannelInitializer<Channel>() {
+
+                @Override
+                protected void initChannel(Channel ch) {
+                    SSLEngine serverEngine = sslService.createSSLEngine(sslService.getSSLConfiguration(setting("transport.ssl.")),
+                        null, -1);
+                    serverEngine.setUseClientMode(false);
+                    final SslHandler sslHandler = new SslHandler(serverEngine);
+                    ch.pipeline().addFirst("sslhandler", sslHandler);
+                }
+            });
+            serverBootstrap.validate();
+            ChannelFuture serverFuture = serverBootstrap.bind(getLocalEphemeral());
+            serverFuture.await();
+            InetSocketAddress serverAddress = (InetSocketAddress) serverFuture.channel().localAddress();
+
+            try (MockTransportService serviceC = build(
+                Settings.builder()
+                    .put("name", "TS_TEST")
+                    .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                    .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                    .build(),
+                version0,
+                null, true)) {
+                serviceC.acceptIncomingRequests();
+
+                HashMap<String, String> attributes = new HashMap<>();
+                attributes.put("server_name", sniIp);
+                DiscoveryNode node = new DiscoveryNode("server_node_id", new TransportAddress(serverAddress), attributes,
+                    EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+
+                ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
+                    () -> serviceC.connectToNode(node, SINGLE_CHANNEL_PROFILE));
+
+                assertThat(connectException.getMessage(), containsString("Invalid DiscoveryNode server_name: [invalid_hostname]"));
+
                 serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
                 success = true;
             }

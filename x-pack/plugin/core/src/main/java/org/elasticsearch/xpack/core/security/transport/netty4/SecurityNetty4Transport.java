@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -34,10 +35,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -173,26 +172,28 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
 
         private final boolean hostnameVerificationEnabled;
-        private final DiscoveryNode node;
+        private final SNIHostName serverName;
 
         SecurityClientChannelInitializer(DiscoveryNode node) {
-            this.node = node;
             this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            String configuredServerName = node.getAttributes().get("server_name");
+            if (configuredServerName != null) {
+                try {
+                    serverName = new SNIHostName(configuredServerName);
+                } catch (IllegalArgumentException e) {
+                    throw new ConnectTransportException(node, "Invalid DiscoveryNode server_name: [" + configuredServerName + "]", e);
+                }
+            } else {
+                serverName = null;
+            }
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                List<SNIServerName> sniServerNames = new ArrayList<>(1);
-                String configuredServerName = node.getAttributes().get("server_name");
-                if (configuredServerName != null) {
-                    sniServerNames.add(new SNIHostName(configuredServerName));
-                } else {
-                    sniServerNames.add(new SNIHostName(node.getHostName()));
-                }
                 ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
-                    sniServerNames));
+                    serverName));
             }
         }
     }
@@ -202,14 +203,14 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
         private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
-        private final List<SNIServerName> serverNames;
+        private final SNIServerName serverName;
 
         private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled,
-                                            List<SNIServerName> serverNames) {
+                                            SNIServerName serverName) {
             this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
-            this.serverNames = serverNames;
+            this.serverName = serverName;
         }
 
         @Override
@@ -226,9 +227,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
 
             sslEngine.setUseClientMode(true);
-            SSLParameters sslParameters = sslEngine.getSSLParameters();
-            sslParameters.setServerNames(serverNames);
-            sslEngine.setSSLParameters(sslParameters);
+            if (serverName != null) {
+                SSLParameters sslParameters = sslEngine.getSSLParameters();
+                sslParameters.setServerNames(Collections.singletonList(serverName));
+                sslEngine.setSSLParameters(sslParameters);
+            }
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }

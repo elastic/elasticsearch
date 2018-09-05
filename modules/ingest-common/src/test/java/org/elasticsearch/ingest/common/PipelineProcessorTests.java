@@ -113,4 +113,20 @@ public class PipelineProcessorTests extends ESTestCase {
             "Recursive invocation of pipeline [inner] detected.", e.getRootCause().getMessage()
         );
     }
+
+    public void testAllowsRepeatedPipelineInvocations() throws Exception {
+        String innerPipelineId = "inner";
+        IngestService ingestService = mock(IngestService.class);
+        IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        Map<String, Object> outerConfig = new HashMap<>();
+        outerConfig.put("pipeline", innerPipelineId);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+        Pipeline inner = new Pipeline(
+            innerPipelineId, null, null, new CompoundProcessor()
+        );
+        when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
+        Processor outerProc = factory.create(Collections.emptyMap(), null, outerConfig);
+        outerProc.execute(testIngestDocument);
+        outerProc.execute(testIngestDocument);
+    }
 }

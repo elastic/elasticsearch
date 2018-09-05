@@ -2148,7 +2148,7 @@ from the outer pipeline:
 
 [source,js]
 --------------------------------------------------
-POST /myindex/1?pipeline=outer-pipeline
+PUT /myindex/_doc/1?pipeline=outer-pipeline
 {
   "field": "value"
 }

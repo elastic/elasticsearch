@@ -48,6 +48,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-put-user-response
             boolean isCreated = response.isCreated(); // <1>
             //end::x-pack-put-user-response
+
+            assertTrue(isCreated);
         }
 
         {

@@ -35,12 +35,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
@@ -64,7 +64,7 @@ import static org.mockito.Mockito.when;
 public class IndexerUtilsTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        IndexerJobStats stats = new IndexerJobStats(0, 0, 0, 0);
+        RollupJobStats stats = new RollupJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -126,7 +126,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        IndexerJobStats stats= new IndexerJobStats(0, 0, 0, 0);
+        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -193,7 +193,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        IndexerJobStats stats= new IndexerJobStats(0, 0, 0, 0);
+        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -249,7 +249,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        IndexerJobStats stats= new IndexerJobStats(0, 0, 0, 0);
+        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
 
         String timestampField = "ts";
         String valueField = "the_avg";
@@ -355,7 +355,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         // The content of the config don't actually matter for this test
         // because the test is just looking at agg keys
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(123L, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new IndexerJobStats(), groupConfig, "foo", false);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig, "foo", false);
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("1237859798"));
     }
@@ -399,7 +399,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1L, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new IndexerJobStats(), groupConfig, "foo", true);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig, "foo", true);
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("foo$c9LcrFqeFW92uN_Z7sv1hA"));
     }
@@ -449,7 +449,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new IndexerJobStats(), groupConfig, "foo", true);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig, "foo", true);
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("foo$VAFKZpyaEqYRPLyic57_qw"));
     }
@@ -476,14 +476,14 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         });
 
         GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), randomHistogramGroupConfig(random()), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new IndexerJobStats(), groupConfig, "foo", randomBoolean());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig, "foo", randomBoolean());
         assertThat(docs.size(), equalTo(1));
         assertFalse(Strings.isNullOrEmpty(docs.get(0).id()));
     }
 
     public void testMissingBuckets() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        IndexerJobStats stats= new IndexerJobStats(0, 0, 0, 0);
+        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
 
         String metricField = "metric_field";
         String valueField = "value_field";

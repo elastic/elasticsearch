@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.util.HashMap;
 import java.util.Map;

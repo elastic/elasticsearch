@@ -99,7 +99,7 @@ Which will yield the following response:
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
-            "documents_indexed" : 0,
+            "rollups_indexed" : 0,
             "trigger_count" : 0
           }
         }
@@ -219,7 +219,7 @@ Which will yield the following response:
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
-            "documents_indexed" : 0,
+            "rollups_indexed" : 0,
             "trigger_count" : 0
           }
         },
@@ -268,7 +268,7 @@ Which will yield the following response:
           "stats" : {
             "pages_processed" : 0,
             "documents_processed" : 0,
-            "documents_indexed" : 0,
+            "rollups_indexed" : 0,
             "trigger_count" : 0
           }
         }

@@ -43,7 +43,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
 
-        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null);
+        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null, null);
 
         assertThat(prefaces, containsInAnyOrder("[", "[", "junk [", "["));
         assertThat(epilogues, containsInAnyOrder("] DEBUG ", "] ERROR ", "] INFO ", "] DEBUG "));
@@ -60,7 +60,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
 
-        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null);
+        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null, null);
 
         assertThat(prefaces, containsInAnyOrder("before ", "abc ", ""));
         assertThat(epilogues, containsInAnyOrder(" after", " xyz", ""));
@@ -73,7 +73,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "junk [2018-01-22T07:33:23] INFO ",
             "[2018-01-21T03:33:23] DEBUG ");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\] %{LOGLEVEL:loglevel} ",
@@ -87,7 +87,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             " (4)",
             " (-5) ");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?\\(%{INT:field}\\).*?", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -99,7 +99,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "prior to-3",
             "-4");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         // It seems sensible that we don't detect these suffices as either base 10 or base 16 numbers
@@ -113,7 +113,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             " -123",
             "1f is hex");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?%{BASE16NUM:field}.*?", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -124,7 +124,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
         Collection<String> snippets = Arrays.asList("<host1.1.p2ps:",
             "<host2.1.p2ps:");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         // We don't want the .1. in the middle to get detected as a hex number
@@ -137,7 +137,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "abc bob@acme.com xyz",
             "carol@acme.com");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?%{EMAILADDRESS:email}.*?", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -149,7 +149,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "https://www.elastic.co/guide/en/x-pack/current/ml-configuring-categories.html#ml-configuring-categories is a section",
             "download today from https://www.elastic.co/downloads");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?%{URI:uri}.*?", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -161,7 +161,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "on Windows C:\\Users\\dave",
             "on Linux /home/dave");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*? .*? %{PATH:path}", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -174,7 +174,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "foo=3 bar=c",
             " foo=1 bar=a ");
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         grokPatternCreator.appendBestGrokMatchForStrings(false, snippets, false, 0);
 
         assertEquals(".*?\\bfoo=%{USER:foo} .*?\\bbar=%{USER:bar}.*?", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -189,7 +189,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
             "Sep  8 11:55:42 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'b.akamaiedge.net/A/IN': 95.110.64.205#53");
 
         Map<String, Object> mappings = new HashMap<>();
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
         assertEquals("%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
@@ -215,7 +215,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
                 "Invalid chunk ignored.");
 
         Map<String, Object> mappings = new HashMap<>();
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
         assertEquals("%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
             grokPatternCreator.createGrokPatternFromExamples("CATALINA_DATESTAMP", "timestamp"));
@@ -237,7 +237,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
                 "Info\tsshd\tsubsystem request for sftp");
 
         Map<String, Object> mappings = new HashMap<>();
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
@@ -271,7 +271,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"");
 
         Map<String, Object> mappings = new HashMap<>();
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
         assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"), grokPatternCreator.findFullLineGrokPattern());
         assertEquals(10, mappings.size());
@@ -300,7 +300,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
                 ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\""
         );
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         Collection<String> adjustedSnippets = grokPatternCreator.adjustForPunctuation(snippets);
 
         assertEquals("\",", grokPatternCreator.getOverallGrokPatternBuilder().toString());
@@ -317,7 +317,7 @@ public class GrokPatternCreatorTests extends LogStructureTestCase {
                 "was added by 'User1'(id:2) to servergroup 'GAME'(id:9)"
         );
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, snippets, null, null);
         Collection<String> adjustedSnippets = grokPatternCreator.adjustForPunctuation(snippets);
 
         assertEquals("", grokPatternCreator.getOverallGrokPatternBuilder().toString());

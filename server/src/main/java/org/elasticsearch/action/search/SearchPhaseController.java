@@ -103,11 +103,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 TermStatistics existing = termStatistics.get(terms[i]);
                 if (existing != null) {
                     assert terms[i].bytes().equals(existing.term());
-                    // totalTermFrequency is an optional statistic we need to check if either one or both
-                    // are set to -1 which means not present and then set it globally to -1
                     termStatistics.put(terms[i], new TermStatistics(existing.term(),
                         existing.docFreq() + stats[i].docFreq(),
-                        optionalSum(existing.totalTermFreq(), stats[i].totalTermFreq())));
+                        existing.totalTermFreq() + stats[i].totalTermFreq()));
                 } else {
                     termStatistics.put(terms[i], stats[i]);
                 }
@@ -127,11 +125,11 @@ public final class SearchPhaseController extends AbstractComponent {
                     assert key != null;
                     CollectionStatistics existing = fieldStatistics.get(key);
                     if (existing != null) {
-                        CollectionStatistics merged = new CollectionStatistics(
-                                key, existing.maxDoc() + value.maxDoc(),
-                                optionalSum(existing.docCount(), value.docCount()),
-                                optionalSum(existing.sumTotalTermFreq(), value.sumTotalTermFreq()),
-                                optionalSum(existing.sumDocFreq(), value.sumDocFreq())
+                        CollectionStatistics merged = new CollectionStatistics(key,
+                            existing.maxDoc() + value.maxDoc(),
+                            existing.docCount() + value.docCount(),
+                            existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
+                            existing.sumDocFreq() + value.sumDocFreq()
                         );
                         fieldStatistics.put(key, merged);
                     } else {
@@ -142,10 +140,6 @@ public final class SearchPhaseController extends AbstractComponent {
             aggMaxDoc += lEntry.maxDoc();
         }
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
-    }
-
-    private static long optionalSum(long left, long right) {
-        return Math.min(left, right) == -1 ? -1 : left + right;
     }
 
     /**
@@ -165,7 +159,7 @@ public final class SearchPhaseController extends AbstractComponent {
      * @param size the number of hits to return from the merged top docs
      */
     public SortedTopDocs sortDocs(boolean ignoreFrom, Collection<? extends SearchPhaseResult> results,
-                               final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
+                                  final Collection<TopDocs> bufferedTopDocs, final TopDocsStats topDocsStats, int from, int size) {
         if (results.isEmpty()) {
             return SortedTopDocs.EMPTY;
         }

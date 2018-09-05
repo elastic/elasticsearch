@@ -32,6 +32,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -39,12 +40,15 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -218,6 +222,30 @@ public class MLRequestConvertersTests extends ESTestCase {
             GetRecordsRequest parsedRequest = GetRecordsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getRecordsRequest));
         }
+    }
+
+    public void testPostData() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, XContentType.JSON);
+        Map<String, Object> obj = new HashMap<>();
+        obj.put("foo", "bar");
+        postDataRequest.addDoc(obj);
+        Request request = MLRequestConverters.postData(postDataRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_data", request.getEndpoint());
+        assertEquals("{\"foo\":\"bar\"}", requestEntityToString(request));
+        assertEquals(postDataRequest.getXContentType().mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_END.getPreferredName()));
+        assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_START.getPreferredName()));
+
+        PostDataRequest postDataRequest2 = new PostDataRequest(jobId, XContentType.SMILE);
+        postDataRequest2.addDoc(obj);
+        postDataRequest2.setResetStart("2018-08-08T00:00:00Z");
+        postDataRequest2.setResetEnd("2018-09-08T00:00:00Z");
+        request = MLRequestConverters.postData(postDataRequest2);
+        assertEquals(postDataRequest2.getXContentType().mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals("2018-09-08T00:00:00Z",request.getParameters().get(PostDataRequest.RESET_END.getPreferredName()));
+        assertEquals("2018-08-08T00:00:00Z",request.getParameters().get(PostDataRequest.RESET_START.getPreferredName()));
     }
 
     private static Job createValidJob(String jobId) {

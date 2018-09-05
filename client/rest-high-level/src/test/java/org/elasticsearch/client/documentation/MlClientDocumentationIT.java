@@ -47,17 +47,21 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
@@ -65,7 +69,9 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -777,6 +783,77 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-get-records-execute-async
             client.machineLearning().getRecordsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-get-records-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
+    public void testPostData() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("test-post-data");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-post-data-request
+            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", XContentType.JSON); //<1>
+            //end::x-pack-ml-post-data-request
+
+            Map<String, Object> mapData = new HashMap<>();
+            mapData.put("total", 109);
+            postDataRequest.addDoc(mapData);
+            BytesReference bytesReference = postDataRequest.getContent();
+
+            //tag::x-pack-ml-post-data-request-options
+            postDataRequest.setResetStart("2018-08-31T16:35:07+00:00"); //<1>
+            postDataRequest.setResetEnd("2018-08-31T16:35:17+00:00"); //<2>
+            Map<String, Object> data = new HashMap<>();
+            data.put("total", 109);
+            postDataRequest.addDoc(data); //<3>
+            postDataRequest.addDoc(bytesReference); //<4>
+            postDataRequest.setContent(bytesReference); //<5>
+            //end::x-pack-ml-post-data-request-options
+            postDataRequest.setResetEnd(null);
+            postDataRequest.setResetStart(null);
+
+            //tag::x-pack-ml-post-data-execute
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+            //end::x-pack-ml-post-data-execute
+
+            //tag::x-pack-ml-post-data-response
+            DataCounts dataCounts = postDataResponse.getDataCounts(); //<1>
+            //end::x-pack-ml-post-data-response
+            assertEquals(1, dataCounts.getInputRecordCount());
+
+        }
+        {
+            //tag::x-pack-ml-post-data-listener
+            ActionListener<PostDataResponse> listener = new ActionListener<PostDataResponse>() {
+                @Override
+                public void onResponse(PostDataResponse postDataResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-post-data-listener
+            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", XContentType.JSON); //<1>
+
+            Map<String, Object> mapData = new HashMap<>();
+            mapData.put("total", 100);
+            postDataRequest.addDoc(mapData);
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-post-data-execute-async
+            client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-post-data-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

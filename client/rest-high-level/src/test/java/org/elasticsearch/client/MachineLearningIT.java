@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
@@ -39,13 +41,15 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -216,6 +220,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(erroredRequest, machineLearningClient::getJobStats, machineLearningClient::getJobStatsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testPostData() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, XContentType.JSON);
+        for(int i = 0; i < 10; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            postDataRequest.addDoc(hashMap);
+        }
+
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        assertEquals(10, response.getDataCounts().getInputRecordCount());
     }
 
     public static String randomValidJobId() {

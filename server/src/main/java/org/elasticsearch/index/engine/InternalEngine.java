@@ -2011,14 +2011,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) {
-        ensureOpen();
-        Releasable releasable = null;
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
         try {
-            /* Acquire order here is store -> manager since we need
-             * to make sure that the store is not closed before
-             * the searcher is acquired. */
-            store.incRef();
-            releasable = store::decRef;
             final ReferenceManager<IndexSearcher> referenceManager;
             switch (scope) {
                 case INTERNAL:

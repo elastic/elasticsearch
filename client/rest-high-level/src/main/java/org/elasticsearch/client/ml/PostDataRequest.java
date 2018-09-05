@@ -191,7 +191,6 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
 
     @Override
     public boolean equals(Object obj) {
-
         if(obj == this) {
             return true;
         }

@@ -231,7 +231,9 @@ public class MLRequestConvertersTests extends ESTestCase {
         Map<String, Object> obj = new HashMap<>();
         obj.put("foo", "bar");
         postDataRequest.addDoc(obj);
+
         Request request = MLRequestConverters.postData(postDataRequest);
+
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_data", request.getEndpoint());
         assertEquals("{\"foo\":\"bar\"}", requestEntityToString(request));
@@ -243,7 +245,9 @@ public class MLRequestConvertersTests extends ESTestCase {
         postDataRequest2.addDoc(obj);
         postDataRequest2.setResetStart("2018-08-08T00:00:00Z");
         postDataRequest2.setResetEnd("2018-09-08T00:00:00Z");
+
         request = MLRequestConverters.postData(postDataRequest2);
+
         assertEquals(postDataRequest2.getXContentType().mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         assertEquals("2018-09-08T00:00:00Z", request.getParameters().get(PostDataRequest.RESET_END.getPreferredName()));
         assertEquals("2018-08-08T00:00:00Z", request.getParameters().get(PostDataRequest.RESET_START.getPreferredName()));

@@ -123,8 +123,15 @@ public class DelimitedLogStructureFinder implements LogStructureFinder {
                 .setMultilineStartPattern(timeLineRegex);
         }
 
-        SortedMap<String, Object> mappings = LogStructureUtils.guessMappings(explanation, sampleRecords);
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
+            LogStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+
+        SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         mappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
+
+        if (mappingsAndFieldStats.v2() != null) {
+            structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
+        }
 
         LogStructure structure = structureBuilder
             .setMappings(mappings)

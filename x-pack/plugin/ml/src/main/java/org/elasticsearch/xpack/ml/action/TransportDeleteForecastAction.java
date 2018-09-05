@@ -196,15 +196,12 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
-        SearchRequest searchRequest = new SearchRequest();
-        // We need to create the DeleteByQueryRequest before we modify the SearchRequest
-        // because the constructor of the former wipes the latter
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest)
+        DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
             .setSize(MAX_FORECAST_TO_SEARCH)
             .setSlices(5);
 
-        searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
+        request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery();
         innerBoolQuery
             .must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
@@ -213,7 +210,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 forecastsToDelete));
 
         QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
-        searchRequest.source(new SearchSourceBuilder().query(query));
+        request.setQuery(query);
         return request;
     }
 }

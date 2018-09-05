@@ -1,0 +1,40 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+}
+
+task leaderClusterTest(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+}
+
+leaderClusterTestCluster {
+    numNodes = 1
+    clusterName = 'leader-cluster'
+}
+
+leaderClusterTestRunner {
+    systemProperty 'tests.is_leader_cluster', 'true'
+}
+
+task followClusterTest(type: RestIntegTestTask) {}
+
+followClusterTestCluster {
+    dependsOn leaderClusterTestRunner
+    numNodes = 1
+    clusterName = 'follow-cluster'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'search.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
+}
+
+followClusterTestRunner {
+    systemProperty 'tests.is_leader_cluster', 'false'
+    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    finalizedBy 'leaderClusterTestCluster#stop'
+}
+
+check.dependsOn followClusterTest
+test.enabled = false

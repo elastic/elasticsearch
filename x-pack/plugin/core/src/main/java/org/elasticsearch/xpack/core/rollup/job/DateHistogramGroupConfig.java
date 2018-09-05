@@ -20,16 +20,11 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -180,19 +175,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      */
     public Rounding createRounding() {
         return createRounding(interval.toString(), timeZone);
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of date histograms.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<CompositeValuesSourceBuilder<?>> toBuilders() {
-        DateHistogramValuesSourceBuilder vsBuilder =
-                new DateHistogramValuesSourceBuilder(RollupField.formatIndexerAggName(field, DateHistogramAggregationBuilder.NAME));
-        vsBuilder.dateHistogramInterval(interval);
-        vsBuilder.field(field);
-        vsBuilder.timeZone(toDateTimeZone(timeZone));
-        return Collections.singletonList(vsBuilder);
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

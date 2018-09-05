@@ -17,8 +17,6 @@ package org.elasticsearch.client.documentation;/*
  * under the License.
  */
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -27,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -193,11 +191,9 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         final String script = Strings.toString(scriptSource.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
         // TODO: change to HighLevel PutStoredScriptRequest when it will be ready
         // so far - using low-level REST API
-        Response putResponse =
-            adminClient()
-                .performRequest("PUT", "/_scripts/" + id, emptyMap(),
-                    new StringEntity("{\"script\":" + script + "}",
-                        ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/_scripts/" + id);
+        request.setJsonEntity("{\"script\":" + script + "}");
+        Response putResponse = adminClient().performRequest(request);
         assertEquals(putResponse.getStatusLine().getReasonPhrase(), 200, putResponse.getStatusLine().getStatusCode());
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
     }

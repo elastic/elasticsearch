@@ -107,12 +107,13 @@ public final class JsonProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) throws Exception {
+    public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
            apply(document.getSourceAndMetadata(), field);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
         }
+        return document;
     }
 
     @Override

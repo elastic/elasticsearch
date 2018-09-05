@@ -20,8 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -338,12 +336,4 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 "can have at most one type.", e.getMessage());
     }
 
-    public void testDefaultMappingIsDeprecatedOn6() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
-                "cannot have more than one type");
-    }
 }

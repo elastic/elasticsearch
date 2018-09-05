@@ -153,12 +153,4 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         }
     }
 
-    private String getLocalTestRepoPath() {
-        String property = System.getProperty("test.local-test-repo-path");
-        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
-        File file = new File(property);
-        assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
-        return file.getAbsolutePath();
-    }
-
 }

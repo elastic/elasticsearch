@@ -95,7 +95,14 @@ public class XmlLogStructureFinder implements LogStructureFinder {
                 .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
         }
 
-        SortedMap<String, Object> innerMappings = LogStructureUtils.guessMappings(explanation, sampleRecords);
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
+            LogStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+
+        if (mappingsAndFieldStats.v2() != null) {
+            structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
+        }
+
+        SortedMap<String, Object> innerMappings = mappingsAndFieldStats.v1();
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
         secondLevelProperties.put(LogStructureUtils.MAPPING_TYPE_SETTING, "object");
         secondLevelProperties.put(LogStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);

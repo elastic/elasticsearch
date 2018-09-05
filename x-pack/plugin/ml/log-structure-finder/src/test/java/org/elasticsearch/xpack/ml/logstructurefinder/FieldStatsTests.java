@@ -21,8 +21,8 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
 
     static FieldStats createTestFieldStats() {
 
-        int count = randomIntBetween(1, 100000);
-        int cardinality = randomIntBetween(1, count);
+        long count = randomIntBetween(1, 100000);
+        int cardinality = randomIntBetween(1, (int) count);
 
         Double minValue = null;
         Double maxValue = null;

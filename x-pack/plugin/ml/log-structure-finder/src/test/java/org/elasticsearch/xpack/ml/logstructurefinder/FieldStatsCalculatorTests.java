@@ -109,7 +109,7 @@ public class FieldStatsCalculatorTests extends LogStructureTestCase {
 
         FieldStats stats = calculator.calculate(3);
 
-        assertEquals(0, stats.getCount());
+        assertEquals(0L, stats.getCount());
         assertEquals(0, stats.getCardinality());
         assertNull(stats.getMinValue());
         assertNull(stats.getMaxValue());
@@ -126,7 +126,7 @@ public class FieldStatsCalculatorTests extends LogStructureTestCase {
 
         FieldStats stats = calculator.calculate(3);
 
-        assertEquals(11, stats.getCount());
+        assertEquals(11L, stats.getCount());
         assertEquals(5, stats.getCardinality());
         assertEquals(4.0, stats.getMinValue(), 1e-10);
         assertEquals(16.0, stats.getMaxValue(), 1e-10);
@@ -152,7 +152,7 @@ public class FieldStatsCalculatorTests extends LogStructureTestCase {
 
         FieldStats stats = calculator.calculate(3);
 
-        assertEquals(11, stats.getCount());
+        assertEquals(11L, stats.getCount());
         assertEquals(5, stats.getCardinality());
         assertNull(stats.getMinValue());
         assertNull(stats.getMaxValue());
@@ -178,7 +178,7 @@ public class FieldStatsCalculatorTests extends LogStructureTestCase {
 
         FieldStats stats = calculator.calculate(3);
 
-        assertEquals(11, stats.getCount());
+        assertEquals(11L, stats.getCount());
         assertEquals(5, stats.getCardinality());
         assertNull(stats.getMinValue());
         assertNull(stats.getMaxValue());

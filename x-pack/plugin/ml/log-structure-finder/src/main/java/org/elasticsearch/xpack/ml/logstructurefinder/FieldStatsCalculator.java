@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  */
 public class FieldStatsCalculator {
 
-    private int count;
+    private long count;
     private SortedMap<String, Integer> countsByStringValue = new TreeMap<>();
     private SortedMap<Double, Integer> countsByNumericValue = new TreeMap<>();
 
@@ -102,8 +102,8 @@ public class FieldStatsCalculator {
         if (count % 2 == 1) {
 
             // Simple case - median is middle value
-            int targetCount = count / 2 + 1;
-            int currentUpperBound = 0;
+            long targetCount = count / 2 + 1;
+            long currentUpperBound = 0;
 
             for (Map.Entry<Double, Integer> entry : countsByNumericValue.entrySet()) {
 
@@ -117,11 +117,11 @@ public class FieldStatsCalculator {
         } else {
 
             // More complicated case - median is average of two middle values
-            int target1Count = count / 2;
-            int target2Count = target1Count + 1;
+            long target1Count = count / 2;
+            long target2Count = target1Count + 1;
             double target1Value = Double.NaN;
-            int prevUpperBound = -1;
-            int currentUpperBound = 0;
+            long prevUpperBound = -1;
+            long currentUpperBound = 0;
 
             for (Map.Entry<Double, Integer> entry : countsByNumericValue.entrySet()) {
 
@@ -171,7 +171,7 @@ public class FieldStatsCalculator {
 
         for (Map.Entry<T, Integer> entry : sortedByCount) {
 
-            Map<String, Object> topHit = new LinkedHashMap<>();
+            Map<String, Object> topHit = new LinkedHashMap<>(3);
             topHit.put("value", entry.getKey());
             topHit.put("count", entry.getValue());
             topHits.add(topHit);

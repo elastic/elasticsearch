@@ -28,11 +28,11 @@ public class FieldStats implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FieldStats, Void> PARSER = new ConstructingObjectParser<>("field_stats", false,
-        a -> new FieldStats((int) a[0], (int) a[1], (Double) a[2], (Double) a[3], (Double) a[4], (Double) a[5],
+        a -> new FieldStats((long) a[0], (int) a[1], (Double) a[2], (Double) a[3], (Double) a[4], (Double) a[5],
             (List<Map<String, Object>>) a[6]));
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), COUNT);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), COUNT);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), CARDINALITY);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MIN_VALUE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MAX_VALUE);
@@ -41,7 +41,7 @@ public class FieldStats implements ToXContentObject {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), TOP_HITS);
     }
 
-    private final int count;
+    private final long count;
     private final int cardinality;
     private final Double minValue;
     private final Double maxValue;
@@ -49,11 +49,11 @@ public class FieldStats implements ToXContentObject {
     private final Double medianValue;
     private final List<Map<String, Object>> topHits;
 
-    FieldStats(int count, int cardinality, List<Map<String, Object>> topHits) {
+    FieldStats(long count, int cardinality, List<Map<String, Object>> topHits) {
         this(count, cardinality, null, null, null, null, topHits);
     }
 
-    FieldStats(int count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
+    FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
                List<Map<String, Object>> topHits) {
         this.count = count;
         this.cardinality = cardinality;
@@ -64,7 +64,7 @@ public class FieldStats implements ToXContentObject {
         this.topHits = (topHits == null) ? Collections.emptyList() : Collections.unmodifiableList(topHits);
     }
 
-    public int getCount() {
+    public long getCount() {
         return count;
     }
 

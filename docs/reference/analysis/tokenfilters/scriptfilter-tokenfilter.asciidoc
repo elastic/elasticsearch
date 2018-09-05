@@ -31,7 +31,7 @@ PUT /condition_example
                 "my_script_filter" : {
                     "type" : "script_filter",
                     "script" : {
-                        "source" : "token.getTerm().length() < 5"  <1>
+                        "source" : "token.getTerm().length() > 5"  <1>
                     }
                 }
             }

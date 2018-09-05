@@ -735,11 +735,18 @@ public class SettingTests extends ESTestCase {
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [NotCopyableOnResize]")));
     }
 
-    public void testRejectNonIndexScopedIndexInternalSetting() {
+    public void testRejectNonIndexScopedInternalIndexSetting() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> Setting.simpleString("foo.bar", Property.InternalIndex));
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [InternalIndex]")));
+    }
+
+    public void testRejectNonIndexScopedPrivateIndexSetting() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Setting.simpleString("foo.bar", Property.PrivateIndex));
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [PrivateIndex]")));
     }
 
     public void testTimeValue() {

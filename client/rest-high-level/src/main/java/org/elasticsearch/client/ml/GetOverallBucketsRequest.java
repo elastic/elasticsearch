@@ -188,7 +188,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
 
     /**
      * See {@link GetJobRequest#isAllowNoJobs()}
-     * @param allowNoJobs
+     * @param allowNoJobs value of "allow_no_jobs".
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;

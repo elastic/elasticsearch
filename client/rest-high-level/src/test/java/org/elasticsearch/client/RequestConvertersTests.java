@@ -130,6 +130,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
@@ -532,6 +533,53 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(updateByQueryRequest, request.getEntity());
+    }
+
+    public void testDeleteByQuery() throws IOException {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+        deleteByQueryRequest.indices(randomIndicesNames(1, 5));
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            deleteByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
+        }
+        if (randomBoolean()) {
+            int batchSize = randomInt(100);
+            deleteByQueryRequest.setBatchSize(batchSize);
+            expectedParams.put("scroll_size", Integer.toString(batchSize));
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setRouting("=cat");
+            expectedParams.put("routing", "=cat");
+        }
+        if (randomBoolean()) {
+            int size = randomIntBetween(100, 1000);
+            deleteByQueryRequest.setSize(size);
+            expectedParams.put("size", Integer.toString(size));
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setAbortOnVersionConflict(false);
+            expectedParams.put("conflicts", "proceed");
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            deleteByQueryRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+            expectedParams.put("scroll", ts);
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        setRandomIndicesOptions(deleteByQueryRequest::setIndicesOptions, deleteByQueryRequest::indicesOptions, expectedParams);
+        setRandomTimeout(deleteByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        Request request = RequestConverters.deleteByQuery(deleteByQueryRequest);
+        StringJoiner joiner = new StringJoiner("/", "/", "");
+        joiner.add(String.join(",", deleteByQueryRequest.indices()));
+        if (deleteByQueryRequest.getDocTypes().length > 0)
+            joiner.add(String.join(",", deleteByQueryRequest.getDocTypes()));
+        joiner.add("_delete_by_query");
+        assertEquals(joiner.toString(), request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(deleteByQueryRequest, request.getEntity());
     }
 
     public void testPutMapping() throws IOException {
@@ -2728,7 +2776,7 @@ public class RequestConvertersTests extends ESTestCase {
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
     }
-    
+
     public void testGraphExplore() throws Exception {
         Map<String, String> expectedParams = new HashMap<>();
 
@@ -2756,7 +2804,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertToXContentBody(graphExploreRequest, request.getEntity());
-    }    
+    }
 
     public void testPutLifecyclePolicy() throws Exception {
         String name = randomAlphaOfLengthBetween(2, 20);

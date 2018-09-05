@@ -547,7 +547,7 @@ class BuildPlugin implements Plugin<Project> {
             }
             // build poms with assemble (if the assemble task exists)
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
+            if (assemble && assemble.enabled) {
                 assemble.dependsOn(generatePOMTask)
             }
         }

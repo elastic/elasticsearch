@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -188,25 +187,6 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type").setSource("empty_field", "").get();
         MappedFieldType fieldType = service.mapperService().fullName("empty_field");
         assertNotNull(fieldType);
-    }
-
-    public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
-                .field("dynamic", "strict")
-                .endObject().endObject();
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
-                .build();
-        createIndex("test", settings, "_default_", mapping);
-        try {
-            client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
-            fail();
-        } catch (StrictDynamicMappingException e) {
-
-        }
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNull(getMappingsResponse.getMappings().get("test").get("type"));
     }
 
     private String serialize(ToXContent mapper) throws Exception {

@@ -649,7 +649,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "count",
             "create",
-            "delete_by_query",
             "exists_source",
             "get_source",
             "indices.delete_alias",

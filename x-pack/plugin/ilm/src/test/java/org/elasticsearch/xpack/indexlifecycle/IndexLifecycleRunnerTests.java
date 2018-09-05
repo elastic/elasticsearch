@@ -554,7 +554,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void testMoveClusterStateToNextStep() {
         String indexName = "my_index";
-        LifecyclePolicy policy = LifecyclePolicyTests.randomTestLifecyclePolicy("policy");
+        LifecyclePolicy policy = randomValueOtherThanMany(p -> p.getPhases().size() == 0,
+            () -> LifecyclePolicyTests.randomTestLifecyclePolicy("policy"));
         Phase nextPhase = policy.getPhases().values().stream().findFirst().get();
         List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
             new LifecyclePolicyMetadata(policy, Collections.emptyMap()));

@@ -27,6 +27,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
@@ -217,6 +218,26 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetRecordsRequest parsedRequest = GetRecordsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getRecordsRequest));
+        }
+    }
+
+    public void testGetInfluencers() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetInfluencersRequest getInfluencersRequest = new GetInfluencersRequest(jobId);
+        getInfluencersRequest.setStart("2018-08-08T00:00:00Z");
+        getInfluencersRequest.setEnd("2018-09-08T00:00:00Z");
+        getInfluencersRequest.setPageParams(new PageParams(100, 300));
+        getInfluencersRequest.setInfluencerScore(75.0);
+        getInfluencersRequest.setSort("anomaly_score");
+        getInfluencersRequest.setDescending(true);
+        getInfluencersRequest.setExcludeInterim(true);
+
+        Request request = MLRequestConverters.getInfluencers(getInfluencersRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/influencers", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetInfluencersRequest parsedRequest = GetInfluencersRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getInfluencersRequest));
         }
     }
 

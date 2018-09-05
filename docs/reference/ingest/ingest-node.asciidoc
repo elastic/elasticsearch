@@ -736,9 +736,10 @@ and accesses a read only version of the document via the same `ctx` variable use
 [source,js]
 --------------------------------------------------
 {
-  "bytes": {
+  "set": {
     "if": "ctx.bar == 'expectedValue'",
-    "field": "foo"
+    "field": "foo",
+    "value": "bar"
   }
 }
 --------------------------------------------------

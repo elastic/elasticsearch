@@ -1910,7 +1910,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoMinMasterNodes(),
             minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-            nodePrefix, mockPlugins, getClientWrapper());
+            nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings());
     }
 
     protected NodeConfigurationSource getNodeConfigSource() {
@@ -2243,8 +2243,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return internalCluster().routingKeyForShard(resolveIndex(index), shard, random());
     }
 
-
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         if (isInternalCluster() && cluster().size() > 0) {
@@ -2254,6 +2252,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // If it's external cluster - fall back to the standard set
             return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
         }
+    }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return true;
     }
 
     /**

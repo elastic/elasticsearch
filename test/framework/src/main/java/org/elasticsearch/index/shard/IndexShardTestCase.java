@@ -70,7 +70,6 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -572,11 +571,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
             pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
-            primary,
-            recoveryTarget,
-            request,
-            (int) ByteSizeUnit.MB.toBytes(1),
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
+                primary,
+                recoveryTarget,
+                request,
+                (int) ByteSizeUnit.MB.toBytes(1));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable, Collections.emptySet());
         recovery.recoverToTarget();

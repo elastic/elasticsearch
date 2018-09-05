@@ -82,10 +82,12 @@ public class TextLogStructureFinder implements LogStructureFinder {
         mappings.put("message", Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "text"));
         mappings.put(LogStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
+        SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
+
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;
         String grokPattern;
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings);
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats);
         Tuple<String, String> timestampFieldAndFullMatchGrokPattern = grokPatternCreator.findFullLineGrokPattern();
         if (timestampFieldAndFullMatchGrokPattern != null) {
             interimTimestampField = timestampFieldAndFullMatchGrokPattern.v1();
@@ -101,6 +103,7 @@ public class TextLogStructureFinder implements LogStructureFinder {
             .setNeedClientTimezone(bestTimestamp.v1().hasTimezoneDependentParsing())
             .setGrokPattern(grokPattern)
             .setMappings(mappings)
+            .setFieldStats(fieldStats)
             .setExplanation(explanation)
             .build();
 

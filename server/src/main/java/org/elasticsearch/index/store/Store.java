@@ -165,7 +165,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", settings, shardId));
+        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -18,9 +19,7 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,30 +32,7 @@ import java.util.Set;
  */
 public class RollupJobIdentifierUtils {
 
-    private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
-
-    public static final Map<String, Integer> CALENDAR_ORDERING;
-
-    static {
-        Map<String, Integer> dateFieldUnits = new HashMap<>(16);
-        dateFieldUnits.put("year", 8);
-        dateFieldUnits.put("1y", 8);
-        dateFieldUnits.put("quarter", 7);
-        dateFieldUnits.put("1q", 7);
-        dateFieldUnits.put("month", 6);
-        dateFieldUnits.put("1M", 6);
-        dateFieldUnits.put("week", 5);
-        dateFieldUnits.put("1w", 5);
-        dateFieldUnits.put("day", 4);
-        dateFieldUnits.put("1d", 4);
-        dateFieldUnits.put("hour", 3);
-        dateFieldUnits.put("1h", 3);
-        dateFieldUnits.put("minute", 2);
-        dateFieldUnits.put("1m", 2);
-        dateFieldUnits.put("second", 1);
-        dateFieldUnits.put("1s", 1);
-        CALENDAR_ORDERING = Collections.unmodifiableMap(dateFieldUnits);
-    }
+    static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
 
     /**
      * Given the aggregation tree and a list of available job capabilities, this method will return a set
@@ -176,8 +152,10 @@ public class RollupJobIdentifierUtils {
 
         // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
         // relative orders between the calendar units
-        int requestOrder = CALENDAR_ORDERING.getOrDefault(requestInterval.toString(), Integer.MAX_VALUE);
-        int configOrder = CALENDAR_ORDERING.getOrDefault(configInterval.toString(), Integer.MAX_VALUE);
+        DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        long requestOrder = requestUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        long configOrder = configUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
 
         // All calendar units are multiples naturally, so we just care about gte
         return requestOrder >= configOrder;
@@ -190,7 +168,7 @@ public class RollupJobIdentifierUtils {
             return false;
         }
 
-        // Both are fixed, good to conver to millis now
+        // Both are fixed, good to convert to millis now
         long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
             "date_histo.config.interval").getMillis();
         long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(),
@@ -326,8 +304,8 @@ public class RollupJobIdentifierUtils {
                 return 0;
             }
 
-            TimeValue thisTime = null;
-            TimeValue thatTime = null;
+            long thisTime = Long.MAX_VALUE;
+            long thatTime = Long.MAX_VALUE;
 
             // histogram intervals are averaged and compared, with the idea that
             // a larger average == better, because it will generate fewer documents
@@ -344,7 +322,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o1.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thisTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thisTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thisHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -360,7 +338,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o2.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thatTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thatTime = getMillisFixedOrCalendar((String) agg.get(RollupField.INTERVAL));
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thatHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -371,13 +349,9 @@ public class RollupJobIdentifierUtils {
             }
             thatHistoWeights = counter == 0 ? 0 : thatHistoWeights / counter;
 
-            // DateHistos are mandatory so these should always be present no matter what
-            assert thisTime != null;
-            assert thatTime != null;
-
             // Compare on date interval first
             // The "smaller" job is the one with the larger interval
-            int timeCompare = thisTime.compareTo(thatTime);
+            int timeCompare = Long.compare(thisTime, thatTime);
             if (timeCompare != 0) {
                 return -timeCompare;
             }
@@ -408,5 +382,15 @@ public class RollupJobIdentifierUtils {
             // Could potentially optimize there in the future to choose jobs with more metric
             // coverage
         };
+    }
+
+    static long getMillisFixedOrCalendar(String value) {
+        DateHistogramInterval interval = new DateHistogramInterval(value);
+        if (isCalendarInterval(interval)) {
+            DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+            return intervalUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+        } else {
+            return TimeValue.parseTimeValue(value, "date_histo.comparator.interval").getMillis();
+        }
     }
 }

@@ -41,7 +41,6 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField DESCENDING = new ParseField("desc");
 
@@ -87,7 +86,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
 
     /**
      * Sets the timestamp of a specific bucket to be retrieved.
-     * @param timestamp the timestamp of a specific bucket to be retrieved
+     * @param timestamp String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setTimestamp(String timestamp) {
         this.timestamp = timestamp;
@@ -106,11 +105,11 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
      * When {@code true}, buckets will be expanded to include their records.
      * @param expand value of "expand" to be set
      */
-    public void setExpand(boolean expand) {
+    public void setExpand(Boolean expand) {
         this.expand = expand;
     }
 
-    public boolean isExcludeInterim() {
+    public Boolean isExcludeInterim() {
         return excludeInterim;
     }
 
@@ -119,7 +118,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
      * When {@code true}, interim buckets will be filtered out.
      * @param excludeInterim value of "exclude_interim" to be set
      */
-    public void setExcludeInterim(boolean excludeInterim) {
+    public void setExcludeInterim(Boolean excludeInterim) {
         this.excludeInterim = excludeInterim;
     }
 
@@ -130,7 +129,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
     /**
      * Sets the value of "start" which is a timestamp.
      * Only buckets whose timestamp is on or after the "start" value will be returned.
-     * @param start value of "start" to be set
+     * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -143,7 +142,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
     /**
      * Sets the value of "end" which is a timestamp.
      * Only buckets whose timestamp is before the "end" value will be returned.
-     * @param end value of "end" to be set
+     * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;
@@ -170,7 +169,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
      * Only buckets with "anomaly_score" equal or greater will be returned.
      * @param anomalyScore value of "anomaly_score".
      */
-    public void setAnomalyScore(double anomalyScore) {
+    public void setAnomalyScore(Double anomalyScore) {
         this.anomalyScore = anomalyScore;
     }
 
@@ -187,7 +186,7 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
         this.sort = sort;
     }
 
-    public boolean isDescending() {
+    public Boolean isDescending() {
         return descending;
     }
 

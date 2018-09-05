@@ -183,6 +183,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         Setting.boolSetting(SETTING_READ_ONLY_ALLOW_DELETE, false, Property.Dynamic, Property.IndexScope);
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+
+    public static final Setting<Version> SETTING_INDEX_VERSION_CREATED =
+            Setting.versionSetting(SETTING_VERSION_CREATED, Version.V_EMPTY, Property.IndexScope, Property.PrivateIndex);
+
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
@@ -1312,8 +1316,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      */
     public static Settings addHumanReadableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
-        Version version = settings.getAsVersion(SETTING_VERSION_CREATED, null);
-        if (version != null) {
+        Version version = SETTING_INDEX_VERSION_CREATED.get(settings);
+        if (version != Version.V_EMPTY) {
             builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
         }
         Version versionUpgraded = settings.getAsVersion(SETTING_VERSION_UPGRADED, null);

@@ -125,7 +125,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
      * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
      * reduction of CPU usage.
      */
-    class GeoIpCache {
+    static class GeoIpCache {
         private final Cache<CacheKey, AbstractResponse> cache;
 
         //package private for testing
@@ -163,7 +163,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
          * provides a means to safely cast the return objects.
          * @param <T> The AbstractResponse type used to scope the key and cast the result.
          */
-        private class CacheKey<T extends AbstractResponse> {
+        private static class CacheKey<T extends AbstractResponse> {
 
             private final InetAddress ip;
             private final Class<T> responseType;

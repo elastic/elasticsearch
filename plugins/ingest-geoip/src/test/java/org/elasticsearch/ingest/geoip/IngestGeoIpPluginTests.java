@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 public class IngestGeoIpPluginTests extends ESTestCase {
 
     public void testCachesAndEvictsResults() {
-        GeoIpCache cache = new IngestGeoIpPlugin().new GeoIpCache(1);
+        GeoIpCache cache = new GeoIpCache(1);
         AbstractResponse response1 = mock(AbstractResponse.class);
         AbstractResponse response2 = mock(AbstractResponse.class);
 
@@ -50,7 +50,7 @@ public class IngestGeoIpPluginTests extends ESTestCase {
     }
 
     public void testThrowsFunctionsException() {
-        GeoIpCache cache = new IngestGeoIpPlugin().new GeoIpCache(1);
+        GeoIpCache cache = new GeoIpCache(1);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class,
                 ip -> { throw new IllegalArgumentException("bad"); }));
@@ -58,7 +58,7 @@ public class IngestGeoIpPluginTests extends ESTestCase {
     }
 
     public void testInvalidInit() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->  new IngestGeoIpPlugin().new GeoIpCache(-1));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->  new GeoIpCache(-1));
         assertEquals("geoip cache size must be 0 or greater", ex.getMessage());
     }
 }

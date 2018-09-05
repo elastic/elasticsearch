@@ -53,6 +53,11 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.lang.Thread.State;
+import java.lang.management.LockInfo;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -503,12 +508,74 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            enableMonitoring();
+            try {
+                enableMonitoring();
+            } catch (AssertionError e) {
+                // Added to debug https://github.com/elastic/elasticsearch/issues/29880
+                // Remove when fixed
+                StringBuilder b = new StringBuilder();
+                b.append("\n==== jstack at monitoring enablement failure time ====\n");
+                for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+                  append(b, ti);
+                }
+                b.append("^^==============================================\n");
+                logger.info(b.toString());
+                throw e;
+            }
             runnable.run();
         } finally {
             disableMonitoring();
         }
     }
+
+    // borrowed from randomized-testing
+    private static void append(StringBuilder b, ThreadInfo ti) {
+        b.append('"').append(ti.getThreadName()).append('"');
+        b.append(" ID=").append(ti.getThreadId());
+
+        final State threadState = ti.getThreadState();
+        b.append(" ").append(threadState);
+        if (ti.getLockName() != null) {
+          b.append(" on ").append(ti.getLockName());
+        }
+        
+        if (ti.getLockOwnerName() != null) {
+          b.append(" owned by \"").append(ti.getLockOwnerName())
+           .append("\" ID=").append(ti.getLockOwnerId());
+        }
+        
+        b.append(ti.isSuspended() ? " (suspended)" : "");
+        b.append(ti.isInNative() ? " (in native code)" : "");
+        b.append("\n");
+        
+        final StackTraceElement[] stack = ti.getStackTrace();
+        final LockInfo lockInfo = ti.getLockInfo();
+        final MonitorInfo [] monitorInfos = ti.getLockedMonitors();
+        for (int i = 0; i < stack.length; i++) {
+          b.append("\tat ").append(stack[i]).append("\n");
+          if (i == 0 && lockInfo != null) {
+            b.append("\t- ")
+             .append(threadState)
+             .append(lockInfo)
+             .append("\n");
+          }
+          
+          for (MonitorInfo mi : monitorInfos) {
+            if (mi.getLockedStackDepth() == i) {
+              b.append("\t- locked ").append(mi).append("\n");
+            }
+          }
+        }
+
+        LockInfo [] lockInfos = ti.getLockedSynchronizers();
+        if (lockInfos.length > 0) {
+          b.append("\tLocked synchronizers:\n");
+          for (LockInfo li : ti.getLockedSynchronizers()) {
+            b.append("\t- ").append(li).append("\n");
+          }
+        }
+        b.append("\n");
+      }
 
     /**
      * Enable the monitoring service and the Local exporter, waiting for some monitoring documents

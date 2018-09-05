@@ -29,7 +29,7 @@ import java.util.Date;
 
 public class InfluencerTests extends AbstractXContentTestCase<Influencer> {
 
-    public Influencer createTestInstance(String jobId) {
+    public static Influencer createTestInstance(String jobId) {
         Influencer influencer = new Influencer(jobId, randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
                 new Date(randomNonNegativeLong()), randomNonNegativeLong());
         influencer.setInterim(randomBoolean());

@@ -812,6 +812,27 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.stats().getStatsPerPipeline(), not(hasKey("_id2")));
     }
 
+    public void testExecuteWithDrop() {
+        IngestService ingestService = createWithProcessors(Collections.singletonMap("drop", new DropProcessor.Factory()));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"drop\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        @SuppressWarnings("unchecked")
+        final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final Consumer<Exception> completionHandler = mock(Consumer.class);
+        @SuppressWarnings("unchecked")
+        final Consumer<IndexRequest> dropHandler = mock(Consumer.class);
+        ingestService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler, dropHandler);
+        verify(failureHandler, never()).accept(any(), any());
+        verify(completionHandler, times(1)).accept(null);
+        verify(dropHandler, times(1)).accept(indexRequest);
+    }
+
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", source));
     }

@@ -24,7 +24,7 @@ retention period with the `expires_in` parameter in the <<ml-forecast,forecast j
 
 NOTE: When you delete a job its associated forecasts are deleted. 
 
-For more information, see {xpack-ref}/ml-overview.html#ml-forecasting[Forecasting the Future].
+For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the Future].
 
 
 ==== Path Parameters
@@ -34,31 +34,46 @@ For more information, see {xpack-ref}/ml-overview.html#ml-forecasting[Forecastin
 
 `forecast_id`::
   (string) A comma-separated list of forecast identifiers. 
-//TBD: Can this ID be retrieved somehow?
   If you do not specify this optional parameter or if you specify `_all`, the 
-  API deletes all forecasts from the job.  
+  API deletes all forecasts from the job. 
 
 ==== Request Parameters
 
 `allow_no_forecasts`::
-  (boolean) Whether to ignore if `_all` matches no forecasts. 
-//TBD: This description is unclear.  Does this mean that if this parameter is 
-//false and there are no forecasts in the job, an error is returned?
+  (boolean) Specifies whether an error occurs when there are no forecasts. In 
+  particular, if this parameter is set to `false` and there are no forecasts 
+  associated with the job, attempts to delete all forecasts return an error. 
+  The default value is `true`.
 
 `timeout`::
-  (time units) Controls the time to wait until the forecasts are deleted. 
-  Defaults to 30 seconds. For more information about time units, see <<time-units>>.
-//TBD: This description is unclear.  Is it the time to wait until the deletion 
-//is initiated?  Or is it the time to wait for the deletion to complete? If the
-//latter, I presume an error is returned and you must try again. 
+  (time units) Specifies the period of time to wait for the completion of the 
+  delete operation. When this period of time elapses, the API fails and returns 
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
   
 
-//==== Authorization
+==== Authorization
 
-////
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-////
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
 
-// ==== Examples
+==== Examples
 
+The following example deletes all forecasts from the `total-requests` job:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/ml/anomaly_detectors/total-requests/_forecast/wkCWa2IB2lF8nSE_TzZo
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:server_metrics_openjob]
+// TEST[catch:missing]
+
+If the request does not encounter errors, you receive the following result:
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// NOTCONSOLE

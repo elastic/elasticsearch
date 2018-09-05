@@ -128,7 +128,7 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(AFTER_FIELD.getPreferredName(), after.seconds() + "s"); // Need a better way to get a parsable format out here
+        builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
         builder.field(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;

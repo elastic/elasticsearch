@@ -135,7 +135,7 @@ public class FeatureVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("[feature_vector] fields can't be used in multi-fields");
         }
@@ -164,7 +164,6 @@ public class FeatureVectorFieldMapper extends FieldMapper {
                         "float, but got unexpected token " + token);
             }
         }
-        return null; // no mapping update
     }
 
     @Override

@@ -70,7 +70,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-s
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-end]
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-buckets-start]
 --------------------------------------------------
 <1> Buckets with timestamps on or after this time will be returned.
 

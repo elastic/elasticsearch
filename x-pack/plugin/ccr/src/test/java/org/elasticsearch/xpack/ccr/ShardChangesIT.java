@@ -419,6 +419,7 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     @TestLogging("_root:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33379")
     public void testValidateFollowingIndexSettings() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)));

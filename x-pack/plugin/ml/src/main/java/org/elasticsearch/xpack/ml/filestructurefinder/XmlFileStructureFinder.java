@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
+
 import java.util.List;
 
 public interface FileStructureFinder {

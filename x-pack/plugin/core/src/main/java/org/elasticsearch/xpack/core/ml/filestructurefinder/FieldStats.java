@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.filestructurefinder;
+package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -49,12 +49,12 @@ public class FieldStats implements ToXContentObject {
     private final Double medianValue;
     private final List<Map<String, Object>> topHits;
 
-    FieldStats(long count, int cardinality, List<Map<String, Object>> topHits) {
+    public FieldStats(long count, int cardinality, List<Map<String, Object>> topHits) {
         this(count, cardinality, null, null, null, null, topHits);
     }
 
-    FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
-               List<Map<String, Object>> topHits) {
+    public FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
+                      List<Map<String, Object>> topHits) {
         this.count = count;
         this.cardinality = cardinality;
         this.minValue = minValue;

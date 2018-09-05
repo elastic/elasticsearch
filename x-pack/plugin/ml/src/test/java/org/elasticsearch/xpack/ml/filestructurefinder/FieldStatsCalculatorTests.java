@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.DoubleSummaryStatistics;

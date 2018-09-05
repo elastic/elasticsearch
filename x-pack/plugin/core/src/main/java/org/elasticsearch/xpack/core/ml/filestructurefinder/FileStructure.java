@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.filestructurefinder;
+package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -22,7 +22,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
- * Stores the file format determined by a {@link FileStructureFinder}.
+ * Stores the file format determined by Machine Learning.
  */
 public class FileStructure implements ToXContentObject {
 

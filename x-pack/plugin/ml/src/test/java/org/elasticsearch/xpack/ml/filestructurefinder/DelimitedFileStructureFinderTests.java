@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;

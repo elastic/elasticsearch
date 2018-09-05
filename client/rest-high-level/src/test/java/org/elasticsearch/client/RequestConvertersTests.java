@@ -2438,7 +2438,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+    static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));

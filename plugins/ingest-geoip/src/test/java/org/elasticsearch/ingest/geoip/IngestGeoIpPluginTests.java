@@ -59,6 +59,6 @@ public class IngestGeoIpPluginTests extends ESTestCase {
 
     public void testInvalidInit() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->  new GeoIpCache(-1));
-        assertEquals("geoip cache size must be 0 or greater", ex.getMessage());
+        assertEquals("geoip max cache size must be 0 or greater", ex.getMessage());
     }
 }

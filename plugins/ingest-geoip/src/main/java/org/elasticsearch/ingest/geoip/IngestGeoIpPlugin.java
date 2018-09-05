@@ -131,7 +131,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
         //package private for testing
         GeoIpCache(long maxSize) {
             if (maxSize < 0) {
-                throw new IllegalArgumentException("geoip cache size must be 0 or greater");
+                throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
             }
             this.cache = CacheBuilder.<CacheKey, AbstractResponse>builder().setMaximumWeight(maxSize).build();
         }

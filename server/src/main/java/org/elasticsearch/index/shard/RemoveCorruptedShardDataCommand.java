@@ -65,12 +65,16 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
@@ -132,95 +136,153 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     throws IOException {
         final Settings settings = environment.settings();
 
-        final String indexName;
-        final int shardId;
-        final int fromNodeId;
-        final int toNodeId;
+        final CheckedConsumer<CorruptedShard, IOException> corruptedShardConsumer = corruptedShard -> {
+            // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
+            for (int possibleLockId = corruptedShard.fromNodeId; possibleLockId < corruptedShard.toNodeId; possibleLockId++) {
+                try {
+                    try (NodeEnvironment.NodeLock nodeLock =
+                             new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists)) {
+                        final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
+                        for (NodeEnvironment.NodePath nodePath : nodePaths) {
+                            if (Files.exists(nodePath.indicesPath)) {
+                                // have to scan all index uuid folders to resolve from index name
+                                try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                                    for (Path file : stream) {
+                                        if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                                            continue;
+                                        }
 
-        if (options.has(folderOption)) {
-            final Path path = getPath(folderOption.value(options)).getParent();
-            final Path shardParent = path.getParent();
-            final Path shardParentParent = shardParent.getParent();
-            final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-            if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
-                throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
-            }
+                                        final IndexMetaData indexMetaData =
+                                            IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
+                                        if (indexMetaData == null) {
+                                            continue;
+                                        }
+                                        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                                        final Index index = indexMetaData.getIndex();
+                                        if (corruptedShard.indexName.equals(index.getName()) == false) {
+                                            continue;
+                                        }
+                                        final ShardId shId = new ShardId(index, corruptedShard.shardId);
 
-            final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
-
-            final String shardIdFileName = path.getFileName().toString();
-            final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
-            if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
-                && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
-                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
-                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
-            ) {
-                shardId = Integer.parseInt(shardIdFileName);
-                indexName = indexMetaData.getIndex().getName();
-                fromNodeId = Integer.parseInt(nodeIdFileName);
-                toNodeId = fromNodeId + 1;
-            } else {
-                throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
-                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
-            }
-        } else {
-            // otherwise resolve shardPath based on the index name and shard id
-            indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
-            shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-
-            // resolve shard path in case of multi-node layout per environment
-            fromNodeId = 0;
-            toNodeId = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
-        }
-
-        // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
-        for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
-            try {
-                try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists)) {
-                    final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
-                    for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                        if (Files.exists(nodePath.indicesPath)) {
-                            // have to scan all index uuid folders to resolve from index name
-                            try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                                for (Path file : stream) {
-                                    if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
-                                        continue;
-                                    }
-
-                                    final IndexMetaData indexMetaData =
-                                        IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
-                                    if (indexMetaData == null) {
-                                        continue;
-                                    }
-                                    final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                                    final Index index = indexMetaData.getIndex();
-                                    if (indexName.equals(index.getName()) == false) {
-                                        continue;
-                                    }
-                                    final ShardId shId = new ShardId(index, shardId);
-
-                                    final Path shardPathLocation = nodePath.resolve(shId);
-                                    if (Files.exists(shardPathLocation) == false) {
-                                        continue;
-                                    }
-                                    final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
-                                        new Path[]{shardPathLocation}, possibleLockId, nodePath.path);
-                                    if (shardPath != null) {
-                                        consumer.accept(shardPath);
-                                        return;
+                                        final Path shardPathLocation = nodePath.resolve(shId);
+                                        if (Files.exists(shardPathLocation) == false) {
+                                            continue;
+                                        }
+                                        final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                                            new Path[]{shardPathLocation}, possibleLockId, nodePath.path);
+                                        if (shardPath != null) {
+                                            consumer.accept(shardPath);
+                                            return;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                } catch (LockObtainFailedException lofe) {
+                    throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
+                        + "], is Elasticsearch still running ?");
                 }
-            } catch (LockObtainFailedException lofe) {
-                throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
-                    + "], is Elasticsearch still running ?");
             }
+            throw new ElasticsearchException("Unable to resolve shard path for index [" + corruptedShard.indexName
+                + "] and shard id [" + corruptedShard.shardId + "]");
+        };
+
+        // either `--dir` option is specified or `--index-name` and `--shard-id` are not specified
+        if (options.has(folderOption)
+            || options.has(indexNameOption) == false && options.has(shardIdOption) == false) {
+            findAndProcessCorruptedShardPath(options, environment, path -> {
+                final Path shardParent = path.getParent();
+                final Path shardParentParent = shardParent.getParent();
+                final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+                if (Files.exists(indexPath) == false || Files.isDirectory(indexPath) == false) {
+                    throw new ElasticsearchException("index directory [" + indexPath + "], must exist and be a directory");
+                }
+
+                final IndexMetaData indexMetaData =
+                    IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
+
+                final String shardIdFileName = path.getFileName().toString();
+                final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
+                // SHARD-ID path element check
+                if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit)
+                    // `indices` check
+                    && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString())
+                    // NODE-ID check
+                    && nodeIdFileName.chars().allMatch(Character::isDigit)
+                    // `nodes` check
+                    && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString())
+                ) {
+                    final String indexName = indexMetaData.getIndex().getName();
+                    final int shardId = Integer.parseInt(shardIdFileName);
+                    final int fromNodeId = Integer.parseInt(nodeIdFileName);
+                    final int toNodeId = fromNodeId + 1;
+
+                    corruptedShardConsumer.accept(new CorruptedShard(indexName,shardId, fromNodeId, toNodeId));
+                } else {
+                    throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
+                        + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
+                }
+            });
+        } else {
+            // otherwise resolve shardPath based on the index name and shard id
+            final String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
+            final int shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
+
+            // resolve shard path in case of multi-node layout per environment
+            final int fromNodeId = 0;
+            final int toNodeId = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+
+            corruptedShardConsumer.accept(new CorruptedShard(indexName,shardId, fromNodeId, toNodeId));
         }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + shardId + "]");
+    }
+
+    private static class CorruptedShard {
+        final String indexName;
+        final int shardId;
+        final int fromNodeId;
+        final int toNodeId;
+
+        CorruptedShard(String indexName, int shardId, int fromNodeId, int toNodeId) {
+            this.indexName = indexName;
+            this.shardId = shardId;
+            this.fromNodeId = fromNodeId;
+            this.toNodeId = toNodeId;
+        }
+    }
+
+    private void findAndProcessCorruptedShardPath(OptionSet options, Environment environment,
+                                                  CheckedConsumer<Path, IOException> consumer) throws IOException {
+        if (options.has(folderOption)) {
+            consumer.accept(getPath(folderOption.value(options)).getParent());
+            return;
+        }
+
+        final AtomicInteger foundCorruptedShards = new AtomicInteger();
+        final SimpleFileVisitor<Path> visitor = new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                final Path parent = file.getParent();
+                final String parentFileName = parent.getFileName().toString();
+                // looking for `corrupted_*` files in `index` or `translog` folders only
+                if ((ShardPath.INDEX_FOLDER_NAME.equals(parentFileName) || ShardPath.TRANSLOG_FOLDER_NAME.equals(parentFileName))
+                && file.getFileName().toString().startsWith(Store.CORRUPTED)) {
+                    foundCorruptedShards.getAndIncrement();
+                    consumer.accept(parent.getParent());
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        };
+
+        final Path[] dataPaths = environment.dataFiles();
+        for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
+            final Path dataDir = dataPaths[dirIndex];
+            Files.walkFileTree(dataDir, visitor);
+        }
+
+        if (foundCorruptedShards.get() == 0) {
+            throw new ElasticsearchException("No one corrupted shard is found");
+        }
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
@@ -311,10 +373,11 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
             final Directory indexDirectory = getDirectory(indexPath);
+            final Directory translogDirectory = getDirectory(translogPath);
 
             final Tuple<CleanStatus, String> indexCleanStatus;
             final Tuple<CleanStatus, String> translogCleanStatus;
-            try (Directory indexDir = indexDirectory) {
+            try (Directory indexDir = indexDirectory; Directory translogDir = translogDirectory) {
                 // keep the index lock to block any runs of older versions of this tool
                 try (Lock writeIndexLock = indexDir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     ////////// Index
@@ -345,7 +408,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                         terminal.println("Opening translog at " + translogPath);
                         terminal.println("");
                         try {
-                            translogCleanStatus = truncateTranslogAction.getCleanStatus(shardPath, indexDir);
+                            translogCleanStatus = truncateTranslogAction.getCleanStatus(shardPath, indexDir, translogDir);
                         } catch (Exception e) {
                             terminal.println(e.getMessage());
                             throw e;
@@ -414,6 +477,9 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 newAllocationId(environment, shardPath, terminal);
                 if (indexStatus != CleanStatus.CLEAN) {
                     dropCorruptMarkerFiles(terminal, indexPath, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
+                }
+                if (translogStatus != CleanStatus.CLEAN) {
+                    dropCorruptMarkerFiles(terminal, translogPath, translogDir, translogStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
             }
         });

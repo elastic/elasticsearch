@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -63,6 +65,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -113,6 +116,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
     private BigArrays bigArrays;
+    private final Consumer<TranslogCorruptedException> onCorrupted;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
     private final Path location;
@@ -142,24 +146,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
      *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
      *                                 and reject operation whose term is higher than the primary term stored in the translog header.
+     * @param onCorrupted              a callback to be invoked whenever this translog is detected as corrupted.
      */
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
-        final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier) throws IOException {
+        final LongSupplier globalCheckpointSupplier, final LongSupplier primaryTermSupplier,
+        final Consumer<TranslogCorruptedException> onCorrupted) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
-        bigArrays = config.getBigArrays();
+        this.bigArrays = config.getBigArrays();
+        this.onCorrupted = onCorrupted;
         ReadWriteLock rwl = new ReentrantReadWriteLock();
         readLock = new ReleasableLock(rwl.readLock());
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-
         try {
+            failIfCorrupted();
             final Checkpoint checkpoint = readCheckpoint(location);
             final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
             final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
@@ -275,6 +282,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
         return foundTranslogs;
+    }
+
+    /**
+     * Checks if the given exception is caused by {@link TranslogCorruptedException}
+     */
+    public static boolean isCorruptionException(Exception e) {
+        return ExceptionsHelper.unwrap(e, TranslogCorruptedException.class) != null;
+    }
+
+    private void failIfCorrupted() throws IOException {
+        failIfCorrupted(location, config.getShardId());
+    }
+
+    public static void failIfCorrupted(Path location, ShardId shardId) throws IOException {
+        Store.failIfCorrupted(location, shardId, TranslogCorruptedException.class);
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
@@ -591,7 +613,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                 .filter(reader -> reader.getGeneration() >= fromFileGen && reader.getCheckpoint().minSeqNo <= upToSeqNo)
-                .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
+                .map(r -> r.newSnapshot(onCorrupted)).toArray(TranslogSnapshot[]::new);
             final Snapshot snapshot = newMultiSnapshot(snapshots);
             if (upToSeqNo == Long.MAX_VALUE) {
                 return snapshot;
@@ -634,7 +656,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot)
+            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(r -> r.newSnapshot(onCorrupted))
                 .toArray(TranslogSnapshot[]::new);
             return newMultiSnapshot(snapshots);
         }
@@ -1773,6 +1795,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /** Reads and returns the current checkpoint */
     static Checkpoint readCheckpoint(final Path location) throws IOException {
+        failIfCorrupted(location, null);
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
@@ -1842,6 +1865,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId,
                                       ChannelFactory channelFactory, long primaryTerm) throws IOException {
+        // TODO: shall we create entire translog directory even if the corruption marker is there ?
         IOUtils.rm(location);
         Files.createDirectories(location);
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, 1, initialGlobalCheckpoint, 1);

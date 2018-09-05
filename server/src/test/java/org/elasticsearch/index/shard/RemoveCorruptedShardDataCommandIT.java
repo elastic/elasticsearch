@@ -28,6 +28,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -42,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -49,6 +51,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -61,6 +64,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -71,11 +75,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -83,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -95,6 +105,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -429,6 +440,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
+    @TestLogging("_root:INFO,org.elasticsearch.index.shard:TRACE")
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 
@@ -461,8 +473,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
         disableTranslogFlush(indexName);
+
         // having no extra docs is an interesting case for seq no based recoveries - test it more often
-        int numDocsToTruncate = randomBoolean() ? 0 : randomIntBetween(0, 100);
+        int numDocsToTruncate = //randomBoolean() ? 0 :
+            randomIntBetween(10, 100);
         logger.info("--> indexing [{}] more docs to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
@@ -473,25 +487,69 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // sample the replica node translog dirs
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        final Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
+        final Set<Path> translogDirs = getDirs(node1, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
+
+        logger.info("--> translog dirs of node {} : {}", node1, translogDirs);
 
         // stop the cluster nodes. we don't use full restart so the node start up order will be the same
         // and shard roles will be maintained
-        internalCluster().stopRandomDataNode();
-        internalCluster().stopRandomDataNode();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
 
         // Corrupt the translog file(s)
         logger.info("--> corrupting translog");
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
-
         // Restart the single node
-        logger.info("--> starting node");
-        internalCluster().startNode();
+        logger.info("--> starting node that reuses corrupted translog");
+        final String node3 = internalCluster().startNode();
+        logger.info("--> starting node {}", node3);
 
-        ensureYellow();
+        final AtomicInteger corruptedMarkerCount = new AtomicInteger();
+        final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (Files.isRegularFile(file) && file.getFileName().toString().startsWith(Store.CORRUPTED)) {
+                    corruptedMarkerCount.incrementAndGet();
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        };
+        for (Path translogDir : translogDirs) {
+            Files.walkFileTree(translogDir, corruptedVisitor);
+        }
+        assertThat(corruptedMarkerCount.get(), is(0));
+
+        logger.info("--> start replica to trigger translog replication");
+        final String node4 = internalCluster().startNode();
+        logger.info("--> starting node {}", node4);
+
+        assertBusy(() -> {
+            corruptedMarkerCount.set(0);
+
+            for (Path translogDir : translogDirs) {
+                Files.walkFileTree(translogDir, corruptedVisitor);
+            }
+            assertThat(corruptedMarkerCount.get(), is(1));
+
+        });
+
+        ensureYellow(indexName);
 
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), totalDocs);
+
+        assertBusy(() -> {
+            corruptedMarkerCount.set(0);
+            for (Path translogDir : translogDirs) {
+                try {
+                    Files.walkFileTree(translogDir, corruptedVisitor);
+                } catch (NoSuchFileException e) {
+                    // entire translog could be deleted in Translog.createEmptyTranslog
+                }
+            }
+
+            assertThat(corruptedMarkerCount.get(), is(0));
+        });
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal terminal = new MockTerminal();
@@ -499,30 +557,17 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
 
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(node3, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                logger.info("--> node {} stopped", nodeName);
+                logger.info("--> {} node stopped", nodeName);
                 for (Path translogDir : translogDirs) {
-                    final Path idxLocation = translogDir.getParent().resolve(ShardPath.INDEX_FOLDER_NAME);
-                    assertBusy(() -> {
-                        logger.info("--> checking that lock has been released for {}", idxLocation);
-                        try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
-                             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                            // Great, do nothing, we just wanted to obtain the lock
-                        }  catch (LockObtainFailedException lofe) {
-                            logger.info("--> failed acquiring lock for {}", idxLocation);
-                            fail("still waiting for lock release at [" + idxLocation + "]");
-                        } catch (IOException ioe) {
-                            fail("Got an IOException: " + ioe);
-                        }
-                    });
-
                     terminal.addTextInput("y");
                     OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
                     logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-                    command.execute(terminal, options, environment);
-                    logger.info("--> output:\n{}", terminal.getOutput());
+                    final ElasticsearchException exception =
+                        expectThrows(ElasticsearchException.class, () -> command.execute(terminal, options, environment));
+                    assertThat(exception.getMessage(), containsString("Shard does not seem to be corrupted at "));
                 }
 
                 return super.onNodeStopped(nodeName);
@@ -540,9 +585,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates().get(indexName).stream()
             .filter(recoveryState -> recoveryState.getPrimary() == false).findFirst().get();
-        // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
-        assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
-        // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
+
+        assertThat(Strings.toString(replicaRecoveryState), replicaRecoveryState.getRecoverySource().getType(),
+            equalTo(RecoverySource.Type.PEER));
+
         final SeqNoStats seqNoStats = getSeqNoStats(indexName, 0);
         assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
         assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));

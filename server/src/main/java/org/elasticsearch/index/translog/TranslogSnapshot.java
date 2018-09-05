@@ -24,11 +24,13 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
     private final int totalOperations;
     private final Checkpoint checkpoint;
+    private final Consumer<TranslogCorruptedException> onCorrupted;
     protected final long length;
 
     private final ByteBuffer reusableBuffer;
@@ -40,8 +42,9 @@ final class TranslogSnapshot extends BaseTranslogReader {
     /**
      * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+    TranslogSnapshot(final BaseTranslogReader reader, Consumer<TranslogCorruptedException> onCorrupted, final long length) {
         super(reader.generation, reader.channel, reader.path, reader.header);
+        this.onCorrupted = onCorrupted;
         this.length = length;
         this.totalOperations = reader.totalOperations();
         this.checkpoint = reader.getCheckpoint();
@@ -77,12 +80,17 @@ final class TranslogSnapshot extends BaseTranslogReader {
     }
 
     protected Translog.Operation readOperation() throws IOException {
-        final int opSize = readSize(reusableBuffer, position);
-        reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
-        Translog.Operation op = read(reuse);
-        position += opSize;
-        readOperations++;
-        return op;
+        try {
+            final int opSize = readSize(reusableBuffer, position);
+            reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
+            Translog.Operation op = read(reuse);
+            position += opSize;
+            readOperations++;
+            return op;
+        } catch (TranslogCorruptedException e) {
+            onCorrupted.accept(e);
+            throw e;
+        }
     }
 
     public long sizeInBytes() {

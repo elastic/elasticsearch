@@ -34,6 +34,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -105,6 +106,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -1869,6 +1871,39 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    public void testRecoverFromStoreFailIfTranslogCorrupted() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        final int numDocs = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+        }
+        final ShardPath shardPath = shard.shardPath();
+        final Path translogPath = shardPath.resolveTranslog();
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+        IndexShard newShard = reinitShard(shard);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        ShardRouting routing = newShard.routingEntry();
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+
+        allowShardFailures();
+
+        final Store store = newShard.store();
+        store.incRef();
+        try {
+            newShard.recoverFromStore();
+            fail("Recover from store with corrupted translog");
+        } catch (Exception ex) {
+            assertThat(ExceptionsHelper.unwrap(ex, TranslogCorruptedException.class), notNullValue());
+        } finally {
+            store.decRef();
+        }
+
+        assertThat(store.isMarkedCorrupted(), equalTo(false));
+        assertThat(Store.isMarkedCorrupted(translogPath), equalTo(true));
+        closeShards(newShard);
+    }
+
+
     public void testRecoverFromStoreRemoveStaleOperations() throws Exception {
         final IndexShard shard = newStartedShard(false);
         final String indexName = shard.shardId().getIndexName();
@@ -2703,13 +2738,16 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         final IndexMetaData indexMetaData = indexShard.indexSettings().getIndexMetaData();
 
-        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        final boolean indexCorruptionMarker = randomBoolean();
+        final Path path = indexCorruptionMarker ? shardPath.resolveIndex() : shardPath.resolveTranslog();
 
         // create corrupted marker
         final String corruptionMessage = "fake ioexception";
-        try(Store store = createStore(indexShard.indexSettings(), shardPath)) {
-            store.markStoreCorrupted(new IOException(corruptionMessage));
-        }
+        final Exception exception = indexCorruptionMarker
+            ? new IOException(corruptionMessage)
+            : new TranslogCorruptedException("source", corruptionMessage);
+
+        Store.markStoreCorrupted(exception, path, logger);
 
         // try to start shard on corrupted files
         final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
@@ -2718,7 +2756,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final IndexShardRecoveryException exception1 = expectThrows(IndexShardRecoveryException.class,
             () -> newStartedShard(p -> corruptedShard, true));
-        assertThat(exception1.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        final Throwable unwrap1 = ExceptionsHelper.unwrap(exception1,
+            indexCorruptionMarker ? IOException.class : TranslogCorruptedException.class);
+        assertThat(unwrap1.getMessage(), containsString(corruptionMessage));
         closeShards(corruptedShard);
 
         final AtomicInteger corruptedMarkerCount = new AtomicInteger();
@@ -2731,7 +2771,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 return FileVisitResult.CONTINUE;
             }
         };
-        Files.walkFileTree(indexPath, corruptedVisitor);
+        Files.walkFileTree(path, corruptedVisitor);
         assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
         // try to start another time shard on corrupted files
@@ -2741,12 +2781,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final IndexShardRecoveryException exception2 = expectThrows(IndexShardRecoveryException.class,
             () -> newStartedShard(p -> corruptedShard2, true));
-        assertThat(exception2.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        final Throwable unwrap2 = ExceptionsHelper.unwrap(exception2,
+            indexCorruptionMarker ? IOException.class : TranslogCorruptedException.class);
+        assertThat(unwrap2.getMessage(), containsString(corruptionMessage));
         closeShards(corruptedShard2);
 
         // check that corrupt marker is there
         corruptedMarkerCount.set(0);
-        Files.walkFileTree(indexPath, corruptedVisitor);
+        Files.walkFileTree(path, corruptedVisitor);
         assertThat("store still has a single corrupt marker", corruptedMarkerCount.get(), equalTo(1));
     }
 

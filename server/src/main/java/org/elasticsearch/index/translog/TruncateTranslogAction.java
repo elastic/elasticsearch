@@ -63,7 +63,13 @@ public class TruncateTranslogAction {
     }
 
     public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                     Directory indexDirectory) throws IOException {
+                                                                                     Directory indexDirectory,
+                                                                                     Directory translogDirectory
+    ) throws IOException {
+        if (RemoveCorruptedShardDataCommand.isCorruptMarkerFileIsPresent(translogDirectory) == false) {
+            return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
+        }
+
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
         final List<IndexCommit> commits;
@@ -84,7 +90,7 @@ public class TruncateTranslogAction {
         final boolean clean = isTranslogClean(shardPath, translogUUID);
 
         if (clean) {
-            return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
+            return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN_WITH_CORRUPTED_MARKER, null);
         }
 
         // Hold the lock open for the duration of the tool running
@@ -179,8 +185,8 @@ public class TruncateTranslogAction {
             final TranslogDeletionPolicy translogDeletionPolicy =
                 new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
                     indexSettings.getTranslogRetentionAge().getMillis());
-            try (Translog translog = new Translog(translogConfig, translogUUID,
-                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
+            try (Translog translog =  new Translog(translogConfig, translogUUID,
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, e -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
                 while (snapshot.next() != null) {
                     // just iterate over snapshot
@@ -236,7 +242,9 @@ public class TruncateTranslogAction {
         Set<Path> files = new TreeSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path file : stream) {
-                files.add(file);
+                if (file.getFileName().toString().startsWith("translog")) {
+                    files.add(file);
+                }
             }
         }
         return files;

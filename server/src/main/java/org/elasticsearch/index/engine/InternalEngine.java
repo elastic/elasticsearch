@@ -198,6 +198,9 @@ public class InternalEngine extends Engine {
                 historyUUID = loadHistoryUUID(writer);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
+                if (Translog.isCorruptionException(e)) {
+                    failEngine("Translog corrupted", e);
+                }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
                 // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
@@ -439,11 +442,13 @@ public class InternalEngine extends Engine {
         translog.trimUnreferencedReaders();
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
+                                  LongSupplier globalCheckpointSupplier) throws IOException {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
+        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier,
+            engineConfig.getPrimaryTermSupplier(), ex -> failEngine("Translog corrupted", ex));
     }
 
     // Package private for testing purposes only
@@ -1962,15 +1967,17 @@ public class InternalEngine extends Engine {
                 } catch (Exception e) {
                     logger.warn("Failed to close translog", e);
                 }
-                // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
-                logger.trace("rollback indexWriter");
-                try {
-                    indexWriter.rollback();
-                } catch (AlreadyClosedException ex) {
-                    failOnTragicEvent(ex);
-                    throw ex;
+                if (indexWriter != null) {
+                    // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
+                    logger.trace("rollback indexWriter");
+                    try {
+                        indexWriter.rollback();
+                    } catch (AlreadyClosedException ex) {
+                        failOnTragicEvent(ex);
+                        throw ex;
+                    }
+                    logger.trace("rollback indexWriter done");
                 }
-                logger.trace("rollback indexWriter done");
             } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);
             } finally {

@@ -75,6 +75,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
@@ -1043,9 +1044,14 @@ public abstract class Engine implements Closeable {
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
+                    if (Translog.isCorruptionException(failure)) {
+                        // the underlying reason of translog corruption could be e.g. wrong codec
+                        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
+                        Store.markStoreCorrupted(failure, translogPath, logger);
+                    } else if (Lucene.isCorruptionException(failure)) {
                         try {
-                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
+                            store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])",
+                                ExceptionsHelper.unwrapCorruption(failure)));
                         } catch (IOException e) {
                             logger.warn("Couldn't mark store corrupted", e);
                         }

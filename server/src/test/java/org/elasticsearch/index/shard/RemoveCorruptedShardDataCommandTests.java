@@ -288,7 +288,6 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("-d", translogPath.toString());
         // run command with dry-run
         t.addTextInput("n"); // mean dry run
-        t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
             command.execute(t, options, environment);
@@ -307,6 +306,19 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);
+
+        final IndexShard corruptedShard2 = reopenIndexShard(true);
+        allowShardFailures();
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard2, true));
+        closeShards(corruptedShard2);
+
+        // run command without dry-run
+        t.reset();
+        t.addTextInput("y");
+        command.execute(t, options, environment);
+
+        final String output2 = t.getOutput();
+        logger.info("--> output:\n{}", output2);
 
         // reopen shard
         failOnShardFailures();
@@ -346,6 +358,42 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
         command.findAndProcessShardPath(options2, environment,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+    }
+
+    public void testResolveIndexDirectoryBasedOnCorruptionMarker() throws Exception {
+        // index a single doc to have files on a disk
+        indexDoc(indexShard, "_doc", "0", "{}");
+        flushShard(indexShard, true);
+        writeIndexState();
+
+        // close shard
+        closeShards(indexShard);
+
+        final boolean corruptionMarkerExists = randomBoolean();
+
+        if (corruptionMarkerExists) {
+            final boolean indexCorruptionMarker = randomBoolean();
+            final Path path = indexCorruptionMarker ? shardPath.resolveIndex() : shardPath.resolveTranslog();
+
+            // create corrupted marker
+            final String corruptionMessage = "fake ioexception";
+            final Exception exception = indexCorruptionMarker
+                ? new IOException(corruptionMessage)
+                : new TranslogCorruptedException("source", corruptionMessage);
+
+            Store.markStoreCorrupted(exception, path, logger);
+        }
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse();
+        try {
+            command.findAndProcessShardPath(options, environment, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+        } catch (ElasticsearchException e) {
+            assertThat(corruptionMarkerExists, equalTo(false));
+            assertThat(e.getMessage(), equalTo("No one corrupted shard is found"));
+        }
     }
 
     private IndexShard reopenIndexShard(boolean corrupted) throws IOException {

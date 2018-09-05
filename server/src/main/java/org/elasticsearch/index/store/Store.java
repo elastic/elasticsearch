@@ -555,7 +555,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /* marking a store as corrupted is basically adding a _corrupted to all
          * the files. This prevent
          */
-        final String[] files = directory().listAll();
+        return isMarkedCorrupted(directory());
+    }
+
+    public static boolean isMarkedCorrupted(final Path path) throws IOException {
+        try (Directory directory = new SimpleFSDirectory(path)) {
+            return isMarkedCorrupted(directory);
+        }
+    }
+
+    private static boolean isMarkedCorrupted(final Directory directory) throws IOException {
+        final String[] files = directory.listAll();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
                 return true;
@@ -569,7 +579,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void removeCorruptionMarker() throws IOException {
         ensureOpen();
-        final Directory directory = directory();
+        removeCorruptionMarker(directory());
+    }
+
+    public static void removeCorruptionMarker(final Directory directory) throws IOException {
         IOException firstException = null;
         final String[] files = directory.listAll();
         for (String file : files) {
@@ -592,12 +605,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void failIfCorrupted() throws IOException {
         ensureOpen();
-        failIfCorrupted(directory, shardId);
+        failIfCorrupted(directory(), shardId);
     }
 
     private static void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
+        failIfCorrupted(directory, shardId, CorruptIndexException.class);
+    }
+
+    public static void failIfCorrupted(Path path, ShardId shardId, Class<? extends Exception> exceptionClass) throws IOException {
+        try (Directory directory = new SimpleFSDirectory(path)) {
+            Store.failIfCorrupted(directory, shardId, exceptionClass);
+        }
+    }
+
+    private static void failIfCorrupted(Directory directory, ShardId shardId, Class<? extends Exception> exceptionClass) throws IOException {
         final String[] files = directory.listAll();
-        List<CorruptIndexException> ex = new ArrayList<>();
+        List ex = new ArrayList<>();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
                 try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
@@ -609,15 +632,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         input.readBytes(buffer, 0, buffer.length);
                         StreamInput in = StreamInput.wrap(buffer);
                         Exception t = in.readException();
-                        if (t instanceof CorruptIndexException) {
-                            ex.add((CorruptIndexException) t);
+                        if (exceptionClass.isInstance(t)) {
+                            ex.add(t);
                         } else {
                             ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
                         }
                     } else {
                         assert version == VERSION_START || version == VERSION_STACK_TRACE;
                         String msg = input.readString();
-                        StringBuilder builder = new StringBuilder(shardId.toString());
+                        StringBuilder builder = new StringBuilder(shardId != null ? shardId.toString() : "");
                         builder.append(" Preexisting corrupted index [");
                         builder.append(file).append("] caused by: ");
                         builder.append(msg);
@@ -1382,21 +1405,40 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
-        if (!isMarkedCorrupted()) {
-            String uuid = CORRUPTED + UUIDs.randomBase64UUID();
-            try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(output, CODEC, VERSION);
-                BytesStreamOutput out = new BytesStreamOutput();
-                out.writeException(exception);
-                BytesReference bytes = out.bytes();
-                output.writeVInt(bytes.length());
-                BytesRef ref = bytes.toBytesRef();
-                output.writeBytes(ref.bytes, ref.offset, ref.length);
-                CodecUtil.writeFooter(output);
-            } catch (IOException ex) {
-                logger.warn("Can't mark store as corrupted", ex);
+        markStoreCorrupted(exception, directory(), logger);
+    }
+
+    public static void markStoreCorrupted(Exception exception, Path path, Logger logger) throws IOException {
+        try (Directory directory = new SimpleFSDirectory(path)) {
+            markStoreCorrupted(exception, directory, logger);
+        }
+    }
+
+    /**
+     * Marks this store as corrupted. This method writes a {@code corrupted_${uuid}} file containing the given exception
+     * message. If a store contains a {@code corrupted_${uuid}} file {@link #isMarkedCorrupted()} will return <code>true</code>.
+     */
+    private static void markStoreCorrupted(Exception exception, Directory directory, Logger logger) throws IOException {
+        try {
+            if (isMarkedCorrupted(directory) == false) {
+                String uuid = CORRUPTED + UUIDs.randomBase64UUID();
+                try (IndexOutput output = directory.createOutput(uuid, IOContext.DEFAULT)) {
+                    CodecUtil.writeHeader(output, CODEC, VERSION);
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    out.writeException(exception);
+                    BytesReference bytes = out.bytes();
+                    output.writeVInt(bytes.length());
+                    BytesRef ref = bytes.toBytesRef();
+                    output.writeBytes(ref.bytes, ref.offset, ref.length);
+                    CodecUtil.writeFooter(output);
+                } catch (IOException ex) {
+                    logger.warn("Can't mark store as corrupted", ex);
+                }
+                directory.sync(Collections.singleton(uuid));
             }
-            directory().sync(Collections.singleton(uuid));
+        } catch (IOException e) {
+            e.addSuppressed(exception);
+            throw e;
         }
     }
 

@@ -23,8 +23,9 @@ Stop Elasticsearch before running `elasticsearch-shard`.
 
 To remove corrupted shard data use the `remove-corrupted-data` subcommand.
 
-There are two ways to specify the path:
+There are several ways to specify the path to corrupted shard:
 
+* Nothing to specify: tool tries to find a corruption marker for the corrupted shard.
 * Specify the index name and shard name with the `--index` and `--shard-id`
   options.
 * Use the `--dir` option to specify the full path to the corrupted index or

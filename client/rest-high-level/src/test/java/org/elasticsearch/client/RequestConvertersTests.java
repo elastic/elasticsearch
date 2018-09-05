@@ -94,6 +94,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
@@ -2761,6 +2762,18 @@ public class RequestConvertersTests extends ESTestCase {
         Request request = RequestConverters.stopILM(req);
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEndpoint(), equalTo("/_ilm/stop"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testLifecycleManagementStatus() throws Exception {
+        LifecycleManagementStatusRequest req = new LifecycleManagementStatusRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_MASTER_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.lifecycleManagementStatus(req);
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEndpoint(), equalTo("/_ilm/status"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

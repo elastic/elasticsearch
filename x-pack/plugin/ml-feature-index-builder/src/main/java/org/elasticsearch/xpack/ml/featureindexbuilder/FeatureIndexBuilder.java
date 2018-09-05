@@ -100,13 +100,13 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         if (!enabled) {
             return emptyList();
         }
-        
+
         return Arrays.asList(
                 new ActionHandler<>(PutFeatureIndexBuilderJobAction.INSTANCE, TransportPutFeatureIndexBuilderJobAction.class),
                 new ActionHandler<>(StartFeatureIndexBuilderJobAction.INSTANCE, TransportStartFeatureIndexBuilderJobAction.class)
                 );
     }
-    
+
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (false == enabled) {
@@ -126,7 +126,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
             return emptyList();
         }
 
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
         return Collections.singletonList(new FeatureIndexBuilderJobTask.FeatureIndexBuilderJobPersistentTasksExecutor(settings, client,
                 schedulerEngine, threadPool));
     }

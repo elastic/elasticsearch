@@ -426,8 +426,12 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public String getRaw(Settings settings) {
+    public final String getRaw(final Settings settings) {
         checkDeprecation(settings);
+        return innerGetRaw(settings);
+    }
+
+    String innerGetRaw(final Settings settings) {
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
@@ -713,9 +717,9 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        public String innerGetRaw(final Settings settings) {
             throw new UnsupportedOperationException("affix settings can't return values" +
-                " use #getConcreteSetting to obtain a concrete setting");
+                    " use #getConcreteSetting to obtain a concrete setting");
         }
 
         @Override
@@ -820,7 +824,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        public String innerGetRaw(final Settings settings) {
             Settings subSettings = get(settings);
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -913,7 +917,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        String innerGetRaw(final Settings settings) {
             List<String> array = settings.getAsList(getKey(), null);
             return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
         }

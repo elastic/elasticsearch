@@ -433,8 +433,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 
+        final String node1 = internalCluster().getNodeNames()[0];
         final String node2 = internalCluster().getNodeNames()[1];
-        logger.info("--> nodes name: {}, {}", internalCluster().getNodeNames());
+        logger.info("--> nodes name: {}, {}", node1, node2);
 
         final String indexName = "test";
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder()

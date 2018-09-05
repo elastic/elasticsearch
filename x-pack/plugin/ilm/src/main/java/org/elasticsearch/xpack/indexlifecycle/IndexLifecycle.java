@@ -133,6 +133,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING,
             LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING,
             LifecycleSettings.LIFECYCLE_SKIP_SETTING,
+            LifecycleSettings.LIFECYCLE_PHASE_DEFINITION_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
     }
 
@@ -145,7 +146,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             return emptyList();
         }
         indexLifecycleInitialisationService
-            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis));
+            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), System::currentTimeMillis, xContentRegistry));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
     }
 

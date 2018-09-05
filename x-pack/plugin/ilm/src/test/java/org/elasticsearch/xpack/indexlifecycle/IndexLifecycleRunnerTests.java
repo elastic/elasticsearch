@@ -16,11 +16,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
@@ -78,7 +80,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         steps.add(step);
         Index index = new Index(indexName, indexName + "uuid");
         indexSteps.put(index, steps);
-        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+        return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps, NamedXContentRegistry.EMPTY);
     }
 
     public void testRunPolicyTerminalPolicyStep() {
@@ -340,7 +342,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testRunPolicyWithNoStepsInRegistry() {
         String policyName = "cluster_state_action_policy";
         ClusterService clusterService = mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(), clusterService, () -> 0L);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(NamedXContentRegistry.EMPTY),
+            clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         // verify that no exception is thrown
@@ -466,7 +469,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         phase1Steps.add(thirdStep);
         Index index = new Index("test", "uuid");
         indexSteps.put(index, phase1Steps);
-        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+        PolicyStepsRegistry registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps,
+            NamedXContentRegistry.EMPTY);
 
         Settings indexSettings = Settings.EMPTY;
         Step actualStep = IndexLifecycleRunner.getCurrentStep(registry, policyName, index, indexSettings);
@@ -500,7 +504,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // TODO: it'd be nice if we used the actual registry.update method for this
         indexSteps.clear();
         indexSteps.put(index, Collections.singletonList(fourthStep));
-        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps, NamedXContentRegistry.EMPTY);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_2")
@@ -521,7 +525,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // Back to phase_1
         indexSteps.clear();
         indexSteps.put(index, phase1Steps);
-        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps);
+        registry = new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, indexSteps, NamedXContentRegistry.EMPTY);
 
         indexSettings = Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_PHASE, "phase_1")
@@ -550,24 +554,32 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void testMoveClusterStateToNextStep() {
         String indexName = "my_index";
+        LifecyclePolicy policy = LifecyclePolicyTests.randomTestLifecyclePolicy("policy");
+        Phase nextPhase = policy.getPhases().values().stream().findFirst().get();
+        List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
         StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
-        StepKey nextStep = new StepKey("next_phase", "next_action", "next_step");
+        StepKey nextStep = new StepKey(nextPhase.getName(), "next_action", "next_step");
         long now = randomNonNegativeLong();
 
-        ClusterState clusterState = buildClusterState(indexName, Settings.builder(), Collections.emptyList());
+        // test going from null lifecycle settings to next step
+        ClusterState clusterState = buildClusterState(indexName,
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()), policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep,
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
-        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        // test going from set currentStep settings to nextStep
+        Builder indexSettingsBuilder = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy.getName())
+            .put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
         if (randomBoolean()) {
             indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
         }
-        clusterState = buildClusterState(indexName,
-                indexSettingsBuilder, Collections.emptyList());
+        clusterState = buildClusterState(indexName, indexSettingsBuilder, policyMetadatas);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -626,8 +638,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void testSuccessfulValidatedMoveClusterStateToNextStep() {
         String indexName = "my_index";
         String policyName = "my_policy";
+        LifecyclePolicy policy = randomValueOtherThanMany(p -> p.getPhases().size() == 0,
+            () -> LifecyclePolicyTests.randomTestLifecyclePolicy(policyName));
+        Phase nextPhase = policy.getPhases().values().stream().findFirst().get();
+        List<LifecyclePolicyMetadata> policyMetadatas = Collections.singletonList(
+            new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
         StepKey currentStepKey = new StepKey("current_phase", "current_action", "current_step");
-        StepKey nextStepKey = new StepKey("next_phase", "next_action", "next_step");
+        StepKey nextStepKey = new StepKey(nextPhase.getName(), "next_action", "next_step");
         long now = randomNonNegativeLong();
         Step step = new MockStep(nextStepKey, nextStepKey);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step, indexName);
@@ -636,7 +653,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .put(LifecycleSettings.LIFECYCLE_PHASE, currentStepKey.getPhase())
             .put(LifecycleSettings.LIFECYCLE_ACTION, currentStepKey.getAction())
             .put(LifecycleSettings.LIFECYCLE_STEP, currentStepKey.getName());
-        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, Collections.emptyList());
+        ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
             nextStepKey, () -> now, stepRegistry);
@@ -866,7 +883,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String newPolicyName = "new_policy";
         String phaseName = randomAlphaOfLength(10);
         StepKey currentStep = new StepKey(phaseName, MockAction.NAME, randomAlphaOfLength(10));
-        LifecyclePolicy newPolicy = createPolicy(oldPolicyName,
+        LifecyclePolicy newPolicy = createPolicy(newPolicyName,
                 new StepKey(phaseName, MockAction.NAME, randomAlphaOfLength(9)), null);
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, currentStep, null);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
@@ -875,6 +892,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()).put(LifecycleSettings.LIFECYCLE_SKIP, true);
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap()));
+        policyMetadatas.add(new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap()));
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         Index[] indices = new Index[] { index };

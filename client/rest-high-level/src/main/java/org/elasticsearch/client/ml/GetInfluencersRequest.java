@@ -56,7 +56,7 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
         PARSER.declareBoolean(GetInfluencersRequest::setDescending, DESCENDING);
     }
 
-    private String jobId;
+    private final String jobId;
     private Boolean excludeInterim;
     private String start;
     private String end;

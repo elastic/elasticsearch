@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -28,6 +29,7 @@ public final class LogStructureUtils {
     public static final String MAPPING_FORMAT_SETTING = "format";
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
 
+    private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");
     private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$");
@@ -112,26 +114,39 @@ public final class LogStructureUtils {
      * @param sampleRecords The sampled records.
      * @return A map of field name to mapping settings.
      */
-    static SortedMap<String, Object> guessMappings(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>>
+        guessMappingsAndCalculateFieldStats(List<String> explanation, List<Map<String, ?>> sampleRecords) {
 
         SortedMap<String, Object> mappings = new TreeMap<>();
+        SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        for (Map<String, ?> sampleRecord : sampleRecords) {
-            for (String fieldName : sampleRecord.keySet()) {
-                mappings.computeIfAbsent(fieldName, key -> guessMapping(explanation, fieldName,
-                    sampleRecords.stream().flatMap(record -> {
-                            Object fieldValue = record.get(fieldName);
-                            return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
-                        }
-                    ).collect(Collectors.toList())));
+        Set<String> uniqueFieldNames = sampleRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
+
+        for (String fieldName : uniqueFieldNames) {
+
+            List<Object> fieldValues = sampleRecords.stream().flatMap(record -> {
+                    Object fieldValue = record.get(fieldName);
+                    return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
+                }
+            ).collect(Collectors.toList());
+
+            Tuple<Map<String, String>, FieldStats> mappingAndFieldStats =
+                guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues);
+            if (mappingAndFieldStats != null) {
+                if (mappingAndFieldStats.v1() != null) {
+                    mappings.put(fieldName, mappingAndFieldStats.v1());
+                }
+                if (mappingAndFieldStats.v2() != null) {
+                    fieldStats.put(fieldName, mappingAndFieldStats.v2());
+                }
             }
         }
 
-        return mappings;
+        return new Tuple<>(mappings, fieldStats);
     }
 
-    static Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
-
+    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(List<String> explanation,
+                                                                                     String fieldName, List<Object> fieldValues) {
         if (fieldValues == null || fieldValues.isEmpty()) {
             // We can get here if all the records that contained a given field had a null value for it.
             // In this case it's best not to make any statement about what the mapping type should be.
@@ -140,7 +155,7 @@ public final class LogStructureUtils {
 
         if (fieldValues.stream().anyMatch(value -> value instanceof Map)) {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
-                return Collections.singletonMap(MAPPING_TYPE_SETTING, "object");
+                return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null);
             }
             throw new IllegalArgumentException("Field [" + fieldName +
                 "] has both object and non-object values - this is not supported by Elasticsearch");
@@ -148,11 +163,12 @@ public final class LogStructureUtils {
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {
             // Elasticsearch fields can be either arrays or single values, but array values must all have the same type
-            return guessMapping(explanation, fieldName,
+            return guessMappingAndCalculateFieldStats(explanation, fieldName,
                 fieldValues.stream().flatMap(LogStructureUtils::flatten).collect(Collectors.toList()));
         }
 
-        return guessScalarMapping(explanation, fieldName, fieldValues.stream().map(Object::toString).collect(Collectors.toList()));
+        Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
+        return new Tuple<>(guessScalarMapping(explanation, fieldName, fieldValuesAsStrings), calculateFieldStats(fieldValuesAsStrings));
     }
 
     private static Stream<Object> flatten(Object value) {
@@ -225,6 +241,18 @@ public final class LogStructureUtils {
         }
 
         return Collections.singletonMap(MAPPING_TYPE_SETTING, "keyword");
+    }
+
+    /**
+     * Calculate stats for a set of field values.
+     * @param fieldValues Values of the field for which field stats are to be calculated.
+     * @return The stats calculated from the field values.
+     */
+    static FieldStats calculateFieldStats(Collection<String> fieldValues) {
+
+        FieldStatsCalculator calculator = new FieldStatsCalculator();
+        calculator.accept(fieldValues);
+        return calculator.calculate(NUM_TOP_HITS);
     }
 
     /**

@@ -108,7 +108,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
+            recoverySettings.getChunkSize().bytesAsInt());
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -174,7 +174,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
         final RecoverySourceHandler handler =
-            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, Settings.EMPTY);
+            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes);
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -281,7 +281,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
+                recoverySettings.getChunkSize().bytesAsInt()) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -340,7 +340,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
+                recoverySettings.getChunkSize().bytesAsInt()) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -405,11 +405,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            mock(RecoveryTargetHandler.class),
-            request,
-            recoverySettings.getChunkSize().bytesAsInt(),
-            Settings.EMPTY) {
+                shard,
+                mock(RecoveryTargetHandler.class),
+                request,
+                recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
             public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {

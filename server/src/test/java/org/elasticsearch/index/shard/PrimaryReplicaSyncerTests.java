@@ -125,7 +125,6 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33330")
     public void testSyncerOnClosingShard() throws Exception {
         IndexShard shard = newStartedShard(true);
         AtomicBoolean syncActionCalled = new AtomicBoolean();

@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 
 import java.io.IOException;
@@ -76,7 +77,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.deferred = BucketCollector.wrap(deferredCollectors);
+        this.deferred = MultiBucketCollector.wrap(deferredCollectors);
     }
 
     @Override

@@ -39,19 +39,21 @@ import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 public class SysColumns extends Command {
 
     private final String catalog;
-    private final LikePattern indexPattern;
+    private final String index;
+    private final LikePattern pattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, String catalog, LikePattern indexPattern, LikePattern columnPattern) {
+    public SysColumns(Location location, String catalog, String index, LikePattern pattern, LikePattern columnPattern) {
         super(location);
         this.catalog = catalog;
-        this.indexPattern = indexPattern;
+        this.index = index;
+        this.pattern = pattern;
         this.columnPattern = columnPattern;
     }
 
     @Override
     protected NodeInfo<SysColumns> info() {
-        return NodeInfo.create(this, SysColumns::new, catalog, indexPattern, columnPattern);
+        return NodeInfo.create(this, SysColumns::new, catalog, index, pattern, columnPattern);
     }
 
     @Override
@@ -94,12 +96,12 @@ public class SysColumns extends Command {
             return;
         }
 
-        String index = indexPattern != null ? indexPattern.asIndexNameWildcard() : "*";
-        String regex = indexPattern != null ? indexPattern.asJavaRegex() : null;
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
+        String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
 
-        session.indexResolver().resolveAsSeparateMappings(index, regex, ActionListener.wrap(esIndices -> {
+        session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
             List<List<?>> rows = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher);
@@ -165,7 +167,7 @@ public class SysColumns extends Command {
     
     @Override
     public int hashCode() {
-        return Objects.hash(catalog, indexPattern, columnPattern);
+        return Objects.hash(catalog, index, pattern, columnPattern);
     }
 
     @Override
@@ -180,7 +182,8 @@ public class SysColumns extends Command {
 
         SysColumns other = (SysColumns) obj;
         return Objects.equals(catalog, other.catalog)
-                && Objects.equals(indexPattern, other.indexPattern)
+                && Objects.equals(index, other.index)
+                && Objects.equals(pattern, other.pattern)
                 && Objects.equals(columnPattern, other.columnPattern);
     }
 }

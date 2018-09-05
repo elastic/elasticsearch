@@ -107,7 +107,7 @@ It's recommended to just configure a single job with the smallest granularity th
 as needed.
 
 That said, if multiple jobs are present in a single rollup index with varying intervals, the search endpoint will identify and use the job(s)
-with the largest interval to satisfy the search reques.
+with the largest interval to satisfy the search request.
 
 [float]
 === Limited querying components

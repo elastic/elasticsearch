@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +96,7 @@ public class LogStructure implements ToXContentObject {
     static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
     static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
     static final ParseField MAPPINGS = new ParseField("mappings");
+    static final ParseField FIELD_STATS = new ParseField("field_stats");
     static final ParseField EXPLANATION = new ParseField("explanation");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("log_file_structure", false, Builder::new);
@@ -117,6 +119,13 @@ public class LogStructure implements ToXContentObject {
         PARSER.declareStringArray(Builder::setTimestampFormats, TIMESTAMP_FORMATS);
         PARSER.declareBoolean(Builder::setNeedClientTimezone, NEED_CLIENT_TIMEZONE);
         PARSER.declareObject(Builder::setMappings, (p, c) -> new TreeMap<>(p.map()), MAPPINGS);
+        PARSER.declareObject(Builder::setFieldStats, (p, c) -> {
+            Map<String, FieldStats> fieldStats = new TreeMap<>();
+            while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
+                fieldStats.put(p.currentName(), FieldStats.PARSER.apply(p, c));
+            }
+            return fieldStats;
+        }, FIELD_STATS);
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
@@ -137,13 +146,14 @@ public class LogStructure implements ToXContentObject {
     private final String timestampField;
     private final boolean needClientTimezone;
     private final SortedMap<String, Object> mappings;
+    private final SortedMap<String, FieldStats> fieldStats;
     private final List<String> explanation;
 
     public LogStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
                         Format format, String multilineStartPattern, String excludeLinesPattern, List<String> inputFields,
                         Boolean hasHeaderRow, Character delimiter, Boolean shouldTrimFields, String grokPattern, String timestampField,
                         List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
-                        List<String> explanation) {
+                        Map<String, FieldStats> fieldStats, List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
         this.numMessagesAnalyzed = numMessagesAnalyzed;
@@ -162,6 +172,7 @@ public class LogStructure implements ToXContentObject {
         this.timestampFormats = (timestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(timestampFormats));
         this.needClientTimezone = needClientTimezone;
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
+        this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
     }
 
@@ -233,6 +244,10 @@ public class LogStructure implements ToXContentObject {
         return mappings;
     }
 
+    public SortedMap<String, FieldStats> getFieldStats() {
+        return fieldStats;
+    }
+
     public List<String> getExplanation() {
         return explanation;
     }
@@ -278,6 +293,13 @@ public class LogStructure implements ToXContentObject {
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
         builder.field(MAPPINGS.getPreferredName(), mappings);
+        if (fieldStats.isEmpty() == false) {
+            builder.startObject(FIELD_STATS.getPreferredName());
+            for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
         builder.field(EXPLANATION.getPreferredName(), explanation);
         builder.endObject();
 
@@ -289,7 +311,7 @@ public class LogStructure implements ToXContentObject {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
             multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern, timestampField,
-            timestampFormats, needClientTimezone, mappings, explanation);
+            timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
     }
 
     @Override
@@ -321,6 +343,7 @@ public class LogStructure implements ToXContentObject {
             Objects.equals(this.timestampField, that.timestampField) &&
             Objects.equals(this.timestampFormats, that.timestampFormats) &&
             Objects.equals(this.mappings, that.mappings) &&
+            Objects.equals(this.fieldStats, that.fieldStats) &&
             Objects.equals(this.explanation, that.explanation);
     }
 
@@ -343,6 +366,7 @@ public class LogStructure implements ToXContentObject {
         private List<String> timestampFormats;
         private boolean needClientTimezone;
         private Map<String, Object> mappings;
+        private Map<String, FieldStats> fieldStats = Collections.emptyMap();
         private List<String> explanation;
 
         public Builder() {
@@ -435,6 +459,11 @@ public class LogStructure implements ToXContentObject {
 
         public Builder setMappings(Map<String, Object> mappings) {
             this.mappings = Objects.requireNonNull(mappings);
+            return this;
+        }
+
+        public Builder setFieldStats(Map<String, FieldStats> fieldStats) {
+            this.fieldStats = Objects.requireNonNull(fieldStats);
             return this;
         }
 
@@ -540,7 +569,7 @@ public class LogStructure implements ToXContentObject {
 
             return new LogStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
                 multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern,
-                timestampField, timestampFormats, needClientTimezone, mappings, explanation);
+                timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
         }
     }
 }

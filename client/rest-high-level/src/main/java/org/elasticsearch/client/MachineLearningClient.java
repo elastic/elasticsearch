@@ -32,6 +32,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetOverallBucketsRequest;
+import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -134,6 +136,47 @@ public final class MachineLearningClient {
             GetJobResponse::fromXContent,
             listener,
             Collections.emptySet());
+    }
+
+    /**
+     * Gets usage statistics for one or more Machine Learning jobs
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get Job stats docs</a>
+     * </p>
+     * @param request {@link GetJobStatsRequest} Request containing a list of jobId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetJobStatsResponse} response object containing
+     * the {@link JobStats} objects and the number of jobs found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetJobStatsResponse getJobStats(GetJobStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getJobStats,
+                options,
+                GetJobStatsResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets one or more Machine Learning job configuration info, asynchronously.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get Job stats docs</a>
+     * </p>
+     * @param request {@link GetJobStatsRequest} Request containing a list of jobId(s) and additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetJobStatsResponse} upon request completion
+     */
+    public void getJobStatsAsync(GetJobStatsRequest request, RequestOptions options, ActionListener<GetJobStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getJobStats,
+                options,
+                GetJobStatsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
     }
 
     /**
@@ -258,6 +301,60 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Flushes internally buffered data for the given Machine Learning Job ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
+     *
+     * Both flush and close operations are similar,
+     * however the flush is more efficient if you are expecting to send more data for analysis.
+     *
+     * When flushing, the job remains open and is available to continue analyzing data.
+     * A close operation additionally prunes and persists the model state to disk and the
+     * job must be opened again before analyzing further data.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
+     *
+     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public FlushJobResponse flushJob(FlushJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::flushJob,
+                options,
+                FlushJobResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Flushes internally buffered data for the given Machine Learning Job asynchronously ensuring all data sent to the has been processed.
+     * This may cause new results to be calculated depending on the contents of the buffer
+     *
+     * Both flush and close operations are similar,
+     * however the flush is more efficient if you are expecting to send more data for analysis.
+     *
+     * When flushing, the job remains open and is available to continue analyzing data.
+     * A close operation additionally prunes and persists the model state to disk and the
+     * job must be opened again before analyzing further data.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
+     *
+     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void flushJobAsync(FlushJobRequest request, RequestOptions options, ActionListener<FlushJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::flushJob,
+                options,
+                FlushJobResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
      * Gets the buckets for a Machine Learning Job.
      * <p>
      * For additional info
@@ -294,98 +391,42 @@ public final class MachineLearningClient {
      }
 
     /**
-     * Flushes internally buffered data for the given Machine Learning Job ensuring all data sent to the has been processed.
-     * This may cause new results to be calculated depending on the contents of the buffer
-     *
-     * Both flush and close operations are similar,
-     * however the flush is more efficient if you are expecting to send more data for analysis.
-     *
-     * When flushing, the job remains open and is available to continue analyzing data.
-     * A close operation additionally prunes and persists the model state to disk and the
-     * job must be opened again before analyzing further data.
-     *
+     * Gets overall buckets for a set of Machine Learning Jobs.
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html">
+     *     ML GET overall buckets documentation</a>
      *
-     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
+     * @param request  The request
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-     public FlushJobResponse flushJob(FlushJobRequest request, RequestOptions options) throws IOException {
+    public GetOverallBucketsResponse getOverallBuckets(GetOverallBucketsRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
-            MLRequestConverters::flushJob,
-            options,
-            FlushJobResponse::fromXContent,
-            Collections.emptySet());
-     }
-
-    /**
-     * Flushes internally buffered data for the given Machine Learning Job asynchronously ensuring all data sent to the has been processed.
-     * This may cause new results to be calculated depending on the contents of the buffer
-     *
-     * Both flush and close operations are similar,
-     * however the flush is more efficient if you are expecting to send more data for analysis.
-     *
-     * When flushing, the job remains open and is available to continue analyzing data.
-     * A close operation additionally prunes and persists the model state to disk and the
-     * job must be opened again before analyzing further data.
-     *
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html">Flush ML job documentation</a>
-     *
-     * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener Listener to be notified upon request completion
-     */
-     public void flushJobAsync(FlushJobRequest request, RequestOptions options, ActionListener<FlushJobResponse> listener) {
-         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-             MLRequestConverters::flushJob,
-             options,
-             FlushJobResponse::fromXContent,
-             listener,
-             Collections.emptySet());
-     }
-
-     /**
-     * Gets usage statistics for one or more Machine Learning jobs
-     *
-     * <p>
-     *     For additional info
-     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get Job stats docs</a>
-     * </p>
-     * @param request {@link GetJobStatsRequest} Request containing a list of jobId(s) and additional options
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@link GetJobStatsResponse} response object containing
-     * the {@link JobStats} objects and the number of jobs found
-     * @throws IOException when there is a serialization issue sending the request or receiving the response
-     */
-    public GetJobStatsResponse getJobStats(GetJobStatsRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-            MLRequestConverters::getJobStats,
-            options,
-            GetJobStatsResponse::fromXContent,
-            Collections.emptySet());
+                MLRequestConverters::getOverallBuckets,
+                options,
+                GetOverallBucketsResponse::fromXContent,
+                Collections.emptySet());
     }
 
     /**
-     * Gets one or more Machine Learning job configuration info, asynchronously.
-     *
+     * Gets overall buckets for a set of Machine Learning Jobs, notifies listener once the requested buckets are retrieved.
      * <p>
-     *     For additional info
-     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-stats.html">Get Job stats docs</a>
-     * </p>
-     * @param request {@link GetJobStatsRequest} Request containing a list of jobId(s) and additional options
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html">
+     *     ML GET overall buckets documentation</a>
+     *
+     * @param request  The request
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener Listener to be notified with {@link GetJobStatsResponse} upon request completion
+     * @param listener Listener to be notified upon request completion
      */
-    public void getJobStatsAsync(GetJobStatsRequest request, RequestOptions options, ActionListener<GetJobStatsResponse> listener) {
+    public void getOverallBucketsAsync(GetOverallBucketsRequest request, RequestOptions options,
+                                       ActionListener<GetOverallBucketsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            MLRequestConverters::getJobStats,
-            options,
-            GetJobStatsResponse::fromXContent,
-            listener,
-            Collections.emptySet());
+                MLRequestConverters::getOverallBuckets,
+                options,
+                GetOverallBucketsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
     }
 
     /**

@@ -17,16 +17,24 @@
  * under the License.
  */
 
-esplugin {
-    description 'Adds "built in" analyzers to Elasticsearch.'
-    classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
-    extendedPlugins = ['lang-painless']
-}
+package org.elasticsearch.analysis.common;
 
-dependencies {
-    compileOnly project(':modules:lang-painless')
-}
+import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.ScriptContext;
 
-integTestCluster {
-    module project(':modules:lang-painless')
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class AnalysisPainlessExtension implements PainlessExtension {
+
+    private static final Whitelist WHITELIST =
+        WhitelistLoader.loadFromResourceFiles(AnalysisPainlessExtension.class, "painless_whitelist.txt");
+
+    @Override
+    public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
+        return Collections.singletonMap(AnalysisPredicateScript.CONTEXT, Collections.singletonList(WHITELIST));
+    }
 }

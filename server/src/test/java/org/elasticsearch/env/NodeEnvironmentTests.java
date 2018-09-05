@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -31,6 +32,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -469,6 +472,41 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
             final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
+        }
+    }
+
+    public void testNonDataNodeFailsInPresenceOfDanglingIndices() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(dataPaths.get(0)), 0);
+        final Path indicesPath = nodePath.resolve(NodeEnvironment.INDICES_FOLDER);
+        final Path indexPath = indicesPath.resolve(UUIDs.randomBase64UUID());
+        Files.createDirectories(indexPath);
+
+        if (randomBoolean()) {
+            // _state is ok to keep on non-data node
+            Files.createDirectories(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+        }
+
+        final boolean allocateShard = randomBoolean();
+        Path shardPath = null;
+        if (allocateShard) {
+            shardPath = indexPath.resolve("0");
+            // allocate shard 0
+            Files.createDirectories(shardPath);
+        }
+
+        try {
+            try (NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                logger.info("indicesPath: {}", env.nodePaths()[0].indicesPath);
+            }
+            assertThat(allocateShard, equalTo(false));
+        } catch (IllegalStateException e) {
+            assertThat(allocateShard, equalTo(true));
+            assertThat(shardPath, notNullValue());
+            assertThat(e.getMessage(),
+                equalTo("Non data node cannot have dangling indices, data shards found: ["
+                    + shardPath.toAbsolutePath() + "]"));
         }
     }
 

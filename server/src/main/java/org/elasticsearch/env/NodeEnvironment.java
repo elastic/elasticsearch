@@ -294,6 +294,7 @@ public final class NodeEnvironment  implements Closeable {
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
+            checkDanglingIndices(settings);
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
             if (logger.isDebugEnabled()) {
@@ -309,6 +310,33 @@ public final class NodeEnvironment  implements Closeable {
         } finally {
             if (success == false) {
                 close();
+            }
+        }
+    }
+
+    private void checkDanglingIndices(Settings settings) throws IOException {
+        if (DiscoveryNode.isDataNode(settings) == false) {
+            final List<Path> danglingShards = new ArrayList<>();
+            for (final NodePath nodePath : nodePaths) {
+                // path to shard is: <node-id>/indices/<index-uuid>/<shard-id>
+                if (Files.exists(nodePath.indicesPath) && Files.isDirectory(nodePath.indicesPath)) {
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                        for (final Path index : stream) {
+                            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(index)) {
+                                for (Path path: indexStream) {
+                                    // it's ok for non data node to have _state folder
+                                    if (MetaDataStateFormat.STATE_DIR_NAME.equals(path.getFileName().toString()) == false) {
+                                        danglingShards.add(path.toAbsolutePath());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (danglingShards.isEmpty() == false) {
+                throw new IllegalStateException("Non data node cannot have dangling indices,"
+                    + " data shards found: " + danglingShards);
             }
         }
     }

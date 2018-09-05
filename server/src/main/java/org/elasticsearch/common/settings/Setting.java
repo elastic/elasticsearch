@@ -431,6 +431,13 @@ public class Setting<T> implements ToXContentObject {
         return innerGetRaw(settings);
     }
 
+    /**
+     * The underlying implementation for {@link #getRaw(Settings)}. Setting specializations can override this as needed to convert the
+     * actual settings value to raw strings.
+     *
+     * @param settings the settings instance
+     * @return the raw string representation of the setting value
+     */
     String innerGetRaw(final Settings settings) {
         return settings.get(getKey(), defaultValue.apply(settings));
     }

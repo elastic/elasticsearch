@@ -357,7 +357,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY_ENGINE)) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
             EngineFactory engineFactory = SourceOnlySnapshotEngine::new;
             return Optional.of(engineFactory);
         }
@@ -367,7 +367,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
-        settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY_ENGINE);
+        settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
         return settings;
     }
 }

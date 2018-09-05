@@ -54,8 +54,8 @@ import java.util.function.Supplier;
 public final class SourceOnlySnapshotRepository extends FilterRepository {
     private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
         .NodeScope);
-    public static final Setting<Boolean> SOURCE_ONLY_ENGINE = Setting.boolSetting("index.require_source_only_engine", false, Setting
-        .Property.IndexScope, Setting.Property.InternalIndex, Setting.Property.Final);
+    public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
+        .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
 
     private static final String SNAPSHOT_DIR_NAME = "_snapshot";
 
@@ -108,7 +108,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             builder.putMapping(next.key, mapping);
         }
         builder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings())
-            .put(SOURCE_ONLY_ENGINE.getKey(), true)
+            .put(SOURCE_ONLY.getKey(), true)
             .put("index.blocks.write", true)); // read-only!
         return builder.build();
     }

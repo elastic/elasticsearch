@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold"]
+[testenv="platinum"]
 [[configuring-ldap-realm]]
 === Configuring an LDAP realm
 
@@ -157,6 +157,7 @@ PUT _xpack/security/role_mapping/admins
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:license-issues]
 <1> The LDAP distinguished name (DN) of the `admins` group.
 
 [source,js]
@@ -171,6 +172,7 @@ PUT _xpack/security/role_mapping/basic_users
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:license-issues]
 <1> The LDAP distinguished name (DN) of the `users` group.
 
 Or, alternatively, configured via the role-mapping file:

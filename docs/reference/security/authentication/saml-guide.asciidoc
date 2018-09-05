@@ -645,7 +645,7 @@ PUT /_xpack/security/role_mapping/saml-kibana
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[skip:license-issues]
 
 
 The attributes that are mapped via the realm configuration are used to process
@@ -683,7 +683,7 @@ PUT /_xpack/security/role_mapping/saml-finance
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[skip:license-issues]
 
 If your users also exist in a repository that can be directly accessed by {security}
 (such as an LDAP directory) then you can use

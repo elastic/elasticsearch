@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold"]
+[testenv="platinum"]
 [[configuring-pki-realm]]
 === Configuring a PKI realm
 
@@ -150,6 +150,7 @@ PUT _xpack/security/role_mapping/users
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:license-issues]
 <1> The distinguished name (DN) of a PKI user.
 
 Or, alternatively, configured in a role-mapping file:

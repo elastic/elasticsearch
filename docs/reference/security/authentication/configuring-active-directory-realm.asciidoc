@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="gold"]
+[testenv="platinum"]
 [[configuring-ad-realm]]
 === Configuring an Active Directory realm
 
@@ -198,6 +198,7 @@ PUT _xpack/security/role_mapping/admins
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:license-issues]
 <1> The Active Directory distinguished name (DN) of the `admins` group.
 
 [source,js]
@@ -217,6 +218,7 @@ PUT _xpack/security/role_mapping/basic_users
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:license-issues]
 <1> The Active Directory distinguished name (DN) of the `users` group.
 <2> The Active Directory distinguished name (DN) of the user `John Doe`.
 

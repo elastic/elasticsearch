@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +57,8 @@ import java.util.stream.Collectors;
  */
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
+    public static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
+
     public static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
     public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
@@ -63,6 +66,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
     public static final TimeValue DEFAULT_MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
     public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
+    private static final int DELAY_MILLIS = 50;
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
@@ -389,8 +393,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     static long computeDelay(int currentRetry, long maxRetryDelayInMillis) {
-        long expectedBackOff = Math.round(10 * Math.exp(0.8d * currentRetry) - 1);
-        return Math.min(expectedBackOff, maxRetryDelayInMillis);
+        long n = Math.round(Math.pow(2, currentRetry - 1));
+        // + 1 here, because nextInt(...) bound is exclusive and otherwise the first delay would always be zero.
+        int k = RANDOM_INSTANCE.nextInt(Math.toIntExact(n + 1));
+        int backOffDelay = k * DELAY_MILLIS;
+        return Math.min(backOffDelay, maxRetryDelayInMillis);
     }
 
     private static boolean shouldRetry(Exception e) {

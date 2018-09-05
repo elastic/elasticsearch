@@ -29,10 +29,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardFollowNodeTaskTests extends ESTestCase {
@@ -605,15 +608,15 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testComputeDelay() {
         long maxDelayInMillis = 1000;
-        assertThat(ShardFollowNodeTask.computeDelay(0, maxDelayInMillis), equalTo(9L));
-        assertThat(ShardFollowNodeTask.computeDelay(1, maxDelayInMillis), equalTo(21L));
-        assertThat(ShardFollowNodeTask.computeDelay(2, maxDelayInMillis), equalTo(49L));
-        assertThat(ShardFollowNodeTask.computeDelay(3, maxDelayInMillis), equalTo(109L));
-        assertThat(ShardFollowNodeTask.computeDelay(4, maxDelayInMillis), equalTo(244L));
-        assertThat(ShardFollowNodeTask.computeDelay(5, maxDelayInMillis), equalTo(545L));
-        assertThat(ShardFollowNodeTask.computeDelay(6, maxDelayInMillis), equalTo(1000L));
-        assertThat(ShardFollowNodeTask.computeDelay(7, maxDelayInMillis), equalTo(1000L));
-        assertThat(ShardFollowNodeTask.computeDelay(8, maxDelayInMillis), equalTo(1000L));
+        assertThat(ShardFollowNodeTask.computeDelay(0, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(50L)));
+        assertThat(ShardFollowNodeTask.computeDelay(1, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(50L)));
+        assertThat(ShardFollowNodeTask.computeDelay(2, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(100L)));
+        assertThat(ShardFollowNodeTask.computeDelay(3, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(200L)));
+        assertThat(ShardFollowNodeTask.computeDelay(4, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(400L)));
+        assertThat(ShardFollowNodeTask.computeDelay(5, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(800L)));
+        assertThat(ShardFollowNodeTask.computeDelay(6, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
+        assertThat(ShardFollowNodeTask.computeDelay(7, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
+        assertThat(ShardFollowNodeTask.computeDelay(8, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
     }
 
     private ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount,

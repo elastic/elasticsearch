@@ -138,7 +138,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexed {} docs", numDocs);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal terminal = new MockTerminal();
         final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
@@ -146,7 +146,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // Try running it before the node is stopped (and shard is closed)
         try {
-            command.execute(t, options, environment);
+            command.execute(terminal, options, environment);
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(e.getMessage(),
@@ -162,7 +162,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // Try running it before the shard is corrupted, it should flip out because there is no corruption file marker
                 try {
-                    command.execute(t, options, environment);
+                    command.execute(terminal, options, environment);
                     fail("expected the command to fail as there is no corruption file marker");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
@@ -189,8 +189,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                t.addTextInput("y");
-                command.execute(t, options, environment);
+                terminal.addTextInput("y");
+                command.execute(terminal, options, environment);
 
                 return super.onNodeStopped(nodeName);
             }
@@ -210,10 +210,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
         assertThat(nodeId, notNullValue());
 
-        logger.info("--> output:\n{}", t.getOutput());
+        logger.info("--> output:\n{}", terminal.getOutput());
 
-        assertThat(t.getOutput(), containsString("allocate_stale_primary"));
-        assertThat(t.getOutput(), containsString("\"node\" : \"" + nodeId + "\""));
+        assertThat(terminal.getOutput(), containsString("allocate_stale_primary"));
+        assertThat(terminal.getOutput(), containsString("\"node\" : \"" + nodeId + "\""));
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
@@ -243,7 +243,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         });
 
         final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
-        final Matcher matcher = pattern.matcher(t.getOutput());
+        final Matcher matcher = pattern.matcher(terminal.getOutput());
         assertThat(matcher.find(), equalTo(true));
         final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
 
@@ -296,9 +296,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // that's only for 6.x branch for bwc with elasticsearch-translog
         final boolean translogOnly = randomBoolean();
-        RemoveCorruptedShardDataCommand ttc = new RemoveCorruptedShardDataCommand(translogOnly);
-        MockTerminal t = new MockTerminal();
-        OptionParser parser = ttc.getParser();
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand(translogOnly);
+        final MockTerminal terminal = new MockTerminal();
+        final OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
             // flush the replica, so it will have more docs than what the primary will have
@@ -354,11 +354,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                         final Settings defaultSettings = internalCluster().getDefaultSettings();
                         final Environment environment = TestEnvironment.newEnvironment(defaultSettings);
 
-                        t.addTextInput("y");
+                        terminal.addTextInput("y");
                         OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
                         logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-                        ttc.execute(t, options, environment);
-                        logger.info("--> output:\n{}", t.getOutput());
+                        command.execute(terminal, options, environment);
+                        logger.info("--> output:\n{}", terminal.getOutput());
                     }
 
                     return super.onNodeStopped(nodeName);
@@ -378,8 +378,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
         assertThat(primaryNodeId, notNullValue());
 
-        assertThat(t.getOutput(), containsString("allocate_stale_primary"));
-        assertThat(t.getOutput(), containsString("\"node\" : \"" + primaryNodeId + "\""));
+        assertThat(terminal.getOutput(), containsString("allocate_stale_primary"));
+        assertThat(terminal.getOutput(), containsString("\"node\" : \"" + primaryNodeId + "\""));
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
@@ -492,13 +492,13 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         // Run a search and make sure it succeeds
         assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), totalDocs);
 
-        RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        MockTerminal t = new MockTerminal();
-        OptionParser parser = command.getParser();
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal terminal = new MockTerminal();
+        final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
 
-        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(node2, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 for (Path translogDir : translogDirs) {
@@ -516,11 +516,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                         }
                     });
 
-                    t.addTextInput("y");
+                    terminal.addTextInput("y");
                     OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
-                    logger.info("--> running truncate translog command for [{}]", translogDir.toAbsolutePath());
-                    command.execute(t, options, environment);
-                    logger.info("--> output:\n{}", t.getOutput());
+                    logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
+                    command.execute(terminal, options, environment);
+                    logger.info("--> output:\n{}", terminal.getOutput());
                 }
 
                 return super.onNodeStopped(nodeName);

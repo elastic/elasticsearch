@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.license.PostStartTrialRequest;
+import org.elasticsearch.client.license.PostStartTrialResponse;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -39,10 +41,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.core.Is.is;
 
 /**
  * Documentation for Licensing APIs in the high level java client.
@@ -213,6 +218,72 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(currentLicense, containsString("trial"));
             assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
             assertThat(currentLicense, endsWith("}"));
+        }
+    }
+
+    public void testPostStartTrial() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::post-start-trial-execute
+            PostStartTrialRequest request = new PostStartTrialRequest();
+            request.setAcknowledge(true);
+
+            PostStartTrialResponse response = client.license().postStartTrial(request, RequestOptions.DEFAULT);
+            // end::post-start-trial-execute
+
+            // tag::post-start-trial-response
+            boolean acknowledged = response.isAcknowledged();                              // <1>
+            boolean trialWasStarted = response.isTrialWasStarted();                        // <2>
+            String licenseType = response.getLicenseType();                                // <3>
+            String errorMessage = response.getErrorMessage();                              // <4>
+            String acknowledgeHeader = response.getAcknowledgeHeader();                    // <5>
+            Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages(); // <6>
+            // end::post-start-trial-response
+
+            assertTrue(acknowledged);
+            assertFalse(trialWasStarted);
+            assertThat(licenseType, nullValue());
+            assertThat(errorMessage, is("Operation failed: Trial was already activated."));
+            assertThat(acknowledgeHeader, nullValue());
+            assertThat(acknowledgeMessages, nullValue());
+        }
+
+        {
+            PostStartTrialRequest request = new PostStartTrialRequest();
+
+            // tag::post-start-trial-execute-listener
+            ActionListener<PostStartTrialResponse> listener = new ActionListener<PostStartTrialResponse>() {
+                @Override
+                public void onResponse(PostStartTrialResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::post-start-trial-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-start-trial-execute-async
+            client.license().postStartTrialAsync(request, RequestOptions.DEFAULT, listener);
+            // end::post-start-trial-execute-async
+        }
+
+        // test when there are acknowledge messages
+        {
+            PostStartTrialResponse response = client.license().postStartTrial(new PostStartTrialRequest(), RequestOptions.DEFAULT);
+            assertFalse(response.isAcknowledged());
+            assertFalse(response.isTrialWasStarted());
+            assertThat(response.getLicenseType(), nullValue());
+            assertThat(response.getErrorMessage(), is("Operation failed: Needs acknowledgement."));
+            assertThat(response.getAcknowledgeHeader(), containsString("To begin your free trial, call /start_trial again and specify " +
+                "the \"acknowledge=true\" parameter."));
+            assertThat(response.getAcknowledgeMessages().entrySet(), not(empty()));
         }
     }
 }

@@ -88,6 +88,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.license.PostStartTrialRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -1275,6 +1276,26 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
         parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request postStartTrial(PostStartTrialRequest postStartTrialRequest) {
+        final String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .addPathPartAsIs("start_trial")
+            .build();
+
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        if (postStartTrialRequest.isAcknowledge()) {
+            parameters.putParam("acknowledge", "true");
+        }
+        if (postStartTrialRequest.getLicenseType() != null) {
+            parameters.putParam("type", postStartTrialRequest.getLicenseType());
+        }
+
         return request;
     }
 

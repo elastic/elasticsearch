@@ -45,8 +45,9 @@ public class PipelineProcessorTests extends ESTestCase {
             pipelineId, null, null,
             new CompoundProcessor(new Processor() {
                 @Override
-                public void execute(final IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                     invoked.complete(ingestDocument);
+                    return ingestDocument;
                 }
 
                 @Override

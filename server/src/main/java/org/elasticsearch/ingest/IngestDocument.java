@@ -648,11 +648,11 @@ public final class IngestDocument {
      * @param pipeline Pipeline to execute
      * @throws Exception On exception in pipeline execution
      */
-    public void executePipeline(Pipeline pipeline) throws Exception {
+    public IngestDocument executePipeline(Pipeline pipeline) throws Exception {
         if (this.executedPipelines.add(pipeline) == false) {
             throw new IllegalStateException("Recursive invocation of pipeline [" + pipeline.getId() + "] detected.");
         }
-        pipeline.execute(this);
+        return pipeline.execute(this);
     }
 
     @Override

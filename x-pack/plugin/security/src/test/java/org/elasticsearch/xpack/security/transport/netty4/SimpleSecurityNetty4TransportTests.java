@@ -369,7 +369,7 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
                 ConnectTransportException connectException = expectThrows(ConnectTransportException.class,
                     () -> serviceC.connectToNode(node, SINGLE_CHANNEL_PROFILE));
 
-                assertThat(connectException.getMessage(), containsString("Invalid DiscoveryNode server_name: [invalid_hostname]"));
+                assertThat(connectException.getMessage(), containsString("invalid DiscoveryNode server_name [invalid_hostname]"));
 
                 serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS);
                 success = true;

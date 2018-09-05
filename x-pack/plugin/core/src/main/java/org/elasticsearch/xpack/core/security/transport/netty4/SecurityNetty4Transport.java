@@ -181,7 +181,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 try {
                     serverName = new SNIHostName(configuredServerName);
                 } catch (IllegalArgumentException e) {
-                    throw new ConnectTransportException(node, "Invalid DiscoveryNode server_name: [" + configuredServerName + "]", e);
+                    throw new ConnectTransportException(node, "invalid DiscoveryNode server_name [" + configuredServerName + "]", e);
                 }
             } else {
                 serverName = null;

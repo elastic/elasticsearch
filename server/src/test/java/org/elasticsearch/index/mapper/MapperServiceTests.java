@@ -286,9 +286,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject().endObject());
 
-        int numberOfFieldIncludingAlias = 2;
+        int numberOfFieldsIncludingAlias = 2;
         createIndex("test1", Settings.builder()
-                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldIncludingAlias).build()).mapperService()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsIncludingAlias).build()).mapperService()
                         .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         // Set the total fields limit to the number of non-alias fields, to verify that adding

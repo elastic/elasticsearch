@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.io.IOException;
-import java.security.SecureRandom;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,8 +56,6 @@ import java.util.stream.Collectors;
  * persists these ops in the follower shard.
  */
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
-
-    public static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
 
     public static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
     public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
@@ -383,8 +381,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
         if (shouldRetry(e) && isStopped() == false) {
-            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...", params.getFollowShardId()), e);
             int currentRetry = retryCounter.incrementAndGet();
+            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
+                params.getFollowShardId(), currentRetry), e);
             long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
@@ -393,9 +392,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     static long computeDelay(int currentRetry, long maxRetryDelayInMillis) {
-        long n = Math.round(Math.pow(2, currentRetry - 1));
+        // Cap currentRetry to avoid overflow when computing n variable
+        int maxCurrentRetry = Math.min(currentRetry, 31);
+        long n = Math.round(Math.pow(2, maxCurrentRetry - 1));
         // + 1 here, because nextInt(...) bound is exclusive and otherwise the first delay would always be zero.
-        int k = RANDOM_INSTANCE.nextInt(Math.toIntExact(n + 1));
+        int k = Randomness.get().nextInt(Math.toIntExact(n + 1));
         int backOffDelay = k * DELAY_MILLIS;
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }

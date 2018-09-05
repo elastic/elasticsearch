@@ -49,7 +49,7 @@ public class JarHellTask extends DefaultTask {
     public void runJarHellCheck() {
         LoggedExec.javaexec(getProject(), spec -> {
             spec.classpath(getClasspath());
-            spec.executable(getJavaHome() + "bin/java");
+            spec.executable(getJavaHome() + "/bin/java");
             spec.setMain("org.elasticsearch.bootstrap.JarHell");
         });
         try {

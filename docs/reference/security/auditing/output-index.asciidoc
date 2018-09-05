@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[audit-index]]
 === Index audit output
 

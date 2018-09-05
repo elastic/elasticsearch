@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[forwarding-audit-logfiles]]
 === Forwarding audit logs to a remote cluster
 

@@ -404,7 +404,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final TriggerService triggerService = new TriggerService(settings, triggerEngines);
 
         final TriggeredWatch.Parser triggeredWatchParser = new TriggeredWatch.Parser(settings, triggerService);
-        TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
+        final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, client, triggeredWatchParser, bulkProcessor);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);

@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.Validatable;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -30,46 +31,45 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A request to retrieve records of a given job
+ * A request to retrieve influencers of a given job
  */
-public class GetRecordsRequest implements ToXContentObject, Validatable {
+public class GetInfluencersRequest extends ActionRequest implements ToXContentObject {
 
     public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
-    public static final ParseField RECORD_SCORE = new ParseField("record_score");
+    public static final ParseField INFLUENCER_SCORE = new ParseField("influencer_score");
     public static final ParseField SORT = new ParseField("sort");
     public static final ParseField DESCENDING = new ParseField("desc");
 
-    public static final ObjectParser<GetRecordsRequest, Void> PARSER = new ObjectParser<>("get_records_request", GetRecordsRequest::new);
+    public static final ConstructingObjectParser<GetInfluencersRequest, Void> PARSER = new ConstructingObjectParser<>(
+            "get_influencers_request", a -> new GetInfluencersRequest((String) a[0]));
 
     static {
-        PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-        PARSER.declareBoolean(GetRecordsRequest::setExcludeInterim, EXCLUDE_INTERIM);
-        PARSER.declareStringOrNull(GetRecordsRequest::setStart, START);
-        PARSER.declareStringOrNull(GetRecordsRequest::setEnd, END);
-        PARSER.declareObject(GetRecordsRequest::setPageParams, PageParams.PARSER, PageParams.PAGE);
-        PARSER.declareDouble(GetRecordsRequest::setRecordScore, RECORD_SCORE);
-        PARSER.declareString(GetRecordsRequest::setSort, SORT);
-        PARSER.declareBoolean(GetRecordsRequest::setDescending, DESCENDING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareBoolean(GetInfluencersRequest::setExcludeInterim, EXCLUDE_INTERIM);
+        PARSER.declareStringOrNull(GetInfluencersRequest::setStart, START);
+        PARSER.declareStringOrNull(GetInfluencersRequest::setEnd, END);
+        PARSER.declareObject(GetInfluencersRequest::setPageParams, PageParams.PARSER, PageParams.PAGE);
+        PARSER.declareDouble(GetInfluencersRequest::setInfluencerScore, INFLUENCER_SCORE);
+        PARSER.declareString(GetInfluencersRequest::setSort, SORT);
+        PARSER.declareBoolean(GetInfluencersRequest::setDescending, DESCENDING);
     }
 
-    private String jobId;
+    private final String jobId;
     private Boolean excludeInterim;
     private String start;
     private String end;
+    private Double influencerScore;
     private PageParams pageParams;
-    private Double recordScore;
     private String sort;
     private Boolean descending;
 
-    private GetRecordsRequest() {}
-
     /**
-     * Constructs a request to retrieve records of a given job
-     * @param jobId id of the job to retrieve records of
+     * Constructs a request to retrieve influencers of a given job
+     * @param jobId id of the job to retrieve influencers of
      */
-    public GetRecordsRequest(String jobId) {
+    public GetInfluencersRequest(String jobId) {
         this.jobId = Objects.requireNonNull(jobId);
     }
 
@@ -83,7 +83,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the value of "exclude_interim".
-     * When {@code true}, interim records will be filtered out.
+     * When {@code true}, interim influencers will be filtered out.
      * @param excludeInterim value of "exclude_interim" to be set
      */
     public void setExcludeInterim(Boolean excludeInterim) {
@@ -96,7 +96,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the value of "start" which is a timestamp.
-     * Only records whose timestamp is on or after the "start" value will be returned.
+     * Only influencers whose timestamp is on or after the "start" value will be returned.
      * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
@@ -109,7 +109,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the value of "end" which is a timestamp.
-     * Only records whose timestamp is before the "end" value will be returned.
+     * Only influencers whose timestamp is before the "end" value will be returned.
      * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
@@ -128,17 +128,17 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
         this.pageParams = pageParams;
     }
 
-    public Double getRecordScore() {
-        return recordScore;
+    public Double getInfluencerScore() {
+        return influencerScore;
     }
 
     /**
-     * Sets the value of "record_score".
-     * Only records with "record_score" equal or greater will be returned.
-     * @param recordScore value of "record_score".
+     * Sets the value of "influencer_score".
+     * Only influencers with "influencer_score" equal or greater will be returned.
+     * @param influencerScore value of "influencer_score".
      */
-    public void setRecordScore(Double recordScore) {
-        this.recordScore = recordScore;
+    public void setInfluencerScore(Double influencerScore) {
+        this.influencerScore = influencerScore;
     }
 
     public String getSort() {
@@ -147,7 +147,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     /**
      * Sets the value of "sort".
-     * Specifies the record field to sort on.
+     * Specifies the influencer field to sort on.
      * @param sort value of "sort".
      */
     public void setSort(String sort) {
@@ -168,6 +168,11 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
     }
 
     @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
@@ -183,8 +188,8 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
         if (pageParams != null) {
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
         }
-        if (recordScore != null) {
-            builder.field(RECORD_SCORE.getPreferredName(), recordScore);
+        if (influencerScore != null) {
+            builder.field(INFLUENCER_SCORE.getPreferredName(), influencerScore);
         }
         if (sort != null) {
             builder.field(SORT.getPreferredName(), sort);
@@ -198,7 +203,7 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, excludeInterim, recordScore, pageParams, start, end, sort, descending);
+        return Objects.hash(jobId, excludeInterim, influencerScore, pageParams, start, end, sort, descending);
     }
 
     @Override
@@ -209,10 +214,10 @@ public class GetRecordsRequest implements ToXContentObject, Validatable {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GetRecordsRequest other = (GetRecordsRequest) obj;
+        GetInfluencersRequest other = (GetInfluencersRequest) obj;
         return Objects.equals(jobId, other.jobId) &&
                 Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(recordScore, other.recordScore) &&
+                Objects.equals(influencerScore, other.influencerScore) &&
                 Objects.equals(pageParams, other.pageParams) &&
                 Objects.equals(start, other.start) &&
                 Objects.equals(end, other.end) &&

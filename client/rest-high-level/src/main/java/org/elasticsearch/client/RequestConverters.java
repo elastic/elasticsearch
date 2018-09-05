@@ -111,13 +111,12 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1229,17 +1228,6 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(deleteLicenseRequest.timeout());
         parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
-        EndpointBuilder endpointBuilder = new EndpointBuilder()
-            .addPathPartAsIs("_xpack/migration/assistance")
-            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
-        String endpoint = endpointBuilder.build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
         return request;
     }
 

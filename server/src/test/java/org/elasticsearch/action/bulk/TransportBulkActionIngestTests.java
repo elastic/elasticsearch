@@ -259,7 +259,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
@@ -293,7 +293,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
@@ -325,7 +325,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         action.execute(null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -369,7 +369,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         singleItemBulkWriteAction.execute(null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -417,7 +417,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
@@ -449,7 +449,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 

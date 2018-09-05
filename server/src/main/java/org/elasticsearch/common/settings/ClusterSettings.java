@@ -267,6 +267,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     IndexModule.NODE_STORE_ALLOW_MMAPFS,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterService.USER_DEFINED_META_DATA,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,

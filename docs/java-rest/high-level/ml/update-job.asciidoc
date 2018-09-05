@@ -8,7 +8,7 @@ with a `PutJobResponse` object.
 [[java-rest-high-x-pack-ml-update-job-request]]
 ==== Update Job Request
 
-A `UpdateJobRequest` object gets created with an `JobUpdate` object.
+An `UpdateJobRequest` object gets created with a `JobUpdate` object.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

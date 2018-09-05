@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 public class UpdateJobRequest extends ActionRequest implements ToXContentObject {
 
-    private JobUpdate update;
+    private final JobUpdate update;
 
     public UpdateJobRequest(JobUpdate update) {
         this.update = update;

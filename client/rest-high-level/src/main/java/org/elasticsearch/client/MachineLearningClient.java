@@ -359,7 +359,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job} properties
+     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
      *
      * @param request the {@link UpdateJobRequest} object enclosing the desired updates
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -375,7 +375,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job} properties asynchronously
+     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job} asynchronously
      *
      * @param request the {@link UpdateJobRequest} object enclosing the desired updates
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

@@ -61,7 +61,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         this(new SearchRequest(indices));
     }
 
-    DeleteByQueryRequest(SearchRequest search) {
+    public DeleteByQueryRequest(SearchRequest search) {
         this(search, true);
     }
 

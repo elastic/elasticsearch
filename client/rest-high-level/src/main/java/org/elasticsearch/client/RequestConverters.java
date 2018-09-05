@@ -123,6 +123,7 @@ import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.client.core.TermVectorsRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -1120,6 +1121,26 @@ final class RequestConverters {
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
         return req;
+    }
+
+    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
+        String endpoint = "_termvectors";
+        if (tvrequest.getId() != null) {
+            endpoint = new EndpointBuilder().addPathPart(
+                tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs(endpoint).build();
+        } else {
+            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType()).addPathPartAsIs(endpoint).build();
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        if (tvrequest.getRouting() != null) params.withRouting(tvrequest.getRouting());
+        if (tvrequest.getPreference() != null) params.withPreference(tvrequest.getPreference());
+        if (tvrequest.getFields() != null) {
+            params.withFields(tvrequest.getFields());
+        }
+        params.withRealtime(tvrequest.getRealtime());
+        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
     }
 
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {

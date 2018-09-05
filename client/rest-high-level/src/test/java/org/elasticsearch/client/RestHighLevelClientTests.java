@@ -662,8 +662,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
-            "tasks.get",
-            "termvectors"
+            "tasks.get"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

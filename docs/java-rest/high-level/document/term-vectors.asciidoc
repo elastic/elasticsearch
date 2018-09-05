@@ -1,0 +1,120 @@
+[[java-rest-high-termvectors]]
+=== Term Vectors API
+
+Term Vectors API returns information and statistics on terms in the fields
+of a particular document. The document could be stored in the index or
+artificially provided by the user.
+
+
+[[java-rest-high-termvectors-request]]
+==== Term Vectors Request
+
+A `TermVectorsRequest` expects an `index`, a `type` and an `id` to specify
+a certain document, and fields for which the information is retrieved.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request]
+--------------------------------------------------
+
+Term vectors can also be generated for artificial documents, that is for
+documents not present in the index:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request-artificial]
+--------------------------------------------------
+<1> An artificial document is provided as an `XContentBuilder` object,
+the Elasticsearch built-in helper to generate JSON content.
+
+===== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-request-optional-arguments]
+--------------------------------------------------
+<1> Set `fieldStatistics` to `false` (default is `true`) to omit document count,
+sum of document frequencies, sum of total term frequencies.
+<2> Set `termStatistics` to `true` (default is `false`) to display
+total term frequency and document frequency.
+<3> Set `positions` to `false` (default is `true`) to omit the output of
+positions.
+<4> Set `offsets` to `false` (default is `true`) to omit the output of
+offsets.
+<5> Set `payloads` to `false` (default is `true`) to omit the output of
+payloads.
+<6> Set `filterSettings` to filter the terms that can be returned based
+on their tf-idf scores.
+<7> Set `perFieldAnalyzer` to specify  a different analyzer than
+the one that the field has.
+<8> Set `realtime` to `false` (default is `true`) to retrieve term vectors
+near realtime.
+<9> Set a routing parameter
+
+
+[[java-rest-high-term-vectors-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute]
+--------------------------------------------------
+
+[[java-rest-high-term-vectors-async]]
+==== Asynchronous Execution
+
+The `termVectorsAsync` method executes the request asynchronously,
+calling the provided `ActionListener` when the response is ready:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute-async]
+--------------------------------------------------
+<1> The `TermVectorsRequest` to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+completes, the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `TermVectorsResponse` is constructed as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `TermVectorsRequest` fails.
+
+
+[[java-rest-high-term-vectors-response]]
+==== TermVectorsResponse
+
+The `TermVectorsResponse` contains the following information:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[term-vectors-response]
+--------------------------------------------------
+<1> The index name of the document.
+<2> The type name of the document.
+<3> The id of the document.
+<4> Indicates whether or not the document found.
+<5> Indicates whether or not there are term vectors for this document.
+<6> The list of `TermVector` for the document
+<7> The name of the current field
+<8> Fields statistics for the current field - document count
+<9> Fields statistics for the current field - sum of total term frequencies
+<10> Fields statistics for the current field - sum of document frequencies
+<11> Terms for the current field
+<12> The name of the term
+<13> Term frequency of the term
+<14> Document frequency of the term
+<15> Total term frequency of the term
+<16> Score of the term
+<17> Tokens of the term
+<18> Position of the token
+<19> Start offset of the token
+<20> End offset of the token
+<21> Payload of the token

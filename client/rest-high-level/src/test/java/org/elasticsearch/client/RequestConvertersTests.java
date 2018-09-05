@@ -92,6 +92,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -1718,6 +1719,46 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(explainRequest, request.getEntity());
+    }
+
+    public void testTermVectors() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+        Map<String, String> expectedParams = new HashMap<>();
+        String[] fields;
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            tvRequest.setRouting(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            tvRequest.setRealtime(false);
+            expectedParams.put("realtime", "false");
+        }
+
+        boolean hasFields = randomBoolean();
+        if (hasFields) {
+            fields = generateRandomStringArray(10, 5, false, false);
+            tvRequest.setFields(fields);
+        }
+
+        Request request = RequestConverters.termVectors(tvRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index).add(type).add(id).add("_termvectors");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        if (hasFields) {
+            assertThat(request.getParameters(), hasKey("fields"));
+            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+            assertArrayEquals(tvRequest.getFields(), requestFields);
+        }
+        for (Map.Entry<String, String> param : expectedParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+        assertToXContentBody(tvRequest, request.getEntity());
     }
 
     public void testFieldCaps() {

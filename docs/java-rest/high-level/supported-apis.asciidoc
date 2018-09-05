@@ -10,6 +10,7 @@ Single document APIs::
 * <<java-rest-high-document-get>>
 * <<java-rest-high-document-delete>>
 * <<java-rest-high-document-update>>
+* <<java-rest-high-document-term-vectors>>
 
 [[multi-doc]]
 Multi-document APIs::
@@ -24,6 +25,7 @@ include::document/get.asciidoc[]
 include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
+include::document/term-vectors.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]

@@ -43,6 +43,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
      * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
      */
+    public static final int V_EMPTY_ID = 0;
+    public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -167,6 +169,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_EMPTY_ID:
+                return V_EMPTY;
             default:
                 return new Version(id, org.apache.lucene.util.Version.LATEST);
         }
@@ -179,11 +183,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      *         {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
-        if (indexVersion == null) {
-            throw new IllegalStateException(
-                    "[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: ["
-                            + indexSettings.get(IndexMetaData.SETTING_INDEX_UUID) + "]");
+        final Version indexVersion = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        if (indexVersion == V_EMPTY) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "[%s] is not present in the index settings for index with UUID [%s]",
+                    IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    indexSettings.get(IndexMetaData.SETTING_INDEX_UUID));
+            throw new IllegalStateException(message);
         }
         return indexVersion;
     }
@@ -470,8 +477,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             if (field.getType() != Version.class) {
                 continue;
             }
-            if ("CURRENT".equals(field.getName())) {
-                continue;
+            switch (field.getName()) {
+                case "CURRENT":
+                case "V_EMPTY":
+                    continue;
             }
             assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
             try {

@@ -13,7 +13,6 @@ You can retrieve the templates through the `_template` API:
 GET /_template/.monitoring-*
 ----------------------------------
 // CONSOLE
-// TEST[catch:missing]
 
 By default, the template configures one shard and one replica for the
 monitoring indices. To override the default settings, add your own template:

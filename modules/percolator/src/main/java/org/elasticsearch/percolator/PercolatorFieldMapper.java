@@ -388,7 +388,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
@@ -411,7 +411,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
         Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilder);
         processQuery(query, context);
-        return null;
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,

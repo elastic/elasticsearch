@@ -22,6 +22,27 @@ user with access to the <<cluster-update-settings,cluster-update-settings>>
 API can make the cluster read-write again.
 
 
+[[user-defined-data]]
+==== User Defined Cluster Metadata
+
+User-defined metadata can be stored and retrieved using the Cluster Settings API.
+This can be used to store arbitrary, infrequently-changing data about the cluster
+without the need to create an index to store it. This data may be stored using
+any key prefixed with `cluster.metadata.`.  For example, to store the email
+address of the administrator of a cluster under the key `cluster.metadata.administrator`,
+issue this request:
+
+[source,js]
+-------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.metadata.administrator": "sysadmin@example.com"
+  }
+}
+-------------------------------
+// CONSOLE
+
 [[cluster-max-tombstones]]
 ==== Index Tombstones
 

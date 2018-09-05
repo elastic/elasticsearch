@@ -226,6 +226,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             operations.add(op);
         }
         readyLatch.countDown();
+        readyLatch.await();
         concurrentlyApplyOps(operations, engine);
         assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);

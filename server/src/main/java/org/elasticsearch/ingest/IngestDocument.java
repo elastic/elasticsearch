@@ -645,10 +645,14 @@ public final class IngestDocument {
      * @throws Exception On exception in pipeline execution
      */
     public void executePipeline(Pipeline pipeline) throws Exception {
-        if (this.executedPipelines.add(pipeline) == false) {
-            throw new IllegalStateException("Recursive invocation of pipeline [" + pipeline.getId() + "] detected.");
+        try {
+            if (this.executedPipelines.add(pipeline) == false) {
+                throw new IllegalStateException("Recursive invocation of pipeline [" + pipeline.getId() + "] detected.");
+            }
+            pipeline.execute(this);
+        } finally {
+            executedPipelines.remove(pipeline);
         }
-        pipeline.execute(this);
     }
 
     @Override

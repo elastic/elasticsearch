@@ -63,11 +63,10 @@ The following example deletes all forecasts from the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/total-requests/_forecast/wkCWa2IB2lF8nSE_TzZo
+DELETE _xpack/ml/anomaly_detectors/total-requests/_forecast/_all
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:server_metrics_openjob]
-// TEST[catch:missing]
+// TEST[skip:setup:server_metrics_openjob]
 
 If the request does not encounter errors, you receive the following result:
 [source,js]

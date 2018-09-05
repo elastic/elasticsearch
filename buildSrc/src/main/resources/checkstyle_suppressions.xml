@@ -724,24 +724,4 @@
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]hamcrest[/\\]ElasticsearchAssertions.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]store[/\\]MockFSDirectoryService.java" checks="LineLength" />
   <suppress files="test[/\\]framework[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]store[/\\]MockFSIndexStore.java" checks="LineLength" />
-
-  <suppress files="x-pack[/\\]plugin[/\\]core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]action[/\\]StopDatafeedAction.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]ml[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]utils[/\\]DomainSplitFunction.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]CompletionPersistentTaskAction.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]Security.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]Realms.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]ActiveDirectorySIDUtil.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]ml[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]integration[/\\]TooManyJobsIT.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]TestPersistentTasksPlugin.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]action[/\\]user[/\\]TransportGetUsersActionTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]file[/\\]FileRealmTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]ActiveDirectoryRealmTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]ActiveDirectorySessionFactoryTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapRealmTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapSessionFactoryTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]LdapUserSearchSessionFactoryTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]support[/\\]SessionFactoryTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]pki[/\\]PkiRealmTests.java" checks="LineLength" />
-  <suppress files="x-pack[/\\]qa[/\\]security-example-extension[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]example[/\\]realm[/\\]CustomRealmTests.java" checks="LineLength" />
-
 </suppressions>

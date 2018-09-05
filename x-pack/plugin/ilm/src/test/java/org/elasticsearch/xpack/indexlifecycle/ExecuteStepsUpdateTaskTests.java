@@ -15,11 +15,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -49,9 +52,9 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
-    private static final StepKey firstStepKey = new StepKey("phase_1", "action_1", "step_1");
-    private static final StepKey secondStepKey = new StepKey("phase_1", "action_1", "step_2");
-    private static final StepKey thirdStepKey = new StepKey("phase_1", "action_1", "step_3");
+    private static final StepKey firstStepKey = new StepKey("first_phase", "action_1", "step_1");
+    private static final StepKey secondStepKey = new StepKey("first_phase", "action_1", "step_2");
+    private static final StepKey thirdStepKey = new StepKey("first_phase", "action_1", "step_3");
     private static final StepKey invalidStepKey = new StepKey("invalid", "invalid", "invalid");
     private ClusterState clusterState;
     private PolicyStepsRegistry policyStepsRegistry;
@@ -68,7 +71,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private String indexName;
 
     @Before
-    public void prepareState() {
+    public void prepareState() throws IOException {
         client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         firstStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
@@ -96,7 +99,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
         policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
         policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap()));
-        policyStepsRegistry = new PolicyStepsRegistry();
+        policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         indexName = randomAlphaOfLength(5);
         lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
@@ -130,10 +133,16 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     }
 
     public void testExecuteAllUntilEndOfPhase() throws IOException {
+        NamedXContentRegistry registry = new NamedXContentRegistry(
+            Collections.singletonList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME),
+                (p) -> {
+                    MockAction.parse(p);
+                    return new MockAction(Arrays.asList(firstStep, allClusterSecondStep));
+                })));
+        policyStepsRegistry = new PolicyStepsRegistry(registry);
         setupIndexPolicy(allClusterPolicyName);
 
         Step startStep = policyStepsRegistry.getFirstStep(allClusterPolicyName);
-        Step afterStep = policyStepsRegistry.getStep(index, startStep.getNextStepKey());
         long now = randomNonNegativeLong();
         // test execute start till end of phase `new`
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, startStep, policyStepsRegistry, () -> now);
@@ -236,7 +245,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                 equalTo(stepInfo.toString()));
     }
 
-    public void testOnFailure() {
+    public void testOnFailure() throws IOException {
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(index, secondStepKey);
         long now = randomNonNegativeLong();
@@ -249,7 +258,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertSame(expectedException, exception.getCause());
     }
 
-    private void setStateToKey(StepKey stepKey) {
+    private void setStateToKey(StepKey stepKey) throws IOException {
         clusterState = ClusterState.builder(clusterState)
             .metaData(MetaData.builder(clusterState.metaData())
                 .put(IndexMetaData.builder(clusterState.metaData().index(indexName))

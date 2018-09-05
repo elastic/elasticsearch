@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -57,14 +58,15 @@ public class IndexLifecycleService extends AbstractComponent
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
-    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier) {
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
+                                 NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry();
+        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -144,7 +146,6 @@ public class IndexLifecycleService extends AbstractComponent
                 policyRegistry.removeIndices(event.indicesDeleted());
             }
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
-                // update policy steps registry
                 policyRegistry.update(event.state(), client, nowSupplier);
             }
         }

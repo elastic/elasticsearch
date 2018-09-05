@@ -16,14 +16,23 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,21 +53,24 @@ public class PolicyStepsRegistry {
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
     // A map of index to a list of compiled steps for the current phase
     private final Map<Index, List<Step>> indexPhaseSteps;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public PolicyStepsRegistry() {
+    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry) {
         this.lifecyclePolicyMap = new TreeMap<>();
         this.firstStepMap = new HashMap<>();
         this.stepMap = new HashMap<>();
         this.indexPhaseSteps = new HashMap<>();
+        this.xContentRegistry = xContentRegistry;
     }
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
                         Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap,
-                        Map<Index, List<Step>> indexPhaseSteps) {
+                        Map<Index, List<Step>> indexPhaseSteps, NamedXContentRegistry xContentRegistry) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
         this.indexPhaseSteps = indexPhaseSteps;
+        this.xContentRegistry = xContentRegistry;
     }
 
     SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
@@ -138,7 +150,7 @@ public class PolicyStepsRegistry {
         for (ObjectCursor<IndexMetaData> imd : clusterState.metaData().getIndices().values()) {
             final Index index = imd.value.getIndex();
             final String policy = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            if (policy == null) {
+            if (policy == null || lifecyclePolicyMap.containsKey(policy) == false) {
                 indexPhaseSteps.remove(index);
             } else {
                 final List<Step> currentSteps = indexPhaseSteps.get(index);
@@ -146,22 +158,48 @@ public class PolicyStepsRegistry {
                 final String existingPhase = (currentSteps == null || currentSteps.size() == 0) ?
                     "_none_" : currentSteps.get(0).getKey().getPhase();
                 // Retrieve the current phase, defaulting to "new" if no phase is set
-                final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE, "new");
+                final String currentPhase = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE,
+                    InitializePolicyContextStep.INITIALIZATION_PHASE);
 
                 if (existingPhase.equals(currentPhase) == false) {
                     logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
                         index, existingPhase, currentPhase);
-                    // Only rebuild the index's steps if the phase of the existing steps does not match our index's current phase
-                    final Map<Step.StepKey, Step> steps = stepMap.get(policy);
-
+                    // parse existing phase steps from the phase definition in the index settings
+                    String phaseDef = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION,
+                        InitializePolicyContextStep.INITIALIZATION_PHASE);
+                    final Phase phase;
+                    LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
+                    final LifecyclePolicy policyToExecute;
+                    if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
+                            || TerminalPolicyStep.COMPLETED_PHASE.equals(phaseDef)) {
+                        // It is ok to re-use potentially modified policy here since we are in an initialization or completed phase
+                        policyToExecute = currentPolicy;
+                    } else {
+                        // if the current phase definition describes an internal step/phase, do not parse
+                        try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
+                            phase = Phase.parse(parser, currentPhase);
+                        } catch (IOException e) {
+                            logger.error("failed to configure phase [" + currentPhase + "] for index [" + index.getName() + "]", e);
+                            indexPhaseSteps.remove(index);
+                            continue;
+                        }
+                        Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
+                        if (phase != null) {
+                            phaseMap.put(currentPhase, phase);
+                        }
+                        policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
+                    }
+                    LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
+                        ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
+                    final List<Step> steps = policyToExecute.toSteps(policyClient, nowSupplier);
                     // Build a list of steps that correspond with the phase the index is currently in
                     final List<Step> phaseSteps;
                     if (steps == null) {
                         phaseSteps = new ArrayList<>();
                     } else {
-                        phaseSteps = steps.entrySet().stream()
+                        phaseSteps = steps.stream()
                             .filter(e -> e.getKey().getPhase().equals(currentPhase))
-                            .map(Map.Entry::getValue)
                             .collect(Collectors.toList());
                     }
                     indexPhaseSteps.put(index, phaseSteps);

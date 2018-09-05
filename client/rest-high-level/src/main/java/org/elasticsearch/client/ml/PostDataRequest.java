@@ -136,7 +136,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
         if (content != null) {
             return content;
         }
-        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             for (BytesReference bytesReference : bytesReferences) {
                 try (StreamInput streamInput = bytesReference.streamInput()) {
                     builder.rawValue(streamInput, xContentType);
@@ -146,7 +146,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
                 builder.map(objectMap);
             }
             return BytesReference.bytes(builder);
-
+        }
     }
 
     public XContentType getXContentType() {

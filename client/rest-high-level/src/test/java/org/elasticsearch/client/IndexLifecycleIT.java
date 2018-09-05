@@ -145,35 +145,39 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
         assertTrue(putResponse.isAcknowledged());
 
-        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
-        createIndex("baz", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
+        createIndex("foo-01", Settings.builder().put("index.lifecycle.name", policy.getName())
+            .put("index.lifecycle.rollover_alias", "foo-alias").build(), "", "\"foo-alias\" : {}");
+
+        createIndex("baz-01", Settings.builder().put("index.lifecycle.name", policy.getName())
+            .put("index.lifecycle.rollover_alias", "baz-alias").build(), "", "\"baz-alias\" : {}");
+
         createIndex("squash", Settings.EMPTY);
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz");
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo-01", "baz-01");
             GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.name"), equalTo(policy.getName()));
+            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.name"), equalTo(policy.getName()));
+            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.phase"), equalTo("hot"));
         });
 
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo", "baz", "squash");
+        req.indices("foo-01", "baz-01", "squash");
         ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
         Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
         assertEquals(3, indexResponses.size());
-        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo");
+        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
         assertNotNull(fooResponse);
         assertTrue(fooResponse.managedByILM());
-        assertEquals("foo", fooResponse.getIndex());
+        assertEquals("foo-01", fooResponse.getIndex());
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
         assertEquals("attempt_rollover", fooResponse.getStep());
-        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz");
+        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
         assertNotNull(bazResponse);
         assertTrue(bazResponse.managedByILM());
-        assertEquals("baz", bazResponse.getIndex());
+        assertEquals("baz-01", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
         assertEquals("attempt_rollover", bazResponse.getStep());

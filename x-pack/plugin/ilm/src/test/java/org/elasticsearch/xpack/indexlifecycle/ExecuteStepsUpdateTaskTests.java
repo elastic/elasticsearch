@@ -15,15 +15,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -31,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -129,44 +127,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .metaData(metaData)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
-        policyStepsRegistry.update(clusterState, client, () -> 0L);
-    }
-
-    public void testExecuteAllUntilEndOfPhase() throws IOException {
-        NamedXContentRegistry registry = new NamedXContentRegistry(
-            Collections.singletonList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME),
-                (p) -> {
-                    MockAction.parse(p);
-                    return new MockAction(Arrays.asList(firstStep, allClusterSecondStep));
-                })));
-        policyStepsRegistry = new PolicyStepsRegistry(registry);
-        setupIndexPolicy(allClusterPolicyName);
-
-        Step startStep = policyStepsRegistry.getFirstStep(allClusterPolicyName);
-        long now = randomNonNegativeLong();
-        // test execute start till end of phase `new`
-        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, startStep, policyStepsRegistry, () -> now);
-        ClusterState newState = task.execute(clusterState);
-
-        // Update the registry so the next phase's steps are loaded
-        policyStepsRegistry.update(newState, client, () -> now);
-
-        // verify that both the `new` phase was executed and the next phase is to begin
-        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
-        assertThat(currentStepKey, equalTo(firstStep.getKey()));
-        // test execute all actions in same phase
-        task = new ExecuteStepsUpdateTask(allClusterPolicyName, index, firstStep, policyStepsRegistry, () -> now);
-        newState = task.execute(newState);
-        policyStepsRegistry.update(newState, client, () -> now);
-
-        assertThat(firstStep.getExecuteCount(), equalTo(1L));
-        assertThat(allClusterSecondStep.getExecuteCount(), equalTo(1L));
-        currentStepKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
-        assertThat(currentStepKey, equalTo(TerminalPolicyStep.KEY));
-        assertNull(policyStepsRegistry.getStep(index, currentStepKey).getNextStepKey());
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(""));
+        policyStepsRegistry.update(clusterState, client);
     }
 
     public void testNeverExecuteNonClusterStateStep() throws IOException {
@@ -201,7 +162,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                         .put(LifecycleSettings.LIFECYCLE_PHASE, (String) null)
                         .put(LifecycleSettings.LIFECYCLE_ACTION, (String) null)
                         .put(LifecycleSettings.LIFECYCLE_STEP, (String) null).build()))).build();
-        policyStepsRegistry.update(clusterState, client, () -> 0);
+        policyStepsRegistry.update(clusterState, client);
 
         Step invalidStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         long now = randomNonNegativeLong();
@@ -266,6 +227,6 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                         .put(LifecycleSettings.LIFECYCLE_PHASE, stepKey.getPhase())
                         .put(LifecycleSettings.LIFECYCLE_ACTION, stepKey.getAction())
                         .put(LifecycleSettings.LIFECYCLE_STEP, stepKey.getName()).build()))).build();
-        policyStepsRegistry.update(clusterState, client, () -> 0);
+        policyStepsRegistry.update(clusterState, client);
     }
 }

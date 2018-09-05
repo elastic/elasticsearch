@@ -109,7 +109,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         String policyName = randomAlphaOfLength(5);
         LifecyclePolicy newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
         logger.info("--> policy: {}", newPolicy);
-        List<Step> policySteps = newPolicy.toSteps(client, () -> 0L);
+        List<Step> policySteps = newPolicy.toSteps(client);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -149,7 +149,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         // add new policy
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
 
         assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
@@ -167,7 +167,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                             .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase()))))
                 .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
-            registry.update(currentState, client, () -> 0L);
+            registry.update(currentState, client);
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
             assertThat(registry.getStep(index, step.getKey()), equalTo(step));
         }
@@ -175,7 +175,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
         Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));
         assertThat(registry.getStepMap(), equalTo(registryStepMap));
@@ -186,7 +186,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metaData(
                 MetaData.builder(metaData)
                     .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
         assertTrue(registry.getStepMap().isEmpty());
@@ -219,7 +219,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
         // add new policy
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
 
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
@@ -227,7 +227,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                                                 new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
             .metaData(MetaData.builder(metaData).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
 
@@ -249,7 +249,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);
         logger.info("--> policy: {}", newPolicy);
         logger.info("--> updated policy: {}", updatedPolicy);
-        List<Step> policySteps = newPolicy.toSteps(client, () -> 0L);
+        List<Step> policySteps = newPolicy.toSteps(client);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -289,7 +289,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         // add new policy
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
 
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         Step shrinkStep = registeredStepsForPolicy.entrySet().stream()
@@ -314,7 +314,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         currentState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
 
         // Update the policies
-        registry.update(currentState, client, () -> 0L);
+        registry.update(currentState, client);
 
         registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         shrinkStep = registeredStepsForPolicy.entrySet().stream()

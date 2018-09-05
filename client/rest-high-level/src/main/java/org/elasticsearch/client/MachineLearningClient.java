@@ -19,19 +19,20 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.ml.FlushJobRequest;
-import org.elasticsearch.client.ml.FlushJobResponse;
-import org.elasticsearch.client.ml.GetJobStatsRequest;
-import org.elasticsearch.client.ml.GetJobStatsResponse;
-import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetInfluencersRequest;
+import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -461,6 +463,45 @@ public final class MachineLearningClient {
                 MLRequestConverters::getRecords,
                 options,
                 GetRecordsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the influencers for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html">
+     *     ML GET influencers documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetInfluencersResponse getInfluencers(GetInfluencersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getInfluencers,
+                options,
+                GetInfluencersResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the influencers for a Machine Learning Job, notifies listener once the requested influencers are retrieved.
+     * <p>
+     * For additional info
+     * * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html">
+     *     ML GET influencers documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getInfluencersAsync(GetInfluencersRequest request, RequestOptions options,
+                                    ActionListener<GetInfluencersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getInfluencers,
+                options,
+                GetInfluencersResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

@@ -81,11 +81,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         String ip = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
         if (ip == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
@@ -120,6 +120,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         if (geoData.isEmpty() == false) {
             ingestDocument.setFieldValue(targetField, geoData);
         }
+        return ingestDocument;
     }
 
     @Override

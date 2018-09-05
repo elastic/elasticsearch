@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -126,7 +127,12 @@ public class Setting<T> implements ToXContentObject {
          * Indicates an index-level setting that is managed internally. Such a setting can only be added to an index on index creation but
          * can not be updated via the update API.
          */
-        InternalIndex
+        InternalIndex,
+
+        /**
+         * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
+         */
+        PrivateIndex
     }
 
     private final Key key;
@@ -160,6 +166,7 @@ public class Setting<T> implements ToXContentObject {
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             this.properties = propertiesAsSet;
         }
     }
@@ -282,6 +289,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isFinal() {
         return properties.contains(Property.Final);
+    }
+
+    public final boolean isInternalIndex() {
+        return properties.contains(Property.InternalIndex);
+    }
+
+    public final boolean isPrivateIndex() {
+        return properties.contains(Property.PrivateIndex);
     }
 
     /**
@@ -411,8 +426,19 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public String getRaw(Settings settings) {
+    public final String getRaw(final Settings settings) {
         checkDeprecation(settings);
+        return innerGetRaw(settings);
+    }
+
+    /**
+     * The underlying implementation for {@link #getRaw(Settings)}. Setting specializations can override this as needed to convert the
+     * actual settings value to raw strings.
+     *
+     * @param settings the settings instance
+     * @return the raw string representation of the setting value
+     */
+    String innerGetRaw(final Settings settings) {
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
@@ -547,7 +573,7 @@ public class Setting<T> implements ToXContentObject {
         };
     }
 
-    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer, Logger logger,
+    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
                                                                                   final List<? extends Setting<?>> configuredSettings) {
 
         return new AbstractScopedSettings.SettingUpdater<Settings>() {
@@ -698,7 +724,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        public String innerGetRaw(final Settings settings) {
             throw new UnsupportedOperationException("affix settings can't return values" +
                 " use #getConcreteSetting to obtain a concrete setting");
         }
@@ -805,7 +831,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        public String innerGetRaw(final Settings settings) {
             Settings subSettings = get(settings);
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -898,7 +924,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getRaw(Settings settings) {
+        String innerGetRaw(final Settings settings) {
             List<String> array = settings.getAsList(getKey(), null);
             return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
         }
@@ -968,6 +994,9 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
+        return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
@@ -1007,6 +1036,10 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
+    }
+
+    public static Setting<String> simpleString(String key, Function<String, String> parser, Property... properties) {
+        return new Setting<>(key, s -> "", parser, properties);
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {

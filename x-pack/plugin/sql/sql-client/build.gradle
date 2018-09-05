@@ -26,7 +26,7 @@ dependencyLicenses {
 
 forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
-    signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {

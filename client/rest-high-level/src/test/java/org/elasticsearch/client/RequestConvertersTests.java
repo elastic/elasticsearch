@@ -29,15 +29,12 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -97,10 +94,8 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -116,8 +111,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -125,12 +122,19 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -147,7 +151,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -169,6 +172,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
@@ -176,6 +180,7 @@ import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -402,6 +407,165 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/_aliases", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(indicesAliasesRequest, request.getEntity());
+    }
+
+    public void testReindex() throws IOException {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source_idx");
+        reindexRequest.setDestIndex("dest_idx");
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            RemoteInfo remoteInfo = new RemoteInfo("http", "remote-host", 9200, null,
+                BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS)),
+                "user",
+                "pass",
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            );
+            reindexRequest.setRemoteInfo(remoteInfo);
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceDocTypes("doc", "tweet");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestDocType("tweet_and_doc");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setSize(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            reindexRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+        }
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
+        expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
+        Request request = RequestConverters.reindex(reindexRequest);
+        assertEquals("/_reindex", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(reindexRequest, request.getEntity());
+    }
+
+    public void testUpdateByQuery() throws IOException {
+        UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+        updateByQueryRequest.indices(randomIndicesNames(1, 5));
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            updateByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
+        }
+        if (randomBoolean()) {
+            int batchSize = randomInt(100);
+            updateByQueryRequest.setBatchSize(batchSize);
+            expectedParams.put("scroll_size", Integer.toString(batchSize));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setPipeline("my_pipeline");
+            expectedParams.put("pipeline", "my_pipeline");
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setRouting("=cat");
+            expectedParams.put("routing", "=cat");
+        }
+        if (randomBoolean()) {
+            int size = randomIntBetween(100, 1000);
+            updateByQueryRequest.setSize(size);
+            expectedParams.put("size", Integer.toString(size));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setAbortOnVersionConflict(false);
+            expectedParams.put("conflicts", "proceed");
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            updateByQueryRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+            expectedParams.put("scroll", ts);
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        if (randomBoolean()) {
+            updateByQueryRequest.setScript(new Script("ctx._source.last = \"lastname\""));
+        }
+        setRandomIndicesOptions(updateByQueryRequest::setIndicesOptions, updateByQueryRequest::indicesOptions, expectedParams);
+        setRandomTimeout(updateByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        Request request = RequestConverters.updateByQuery(updateByQueryRequest);
+        StringJoiner joiner = new StringJoiner("/", "/", "");
+        joiner.add(String.join(",", updateByQueryRequest.indices()));
+        if (updateByQueryRequest.getDocTypes().length > 0)
+            joiner.add(String.join(",", updateByQueryRequest.getDocTypes()));
+        joiner.add("_update_by_query");
+        assertEquals(joiner.toString(), request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(updateByQueryRequest, request.getEntity());
+    }
+
+    public void testDeleteByQuery() throws IOException {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+        deleteByQueryRequest.indices(randomIndicesNames(1, 5));
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            deleteByQueryRequest.setDocTypes(generateRandomStringArray(5, 5, false, false));
+        }
+        if (randomBoolean()) {
+            int batchSize = randomInt(100);
+            deleteByQueryRequest.setBatchSize(batchSize);
+            expectedParams.put("scroll_size", Integer.toString(batchSize));
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setRouting("=cat");
+            expectedParams.put("routing", "=cat");
+        }
+        if (randomBoolean()) {
+            int size = randomIntBetween(100, 1000);
+            deleteByQueryRequest.setSize(size);
+            expectedParams.put("size", Integer.toString(size));
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setAbortOnVersionConflict(false);
+            expectedParams.put("conflicts", "proceed");
+        }
+        if (randomBoolean()) {
+            String ts = randomTimeValue();
+            deleteByQueryRequest.setScroll(TimeValue.parseTimeValue(ts, "scroll"));
+            expectedParams.put("scroll", ts);
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        setRandomIndicesOptions(deleteByQueryRequest::setIndicesOptions, deleteByQueryRequest::indicesOptions, expectedParams);
+        setRandomTimeout(deleteByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        Request request = RequestConverters.deleteByQuery(deleteByQueryRequest);
+        StringJoiner joiner = new StringJoiner("/", "/", "");
+        joiner.add(String.join(",", deleteByQueryRequest.indices()));
+        if (deleteByQueryRequest.getDocTypes().length > 0)
+            joiner.add(String.join(",", deleteByQueryRequest.getDocTypes()));
+        joiner.add("_delete_by_query");
+        assertEquals(joiner.toString(), request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(deleteByQueryRequest, request.getEntity());
     }
 
     public void testPutMapping() throws IOException {
@@ -1668,33 +1832,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(resizeRequest, request.getEntity());
     }
 
-    public void testClusterPutSettings() throws IOException {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request expectedRequest = RequestConverters.clusterPutSettings(request);
-        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
-        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testClusterGetSettings() throws IOException {
-        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        request.includeDefaults(randomBoolean());
-        if (request.includeDefaults()) {
-            expectedParams.put("include_defaults", String.valueOf(true));
-        }
-
-        Request expectedRequest = RequestConverters.clusterGetSettings(request);
-        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
-        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
     public void testPutPipeline() throws IOException {
         String pipelineId = "some_pipeline_id";
         PutPipelineRequest request = new PutPipelineRequest(
@@ -1770,85 +1907,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
         assertToXContentBody(request, expectedRequest.getEntity());
-    }
-
-    public void testClusterHealth() {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomLocal(healthRequest, expectedParams);
-        String timeoutType = randomFrom("timeout", "masterTimeout", "both", "none");
-        String timeout = randomTimeValue();
-        String masterTimeout = randomTimeValue();
-        switch (timeoutType) {
-            case "timeout":
-                healthRequest.timeout(timeout);
-                expectedParams.put("timeout", timeout);
-                // If Master Timeout wasn't set it uses the same value as Timeout
-                expectedParams.put("master_timeout", timeout);
-                break;
-            case "masterTimeout":
-                expectedParams.put("timeout", "30s");
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
-                break;
-            case "both":
-                healthRequest.timeout(timeout);
-                expectedParams.put("timeout", timeout);
-                healthRequest.masterNodeTimeout(timeout);
-                expectedParams.put("master_timeout", timeout);
-                break;
-            case "none":
-                expectedParams.put("timeout", "30s");
-                expectedParams.put("master_timeout", "30s");
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
-        if (randomBoolean()) {
-            ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
-            healthRequest.level(level);
-            expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
-        } else {
-            expectedParams.put("level", "cluster");
-        }
-        if (randomBoolean()) {
-            Priority priority = randomFrom(Priority.values());
-            healthRequest.waitForEvents(priority);
-            expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
-        }
-        if (randomBoolean()) {
-            ClusterHealthStatus status = randomFrom(ClusterHealthStatus.values());
-            healthRequest.waitForStatus(status);
-            expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
-        }
-        if (randomBoolean()) {
-            boolean waitForNoInitializingShards = randomBoolean();
-            healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
-            if (waitForNoInitializingShards) {
-                expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
-            }
-        }
-        if (randomBoolean()) {
-            boolean waitForNoRelocatingShards = randomBoolean();
-            healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
-            if (waitForNoRelocatingShards) {
-                expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
-            }
-        }
-        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
-        healthRequest.indices(indices);
-
-        Request request = RequestConverters.clusterHealth(healthRequest);
-        assertThat(request, CoreMatchers.notNullValue());
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getEntity(), nullValue());
-        if (indices != null && indices.length > 0) {
-            assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
-        } else {
-            assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
-        }
-        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testRollover() throws IOException {
@@ -2599,6 +2657,35 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
+    public void testGraphExplore() throws Exception {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
+        graphExploreRequest.sampleDiversityField("diversity");
+        graphExploreRequest.indices("index1", "index2");
+        graphExploreRequest.types("type1", "type2");
+        int timeout = randomIntBetween(10000, 20000);
+        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
+        for (int i = 0; i < numHops; i++) {
+            int hopNumber = i + 1;
+            QueryBuilder guidingQuery = null;
+            if (randomBoolean()) {
+                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
+            }
+            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
+            hop.addVertexRequest("field" + hopNumber);
+            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
+        }
+        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertToXContentBody(graphExploreRequest, request.getEntity());
+    }
+
     public void testXPackDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2721,11 +2808,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         setRandomLocal(request::local, expectedParams);
     }
 
-    private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             setter.accept(timeout);
@@ -2735,7 +2822,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+    static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             request.masterNodeTimeout(masterTimeout);
@@ -2749,8 +2836,8 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
     }
 
-    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
-                                                     Map<String, String> expectedParams) {
+    static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                             Map<String, String> expectedParams) {
         if (randomBoolean()) {
             int waitForActiveShardsInt = randomIntBetween(-1, 5);
             String waitForActiveShardsString;
@@ -2810,7 +2897,7 @@ public class RequestConvertersTests extends ESTestCase {
         return excludesParam.toString();
     }
 
-    private static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
+    static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
         int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

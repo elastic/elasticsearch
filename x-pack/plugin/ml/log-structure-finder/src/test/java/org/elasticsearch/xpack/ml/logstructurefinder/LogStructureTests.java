@@ -43,14 +43,12 @@ public class LogStructureTests extends AbstractXContentTestCase<LogStructure> {
             builder.setExcludeLinesPattern(randomAlphaOfLength(100));
         }
 
-        if (format.isSeparatedValues() || (format.supportsNesting() && randomBoolean())) {
+        if (format == LogStructure.Format.DELIMITED || (format.supportsNesting() && randomBoolean())) {
             builder.setInputFields(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
         }
-        if (format.isSeparatedValues()) {
+        if (format == LogStructure.Format.DELIMITED) {
             builder.setHasHeaderRow(randomBoolean());
-            if (rarely()) {
-                builder.setSeparator(format.separator());
-            }
+            builder.setDelimiter(randomFrom(',', '\t', ';', '|'));
         }
         if (format.isSemiStructured()) {
             builder.setGrokPattern(randomAlphaOfLength(100));
@@ -67,6 +65,14 @@ public class LogStructureTests extends AbstractXContentTestCase<LogStructure> {
             mappings.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
         }
         builder.setMappings(mappings);
+
+        //if (randomBoolean()) {
+            Map<String, FieldStats> fieldStats = new TreeMap<>();
+            for (String field : generateRandomStringArray(5, 20, false, false)) {
+                fieldStats.put(field, FieldStatsTests.createTestFieldStats());
+            }
+            builder.setFieldStats(fieldStats);
+        //}
 
         builder.setExplanation(Arrays.asList(generateRandomStringArray(10, 150, false, false)));
 

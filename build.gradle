@@ -16,21 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.util.GradleVersion
-import org.gradle.util.DistributionLocator
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.apache.tools.ant.filters.ReplaceTokens
-
-import java.nio.file.Files
-import java.nio.file.Path
-import java.security.MessageDigest
 
 plugins {
     id 'com.gradle.build-scan' version '1.13.2'
@@ -304,7 +298,7 @@ subprojects {
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
-    if (project.plugins.hasPlugin(BuildPlugin)) {
+    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
@@ -323,13 +317,6 @@ subprojects {
           project.evaluationDependsOn(upstreamProject.path)
           project.javadoc.source += upstreamProject.javadoc.source
           /*
-           * Do not add those projects to the javadoc classpath because
-           * we are going to resolve them with their source instead.
-           */
-          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
-            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
-          }
-          /*
            * Instead we need the upstream project's javadoc classpath so
            * we don't barf on the classes that it references.
            */
@@ -345,16 +332,16 @@ subprojects {
       project.configurations.compile.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       project.configurations.compileOnly.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(hasShadow, c) })
+          .each({ c -> depJavadocClosure(false, c) })
       if (hasShadow) {
-        project.configurations.shadow.dependencies
+        project.configurations.bundle.dependencies
             .findAll()
             .toSorted(sortClosure)
-            .each({ c -> depJavadocClosure(false, c) })
+            .each({ c -> depJavadocClosure(true, c) })
       }
     }
   }
@@ -518,30 +505,33 @@ allprojects {
   tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+  // work arround https://github.com/gradle/gradle/issues/6582 
+  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
+  tasks.matching { it.name == 'eclipseClasspath' }.all {
+    it.mustRunAfter { tasks.cleanEclipseClasspath }
+  }
+  tasks.matching { it.name == 'eclipseJdt' }.all {
+    it.mustRunAfter { tasks.cleanEclipseJdt }
+  }
+  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
 }
 
 allprojects {
   /*
    * IntelliJ and Eclipse don't know about the shadow plugin so when we're
-   * in "IntelliJ mode" or "Eclipse mode" add "runtime" dependencies
-   * eveywhere where we see a "shadow" dependency which will cause them to
-   * reference shadowed projects directly rather than rely on the shadowing
-   * to include them. This is the correct thing for it to do because it
-   * doesn't run the jar shadowing at all. This isn't needed for the project
+   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
+   * regular "compile" dependencies. This isn't needed for the project
    * itself because the IDE configuration is done by SourceSets but it is
    * *is* needed for projects that depends on the project doing the shadowing.
    * Without this they won't properly depend on the shadowed project.
    */
   if (isEclipse || isIdea) {
-	configurations.all { Configuration configuration ->
-	  dependencies.all { Dependency dep ->
-		if (dep instanceof ProjectDependency) {
-		  if (dep.getTargetConfiguration() == 'shadow') {
-			configuration.dependencies.add(project.dependencies.project(path: dep.dependencyProject.path, configuration: 'runtime'))
-		  }
-		}
-	  }
-	}
+    project.plugins.withType(ShadowPlugin).whenPluginAdded {
+      project.afterEvaluate {
+        project.configurations.compile.extendsFrom project.configurations.bundle
+      }
+    }
   }
 }
 
@@ -582,62 +572,6 @@ wrapper {
     }
 }
 
-static void assertLinesInFile(final Path path, final List<String> expectedLines) {
-  final List<String> actualLines = Files.readAllLines(path)
-  int line = 0
-  for (final String expectedLine : expectedLines) {
-    final String actualLine = actualLines.get(line)
-    if (expectedLine != actualLine) {
-      throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
-    }
-    line++
-  }
-}
-
-/*
- * Check that all generated JARs have our NOTICE.txt and an appropriate
- * LICENSE.txt in them. We configurate this in gradle but we'd like to
- * be extra paranoid.
- */
-subprojects { project ->
-  project.tasks.withType(Jar).whenTaskAdded { jarTask ->
-    final Task extract = project.task("extract${jarTask.name.capitalize()}", type: LoggedExec) {
-      dependsOn jarTask
-      ext.destination = project.buildDir.toPath().resolve("jar-extracted/${jarTask.name}")
-      commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
-          'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
-      workingDir destination
-      onlyIf {jarTask.enabled}
-      doFirst {
-        project.delete(destination)
-        Files.createDirectories(destination)
-      }
-    }
-
-    final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
-      dependsOn extract
-      onlyIf {jarTask.enabled}
-      doLast {
-        final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
-        final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
-        assertLinesInFile(noticePath, noticeLines)
-      }
-    }
-    project.check.dependsOn checkNotice
-
-    final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
-      dependsOn extract
-      onlyIf {jarTask.enabled}
-      doLast {
-        final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
-        final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')
-        assertLinesInFile(licensePath, licenseLines)
-      }
-    }
-    project.check.dependsOn checkLicense
-  }
-}
-
 /* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
  * artifacts for them. */
 gradle.projectsEvaluated {
@@ -645,13 +579,11 @@ gradle.projectsEvaluated {
     if (project.path.startsWith(':qa')) {
       Task assemble = project.tasks.findByName('assemble')
       if (assemble) {
-        project.tasks.remove(assemble)
-        project.build.dependsOn.remove('assemble')
+        assemble.enabled = false
       }
       Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
       if (dependenciesInfo) {
-        project.tasks.remove(dependenciesInfo)
-        project.precommit.dependsOn.remove('dependenciesInfo')
+        dependenciesInfo.enabled = false
       }
     }
   }

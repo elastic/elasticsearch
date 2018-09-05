@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,37 +28,14 @@ public class LogStructure implements ToXContentObject {
 
     public enum Format {
 
-        JSON, XML, CSV, TSV, SEMI_COLON_SEPARATED_VALUES, PIPE_SEPARATED_VALUES, SEMI_STRUCTURED_TEXT;
-
-        public Character separator() {
-            switch (this) {
-                case JSON:
-                case XML:
-                    return null;
-                case CSV:
-                    return ',';
-                case TSV:
-                    return '\t';
-                case SEMI_COLON_SEPARATED_VALUES:
-                    return ';';
-                case PIPE_SEPARATED_VALUES:
-                    return '|';
-                case SEMI_STRUCTURED_TEXT:
-                    return null;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
-        }
+        JSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
 
         public boolean supportsNesting() {
             switch (this) {
                 case JSON:
                 case XML:
                     return true;
-                case CSV:
-                case TSV:
-                case SEMI_COLON_SEPARATED_VALUES:
-                case PIPE_SEPARATED_VALUES:
+                case DELIMITED:
                 case SEMI_STRUCTURED_TEXT:
                     return false;
                 default:
@@ -69,10 +47,7 @@ public class LogStructure implements ToXContentObject {
             switch (this) {
                 case JSON:
                 case XML:
-                case CSV:
-                case TSV:
-                case SEMI_COLON_SEPARATED_VALUES:
-                case PIPE_SEPARATED_VALUES:
+                case DELIMITED:
                     return true;
                 case SEMI_STRUCTURED_TEXT:
                     return false;
@@ -85,47 +60,12 @@ public class LogStructure implements ToXContentObject {
             switch (this) {
                 case JSON:
                 case XML:
-                case CSV:
-                case TSV:
-                case SEMI_COLON_SEPARATED_VALUES:
-                case PIPE_SEPARATED_VALUES:
+                case DELIMITED:
                     return false;
                 case SEMI_STRUCTURED_TEXT:
                     return true;
                 default:
                     throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
-        }
-
-        public boolean isSeparatedValues() {
-            switch (this) {
-                case JSON:
-                case XML:
-                    return false;
-                case CSV:
-                case TSV:
-                case SEMI_COLON_SEPARATED_VALUES:
-                case PIPE_SEPARATED_VALUES:
-                    return true;
-                case SEMI_STRUCTURED_TEXT:
-                    return false;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
-        }
-
-        public static Format fromSeparator(char separator) {
-            switch (separator) {
-                case ',':
-                    return CSV;
-                case '\t':
-                    return TSV;
-                case ';':
-                    return SEMI_COLON_SEPARATED_VALUES;
-                case '|':
-                    return PIPE_SEPARATED_VALUES;
-                default:
-                    throw new IllegalArgumentException("No known format has separator [" + separator + "]");
             }
         }
 
@@ -149,13 +89,14 @@ public class LogStructure implements ToXContentObject {
     static final ParseField EXCLUDE_LINES_PATTERN = new ParseField("exclude_lines_pattern");
     static final ParseField INPUT_FIELDS = new ParseField("input_fields");
     static final ParseField HAS_HEADER_ROW = new ParseField("has_header_row");
-    static final ParseField SEPARATOR = new ParseField("separator");
+    static final ParseField DELIMITER = new ParseField("delimiter");
     static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
     static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
     static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
     static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
     static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
     static final ParseField MAPPINGS = new ParseField("mappings");
+    static final ParseField FIELD_STATS = new ParseField("field_stats");
     static final ParseField EXPLANATION = new ParseField("explanation");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("log_file_structure", false, Builder::new);
@@ -171,13 +112,20 @@ public class LogStructure implements ToXContentObject {
         PARSER.declareString(Builder::setExcludeLinesPattern, EXCLUDE_LINES_PATTERN);
         PARSER.declareStringArray(Builder::setInputFields, INPUT_FIELDS);
         PARSER.declareBoolean(Builder::setHasHeaderRow, HAS_HEADER_ROW);
-        PARSER.declareString((p, c) -> p.setSeparator(c.charAt(0)), SEPARATOR);
+        PARSER.declareString((p, c) -> p.setDelimiter(c.charAt(0)), DELIMITER);
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
         PARSER.declareStringArray(Builder::setTimestampFormats, TIMESTAMP_FORMATS);
         PARSER.declareBoolean(Builder::setNeedClientTimezone, NEED_CLIENT_TIMEZONE);
         PARSER.declareObject(Builder::setMappings, (p, c) -> new TreeMap<>(p.map()), MAPPINGS);
+        PARSER.declareObject(Builder::setFieldStats, (p, c) -> {
+            Map<String, FieldStats> fieldStats = new TreeMap<>();
+            while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
+                fieldStats.put(p.currentName(), FieldStats.PARSER.apply(p, c));
+            }
+            return fieldStats;
+        }, FIELD_STATS);
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
@@ -191,20 +139,21 @@ public class LogStructure implements ToXContentObject {
     private final String excludeLinesPattern;
     private final List<String> inputFields;
     private final Boolean hasHeaderRow;
-    private final Character separator;
+    private final Character delimiter;
     private final Boolean shouldTrimFields;
     private final String grokPattern;
     private final List<String> timestampFormats;
     private final String timestampField;
     private final boolean needClientTimezone;
     private final SortedMap<String, Object> mappings;
+    private final SortedMap<String, FieldStats> fieldStats;
     private final List<String> explanation;
 
     public LogStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
                         Format format, String multilineStartPattern, String excludeLinesPattern, List<String> inputFields,
-                        Boolean hasHeaderRow, Character separator, Boolean shouldTrimFields, String grokPattern, String timestampField,
+                        Boolean hasHeaderRow, Character delimiter, Boolean shouldTrimFields, String grokPattern, String timestampField,
                         List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
-                        List<String> explanation) {
+                        Map<String, FieldStats> fieldStats, List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
         this.numMessagesAnalyzed = numMessagesAnalyzed;
@@ -216,13 +165,14 @@ public class LogStructure implements ToXContentObject {
         this.excludeLinesPattern = excludeLinesPattern;
         this.inputFields = (inputFields == null) ? null : Collections.unmodifiableList(new ArrayList<>(inputFields));
         this.hasHeaderRow = hasHeaderRow;
-        this.separator = separator;
+        this.delimiter = delimiter;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
         this.timestampField = timestampField;
         this.timestampFormats = (timestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(timestampFormats));
         this.needClientTimezone = needClientTimezone;
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
+        this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
     }
 
@@ -266,8 +216,8 @@ public class LogStructure implements ToXContentObject {
         return hasHeaderRow;
     }
 
-    public Character getSeparator() {
-        return separator;
+    public Character getDelimiter() {
+        return delimiter;
     }
 
     public Boolean getShouldTrimFields() {
@@ -292,6 +242,10 @@ public class LogStructure implements ToXContentObject {
 
     public SortedMap<String, Object> getMappings() {
         return mappings;
+    }
+
+    public SortedMap<String, FieldStats> getFieldStats() {
+        return fieldStats;
     }
 
     public List<String> getExplanation() {
@@ -322,8 +276,8 @@ public class LogStructure implements ToXContentObject {
         if (hasHeaderRow != null) {
             builder.field(HAS_HEADER_ROW.getPreferredName(), hasHeaderRow.booleanValue());
         }
-        if (separator != null) {
-            builder.field(SEPARATOR.getPreferredName(), String.valueOf(separator));
+        if (delimiter != null) {
+            builder.field(DELIMITER.getPreferredName(), String.valueOf(delimiter));
         }
         if (shouldTrimFields != null) {
             builder.field(SHOULD_TRIM_FIELDS.getPreferredName(), shouldTrimFields.booleanValue());
@@ -339,6 +293,13 @@ public class LogStructure implements ToXContentObject {
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
         builder.field(MAPPINGS.getPreferredName(), mappings);
+        if (fieldStats.isEmpty() == false) {
+            builder.startObject(FIELD_STATS.getPreferredName());
+            for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
         builder.field(EXPLANATION.getPreferredName(), explanation);
         builder.endObject();
 
@@ -349,8 +310,8 @@ public class LogStructure implements ToXContentObject {
     public int hashCode() {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-            multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, shouldTrimFields, grokPattern, timestampField,
-            timestampFormats, needClientTimezone, mappings, explanation);
+            multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern, timestampField,
+            timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
     }
 
     @Override
@@ -376,12 +337,13 @@ public class LogStructure implements ToXContentObject {
             Objects.equals(this.excludeLinesPattern, that.excludeLinesPattern) &&
             Objects.equals(this.inputFields, that.inputFields) &&
             Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
-            Objects.equals(this.separator, that.separator) &&
+            Objects.equals(this.delimiter, that.delimiter) &&
             Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
             Objects.equals(this.grokPattern, that.grokPattern) &&
             Objects.equals(this.timestampField, that.timestampField) &&
             Objects.equals(this.timestampFormats, that.timestampFormats) &&
             Objects.equals(this.mappings, that.mappings) &&
+            Objects.equals(this.fieldStats, that.fieldStats) &&
             Objects.equals(this.explanation, that.explanation);
     }
 
@@ -397,13 +359,14 @@ public class LogStructure implements ToXContentObject {
         private String excludeLinesPattern;
         private List<String> inputFields;
         private Boolean hasHeaderRow;
-        private Character separator;
+        private Character delimiter;
         private Boolean shouldTrimFields;
         private String grokPattern;
         private String timestampField;
         private List<String> timestampFormats;
         private boolean needClientTimezone;
         private Map<String, Object> mappings;
+        private Map<String, FieldStats> fieldStats = Collections.emptyMap();
         private List<String> explanation;
 
         public Builder() {
@@ -441,7 +404,6 @@ public class LogStructure implements ToXContentObject {
 
         public Builder setFormat(Format format) {
             this.format = Objects.requireNonNull(format);
-            this.separator = format.separator();
             return this;
         }
 
@@ -465,13 +427,13 @@ public class LogStructure implements ToXContentObject {
             return this;
         }
 
-        public Builder setShouldTrimFields(Boolean shouldTrimFields) {
-            this.shouldTrimFields = shouldTrimFields;
+        public Builder setDelimiter(Character delimiter) {
+            this.delimiter = delimiter;
             return this;
         }
 
-        public Builder setSeparator(Character separator) {
-            this.separator = separator;
+        public Builder setShouldTrimFields(Boolean shouldTrimFields) {
+            this.shouldTrimFields = shouldTrimFields;
             return this;
         }
 
@@ -497,6 +459,11 @@ public class LogStructure implements ToXContentObject {
 
         public Builder setMappings(Map<String, Object> mappings) {
             this.mappings = Objects.requireNonNull(mappings);
+            return this;
+        }
+
+        public Builder setFieldStats(Map<String, FieldStats> fieldStats) {
+            this.fieldStats = Objects.requireNonNull(fieldStats);
             return this;
         }
 
@@ -542,28 +509,22 @@ public class LogStructure implements ToXContentObject {
                     if (hasHeaderRow != null) {
                         throw new IllegalArgumentException("Has header row may not be specified for [" + format + "] structures.");
                     }
-                    if (separator != null) {
-                        throw new IllegalArgumentException("Separator may not be specified for [" + format + "] structures.");
+                    if (delimiter != null) {
+                        throw new IllegalArgumentException("Delimiter may not be specified for [" + format + "] structures.");
                     }
                     if (grokPattern != null) {
                         throw new IllegalArgumentException("Grok pattern may not be specified for [" + format + "] structures.");
                     }
                     break;
-                case CSV:
-                case TSV:
-                case SEMI_COLON_SEPARATED_VALUES:
-                case PIPE_SEPARATED_VALUES:
+                case DELIMITED:
                     if (inputFields == null || inputFields.isEmpty()) {
                         throw new IllegalArgumentException("Input fields must be specified for [" + format + "] structures.");
                     }
                     if (hasHeaderRow == null) {
                         throw new IllegalArgumentException("Has header row must be specified for [" + format + "] structures.");
                     }
-                    Character expectedSeparator = format.separator();
-                    assert expectedSeparator != null;
-                    if (expectedSeparator.equals(separator) == false) {
-                        throw new IllegalArgumentException("Separator must be [" + expectedSeparator + "] for [" + format +
-                            "] structures.");
+                    if (delimiter == null) {
+                        throw new IllegalArgumentException("Delimiter must be specified for [" + format + "] structures.");
                     }
                     if (grokPattern != null) {
                         throw new IllegalArgumentException("Grok pattern may not be specified for [" + format + "] structures.");
@@ -576,8 +537,8 @@ public class LogStructure implements ToXContentObject {
                     if (hasHeaderRow != null) {
                         throw new IllegalArgumentException("Has header row may not be specified for [" + format + "] structures.");
                     }
-                    if (separator != null) {
-                        throw new IllegalArgumentException("Separator may not be specified for [" + format + "] structures.");
+                    if (delimiter != null) {
+                        throw new IllegalArgumentException("Delimiter may not be specified for [" + format + "] structures.");
                     }
                     if (shouldTrimFields != null) {
                         throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
@@ -607,8 +568,8 @@ public class LogStructure implements ToXContentObject {
             }
 
             return new LogStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-                multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, separator, shouldTrimFields, grokPattern,
-                timestampField, timestampFormats, needClientTimezone, mappings, explanation);
+                multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern,
+                timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
         }
     }
 }

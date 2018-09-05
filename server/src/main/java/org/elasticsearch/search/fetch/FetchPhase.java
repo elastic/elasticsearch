@@ -192,20 +192,15 @@ public class FetchPhase implements SearchPhase {
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
+        DocumentMapper documentMapper = context.mapperService().documentMapper();
+        Text typeText = documentMapper.typeText();
         if (fieldsVisitor == null) {
-            return new SearchHit(docId);
+            return new SearchHit(docId, null, typeText, null);
         }
 
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
-        Text typeText;
-        if (documentMapper == null) {
-            typeText = new Text(fieldsVisitor.uid().type());
-        } else {
-            typeText = documentMapper.typeText();
-        }
         SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
@@ -275,7 +270,7 @@ public class FetchPhase implements SearchPhase {
                 storedToRequestedFields, subReaderContext);
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+        DocumentMapper documentMapper = context.mapperService().documentMapper();
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 

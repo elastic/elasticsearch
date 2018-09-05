@@ -20,17 +20,11 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -55,10 +49,10 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "date_histogram";
-    private static final String INTERVAL = "interval";
+    public static final String INTERVAL = "interval";
     private static final String FIELD = "field";
     public static final String TIME_ZONE = "time_zone";
-    private static final String DELAY = "delay";
+    public static final String DELAY = "delay";
     private static final String DEFAULT_TIMEZONE = "UTC";
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
@@ -181,38 +175,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      */
     public Rounding createRounding() {
         return createRounding(interval.toString(), timeZone);
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of date histograms.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<CompositeValuesSourceBuilder<?>> toBuilders() {
-        DateHistogramValuesSourceBuilder vsBuilder =
-                new DateHistogramValuesSourceBuilder(RollupField.formatIndexerAggName(field, DateHistogramAggregationBuilder.NAME));
-        vsBuilder.dateHistogramInterval(interval);
-        vsBuilder.field(field);
-        vsBuilder.timeZone(toDateTimeZone(timeZone));
-        return Collections.singletonList(vsBuilder);
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public Map<String, Object> toAggCap() {
-        Map<String, Object> map = new HashMap<>(3);
-        map.put("agg", DateHistogramAggregationBuilder.NAME);
-        map.put(INTERVAL, interval.toString());
-        if (delay != null) {
-            map.put(DELAY, delay.toString());
-        }
-        map.put(TIME_ZONE, timeZone);
-
-        return map;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval.toString());
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

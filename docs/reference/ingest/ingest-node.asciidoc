@@ -721,7 +721,7 @@ All processors are defined in the following way within a pipeline definition:
 // NOTCONSOLE
 
 Each processor defines its own configuration parameters, but all processors have
-the ability to declare `tag` ,`on_failure` and `if` fields. These fields are optional.
+the ability to declare `tag`, `on_failure` and `if` fields. These fields are optional.
 
 A `tag` is simply a string identifier of the specific instantiation of a certain
 processor in a pipeline. The `tag` field does not affect the processor's behavior,

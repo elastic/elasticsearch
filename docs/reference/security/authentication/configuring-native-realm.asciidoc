@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[configuring-native-realm]]
 === Configuring a native realm
 

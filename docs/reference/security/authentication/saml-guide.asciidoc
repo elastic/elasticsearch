@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[saml-guide]]
 
 == Configuring SAML single-sign-on on the {stack}

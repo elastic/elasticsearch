@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[configuring-ldap-realm]]
 === Configuring an LDAP realm
 

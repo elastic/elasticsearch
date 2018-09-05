@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[configuring-kerberos-realm]]
 === Configuring a Kerberos realm
 

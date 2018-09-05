@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[configuring-ad-realm]]
 === Configuring an Active Directory realm
 

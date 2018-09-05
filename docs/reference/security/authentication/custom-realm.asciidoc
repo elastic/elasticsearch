@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[custom-realms]]
 === Integrating with other authentication systems
 

@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[controlling-user-cache]]
 === Controlling the user cache
 

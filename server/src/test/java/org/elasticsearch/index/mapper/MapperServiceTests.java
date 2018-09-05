@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -35,12 +36,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -110,35 +109,42 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
 
-    public void testTotalFieldsExceedsLimit() throws Throwable {
-        Function<String, String> mapping = type -> {
-            try {
-                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
-                    .startObject("field1").field("type", "keyword")
-                    .endObject().endObject().endObject().endObject());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
-        createIndex("test1").mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
-        //set total number of fields to 1 to trigger an exception
+    /**
+     * Test that we can have at least the number of fields in new mappings that are defined by "index.mapping.total_fields.limit".
+     * Any additional field should trigger an IllegalArgumentException.
+     */
+    public void testTotalFieldsLimit() throws Throwable {
+        int totalFieldsLimit = randomIntBetween(1, 10);
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), totalFieldsLimit).build();
+        createIndex("test1", settings).mapperService().merge("type", createMappingSpecifyingNumberOfFields(totalFieldsLimit),
+                MergeReason.MAPPING_UPDATE, false);
+
+        // adding one more field should trigger exception
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test2", Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build())
-                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
+            createIndex("test2", settings).mapperService().merge("type", createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1),
+                    MergeReason.MAPPING_UPDATE, false);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [1] in index [test2] has been exceeded"));
+        assertTrue(e.getMessage(),
+                e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] in index [test2] has been exceeded"));
+    }
+
+    private CompressedXContent createMappingSpecifyingNumberOfFields(int numberOfFields) throws IOException {
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties");
+        for (int i = 0; i < numberOfFields; i++) {
+            mappingBuilder.startObject("field" + i);
+            mappingBuilder.field("type", randomFrom("long", "integer", "date", "keyword", "text"));
+            mappingBuilder.endObject();
+        }
+        mappingBuilder.endObject().endObject();
+        return new CompressedXContent(BytesReference.bytes(mappingBuilder));
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {
-        CompressedXContent simpleMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "text")
-                    .endObject()
-                .endObject().endObject()));
-        IndexService indexService1 = createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
+        IndexService indexService1 = createIndex("test1",
+                Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
         // no exception
-        indexService1.mapperService().merge("type", simpleMapping, MergeReason.MAPPING_UPDATE, false);
+        indexService1.mapperService().merge("type", createMappingSpecifyingNumberOfFields(1), MergeReason.MAPPING_UPDATE, false);
 
         CompressedXContent objectMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
@@ -319,22 +325,20 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject().endObject());
 
-        DocumentMapper documentMapper = createIndex("test1").mapperService()
-            .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, true);
+        int numberOfFieldsIncludingAlias = 2;
+        createIndex("test1", Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsIncludingAlias).build()).mapperService()
+                        .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, true);
 
         // Set the total fields limit to the number of non-alias fields, to verify that adding
         // a field alias pushes the mapping over the limit.
-        int numFields = documentMapper.mapping().metadataMappers.length + 2;
-        int numNonAliasFields = numFields - 1;
-
+        int numberOfNonAliasFields = 1;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            Settings settings = Settings.builder()
-                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numNonAliasFields)
-                .build();
-            createIndex("test2", settings).mapperService()
-                .merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, true);
+            createIndex("test2",
+                    Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields).build())
+                            .mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, true);
         });
-        assertEquals("Limit of total fields [" + numNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
+        assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
     }
 
     public void testForbidMultipleTypes() throws IOException {

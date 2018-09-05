@@ -2,12 +2,12 @@
 "Test put and delete auto follow pattern":
   - do:
       ccr.put_auto_follow_pattern:
-        remote_cluster_alias: _local_
+        leader_cluster_alias: _local_
         body:
           leader_index_patterns: ['logs-*']
   - is_true: acknowledged
 
   - do:
       ccr.delete_auto_follow_pattern:
-        remote_cluster_alias: _local_
+        leader_cluster_alias: _local_
   - is_true: acknowledged

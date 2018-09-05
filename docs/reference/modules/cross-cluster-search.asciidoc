@@ -38,7 +38,7 @@ remote clusters that should be connected to, for instance:
 
 [source,yaml]
 --------------------------------
-search:
+cluster:
     remote:
         cluster_one: <1>
             seeds: 127.0.0.1:9300
@@ -58,7 +58,7 @@ following:
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
+    "cluster": {
       "remote": {
         "cluster_one": {
           "seeds": [
@@ -94,7 +94,7 @@ because we'll use them later.
 {
     "acknowledged" : true,
     "persistent": {
-        "search": {
+        "cluster": {
           "remote": {
             "cluster_one": {
               "seeds": [
@@ -129,7 +129,7 @@ A remote cluster can be deleted from the cluster settings by setting its seeds t
 PUT _cluster/settings
 {
   "persistent": {
-    "search": {
+    "cluster": {
       "remote": {
         "cluster_three": {
           "seeds": null <1>

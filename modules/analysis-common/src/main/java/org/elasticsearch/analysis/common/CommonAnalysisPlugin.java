@@ -271,6 +271,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("russian_stem", RussianStemTokenFilterFactory::new);
         filters.put("scandinavian_folding", ScandinavianFoldingFilterFactory::new);
         filters.put("scandinavian_normalization", ScandinavianNormalizationFilterFactory::new);
+        filters.put("script_filter",
+            requiresAnalysisSettings((i, e, n, s) -> new ScriptedFilteringTokenFilterFactory(i, n, s, scriptService.get())));
         filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
         filters.put("snowball", SnowballTokenFilterFactory::new);
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);

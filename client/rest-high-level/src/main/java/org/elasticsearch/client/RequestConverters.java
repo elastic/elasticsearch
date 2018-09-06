@@ -89,6 +89,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -1274,6 +1275,18 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withMasterTimeout(stopILMRequest.masterNodeTimeout());
         params.withTimeout(stopILMRequest.timeout());
+        return request;
+    }
+
+    static Request lifecycleManagementStatus(LifecycleManagementStatusRequest lifecycleManagementStatusRequest){
+        Request request = new Request(HttpGet.METHOD_NAME,
+            new EndpointBuilder()
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs("status")
+            .build());
+        Params params = new Params(request);
+        params.withMasterTimeout(lifecycleManagementStatusRequest.masterNodeTimeout());
+        params.withTimeout(lifecycleManagementStatusRequest.timeout());
         return request;
     }
 

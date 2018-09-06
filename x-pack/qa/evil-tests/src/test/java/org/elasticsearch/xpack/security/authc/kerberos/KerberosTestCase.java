@@ -130,12 +130,14 @@ public abstract class KerberosTestCase extends ESTestCase {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings = buildKerberosRealmSettings(ktabPathForService.toString());
+        settings = KerberosRealmTestCase.buildKerberosRealmSettings(ktabPathForService.toString());
     }
 
     @After
     public void tearDownMiniKdc() throws IOException, PrivilegedActionException {
-        simpleKdcLdapServer.stop();
+        if (simpleKdcLdapServer != null) {
+            simpleKdcLdapServer.stop();
+        }
     }
 
     /**
@@ -184,51 +186,6 @@ public abstract class KerberosTestCase extends ESTestCase {
      */
     static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
-    }
-
-    /**
-     * Write content to provided keytab file.
-     *
-     * @param keytabPath {@link Path} to keytab file.
-     * @param content Content for keytab
-     * @return key tab path
-     * @throws IOException if I/O error occurs while writing keytab file
-     */
-    public static Path writeKeyTab(final Path keytabPath, final String content) throws IOException {
-        try (BufferedWriter bufferedWriter = Files.newBufferedWriter(keytabPath, StandardCharsets.US_ASCII)) {
-            bufferedWriter.write(Strings.isNullOrEmpty(content) ? "test-content" : content);
-        }
-        return keytabPath;
-    }
-
-    /**
-     * Build kerberos realm settings with default config and given keytab
-     *
-     * @param keytabPath key tab file path
-     * @return {@link Settings} for kerberos realm
-     */
-    public static Settings buildKerberosRealmSettings(final String keytabPath) {
-        return buildKerberosRealmSettings(keytabPath, 100, "10m", true, false);
-    }
-
-    /**
-     * Build kerberos realm settings
-     *
-     * @param keytabPath key tab file path
-     * @param maxUsersInCache max users to be maintained in cache
-     * @param cacheTTL time to live for cached entries
-     * @param enableDebugging for krb5 logs
-     * @param removeRealmName {@code true} if we want to remove realm name from the username of form 'user@REALM'
-     * @return {@link Settings} for kerberos realm
-     */
-    public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache, final String cacheTTL,
-            final boolean enableDebugging, final boolean removeRealmName) {
-        final Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
-                .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
-                .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
-                .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging)
-                .put(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.getKey(), removeRealmName);
-        return builder.build();
     }
 
 }

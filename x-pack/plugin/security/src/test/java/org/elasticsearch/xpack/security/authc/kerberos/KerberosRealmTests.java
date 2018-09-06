@@ -155,7 +155,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
-        settings = KerberosTestCase.buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
+        settings = buildKerberosRealmSettings(keytabPath, 100, "10m", true, randomBoolean());
         config = new RealmConfig("test-kerb-realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));

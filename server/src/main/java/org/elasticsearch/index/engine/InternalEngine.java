@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -52,7 +51,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -393,7 +391,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public InternalEngine recoverFromTranslog(long recoverUpToSeqNo) throws IOException {
+    public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -401,7 +399,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslogInternal(recoverUpToSeqNo);
+                recoverFromTranslogInternal(translogRecoveryRunner, recoverUpToSeqNo);
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -423,13 +421,13 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private void recoverFromTranslogInternal(long recoverUpToSeqNo) throws IOException {
+    private void recoverFromTranslogInternal(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         final long translogFileGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(
             new Translog.TranslogGeneration(translog.getTranslogUUID(), translogFileGen), recoverUpToSeqNo)) {
-            opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
+            opsRecovered = translogRecoveryRunner.run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
@@ -1447,19 +1445,11 @@ public class InternalEngine extends Engine {
             if (store.tryIncRef()) {
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {
-                    switch (scope) {
-                        case EXTERNAL:
-                            // even though we maintain 2 managers we really do the heavy-lifting only once.
-                            // the second refresh will only do the extra work we have to do for warming caches etc.
-                            externalSearcherManager.maybeRefreshBlocking();
-                            // the break here is intentional we never refresh both internal / external together
-                            break;
-                        case INTERNAL:
-                            internalSearcherManager.maybeRefreshBlocking();
-                            break;
-                        default:
-                            throw new IllegalArgumentException("unknown scope: " + scope);
-                    }
+                    // even though we maintain 2 managers we really do the heavy-lifting only once.
+                    // the second refresh will only do the extra work we have to do for warming caches etc.
+                    ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
+                    // it is intentional that we never refresh both internal / external together
+                    referenceManager.maybeRefreshBlocking();
                 } finally {
                     store.decRef();
                 }
@@ -2010,37 +2000,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Searcher acquireSearcher(String source, SearcherScope scope) {
-        /* Acquire order here is store -> manager since we need
-         * to make sure that the store is not closed before
-         * the searcher is acquired. */
-        if (store.tryIncRef() == false) {
-            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
-        }
-        Releasable releasable = store::decRef;
-        try {
-            final ReferenceManager<IndexSearcher> referenceManager;
-            switch (scope) {
-                case INTERNAL:
-                    referenceManager = internalSearcherManager;
-                    break;
-                case EXTERNAL:
-                    referenceManager = externalSearcherManager;
-                    break;
-                default:
-                    throw new IllegalStateException("unknown scope: " + scope);
-            }
-            EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
-            releasable = null; // success - hand over the reference to the engine searcher
-            return engineSearcher;
-        } catch (AlreadyClosedException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            Releasables.close(releasable);
+    protected final ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
+        switch (scope) {
+            case INTERNAL:
+                return internalSearcherManager;
+            case EXTERNAL:
+                return externalSearcherManager;
+            default:
+                throw new IllegalStateException("unknown scope: " + scope);
         }
     }
 

@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="gold"]
+[[watcher-api]]
+== Watcher APIs
+
+* <<watcher-api-put-watch>>
+* <<watcher-api-get-watch>>
+* <<watcher-api-delete-watch>>
+* <<watcher-api-execute-watch>>
+* <<watcher-api-ack-watch>>
+* <<watcher-api-activate-watch>>
+* <<watcher-api-deactivate-watch>>
+* <<watcher-api-stats>>
+* <<watcher-api-stop>>
+* <<watcher-api-start>>
+
+include::put-watch.asciidoc[]
+include::get-watch.asciidoc[]
+include::delete-watch.asciidoc[]
+include::execute-watch.asciidoc[]
+include::ack-watch.asciidoc[]
+include::activate-watch.asciidoc[]
+include::deactivate-watch.asciidoc[]
+include::stats.asciidoc[]
+include::stop.asciidoc[]
+include::start.asciidoc[]

@@ -1,0 +1,87 @@
+[role="xpack"]
+[testenv="gold"]
+[[watcher-api-deactivate-watch]]
+=== Deactivate Watch API
+
+A watch can be either
+{xpack-ref}/how-watcher-works.html#watch-active-state[active or inactive]. This
+API enables you to deactivate a currently active watch.
+
+[float]
+==== Request
+
+`PUT _xpack/watcher/watch/<watch_id>/_deactivate`
+
+[float]
+==== Path Parameters
+
+`watch_id` (required)::
+  (string) Identifier for the watch.
+
+[float]
+==== Authorization
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
+The status of an active watch is returned with the watch definition when you
+call the <<watcher-api-get-watch, Get Watch API>>:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_version": 1,
+  "status": {
+    "state" : {
+      "active" : true,
+      "timestamp" : "2015-08-20T12:21:32.734Z"
+    },
+    "actions": ...,
+    "version": 1
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2015-08-20T12:21:32.734Z/$body.status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body.status.actions"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"version": 1/"version": $body.status.version/]
+
+You can deactivate the watch by executing the following API call:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch/_deactivate
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
+The new state of the watch is returned as part of its overall status:
+
+[source,js]
+--------------------------------------------------
+{
+  "status": {
+    "state" : {
+      "active" : false,
+      "timestamp" : "2015-09-04T08:39:46.816Z"
+    },
+    "actions": ...,
+    "version": 1
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2015-09-04T08:39:46.816Z/$body.status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body.status.actions"/]
+// TESTRESPONSE[s/"version": 1/"version": $body.status.version/]

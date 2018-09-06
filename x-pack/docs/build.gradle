@@ -9,13 +9,10 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'en/rest-api/watcher/put-watch.asciidoc',
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
         'en/security/ccs-clients-integrations/http.asciidoc',
         'en/security/authorization/custom-roles-provider.asciidoc',
-        'en/rest-api/watcher/stats.asciidoc',
-        'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
 
 dependencies {
@@ -91,7 +88,6 @@ buildRestTests.docs = fileTree(projectDir) {
     // That is where the snippets go, not where they come from!
     exclude 'build'
     // These file simply doesn't pass yet. We should figure out how to fix them.
-    exclude 'en/watcher/reference/actions.asciidoc'
     exclude 'en/rest-api/graph/explore.asciidoc'
 }
 

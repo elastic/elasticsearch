@@ -1,0 +1,284 @@
+[role="xpack"]
+[testenv="gold"]
+[[watcher-api-ack-watch]]
+=== Ack Watch API
+
+{xpack-ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+to manually throttle execution of the watch's actions. An action's
+_acknowledgement state_ is stored in the `status.actions.<id>.ack.state`
+structure.
+
+IMPORTANT: If the specified watch is currently being executed, this API will return
+an error. The reason for this is to prevent overwriting of the watch status from a watch
+execution.
+
+[float]
+==== Request
+
+`PUT _xpack/watcher/watch/<watch_id>/_ack` +
+
+`PUT _xpack/watcher/watch/<watch_id>/_ack/<action_id>`
+
+[float]
+==== Path Parameters
+
+`action_id`::
+  (list) A comma-separated list of the action IDs to acknowledge. If you omit
+  this parameter, all of the actions of the watch are acknowledged.
+
+`watch_id` (required)::
+  (string) Identifier for the watch.
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+
+[float]
+==== Examples
+
+To demonstrate let's create a new watch:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch
+{
+  "trigger": {
+    "schedule": {
+      "hourly": {
+        "minute": [ 0, 5 ]
+      }
+    }
+  },
+  "input": {
+    "simple": {
+      "payload": {
+        "send": "yes"
+      }
+    }
+  },
+  "condition": {
+    "always": {}
+  },
+  "actions": {
+    "test_index": {
+      "throttle_period": "15m",
+      "index": {
+        "index": "test",
+        "doc_type": "test2"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+The current status of a watch and the state of its actions is returned with the
+watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+
+The action state of a newly-created watch is `awaits_successful_execution`:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_version": 1,
+  "_id": "my_watch",
+  "status": {
+    "version": 1,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "awaits_successful_execution"
+        }
+      }
+    },
+    "state": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+
+When the watch executes and the condition matches, the value of the `ack.state`
+changes to `ackable`. Let's force execution of the watch and fetch it again to
+check the status:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_execute
+{
+  "record_execution" : true
+}
+
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+and the action is now in `ackable` state:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_version": 2,
+  "status": {
+    "version": 2,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "ackable"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        }
+      }
+    },
+    "state": ...,
+    "execution_state": "executed",
+    "last_checked": ...,
+    "last_met_condition": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"last_checked": \.\.\./"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": \.\.\./"last_met_condition": "$body.status.last_met_condition"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
+
+Now we can acknowledge it:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch/_ack/test_index
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_version": 3,
+  "status": {
+    "version": 3,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "acked"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        }
+      }
+    },
+    "state": ...,
+    "execution_state": "executed",
+    "last_checked": ...,
+    "last_met_condition": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"last_checked": \.\.\./"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": \.\.\./"last_met_condition": "$body.status.last_met_condition"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
+
+Acknowledging an action throttles further executions of that action until its
+`ack.state` is reset to `awaits_successful_execution`. This happens when the
+condition of the watch is not met (the condition evaluates to `false`).
+
+You can acknowledge multiple actions by assigning the `actions` parameter a
+comma-separated list of action ids:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_ack/action1,action2
+--------------------------------------------------
+// CONSOLE
+
+To acknowledge all of the actions of a watch, simply omit the `actions`
+parameter:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_ack
+--------------------------------------------------
+// TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
+// CONSOLE
+
+
+The response looks like a get watch response, but only contains the status:
+
+[source,js]
+--------------------------------------------------
+{
+  "status": {
+    "state": {
+      "active": true,
+      "timestamp": "2015-05-26T18:04:27.723Z"
+    },
+    "last_checked": "2015-05-26T18:04:27.753Z",
+    "last_met_condition": "2015-05-26T18:04:27.763Z",
+    "actions": {
+      "test_index": {
+        "ack" : {
+          "timestamp": "2015-05-26T18:04:27.713Z",
+          "state": "acked"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.733Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.773Z",
+          "successful": true
+        }
+      }
+    },
+    "execution_state": "executed",
+    "version": 2
+  }
+}
+
+--------------------------------------------------
+// TESTRESPONSE[s/"last_checked": "2015-05-26T18:04:27.753Z"/"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": "2015-05-26T18:04:27.763Z"/"last_met_condition": "$body.status.last_met_condition"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.state.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.713Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.733Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.773Z"/"timestamp": "$body.status.actions.test_index.last_successful_execution.timestamp"/]

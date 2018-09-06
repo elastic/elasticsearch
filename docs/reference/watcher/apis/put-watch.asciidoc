@@ -1,0 +1,158 @@
+[role="xpack"]
+[testenv="gold"]
+[[watcher-api-put-watch]]
+=== Put Watch API
+
+The PUT watch API either registers a new watch in {watcher} or update an
+existing one.
+
+[float]
+==== Request
+
+`PUT _xpack/watcher/watch/<watch_id>`
+
+[float]
+==== Description
+
+When a watch is registered, a new document that represents the watch is added to
+the `.watches` index and its trigger is immediately registered with the relevant
+trigger engine. Typically for the `schedule` trigger, the scheduler is the
+trigger engine.
+
+IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
+            directly to the `.watches` index using the Elasticsearch Index API.
+            If {security} is enabled, make sure no `write` privileges are
+            granted to anyone over the `.watches` index.
+
+When adding a watch you can also define its initial
+{xpack-ref}/how-watcher-works.html#watch-active-state[active state]. You do that
+by setting the `active` parameter.
+
+[float]
+==== Path Parameters
+
+`watch_id` (required)::
+  (string) Identifier for the watch.
+
+[float]
+==== Query Parameters
+
+`active`::
+  (boolean) Defines whether the watch is active or inactive by default. The
+  default value is `true`, which means the watch is active by default.
+
+[float]
+==== Request Body
+
+A watch has the following fields:
+
+[options="header"]
+|======
+| Name              | Description
+
+| `trigger`         | The {xpack-ref}/trigger.html[trigger] that defines when
+                      the watch should run.
+
+| `input`           | The {xpack-ref}/input.html[input] that defines the input
+                      that loads the data for the watch.
+
+| `condition`       | The {xpack-ref}/condition.html[condition] that defines if
+                      the actions should be run.
+
+| `actions`         | The list of {xpack-ref}/actions.html[actions] that will be
+                      run if the condition matches
+
+| `metadata`        | Metadata json that will be copied into the history entries.
+
+| `throttle_period` | The minimum time between actions being run, the default
+                      for this is 5 seconds. This default can be changed in the
+                      config file with the setting `xpack.watcher.throttle.period.default_period`.
+|======
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Security Integration
+
+When {security} is enabled, your watch will only be able to index or search on
+indices for which the user that stored the watch, has privileges. If the user is
+able to read index `a`, but not index `b`, the same will apply, when the watch
+is executed.
+
+[float]
+==== Examples
+
+The following example adds a watch with the `my-watch` id that has the following
+characteristics:
+
+* The watch schedule triggers every minute.
+* The watch search input looks for any 404 HTTP responses that occurred in the
+  last five minutes.
+* The watch condition checks if any search hits where found.
+* When found, the watch action sends an email to an administrator.
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my-watch
+{
+  "trigger" : {
+    "schedule" : { "cron" : "0 0/1 * * * ?" }
+  },
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [
+          "logstash*"
+        ],
+        "body" : {
+          "query" : {
+            "bool" : {
+              "must" : {
+                "match": {
+                   "response": 404
+                }
+              },
+              "filter" : {
+                "range": {
+                  "@timestamp": {
+                    "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                    "to": "{{ctx.trigger.triggered_time}}"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+  "actions" : {
+    "email_admin" : {
+      "email" : {
+        "to" : "admin@domain.host.com",
+        "subject" : "404 recently encountered"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+When you add a watch you can also define its initial
+{xpack-ref}/how-watcher-works.html#watch-active-state[active state]. You do that
+by setting the `active` parameter. The following command adds a watch and sets
+it to be inactive by default:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my-watch?active=false
+--------------------------------------------------
+
+NOTE: If you omit the `active` parameter, the watch is active by default.

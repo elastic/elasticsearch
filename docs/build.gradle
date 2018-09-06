@@ -33,6 +33,9 @@ buildRestTests.expectedUnconvertedCandidates = [
         'reference/ml/apis/post-data.asciidoc',
         'reference/ml/apis/revert-snapshot.asciidoc',
         'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/watcher/apis/put-watch.asciidoc',
+        'reference/watcher/apis/stats.asciidoc',
+        'reference/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
 
 integTestCluster {
@@ -101,6 +104,7 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'reference/rollup/apis/delete-job.asciidoc'
   exclude 'reference/rollup/apis/get-job.asciidoc'
   exclude 'reference/rollup/apis/rollup-caps.asciidoc'
+  exclude 'reference/watcher/reference/actions.asciidoc'
 }
 
 listSnippets.docs = buildRestTests.docs
@@ -1096,5 +1100,40 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
-
-
+setups['my_inactive_watch'] = '''
+  - do:
+      xpack.watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test",
+                  "doc_type": "test2"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')

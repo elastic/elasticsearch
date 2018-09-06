@@ -68,7 +68,7 @@ public class MonitoringServiceTests extends ESTestCase {
     }
 
     public void testIsMonitoringActive() throws Exception {
-        monitoringService = new MonitoringService(Settings.EMPTY, clusterService, threadPool, emptySet(), new CountingExporter());
+        monitoringService = new MonitoringService(Settings.EMPTY, clusterService, threadPool, new CountingExporter());
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
@@ -97,7 +97,7 @@ public class MonitoringServiceTests extends ESTestCase {
                         .build();
 
         CountingExporter exporter = new CountingExporter();
-        monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
+        monitoringService = new MonitoringService(settings, clusterService, threadPool, exporter);
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
@@ -123,7 +123,7 @@ public class MonitoringServiceTests extends ESTestCase {
                         .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
                         .build();
 
-        monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
+        monitoringService = new MonitoringService(settings, clusterService, threadPool, exporter);
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));

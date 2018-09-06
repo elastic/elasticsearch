@@ -16,8 +16,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.client.watcher.Exceptions.illegalArgument;
 import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.dateTimeFormatter;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class ActionStatus {
 
@@ -122,7 +122,7 @@ public class ActionStatus {
                     case 2 : return ACKABLE;
                     case 3 : return ACKED;
                     default:
-                        throw illegalArgument("unknown action ack status state value [{}]", value);
+                        throw new IllegalArgumentException(format("unknown action ack status state value [{}]", value));
                 }
             }
         }

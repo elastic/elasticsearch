@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
@@ -167,6 +169,35 @@ public class IndexLifecycleClient {
     public AcknowledgedResponse stopILM(StopILMRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::stopILM, options,
                 AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get the status of index lifecycle management
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public LifecycleManagementStatusResponse lifecycleManagementStatus(LifecycleManagementStatusRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
+            LifecycleManagementStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get the status of index lifecycle management
+     * See <a href="https://fix-me-when-we-have-docs.com">
+     * the docs</a> for more.
+     *
+     * @param request  the request
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
+                                               ActionListener<LifecycleManagementStatusResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::lifecycleManagementStatus, options,
+            LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 
     /**

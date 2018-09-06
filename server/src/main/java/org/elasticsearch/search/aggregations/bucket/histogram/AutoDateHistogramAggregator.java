@@ -181,7 +181,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
 
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, pipelineAggregators(), metaData());
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo,
+            formatter, pipelineAggregators(), metaData(), 1);
     }
 
     @Override
@@ -189,7 +190,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
         return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter,
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metaData(), 1);
     }
 
     @Override

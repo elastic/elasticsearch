@@ -1034,7 +1034,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
             assertTrue(explainResponse.hasExplanation());
-            assertThat(explainResponse.getExplanation().getValue(), greaterThan(0.0f));
+            assertThat(explainResponse.getExplanation().getValue().floatValue(), greaterThan(0.0f));
             assertNull(explainResponse.getGetResult());
         }
         {

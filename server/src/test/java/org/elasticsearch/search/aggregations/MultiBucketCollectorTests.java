@@ -27,6 +27,7 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -64,6 +65,11 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         @Override
         public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            return Float.MAX_VALUE;
         }
 
         @Override
@@ -107,8 +113,8 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         }
 
         @Override
-        public boolean needsScores() {
-            return false;
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE;
         }
 
         @Override
@@ -136,8 +142,8 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         }
 
         @Override
-        public boolean needsScores() {
-            return false;
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
 
         @Override
@@ -173,8 +179,8 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         }
 
         @Override
-        public boolean needsScores() {
-            return false;
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE;
         }
 
         @Override

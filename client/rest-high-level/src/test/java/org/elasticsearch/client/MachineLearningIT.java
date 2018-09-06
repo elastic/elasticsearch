@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.common.unit.TimeValue;
@@ -235,6 +237,23 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         GetJobRequest getRequest = new GetJobRequest(jobId);
         GetJobResponse getResponse = machineLearningClient.getJob(getRequest, RequestOptions.DEFAULT);
         assertEquals("Updated description", getResponse.jobs().get(0).getDescription());
+    }
+
+    public void testDeleteForecast() throws Exception {
+        String jobId = "test-delete-forecast";
+
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        // post data
+        // create forecast
+        String forecastId = "";
+        DeleteForecastRequest request = new DeleteForecastRequest(jobId);
+        request.setForecastId(forecastId);
+        AcknowledgedResponse response = execute(request, machineLearningClient::deleteForecast, machineLearningClient::deleteForecastAsync);
+        assertTrue(response.isAcknowledged());
     }
 
     public static String randomValidJobId() {

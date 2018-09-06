@@ -462,6 +462,26 @@ public class SettingTests extends ESTestCase {
 
     }
 
+    public void testListSettingsDeprecated() {
+        final Setting<List<String>> deprecatedListSetting =
+                Setting.listSetting(
+                        "foo.deprecated",
+                        Collections.singletonList("foo.deprecated"),
+                        Function.identity(),
+                        Property.Deprecated,
+                        Property.NodeScope);
+        final Setting<List<String>> nonDeprecatedListSetting =
+                Setting.listSetting(
+                        "foo.non_deprecated", Collections.singletonList("foo.non_deprecated"), Function.identity(), Property.NodeScope);
+        final Settings settings = Settings.builder()
+                .put("foo.deprecated", "foo.deprecated1,foo.deprecated2")
+                .put("foo.deprecated", "foo.non_deprecated1,foo.non_deprecated2")
+                .build();
+        deprecatedListSetting.get(settings);
+        nonDeprecatedListSetting.get(settings);
+        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedListSetting});
+    }
+
     public void testListSettings() {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);

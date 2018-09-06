@@ -19,8 +19,6 @@ through one of the other `PostDataRequest` constructors.
 
 Only `XContentType.JSON` and `XContentType.SMILE` are supported.
 
-All other fields are optional for the request.
-
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-post-data-request]

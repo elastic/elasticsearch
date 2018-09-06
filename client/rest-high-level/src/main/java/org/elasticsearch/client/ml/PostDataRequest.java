@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -72,7 +73,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
     public PostDataRequest(String jobId, XContentType xContentType, BytesReference content) {
         this.jobId = Objects.requireNonNull(jobId, "job_id must not be null");
         this.xContentType = Objects.requireNonNull(xContentType, "content_type must not be null");
-        this.content = content;
+        this.content = Objects.requireNonNull(content, "content must not be null");
     }
 
     /**
@@ -83,11 +84,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
      * @param content bulk serialized content in the format of the passed {@link XContentType}
      */
     public PostDataRequest(String jobId, XContentType xContentType, byte[] content) {
-        this.jobId = Objects.requireNonNull(jobId, "job_id must not be null");
-        this.xContentType = Objects.requireNonNull(xContentType, "content_type must not be null");
-        ByteBuffer buffer = ByteBuffer.wrap(content);
-        ByteBuffer[] buffers = new ByteBuffer[]{ buffer };
-        this.content = BytesReference.fromByteBuffers(buffers);
+        this(jobId, xContentType, new BytesArray(content));
     }
 
     /**
@@ -140,6 +137,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
+        //We leave out the content for server side parity
         return Objects.hash(jobId, resetStart, resetEnd, xContentType);
     }
 
@@ -153,6 +151,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
             return false;
         }
 
+        //We leave out the content for server side parity
         PostDataRequest other = (PostDataRequest) obj;
         return Objects.equals(jobId, other.jobId) &&
             Objects.equals(resetStart, other.resetStart) &&

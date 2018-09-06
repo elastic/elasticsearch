@@ -315,7 +315,7 @@ class NodeInfo {
             case 'tar':
             case 'oss-zip':
             case 'oss-tar':
-                path = "elasticsearch-${nodeVersion == VersionProperties.elasticsearchVersion ? VersionProperties.elasticsearch : nodeVersion}"
+                path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
             case 'deb':

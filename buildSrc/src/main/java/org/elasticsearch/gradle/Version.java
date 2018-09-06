@@ -38,7 +38,7 @@ public final class Version implements Comparable<Version> {
         Matcher matcher = pattern.matcher(s);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException(
-                "Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+                "Invalid version format: '" + s + "'. Should be major.minor.revision"
             );
         }
         return new Version(

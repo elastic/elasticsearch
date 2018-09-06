@@ -41,7 +41,7 @@ public class DocsTestPlugin extends RestTestPlugin {
                  * the values may differ. In particular {version} needs to resolve
                  * to the version being built for testing but needs to resolve to
                  * the last released version for docs. */
-            '\\{version\\}': VersionProperties.elasticsearchVersion,
+            '\\{version\\}': VersionProperties.elasticsearchVersion.toString(),
             '\\{plugin_version\\}': VersionProperties.elasticsearchVersion.toString(),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' :

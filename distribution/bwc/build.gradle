@@ -141,10 +141,10 @@ subprojects {
       baseDir += project == 'zip' ? '/archives' : '/packages'
       // add oss variant first
       projectDirs.add("${baseDir}/oss-${project}")
-      artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}.${project}"))
+      artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${project}"))
     }
     projectDirs.add("${baseDir}/${project}")
-    artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}.${project}"))
+    artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
   }
 
   task buildBwcVersion(type: Exec) {
@@ -171,7 +171,6 @@ subprojects {
     for (String dir : projectDirs) {
       args ":${dir.replace('/', ':')}:assemble"
     }
-    args "-Dbuild.snapshot=true"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
       args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
@@ -183,6 +182,7 @@ subprojects {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       args "--full-stacktrace"
     }
+    args "-Dbuild.snapshot=true"
     standardOutput = new IndentingOutputStream(System.out)
     errorOutput = new IndentingOutputStream(System.err)
     doLast {

@@ -150,6 +150,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -208,6 +209,13 @@ public class Node implements Closeable {
                 && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
                 throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " +
                     "[" + value + "]");
+            }
+            if (value.length() > 0 && "node.attr.server_name".equals(key)) {
+                try {
+                    new SNIHostName(value);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("invalid node.attr.server_name [" + value + "]", e );
+                }
             }
             return value;
         }, Property.NodeScope));

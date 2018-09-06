@@ -74,7 +74,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, analyzer, null,
                 new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), locale,

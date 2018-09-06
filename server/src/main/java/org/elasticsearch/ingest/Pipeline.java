@@ -77,8 +77,8 @@ public final class Pipeline {
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
-    public void execute(IngestDocument ingestDocument) throws Exception {
-        compoundProcessor.execute(ingestDocument);
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        return compoundProcessor.execute(ingestDocument);
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.example.rescore;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -68,7 +69,7 @@ public class ExampleRescoreBuilderTests extends AbstractWireSerializingTestCase<
         String fieldFactor = null;
         ExampleRescoreBuilder builder = new ExampleRescoreBuilder(factor, fieldFactor).windowSize(2);
         RescoreContext context = builder.buildContext(null);
-        TopDocs docs = new TopDocs(10, new ScoreDoc[3], 0);
+        TopDocs docs = new TopDocs(new TotalHits(10, TotalHits.Relation.EQUAL_TO), new ScoreDoc[3]);
         docs.scoreDocs[0] = new ScoreDoc(0, 1.0f);
         docs.scoreDocs[1] = new ScoreDoc(1, 1.0f);
         docs.scoreDocs[2] = new ScoreDoc(2, 1.0f);

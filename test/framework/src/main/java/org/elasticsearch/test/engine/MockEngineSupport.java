@@ -148,7 +148,7 @@ public final class MockEngineSupport {
         }
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
-        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity(true));
+        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity());
         assertingIndexSearcher.setQueryCache(filterCache);
         assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
         return assertingIndexSearcher;
@@ -190,7 +190,7 @@ public final class MockEngineSupport {
 
     public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher) {
         final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
-        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity(true));
+        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity());
         /*
          * pass the original searcher to the super.newSearcher() method to
          * make sure this is the searcher that will be released later on.

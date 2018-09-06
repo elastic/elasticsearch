@@ -75,7 +75,8 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         for (int i = 0; i < numberHeaders; i++) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName), headers);
+        return new LifecyclePolicyMetadata(LifecyclePolicyTests.randomTimeseriesLifecyclePolicy(lifecycleName), headers,
+            randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -87,7 +88,9 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
     protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
-        switch (between(0, 1)) {
+        long version = instance.getVersion();
+        long creationDate = instance.getModifiedDate();
+        switch (between(0, 3)) {
         case 0:
             policy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),
                     policy.getPhases());
@@ -96,10 +99,16 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
             headers = new HashMap<>(headers);
             headers.put(randomAlphaOfLength(11), randomAlphaOfLength(11));
             break;
+        case 2:
+            version++;
+            break;
+        case 3:
+            creationDate++;
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicyMetadata(policy, headers);
+        return new LifecyclePolicyMetadata(policy, headers, version, creationDate);
     }
 
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -37,24 +38,28 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<LifecyclePolicy> policies;
+        private List<LifecyclePolicyResponseItem> policies;
 
         public Response() {
         }
 
-        public Response(List<LifecyclePolicy> policies) {
+        public Response(List<LifecyclePolicyResponseItem> policies) {
             this.policies = policies;
         }
 
-        public List<LifecyclePolicy> getPolicies() {
+        public List<LifecyclePolicyResponseItem> getPolicies() {
             return policies;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (LifecyclePolicy policy : policies) {
-                builder.field(policy.getName(), policy);
+            for (LifecyclePolicyResponseItem item : policies) {
+                builder.startObject(item.getLifecyclePolicy().getName());
+                builder.field("version", item.getVersion());
+                builder.field("modified_date", item.getModifiedDate());
+                builder.field("policy", item.getLifecyclePolicy());
+                builder.endObject();
             }
             builder.endObject();
             return builder;
@@ -62,7 +67,7 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policies = in.readList(LifecyclePolicy::new);
+            this.policies = in.readList(LifecyclePolicyResponseItem::new);
         }
 
         @Override
@@ -144,6 +149,63 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             }
             Request other = (Request) obj;
             return Arrays.equals(policyNames, other.policyNames);
+        }
+
+    }
+
+    public static class LifecyclePolicyResponseItem implements Writeable {
+        private final LifecyclePolicy lifecyclePolicy;
+        private final long version;
+        private final String modifiedDate;
+
+        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate) {
+            this.lifecyclePolicy = lifecyclePolicy;
+            this.version = version;
+            this.modifiedDate = modifiedDate;
+        }
+
+        LifecyclePolicyResponseItem(StreamInput in) throws IOException {
+            this.lifecyclePolicy = new LifecyclePolicy(in);
+            this.version = in.readVLong();
+            this.modifiedDate = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            lifecyclePolicy.writeTo(out);
+            out.writeVLong(version);
+            out.writeString(modifiedDate);
+        }
+
+        public LifecyclePolicy getLifecyclePolicy() {
+            return lifecyclePolicy;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+
+        public String getModifiedDate() {
+            return modifiedDate;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(lifecyclePolicy, version, modifiedDate);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
+                Objects.equals(version, other.version) &&
+                Objects.equals(modifiedDate, other.modifiedDate);
         }
 
     }

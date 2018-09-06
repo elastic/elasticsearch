@@ -94,9 +94,12 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(invalidPolicyName,
             Collections.singletonMap(invalidPhase.getName(), invalidPhase));
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
-        policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap()));
-        policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap()));
-        policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap()));
+        policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(),
+            randomNonNegativeLong(), randomNonNegativeLong()));
         policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY);
 
         indexName = randomAlphaOfLength(5);

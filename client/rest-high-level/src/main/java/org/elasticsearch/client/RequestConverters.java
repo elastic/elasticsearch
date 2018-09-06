@@ -30,8 +30,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -126,17 +124,6 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
-    }
-
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
-        Params params = new Params(request);
-        params.withTimeout(cancelTasksRequest.getTimeout())
-            .withTaskId(cancelTasksRequest.getTaskId())
-            .withNodes(cancelTasksRequest.getNodes())
-            .withParentTaskId(cancelTasksRequest.getParentTaskId())
-            .withActions(cancelTasksRequest.getActions());
-        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -747,22 +734,6 @@ final class RequestConverters {
         parameters.withTimeout(deletePipelineRequest.timeout());
         parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
 
-        return request;
-    }
-
-    static Request listTasks(ListTasksRequest listTaskRequest) {
-        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
-            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
-        }
-        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
-        Params params = new Params(request);
-        params.withTimeout(listTaskRequest.getTimeout())
-            .withDetailed(listTaskRequest.getDetailed())
-            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
-            .withParentTaskId(listTaskRequest.getParentTaskId())
-            .withNodes(listTaskRequest.getNodes())
-            .withActions(listTaskRequest.getActions())
-            .putParam("group_by", "none");
         return request;
     }
 

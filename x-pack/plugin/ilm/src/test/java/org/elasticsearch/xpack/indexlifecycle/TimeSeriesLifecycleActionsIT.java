@@ -77,7 +77,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             new RolloverAction(null, null, 1L))));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
-            new AllocateAction(1, singletonMap("_name", "node-3"), null, null))));
+            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy

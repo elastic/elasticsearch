@@ -73,9 +73,9 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new PolicyStats(phaseStats);
             }).collect(Collectors.toList());
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(enabled(), available(), policyStats));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled(), policyStats));
         } else {
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(enabled(), available()));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled()));
         }
     }
 

@@ -116,7 +116,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
-                new LifecyclePolicyMetadata(newPolicy, headers));
+                new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -203,7 +203,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
-                new LifecyclePolicyMetadata(newPolicy, headers));
+            new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -224,7 +224,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
         lifecycleMetadata = new IndexLifecycleMetadata(Collections.singletonMap(policyName,
-                                                new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap())), OperationMode.RUNNING);
+            new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(),
+                randomNonNegativeLong(), randomNonNegativeLong())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
             .metaData(MetaData.builder(metaData).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
         registry.update(currentState, client);
@@ -256,7 +257,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
         Map<String, LifecyclePolicyMetadata> policyMap = Collections.singletonMap(newPolicy.getName(),
-            new LifecyclePolicyMetadata(newPolicy, headers));
+            new LifecyclePolicyMetadata(newPolicy, headers, randomNonNegativeLong(), randomNonNegativeLong()));
         IndexLifecycleMetadata lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -300,7 +301,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
 
         // Update the policy with the new policy, but keep the phase the same
-        policyMap = Collections.singletonMap(updatedPolicy.getName(), new LifecyclePolicyMetadata(updatedPolicy, headers));
+        policyMap = Collections.singletonMap(updatedPolicy.getName(), new LifecyclePolicyMetadata(updatedPolicy, headers,
+            randomNonNegativeLong(), randomNonNegativeLong()));
         lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
         metaData = MetaData.builder(metaData)
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)

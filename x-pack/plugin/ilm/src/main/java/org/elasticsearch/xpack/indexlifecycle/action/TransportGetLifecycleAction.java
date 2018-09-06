@@ -15,19 +15,23 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -49,27 +53,32 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames())));
         } else {
-            List<LifecyclePolicy> requestedPolicies;
+            List<LifecyclePolicyMetadata> requestedPolicies;
             // if no policies explicitly provided, behave as if `*` was specified
             if (request.getPolicyNames().length == 0) {
-                requestedPolicies = new ArrayList<>(metadata.getPolicies().values());
+                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().values());
             } else {
                 requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
                 for (String name : request.getPolicyNames()) {
-                    LifecyclePolicy policy = metadata.getPolicies().get(name);
-                    if (policy == null) {
+                    LifecyclePolicyMetadata policyMetadata = metadata.getPolicyMetadatas().get(name);
+                    if (policyMetadata == null) {
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    requestedPolicies.add(policy);
+                    requestedPolicies.add(policyMetadata);
                 }
             }
-            listener.onResponse(new Response(requestedPolicies));
+            Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>(requestedPolicies.size());
+            for (LifecyclePolicyMetadata policyMetadata : requestedPolicies) {
+                policyMap.put(policyMetadata.getPolicy(),
+                    new Tuple<>(policyMetadata.getVersion(), policyMetadata.getCreationDateString()));
+            }
+            listener.onResponse(new Response(policyMap));
         }
     }
 

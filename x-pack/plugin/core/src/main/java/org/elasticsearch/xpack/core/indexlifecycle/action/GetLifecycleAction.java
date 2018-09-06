@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -19,7 +20,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
@@ -37,24 +38,28 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<LifecyclePolicy> policies;
+        private Map<LifecyclePolicy, Tuple<Long, String>> policiesToMetadata;
 
         public Response() {
         }
 
-        public Response(List<LifecyclePolicy> policies) {
-            this.policies = policies;
+        public Response(Map<LifecyclePolicy, Tuple<Long, String>> policiesToMetadata) {
+            this.policiesToMetadata = policiesToMetadata;
         }
 
-        public List<LifecyclePolicy> getPolicies() {
-            return policies;
+        public Map<LifecyclePolicy, Tuple<Long, String>> getPoliciesToMetadata() {
+            return policiesToMetadata;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (LifecyclePolicy policy : policies) {
-                builder.field(policy.getName(), policy);
+            for (Map.Entry<LifecyclePolicy, Tuple<Long, String>> entry : policiesToMetadata.entrySet()) {
+                builder.startObject(entry.getKey().getName());
+                builder.field("version", entry.getValue().v1());
+                builder.field("creation_date", entry.getValue().v2());
+                builder.field("policy", entry.getKey());
+                builder.endObject();
             }
             builder.endObject();
             return builder;
@@ -62,17 +67,20 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policies = in.readList(LifecyclePolicy::new);
+            policiesToMetadata = in.readMap(LifecyclePolicy::new, (inn) -> new Tuple<>(inn.readVLong(), inn.readString()));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeMap(policiesToMetadata, (o, policy) -> policy.writeTo(o), (o, tuple) -> {
+                o.writeVLong(tuple.v1());
+                o.writeString(tuple.v2());
+            });
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policies);
+            return Objects.hash(policiesToMetadata);
         }
 
         @Override
@@ -84,7 +92,7 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(policies, other.policies);
+            return Objects.equals(policiesToMetadata, other.policiesToMetadata);
         }
 
         @Override

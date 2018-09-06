@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,10 +37,12 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,6 +60,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.core.CombinableMatcher.both;
+import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -133,8 +140,23 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        long lowerBoundCreationDate = Instant.now().toEpochMilli();
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);
+        long upperBoundCreationDate = Instant.now().toEpochMilli();
+
+        // assert version and creation_date
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPoliciesToMetadata().size(), equalTo(1));
+        Map.Entry<LifecyclePolicy, Tuple<Long, String>> getPolicyEntry = getLifecycleResponse.getPoliciesToMetadata().entrySet()
+            .iterator().next();
+        assertThat(getPolicyEntry.getKey(), equalTo(lifecyclePolicy));
+        assertThat(getPolicyEntry.getValue().v1(), equalTo(1L));
+        long actualCreationDate = Instant.parse(getPolicyEntry.getValue().v2()).toEpochMilli();
+        assertThat(actualCreationDate,
+            is(both(greaterThanOrEqualTo(lowerBoundCreationDate)).and(lessThanOrEqualTo(upperBoundCreationDate))));
+
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
                 .actionGet();

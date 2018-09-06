@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -79,9 +80,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
                         }
-                        // NORELEASE Check if current step exists in new policy and if not move to next available step
+                        LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                            .get(request.getPolicy().getName());
+                        long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
                         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders);
+                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
+                            nextVersion, Instant.now().toEpochMilli());
                         newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.RUNNING);
                         newState.metaData(MetaData.builder(currentState.getMetaData())

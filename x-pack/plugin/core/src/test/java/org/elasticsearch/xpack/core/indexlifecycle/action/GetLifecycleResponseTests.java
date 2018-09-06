@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
@@ -14,9 +15,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests.randomTestLifecyclePolicy;
 
@@ -25,11 +26,12 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
     @Override
     protected Response createTestInstance() {
         String randomPrefix = randomAlphaOfLength(5);
-        List<LifecyclePolicy> policies = new ArrayList<>();
+        Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            policies.add(randomTestLifecyclePolicy(randomPrefix + i));
+            policyMap.put(randomTestLifecyclePolicy(randomPrefix + i),
+                new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(8)));
         }
-        return new Response(policies);
+        return new Response(policyMap);
     }
 
     @Override
@@ -45,16 +47,17 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     @Override
     protected Response mutateInstance(Response response) {
-        List<LifecyclePolicy> policies = new ArrayList<>(response.getPolicies());
-        if (policies.size() > 0) {
+        Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>(response.getPoliciesToMetadata());
+        if (policyMap.size() > 0) {
             if (randomBoolean()) {
-                policies.add(randomTestLifecyclePolicy(randomAlphaOfLength(5)));
+                policyMap.put(randomTestLifecyclePolicy(randomAlphaOfLength(5)),
+                    new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(4)));
             } else {
-                policies.remove(policies.size() - 1);
+                policyMap.remove(randomFrom(response.getPoliciesToMetadata().keySet()));
             }
         } else {
-            policies.add(randomTestLifecyclePolicy(randomAlphaOfLength(2)));
+            policyMap.put(randomTestLifecyclePolicy(randomAlphaOfLength(2)), new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(4)));
         }
-        return new Response(policies);
+        return new Response(policyMap);
     }
 }

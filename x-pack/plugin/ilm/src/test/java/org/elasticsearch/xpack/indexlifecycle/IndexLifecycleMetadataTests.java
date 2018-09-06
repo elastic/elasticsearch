@@ -54,7 +54,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         Map<String, LifecyclePolicyMetadata> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
             LifecyclePolicy policy = randomTimeseriesLifecyclePolicy(randomAlphaOfLength(4) + i);
-            policies.put(policy.getName(), new LifecyclePolicyMetadata(policy, Collections.emptyMap()));
+            policies.put(policy.getName(), new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
+                randomNonNegativeLong(), randomNonNegativeLong()));
         }
         return new IndexLifecycleMetadata(policies, randomFrom(OperationMode.values()));
     }
@@ -108,7 +109,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         OperationMode mode = metadata.getOperationMode();
         if (randomBoolean()) {
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicyMetadata(randomTimeseriesLifecyclePolicy(policyName), Collections.emptyMap()));
+            policies.put(policyName, new LifecyclePolicyMetadata(randomTimeseriesLifecyclePolicy(policyName), Collections.emptyMap(),
+                randomNonNegativeLong(), randomNonNegativeLong()));
         } else {
             mode = randomValueOtherThan(metadata.getOperationMode(), () -> randomFrom(OperationMode.values()));
         }
@@ -148,7 +150,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
                 phases.put(phaseName, new Phase(phaseName, after, actions));
             }
             String policyName = randomAlphaOfLength(10);
-            policies.put(policyName, new LifecyclePolicyMetadata(newTestLifecyclePolicy(policyName, phases), Collections.emptyMap()));
+            policies.put(policyName, new LifecyclePolicyMetadata(newTestLifecyclePolicy(policyName, phases), Collections.emptyMap(),
+                randomNonNegativeLong(), randomNonNegativeLong()));
         }
         return new IndexLifecycleMetadata(policies, mode);
     }

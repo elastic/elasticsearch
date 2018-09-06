@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.precommit
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**

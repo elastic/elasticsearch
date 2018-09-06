@@ -12,7 +12,7 @@ class VersionCollectionTests extends GradleUnitTestCase {
                      formatVersion('5.0.0_rc1'),formatVersion('5.0.0_rc2'),formatVersion('5.0.1'), formatVersion('5.0.2'),
                      formatVersion('5.1.1'), formatVersion('5.1.2'), formatVersion('5.2.0'), formatVersion('5.2.1'), formatVersion('6.0.0'),
                      formatVersion('6.0.1'), formatVersion('6.1.0'), formatVersion('6.1.1'), formatVersion('6.2.0'), formatVersion('6.3.0'),
-                     formatVersion('7.0.0_alpha1'), formatVersion('7.0.0_alpha2')]
+                     formatVersion('7.0.0')]
 
   /**
    * This validates the logic of being on a unreleased major branch with a staged major-1.minor sibling. This case happens when a version is
@@ -23,31 +23,31 @@ class VersionCollectionTests extends GradleUnitTestCase {
   void testAgainstMajorUnreleasedWithExistingStagedMinorRelease() {
     VersionCollection vc = new VersionCollection(allVersions)
     assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
-    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
+    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0"))
+    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0"))
+    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1"))
     assertNull(vc.maintenanceBugfixSnapshot)
 
     vc.indexCompatible.containsAll(vc.versions)
 
     // This should contain the same list sans the current version
     List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
-                             Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
-                             Version.fromString("6.2.0-SNAPSHOT"), Version.fromString("6.3.0-SNAPSHOT")]
+                             Version.fromString("6.1.0"), Version.fromString("6.1.1"),
+                             Version.fromString("6.2.0"), Version.fromString("6.3.0")]
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
+    List wireCompatList = [Version.fromString("6.3.0")]
     assertTrue(wireCompatList.containsAll(vc.wireCompatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 3)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1")))
 
     assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0"))
   }
 
   /**
@@ -62,9 +62,9 @@ class VersionCollectionTests extends GradleUnitTestCase {
 
     VersionCollection vc = new VersionCollection(localVersion)
     assertNotNull(vc)
-    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0-SNAPSHOT"))
+    assertEquals(vc.nextMinorSnapshot, Version.fromString("6.3.0"))
     assertEquals(vc.stagedMinorSnapshot, null)
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
+    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1"))
     assertNull(vc.maintenanceBugfixSnapshot)
 
     vc.indexCompatible.containsAll(vc.versions)
@@ -72,21 +72,21 @@ class VersionCollectionTests extends GradleUnitTestCase {
     // This should contain the same list sans the current version
     List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
                              Version.fromString("6.1.0"), Version.fromString("6.1.1"),
-                             Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT"),
-                             Version.fromString("6.3.0-SNAPSHOT")]
+                             Version.fromString("6.2.0"), Version.fromString("6.2.1"),
+                             Version.fromString("6.3.0")]
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
+    List wireCompatList = [Version.fromString("6.3.0")]
     assertTrue(wireCompatList.containsAll(vc.wireCompatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 2)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1")))
 
     assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0"))
   }
 
   /**
@@ -101,30 +101,30 @@ class VersionCollectionTests extends GradleUnitTestCase {
     VersionCollection vc = new VersionCollection(localVersion)
     assertNotNull(vc)
     assertEquals(vc.nextMinorSnapshot, null)
-    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0-SNAPSHOT"))
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+    assertEquals(vc.stagedMinorSnapshot, Version.fromString("6.2.0"))
+    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1"))
+    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1"))
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
-                           Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
-                           Version.fromString("6.2.0-SNAPSHOT")]
+    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1"), Version.fromString("6.0.0"),
+                           Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1"),
+                           Version.fromString("6.2.0")]
     assertTrue(wireCompatList.containsAll(vc.wireCompatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 3)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1")))
 
     assertEquals(vc.snapshotsWireCompatible.size(), 3)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.0")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.1.1")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1")))
   }
 
   /**
@@ -142,27 +142,27 @@ class VersionCollectionTests extends GradleUnitTestCase {
     assertNotNull(vc)
     assertEquals(vc.nextMinorSnapshot, null)
     assertEquals(vc.stagedMinorSnapshot, null)
-    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+    assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1"))
+    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1"))
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
+    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1"), Version.fromString("6.0.0"),
                            Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1"),
-                           Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT")]
+                           Version.fromString("6.2.0"), Version.fromString("6.2.1")]
     assertTrue(wireCompatList.containsAll(vc.wireCompatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 2)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1")))
 
     assertEquals(vc.snapshotsWireCompatible.size(), 2)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.1")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1")))
   }
 
   /**
@@ -180,23 +180,23 @@ class VersionCollectionTests extends GradleUnitTestCase {
     assertEquals(vc.nextMinorSnapshot, null)
     assertEquals(vc.stagedMinorSnapshot, null)
     assertEquals(vc.nextBugfixSnapshot, null)
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
+    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1"))
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
+    List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1"), Version.fromString("6.0.0"),
                            Version.fromString("6.0.1"), Version.fromString("6.1.0")]
     assertTrue(wireCompatList.containsAll(vc.wireCompatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 1)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1")))
 
     assertEquals(vc.snapshotsWireCompatible.size(), 1)
-    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1")))
   }
 
   /**
@@ -211,14 +211,14 @@ class VersionCollectionTests extends GradleUnitTestCase {
                           formatVersion('5.3.2')]
     VersionCollection vc = new VersionCollection(localVersion)
     assertNotNull(vc)
-    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("2.1.1-SNAPSHOT"))
+    assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("2.1.1"))
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
     assertTrue(indexCompatList.containsAll(vc.indexCompatible))
     assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
-    List wireCompatList = [Version.fromString("2.1.0"), Version.fromString("2.1.1-SNAPSHOT"), Version.fromString("5.0.0"),
+    List wireCompatList = [Version.fromString("2.1.0"), Version.fromString("2.1.1"), Version.fromString("5.0.0"),
                            Version.fromString("5.0.1"), Version.fromString("5.1.0"),
                            Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
                            Version.fromString("5.3.0"), Version.fromString("5.3.1")]
@@ -228,7 +228,7 @@ class VersionCollectionTests extends GradleUnitTestCase {
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 1)
-    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("2.1.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("2.1.1")))
 
     // ensure none of the 2.x snapshots appear here, as this is the floor of bwc for wire compat
     assertEquals(vc.snapshotsWireCompatible.size(), 0)

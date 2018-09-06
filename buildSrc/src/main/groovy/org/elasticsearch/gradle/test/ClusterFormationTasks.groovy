@@ -91,7 +91,7 @@ class ClusterFormationTasks {
         if (System.getProperty('tests.distribution', 'oss-zip') == 'integ-test-zip') {
             throw new Exception("tests.distribution=integ-test-zip is not supported")
         }
-        configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
+        configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearchVersion)
         if (config.numBwcNodes > 0) {
             if (config.bwcVersion == null) {
                 throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
@@ -117,7 +117,7 @@ class ClusterFormationTasks {
                 elasticsearchVersion = config.bwcVersion
                 distro = bwcDistro
             } else {
-                elasticsearchVersion = VersionProperties.elasticsearch
+                elasticsearchVersion = VersionProperties.elasticsearchVersion
                 distro = currentDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
@@ -149,7 +149,7 @@ class ClusterFormationTasks {
             artifactName += '-oss'
             subgroup = distro.substring('oss-'.length())
         }
-        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${subgroup}:${artifactName}:${elasticsearchVersion}@${packaging}")
+        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${subgroup}:${artifactName}:${VersionProperties.elasticsearch}@${packaging}")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
@@ -204,7 +204,7 @@ class ClusterFormationTasks {
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
-            if (node.nodeVersion == VersionProperties.elasticsearch) {
+            if (node.nodeVersion == VersionProperties.elasticsearchVersion) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
@@ -558,7 +558,7 @@ class ClusterFormationTasks {
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
         final FileCollection pluginZip;
-        if (node.nodeVersion != VersionProperties.elasticsearch) {
+        if (node.nodeVersion != VersionProperties.elasticsearchVersion) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {
             pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, pluginName))

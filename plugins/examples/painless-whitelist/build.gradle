@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.VersionProperties
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -28,7 +29,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
+  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${VersionProperties.elasticsearch}"
 }
 
 if (System.getProperty('tests.distribution') == null) {

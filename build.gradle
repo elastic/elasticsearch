@@ -36,16 +36,18 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
     }
 }
 
+boolean isSnapshot = Boolean.parseBoolean(System.getProperty("build.snapshot", "true"))
+
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch.toString()
+  version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
 
 apply plugin: 'nebula.info-scm'
 String licenseCommit
-if (VersionProperties.elasticsearch.isSnapshot()) {
+if (isSnapshot) {
   licenseCommit = scminfo.change ?: "master" // leniency for non git builds
 } else {
   licenseCommit = "v${version}"
@@ -103,7 +105,7 @@ subprojects {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion.isSameVersionNumber(VersionProperties.elasticsearch) == false) {
+if (versions.currentVersion.isSameVersionNumber(VersionProperties.elasticsearchVersion) == false) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
 }
@@ -299,7 +301,7 @@ subprojects {
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = isSnapshot ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {

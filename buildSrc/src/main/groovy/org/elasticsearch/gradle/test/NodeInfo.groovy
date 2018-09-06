@@ -23,6 +23,7 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
@@ -306,14 +307,15 @@ class NodeInfo {
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
     static File homeDir(File baseDir, String distro, Version nodeVersion) {
-        String path
+        final String path
+
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
             case 'oss-zip':
             case 'oss-tar':
-                path = "elasticsearch-${nodeVersion}"
+                path = "elasticsearch-${nodeVersion == VersionProperties.elasticsearchVersion ? VersionProperties.elasticsearch : nodeVersion}"
                 break
             case 'rpm':
             case 'deb':

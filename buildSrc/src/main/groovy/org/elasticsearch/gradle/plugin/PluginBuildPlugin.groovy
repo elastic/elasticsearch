@@ -22,6 +22,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
@@ -112,8 +113,8 @@ public class PluginBuildPlugin extends BuildPlugin {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+            compileOnly "org.elasticsearch:elasticsearch:${VersionProperties.elasticsearch}"
+            testCompile "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"

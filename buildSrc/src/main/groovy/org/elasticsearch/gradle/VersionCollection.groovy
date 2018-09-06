@@ -47,12 +47,8 @@ import java.util.regex.Matcher
  * Notes on terminology:
  * - The case for major+1 being released is accomplished through the isReleasableBranch value. If this is false, then the branch is no longer
  *   releasable, meaning not to test against any snapshots.
- * - Released is defined as having > 1 qualifier-free version in a major.minor series. For instance, only 6.2.0 means unreleased, but a
- *   6.2.0 and 6.2.1 mean that 6.2.0 was released already.
  */
 class VersionCollection {
-
-    public static final int LAST_RELEASED_MAJOR = 6
 
     private final List<Version> versions
     Version nextMinorSnapshot
@@ -75,48 +71,27 @@ class VersionCollection {
      * @param versionLines The lines of the Version.java file.
      */
     VersionCollection(List<String> versionLines) {
-        final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
-
-        List<Version> versions = []
-        // This class should be converted wholesale to use the treeset
-
         for (final String line : versionLines) {
             final Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_alpha\d+|_beta\d+|_rc\d+)? .*/
             if (match.matches()) {
                 final Version foundVersion = new Version(
-                        Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3)), (match.group(4) ?: '').replace('_', ''), false)
-                safeAddToSet(foundVersion)
+                        Integer.parseInt(match.group(1)),
+                        Integer.parseInt(match.group(2)),
+                        Integer.parseInt(match.group(3))
+                )
+                versionSet.add(foundVersion)
             }
         }
-
         if (versionSet.empty) {
             throw new GradleException("Unexpectedly found no version constants in Versions.java")
         }
-
-        // If the major version has been released, then remove all of the alpha/beta/rc versions that exist in the set
-        versionSet.removeAll { it.qualifier.isEmpty() == false && isMajorReleased(it, versionSet) }
-
-        // set currentVersion
-        Version lastVersion = versionSet.last()
-        currentVersion = new Version(lastVersion.major, lastVersion.minor, lastVersion.revision, lastVersion.qualifier, buildSnapshot)
-
-        // remove all of the potential alpha/beta/rc from the currentVersion
-        versionSet.removeAll {
-            it.qualifier.isEmpty() == false &&
-            it.major == currentVersion.major &&
-            it.minor == currentVersion.minor &&
-            it.revision == currentVersion.revision }
-
-        // re-add the currentVersion to the set
-        versionSet.add(currentVersion)
+        currentVersion = versionSet.last()
 
         if (isReleasableBranch) {
             if (isReleased(currentVersion)) {
                 // caveat 0 - if the minor has been released then it only has a maintenance version
                 // go back 1 version to get the last supported snapshot version of the line, which is a maint bugfix
-                Version highestMinor = getHighestPreviousMinor(currentVersion.major)
-                maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
+                maintenanceBugfixSnapshot = getHighestPreviousMinor(currentVersion.major)
             } else {
                 // caveat 3 - if our currentVersion is a X.0.0, we need to check X-1 minors to see if they are released
                 if (currentVersion.minor == 0) {
@@ -127,15 +102,15 @@ class VersionCollection {
                             // it will bail. The order is that the minor snapshot is fufilled first, and then the staged minor snapshot
                             if (nextMinorSnapshot == null) {
                                 // it has not been set yet
-                                nextMinorSnapshot = replaceAsSnapshot(version)
+                                nextMinorSnapshot = version
                             } else if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = replaceAsSnapshot(version)
+                                stagedMinorSnapshot = version
                             } else {
                                 throw new GradleException("More than 2 snapshot version existed for the next minor and staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = replaceAsSnapshot(version)
+                            nextBugfixSnapshot = version
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
                             break
                         }
@@ -150,24 +125,23 @@ class VersionCollection {
                             // caveat 1 - This should only ever contain 0 or 1 branch in flight. An example is 6.x is frozen, and 6.2 is cut
                             // but not yet released there is some simple logic to make sure that in the case of more than 1, it will bail
                             if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = replaceAsSnapshot(version)
+                                stagedMinorSnapshot = version
                             } else {
                                 throw new GradleException("More than 1 snapshot version existed for the staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = replaceAsSnapshot(version)
+                            nextBugfixSnapshot = version
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
                             break
                         }
                     }
                     // caveat 0 - now dip back 1 version to get the last supported snapshot version of the line
                     Version highestMinor = getHighestPreviousMinor(currentVersion.major)
-                    maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
+                    maintenanceBugfixSnapshot = highestMinor
                 }
             }
         }
-
         this.versions = Collections.unmodifiableList(versionSet.toList())
     }
 
@@ -278,22 +252,6 @@ class VersionCollection {
     }
 
     /**
-     * Validates that the count of non suffixed (alpha/beta/rc) versions in a given major to major+1 is greater than 1.
-     * This means that there is more than just a major.0.0 or major.0.0-alpha in a branch to signify it has been prevously released.
-     */
-    private boolean isMajorReleased(Version version, TreeSet<Version> items) {
-        if (version.getMajor() <= LAST_RELEASED_MAJOR) {
-            // TODO: Starting with 7.0.0 we no longer store qualifiers in Version.java we are not able to tell from qualifiers
-            return true
-        }
-        return items
-            .tailSet(Version.fromString("${version.major}.0.0"))
-            .headSet(Version.fromString("${version.major + 1}.0.0"))
-            .count { it.qualifier.isEmpty() }  // count only non qualified versions as actual versions that may be released
-            .intValue() > 1
-    }
-
-    /**
      * Gets the largest version previous major version based on the nextMajorVersion passed in.
      * If you have a list [5.0.2, 5.1.2, 6.0.1, 6.1.1] and pass in 6 for the nextMajorVersion, it will return you 5.1.2
      */
@@ -305,22 +263,11 @@ class VersionCollection {
     /**
      * Helper function for turning a version into a snapshot version, removing and readding it to the tree
      */
-    private Version replaceAsSnapshot(Version version) {
-        versionSet.remove(version)
-        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.qualifier, true)
-        safeAddToSet(snapshotVersion)
-        return snapshotVersion
-    }
 
     /**
      * Safely adds a value to the treeset, or bails if the value already exists.
      * @param version
      */
-    private void safeAddToSet(Version version) {
-        if (versionSet.add(version) == false) {
-            throw new GradleException("Versions.java contains duplicate entries for ${version}")
-        }
-    }
 
     /**
      * Gets the entire set of major.minor.* given those parameters.

@@ -53,7 +53,23 @@ sourceCompatibility = minimumRuntimeVersion
 Properties props = new Properties()
 props.load(project.file('version.properties').newDataInputStream())
 processResources {
-  from file('version.properties')
+  doLast {
+      // TODO change default to "" once we have a non qualified ML snapshot
+      String qualifier = System.getProperty("build.version_qualifier", "alpha1");
+      boolean isSnapshot = Boolean.parseBoolean(System.getProperty("build.snapshot", "true"));
+      props.put(
+              "elasticsearchBuild",
+              props.get("elasticsearch") +
+                      (qualifier.isEmpty() ? "" : "-") +  qualifier +
+                      (isSnapshot ? "-SNAPSHOT" : "")
+      )
+      Writer versionFileWriter = file("$destinationDir/version.properties").newWriter()
+      try {
+        props.store(versionFileWriter, "Generated version properties")
+      } finally {
+        versionFileWriter.close()
+      }
+  }
 }
 
 /*****************************************************************************

@@ -12,43 +12,18 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
-    private final boolean snapshot;
-    /**
-     * Suffix on the version name.
-     */
-    private final String qualifier;
 
     private static final Pattern pattern =
-            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)-?(alpha\\d+|beta\\d+|rc\\d+)?(-SNAPSHOT)?");
+            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)-?(alpha\\d+|beta\\d+|rc\\d+)?");
 
-    Version(int major, int minor, int revision, String qualifier, boolean snapshot) {
+    Version(int major, int minor, int revision) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
-        Objects.requireNonNull(qualifier, "qualifier can't be null");
         this.major = major;
         this.minor = minor;
         this.revision = revision;
-        this.snapshot = snapshot;
-        this.qualifier = qualifier;
-
-        final int suffixOffset;
-        if (this.qualifier.isEmpty()) {
-            suffixOffset = 0;
-        } else if (this.qualifier.startsWith("alpha")) {
-            suffixOffset = parseSuffixNumber(this.qualifier.substring(5));
-        } else if (this.qualifier.startsWith("beta")) {
-            suffixOffset = 25 + parseSuffixNumber(this.qualifier.substring(4));
-        } else if (this.qualifier.startsWith("rc")) {
-            suffixOffset = 50 + parseSuffixNumber(this.qualifier.substring(2));
-        } else {
-            throw new IllegalArgumentException(
-                "Suffix must contain one of: alpha, beta or rc instead of: " + this.qualifier
-            );
-        }
-
-        // currently snapshot is not taken into account
-        this.id = major * 10000000 + minor * 100000 + revision * 1000 + suffixOffset * 10;
+        this.id = major * 10000000 + minor * 100000 + revision * 1000;
     }
 
     private static int parseSuffixNumber(String substring) {
@@ -66,21 +41,16 @@ public final class Version implements Comparable<Version> {
                 "Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
             );
         }
-
         return new Version(
-                Integer.parseInt(matcher.group(1)),
-                parseSuffixNumber(matcher.group(2)),
-                parseSuffixNumber(matcher.group(3)),
-                matcher.group(4) == null ? "" : matcher.group(4),
-                matcher.group(5) != null
+            Integer.parseInt(matcher.group(1)),
+            parseSuffixNumber(matcher.group(2)),
+            parseSuffixNumber(matcher.group(3))
         );
     }
 
     @Override
     public String toString() {
-        final String snapshotStr = snapshot ? "-SNAPSHOT" : "";
-        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision()) +
-                (qualifier.isEmpty() ? "" : "-" + qualifier) + snapshotStr;
+        return String.valueOf(getMajor()) + "." + getMinor() + "." + getRevision();
     }
 
     public boolean before(Version compareTo) {
@@ -115,19 +85,6 @@ public final class Version implements Comparable<Version> {
         return after(fromString(compareTo));
     }
 
-    public boolean onOrBeforeIncludingSuffix(Version otherVersion) {
-        if (id != otherVersion.getId()) {
-            return id < otherVersion.getId();
-        }
-
-        if (qualifier.equals("")) {
-            return otherVersion.getQualifier().equals("");
-        }
-
-
-        return otherVersion.getQualifier().equals("") || qualifier.compareTo(otherVersion.getQualifier()) < 0;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -136,15 +93,13 @@ public final class Version implements Comparable<Version> {
         return major == version.major &&
                 minor == version.minor &&
                 revision == version.revision &&
-                id == version.id &&
-                snapshot == version.snapshot &&
-                Objects.equals(qualifier, version.qualifier);
+                id == version.id;
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(major, minor, revision, id, snapshot, qualifier);
+        return Objects.hash(major, minor, revision, id);
     }
 
     public boolean isSameVersionNumber(Version other) {
@@ -153,13 +108,6 @@ public final class Version implements Comparable<Version> {
             revision == other.revision;
     }
 
-    public Version withoutQualifier() {
-        return new Version(major, minor, revision, "", snapshot);
-    }
-
-    public Version withoutSnapshot() {
-        return new Version(major, minor, revision, qualifier, false);
-    }
 
     public int getMajor() {
         return major;
@@ -175,14 +123,6 @@ public final class Version implements Comparable<Version> {
 
     protected int getId() {
         return id;
-    }
-
-    public boolean isSnapshot() {
-        return snapshot;
-    }
-
-    public String getQualifier() {
-        return qualifier;
     }
 
     @Override

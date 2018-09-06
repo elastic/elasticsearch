@@ -16,7 +16,7 @@ void getZip(File snapshotZip) {
   // do a HEAD first to check the zip hash against the local file
   conn.setRequestMethod('HEAD');
   if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
-    throw new GradleException('ML cpp snapshot does not exist')
+    throw new GradleException("ML cpp snapshot ${version} does not exist")
   }
 
   String remoteMd5 = conn.getHeaderField('ETag')

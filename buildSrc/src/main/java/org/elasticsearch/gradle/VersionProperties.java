@@ -10,8 +10,12 @@ import java.util.Properties;
  * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
  */
 public class VersionProperties {
-    public static Version getElasticsearch() {
-        return elasticsearch;
+    public static Version getElasticsearchVersion() {
+        return elasticsearchVersion;
+    }
+
+    public static String getElasticsearch() {
+        return elaticsearchBuild;
     }
 
     public static String getLucene() {
@@ -22,34 +26,18 @@ public class VersionProperties {
         return versions;
     }
 
-    private static final Version elasticsearch;
+    private static final Version elasticsearchVersion;
     private static final String lucene;
+    private static final String elaticsearchBuild;
     private static final Map<String, String> versions = new HashMap<String, String>();
     static {
         Properties props = getVersionProperties();
-        Version baseVersion = Version.fromString(props.getProperty("elasticsearch"));
-        if (baseVersion.isSnapshot()) {
-            throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch. " +
-                "Use the `build.snapshot` property instead.");
-        }
-        if (baseVersion.getQualifier().isEmpty() == false) {
-            throw new IllegalArgumentException("version.properties can't contain a version qualifier for elasticsearch." +
-                "Use the `build.version_qualifier` property instead.");
-        }
-        elasticsearch = new Version(
-            baseVersion.getMajor(),
-            baseVersion.getMinor(),
-            baseVersion.getRevision(),
-            // TODO: Change default to "" after CI "warm-up" by adding -Dbuild.version_qualifier="" to ML jobs to produce
-            //       a snapshot.
-            System.getProperty("build.version_qualifier", "alpha1"),
-            Boolean.parseBoolean(System.getProperty("build.snapshot", "true"))
-        );
         lucene = props.getProperty("lucene");
+        elasticsearchVersion = Version.fromString(props.getProperty("elasticsearch"));
+        elaticsearchBuild = props.getProperty("elasticsearchBuild");
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));
         }
-        versions.put("elasticsearch", elasticsearch.toString());
     }
 
     private static Properties getVersionProperties() {

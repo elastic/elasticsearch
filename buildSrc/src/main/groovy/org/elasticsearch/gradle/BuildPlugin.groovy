@@ -697,9 +697,11 @@ class BuildPlugin implements Plugin<Project> {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.withoutSnapshot().withoutQualifier(),
-                        'X-Compile-Elasticsearch-Qualifier': VersionProperties.elasticsearch.qualifier,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearchVersion,
+                        'X-Compile-Elasticsearch-Qualifier': System.getProperty("build.version_qualifier", ""),
+                        'X-Compile-Elasticsearch-Snapshot': Boolean.parseBoolean(
+                                System.getProperty("build.snapshot", "true")
+                        ),
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)

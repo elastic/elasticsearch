@@ -29,7 +29,7 @@ public class JsonLogStructureFinderTests extends LogStructureTestCase {
         }
         assertNull(structure.getExcludeLinesPattern());
         assertNull(structure.getMultilineStartPattern());
-        assertNull(structure.getSeparator());
+        assertNull(structure.getDelimiter());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());

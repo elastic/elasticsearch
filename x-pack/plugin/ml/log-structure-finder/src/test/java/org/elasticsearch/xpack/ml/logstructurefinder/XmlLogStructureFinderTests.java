@@ -29,7 +29,7 @@ public class XmlLogStructureFinderTests extends LogStructureTestCase {
         }
         assertNull(structure.getExcludeLinesPattern());
         assertEquals("^\\s*<log4j:event", structure.getMultilineStartPattern());
-        assertNull(structure.getSeparator());
+        assertNull(structure.getDelimiter());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());

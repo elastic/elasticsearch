@@ -61,7 +61,7 @@ public class LogStructureFinderManagerTests extends LogStructureTestCase {
     public void testMakeBestStructureGivenCsv() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, "time,message\n" +
                 "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name(), randomBoolean()),
-            instanceOf(SeparatedValuesLogStructureFinder.class));
+            instanceOf(DelimitedLogStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenText() throws Exception {

@@ -53,6 +53,9 @@ public class ClusterService extends AbstractLifecycleComponent {
             Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
                     Property.Dynamic, Property.NodeScope);
 
+    public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
+        Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
     private final ClusterName clusterName;
 
     private final OperationRouting operationRouting;
@@ -67,6 +70,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold);
+        // Add a no-op update consumer so changes are logged
+        this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool);
     }
 

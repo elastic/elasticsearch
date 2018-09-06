@@ -78,7 +78,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     /**
      * Tests reloading a keystore that is used in the KeyManager of SSLContext
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         final Path tempDir = createTempDir();
@@ -192,7 +191,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -479,7 +477,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (InputStream is = Files.newInputStream(keyStorePath)) {
             keyStore.load(is, keyStorePass.toCharArray());
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keyStorePass.toCharArray())
+        // TODO Revisit TLS1.2 pinning when TLS1.3 is fully supported
+        // https://github.com/elastic/elasticsearch/issues/32276
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadKeyMaterial(keyStore, keyStorePass.toCharArray())
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -493,7 +493,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
             CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, password.toCharArray())
+        // TODO Revisit TLS1.2 pinning when TLS1.3 is fully supported
+        // https://github.com/elastic/elasticsearch/issues/32276
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadKeyMaterial(keyStore, password.toCharArray())
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));

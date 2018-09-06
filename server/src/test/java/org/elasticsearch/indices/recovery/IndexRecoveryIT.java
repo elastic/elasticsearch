@@ -67,6 +67,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -108,6 +109,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
                 RecoverySettingsChunkSizePlugin.class);
+    }
+
+    @After
+    public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, RecoverySource recoverySource, boolean primary,

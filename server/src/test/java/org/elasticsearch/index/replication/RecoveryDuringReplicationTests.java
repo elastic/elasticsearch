@@ -98,7 +98,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
@@ -266,6 +267,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 );
                 newPrimary.indexSettings().updateIndexMetaData(builder.build());
                 newPrimary.onSettingsChanged();
@@ -275,7 +277,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     shards.syncGlobalCheckpoint();
                     assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
-                newPrimary.flush(new FlushRequest());
+                newPrimary.flush(new FlushRequest().force(true));
+                if (replica.indexSettings().isSoftDeleteEnabled()) {
+                    // We need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
+                    // The min_retained_seqno only advances when a merge asks for the retention query.
+                    newPrimary.flush(new FlushRequest().force(true));
+                }
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;
             }

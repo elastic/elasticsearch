@@ -77,7 +77,17 @@ bin/elasticsearch-keystore add xpack.security.http.ssl.secure_key_passphrase
 
 . Restart {es}.
 
-NOTE: All TLS-related node settings are considered to be highly sensitive and
+[NOTE]
+===============================
+* All TLS-related node settings are considered to be highly sensitive and
 therefore are not exposed via the
 {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API] For more
 information about any of these settings, see <<security-settings>>.
+
+* {es} monitors all files such as certificates, keys, keystores, or truststores 
+that are configured as values of TLS-related node settings. If you update any of 
+these files (for example, when your hostnames change or your certificates are 
+due to expire), {es} reloads them. The files are polled for changes at 
+a frequency determined by the global {es} `resource.reload.interval.high` 
+setting, which defaults to 5 seconds.
+===============================

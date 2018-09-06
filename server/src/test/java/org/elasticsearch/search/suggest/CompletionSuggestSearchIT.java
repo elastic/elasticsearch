@@ -31,12 +31,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -1108,35 +1106,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
-        }
-    }
-
-    // see issue #6399
-    public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = Strings
-                .toString(jsonBuilder()
-                        .startObject()
-                        .startObject(TYPE)
-                        .startObject("properties")
-                        .startObject(FIELD)
-                        .field("type", "completion")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject());
-
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
-        ensureGreen();
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
-            fail("Expected MapperParsingException for null value");
-        } catch (MapperParsingException e) {
-            // make sure that the exception has the name of the field causing the error
-            assertTrue(e.getDetailedMessage().contains(FIELD));
         }
     }
 

@@ -26,6 +26,7 @@ There are two ways to specify the path:
 * Specify the index name and shard name with the `--index` and `--shard-id` options.
 * Use the `-dir` option to specify the full path to the corrupted index or translog files.
 
+[float]
 === Removing a corrupted data files
 
 `elasticsearch-shard` provides an overview of the corruption. To proceed you must confirm that you want

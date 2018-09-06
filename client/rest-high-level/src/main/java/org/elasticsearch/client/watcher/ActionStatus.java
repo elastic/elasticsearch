@@ -90,8 +90,7 @@ public class ActionStatus {
             } else if (Field.LAST_THROTTLE.match(currentFieldName, parser.getDeprecationHandler())) {
                 lastThrottle = Throttle.parse(watchId, actionId, parser);
             } else {
-                throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}]", watchId,
-                        actionId, currentFieldName);
+                parser.skipChildren();
             }
         }
         if (ackStatus == null) {
@@ -154,8 +153,7 @@ public class ActionStatus {
                 } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
-                            actionId, Field.ACK_STATUS.getPreferredName(), currentFieldName);
+                    parser.skipChildren();
                 }
             }
             if (timestamp == null) {
@@ -236,8 +234,7 @@ public class ActionStatus {
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
-                            actionId, Field.LAST_EXECUTION.getPreferredName(), currentFieldName);
+                    parser.skipChildren();
                 }
             }
             if (timestamp == null) {
@@ -305,8 +302,7 @@ public class ActionStatus {
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
-                            actionId, Field.LAST_THROTTLE.getPreferredName(), currentFieldName);
+                    parser.skipChildren();
                 }
             }
             if (timestamp == null) {
@@ -321,7 +317,7 @@ public class ActionStatus {
         }
     }
 
-    interface Field {
+    private interface Field {
         ParseField ACK_STATUS = new ParseField("ack");
         ParseField ACK_STATUS_STATE = new ParseField("state");
         ParseField LAST_EXECUTION = new ParseField("last_execution");

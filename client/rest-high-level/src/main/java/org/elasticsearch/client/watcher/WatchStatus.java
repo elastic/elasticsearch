@@ -19,6 +19,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.parseDate;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus {
@@ -29,7 +30,6 @@ public class WatchStatus {
     private final DateTime lastChecked;
     private final DateTime lastMetCondition;
     private final long version;
-    private final Map<String, String> headers;
     private final Map<String, ActionStatus> actions;
 
     public WatchStatus(long version,
@@ -37,15 +37,13 @@ public class WatchStatus {
                        ExecutionState executionState,
                        DateTime lastChecked,
                        DateTime lastMetCondition,
-                       Map<String, ActionStatus> actions,
-                       Map<String, String> headers) {
+                       Map<String, ActionStatus> actions) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
         this.actions = actions;
         this.state = state;
         this.executionState = executionState;
-        this.headers = headers;
     }
 
     public State state() {
@@ -60,6 +58,10 @@ public class WatchStatus {
         return lastChecked;
     }
 
+    public DateTime lastMetCondition() {
+        return lastMetCondition;
+    }
+
     public ActionStatus actionStatus(String actionId) {
         return actions.get(actionId);
     }
@@ -70,10 +72,6 @@ public class WatchStatus {
 
     public ExecutionState getExecutionState() {
         return executionState;
-    }
-
-    public Map<String, String> getHeaders() {
-        return headers;
     }
 
     @Override
@@ -87,13 +85,12 @@ public class WatchStatus {
                 Objects.equals(lastMetCondition, that.lastMetCondition) &&
                 Objects.equals(version, that.version) &&
                 Objects.equals(executionState, that.executionState) &&
-                Objects.equals(actions, that.actions) &&
-                Objects.equals(headers, that.headers);
+                Objects.equals(actions, that.actions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(lastChecked, lastMetCondition, actions, version, executionState, headers);
+        return Objects.hash(lastChecked, lastMetCondition, actions, version, executionState);
     }
 
     public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
@@ -103,10 +100,12 @@ public class WatchStatus {
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         long version = -1;
-        Map<String, String> headers = Collections.emptyMap();
+
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
 
         String currentFieldName = null;
         XContentParser.Token token;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -160,15 +159,13 @@ public class WatchStatus {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to be an object, " +
                             "found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    headers = parser.mapStrings();
-                }
+            } else {
+                parser.skipChildren();
             }
         }
 
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
-        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions, headers);
+        return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions);
     }
 
     public static class State {
@@ -219,6 +216,5 @@ public class WatchStatus {
         ParseField ACTIONS = new ParseField("actions");
         ParseField VERSION = new ParseField("version");
         ParseField EXECUTION_STATE = new ParseField("execution_state");
-        ParseField HEADERS = new ParseField("headers");
     }
 }

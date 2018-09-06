@@ -585,6 +585,7 @@ public abstract class Engine implements Closeable {
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
             logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);

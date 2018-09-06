@@ -21,3 +21,7 @@ limited to 1000000 in the next major Elastic version. For this version, by defau
 is not set. A deprecation warning will be issued when an analyzed text exceeds 1000000.
  The limit can be set for a particular index with the index setting
 `index.highlight.max_analyzed_offset`.
+
+==== `standard` filter has been deprecated
+ The `standard` token filter has been deprecated because it doesn't change anything in
+ the stream. It will be removed in the next major version.

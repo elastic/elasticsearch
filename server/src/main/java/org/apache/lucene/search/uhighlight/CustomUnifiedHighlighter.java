@@ -144,8 +144,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         OffsetSource offsetSource = getOptimizedOffsetSource(field, terms, phraseHelper, automata);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        UHComponents components = new UHComponents(field, getFieldMatcher(field), query, terms, phraseHelper, automata, highlightFlags);
         FieldOffsetStrategy strategy =
-            getOffsetStrategy(offsetSource, field, terms, phraseHelper, automata, highlightFlags);
+            getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
     }

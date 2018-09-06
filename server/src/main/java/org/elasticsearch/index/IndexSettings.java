@@ -397,7 +397,7 @@ public final class IndexSettings {
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
         version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
-        logger = Loggers.getLogger(getClass(), settings, index);
+        logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
@@ -439,6 +439,7 @@ public final class IndexSettings {
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING, mergePolicyConfig::setDeletesPctAllowed);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, mergePolicyConfig::setFloorSegmentSetting);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, mergePolicyConfig::setMaxMergesAtOnce);

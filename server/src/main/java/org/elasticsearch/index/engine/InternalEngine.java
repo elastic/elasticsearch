@@ -2014,7 +2014,9 @@ public class InternalEngine extends Engine {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
-        store.incRef();
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
         Releasable releasable = store::decRef;
         try {
             final ReferenceManager<IndexSearcher> referenceManager;

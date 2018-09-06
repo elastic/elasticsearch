@@ -112,7 +112,9 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
         final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
-        failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme));
+        final List<String> supportedSchemes = Arrays.asList(basicAuthScheme, bearerAuthScheme, negotiateAuthScheme);
+        Collections.shuffle(supportedSchemes, random());
+        failureResponeHeaders.put("WWW-Authenticate", supportedSchemes);
         final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
         final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), null,

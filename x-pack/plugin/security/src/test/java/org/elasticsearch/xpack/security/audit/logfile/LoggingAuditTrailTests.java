@@ -127,6 +127,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         protected abstract String expectedMessage();
     }
 
+    private static PatternLayout patternLayout;
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
@@ -135,7 +136,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private Map<String, String> commonFields;
     private Logger logger;
     private LoggingAuditTrail auditTrail;
-    private static PatternLayout patternLayout;
 
     @BeforeClass
     public static void lookupPatternLayout() throws Exception {

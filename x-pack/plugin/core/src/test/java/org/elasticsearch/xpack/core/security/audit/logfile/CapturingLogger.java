@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.audit.logfile;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.StringLayout;
@@ -22,8 +23,29 @@ import org.elasticsearch.common.logging.Loggers;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Logger that captures events and appends them to in memory lists, with one
+ * list for each log level. This works with the global log manager context,
+ * meaning that there could only be a single logger with the same name.
+ */
 public class CapturingLogger {
 
+    /**
+     * Constructs a new {@link CapturingLogger} named as the fully qualified name of
+     * the invoking method. One name can be assigned to a single logger globally, so
+     * don't call this method multiple times in the same method.
+     *
+     * @param level
+     *            The minimum priority level of events that will be captured.
+     * @param layout
+     *            Optional parameter allowing to set the layout format of events.
+     *            This is useful because events are captured to be inspected (and
+     *            parsed) later. When parsing, it is useful to be in control of the
+     *            printing format as well. If not specified,
+     *            {@code event.getMessage().getFormattedMessage()} is called to
+     *            format the event.
+     * @return The new logger.
+     */
     public static Logger newCapturingLogger(final Level level, @Nullable StringLayout layout) throws IllegalAccessException {
         // careful, don't "bury" this on the call stack, unless you know what you're doing
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
@@ -43,11 +65,27 @@ public class CapturingLogger {
         return (MockAppender) loggerConfig.getAppenders().get(name);
     }
 
+    /**
+     * Checks if the logger's appender has captured any events.
+     *
+     * @param name
+     *            The unique global name of the logger.
+     * @return {@code true} if no event has been captured, {@code false} otherwise.
+     */
     public static boolean isEmpty(final String name) {
         final MockAppender appender = getMockAppender(name);
         return appender.isEmpty();
     }
 
+    /**
+     * Gets the captured events for a logger by its name.
+     *
+     * @param name
+     *            The unique global name of the logger.
+     * @param level
+     *            The priority level of the captured events to be returned.
+     * @return A list of captured events formated to {@code String}.
+     */
     public static List<String> output(final String name, final Level level) {
         final MockAppender appender = getMockAppender(name);
         return appender.output(level);
@@ -91,8 +129,9 @@ public class CapturingLogger {
         }
 
         private String formatMessage(LogEvent event) {
-            if (getLayout() != null) {
-                return ((StringLayout) getLayout()).toSerializable(event);
+            final Layout<?> layout = getLayout();
+            if (layout instanceof StringLayout) {
+                return ((StringLayout) layout).toSerializable(event);
             } else {
                 return event.getMessage().getFormattedMessage();
             }

@@ -47,6 +47,7 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -141,11 +142,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
     private final Logger logger;
+    private final ThreadContext threadContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
     boolean includeRequestBody;
-    private final ThreadContext threadContext;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -392,7 +393,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if (isSystem && events.contains(SYSTEM_ACCESS_GRANTED) || isSystem == false && events.contains(ACCESS_GRANTED)) {
+        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || (isSystem == false && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
@@ -930,28 +931,28 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode) {
             this.settings = settings;
             this.localNode = newLocalNode;
-            final MapBuilder<String, String> commonFieldsBuilder = new MapBuilder<>();
-            commonFieldsBuilder.put(EVENT_CATEGORY_FIELD_NAME, "elasticsearch-audit");
+            final Map<String, String> commonFields = new HashMap<>();
+            commonFields.put(EVENT_CATEGORY_FIELD_NAME, "elasticsearch-audit");
             if (EMIT_NODE_NAME_SETTING.get(settings)) {
                 final String nodeName = Node.NODE_NAME_SETTING.get(settings);
                 if (Strings.hasLength(nodeName)) {
-                    commonFieldsBuilder.put(NODE_NAME_FIELD_NAME, nodeName);
+                    commonFields.put(NODE_NAME_FIELD_NAME, nodeName);
                 }
             }
             if (newLocalNode != null) {
                 if (EMIT_HOST_ADDRESS_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostAddress())) {
-                    commonFieldsBuilder.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
+                    commonFields.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
                 }
                 if (EMIT_HOST_NAME_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostName())) {
-                    commonFieldsBuilder.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
+                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
                 }
             }
             // the default origin is local
-            commonFieldsBuilder.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
+            commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
             if (newLocalNode != null) {
-                commonFieldsBuilder.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
+                commonFields.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
             }
-            this.commonFields = commonFieldsBuilder.immutableMap();
+            this.commonFields = Collections.unmodifiableMap(commonFields);
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {

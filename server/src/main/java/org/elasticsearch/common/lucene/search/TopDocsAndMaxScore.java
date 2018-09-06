@@ -17,23 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.apache.lucene.search.TopDocs;
 
+/**
+ * Wrapper around a {@link TopDocs} instance and the maximum score.
+ */
+// TODO: Remove this class when https://github.com/elastic/elasticsearch/issues/32981 is addressed.
+public final class TopDocsAndMaxScore {
 
-public class StandardTokenFilterFactory extends AbstractTokenFilterFactory {
+    public final TopDocs topDocs;
+    public float maxScore;
 
-    public StandardTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+    public TopDocsAndMaxScore(TopDocs topDocs, float maxScore) {
+        this.topDocs = topDocs;
+        this.maxScore = maxScore;
     }
 
-    @Override
-    public TokenStream create(TokenStream tokenStream) {
-        return new StandardFilter(tokenStream);
-    }
 }

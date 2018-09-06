@@ -51,10 +51,17 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
+import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
+import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.client.ml.job.config.Operator;
+import org.elasticsearch.client.ml.job.config.RuleCondition;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.Influencer;
@@ -66,9 +73,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -372,6 +382,93 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testUpdateJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        String jobId = "test-update-job";
+        Job tempJob = MachineLearningIT.buildJob(jobId);
+        Job job = new Job.Builder(tempJob)
+            .setAnalysisConfig(new AnalysisConfig.Builder(tempJob.getAnalysisConfig())
+                .setCategorizationFieldName("categorization-field")
+                .setDetector(0,
+                    new Detector.Builder().setFieldName("total")
+                        .setFunction("sum")
+                        .setPartitionFieldName("mlcategory")
+                        .setDetectorDescription(randomAlphaOfLength(10))
+                        .build()))
+            .build();
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        {
+
+            List<DetectionRule> detectionRules = Arrays.asList(
+                new DetectionRule.Builder(Arrays.asList(RuleCondition.createTime(Operator.GT, 100L))).build());
+            Map<String, Object> customSettings = new HashMap<>();
+            customSettings.put("custom-setting-1", "custom-value");
+
+            //tag::x-pack-ml-update-job-detector-options
+            JobUpdate.DetectorUpdate detectorUpdate = new JobUpdate.DetectorUpdate(0, //<1>
+                "detector description", //<2>
+                detectionRules); //<3>
+            //end::x-pack-ml-update-job-detector-options
+
+            //tag::x-pack-ml-update-job-options
+            JobUpdate update = new JobUpdate.Builder(jobId) //<1>
+                .setDescription("My description") //<2>
+                .setAnalysisLimits(new AnalysisLimits(1000L, null)) //<3>
+                .setBackgroundPersistInterval(TimeValue.timeValueHours(3)) //<4>
+                .setCategorizationFilters(Arrays.asList("categorization-filter")) //<5>
+                .setDetectorUpdates(Arrays.asList(detectorUpdate)) //<6>
+                .setGroups(Arrays.asList("job-group-1")) //<7>
+                .setResultsRetentionDays(10L) //<8>
+                .setModelPlotConfig(new ModelPlotConfig(true, null)) //<9>
+                .setModelSnapshotRetentionDays(7L) //<10>
+                .setCustomSettings(customSettings) //<11>
+                .setRenormalizationWindowDays(3L) //<12>
+                .build();
+            //end::x-pack-ml-update-job-options
+
+
+            //tag::x-pack-ml-update-job-request
+            UpdateJobRequest updateJobRequest = new UpdateJobRequest(update); //<1>
+            //end::x-pack-ml-update-job-request
+
+            //tag::x-pack-ml-update-job-execute
+            PutJobResponse updateJobResponse = client.machineLearning().updateJob(updateJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-ml-update-job-execute
+            //tag::x-pack-ml-update-job-response
+            Job updatedJob = updateJobResponse.getResponse(); //<1>
+            //end::x-pack-ml-update-job-response
+
+            assertEquals(update.getDescription(), updatedJob.getDescription());
+        }
+        {
+            //tag::x-pack-ml-update-job-listener
+            ActionListener<PutJobResponse> listener = new ActionListener<PutJobResponse>() {
+                @Override
+                public void onResponse(PutJobResponse updateJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-update-job-listener
+            UpdateJobRequest updateJobRequest = new UpdateJobRequest(new JobUpdate.Builder(jobId).build());
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-update-job-execute-async
+            client.machineLearning().updateJobAsync(updateJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-update-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetBuckets() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

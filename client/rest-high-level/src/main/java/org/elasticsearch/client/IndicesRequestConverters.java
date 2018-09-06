@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -386,5 +387,17 @@ public class IndicesRequestConverters {
         params.withLocal(getIndexTemplatesRequest.local());
         params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
         return request;
+    }
+
+    static Request analyze(AnalyzeRequest request) throws IOException {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
+        String index = request.index();
+        if (index != null) {
+            builder.addPathPart(index);
+        }
+        builder.addPathPartAsIs("_analyze");
+        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
+        req.setEntity(RequestConverters.createEntity(request, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return req;
     }
 }

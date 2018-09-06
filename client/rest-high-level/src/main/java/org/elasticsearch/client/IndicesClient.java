@@ -818,7 +818,7 @@ public final class IndicesClient {
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public AnalyzeResponse analyze(AnalyzeRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::analyze, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, emptySet());
     }
 
@@ -833,7 +833,7 @@ public final class IndicesClient {
      */
     public void analyzeAsync(AnalyzeRequest request, RequestOptions options,
                              ActionListener<AnalyzeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::analyze, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, listener, emptySet());
     }
 }

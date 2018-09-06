@@ -43,7 +43,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -752,18 +751,6 @@ final class RequestConverters {
         params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
         request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
-    }
-
-    static Request analyze(AnalyzeRequest request) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder();
-        String index = request.index();
-        if (index != null) {
-            builder.addPathPart(index);
-        }
-        builder.addPathPartAsIs("_analyze");
-        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
-        req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
-        return req;
     }
 
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {

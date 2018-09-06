@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -77,7 +78,23 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesRequestConvertersTests extends ESTestCase {
-    
+
+    public void testAnalyzeRequest() throws Exception {
+        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
+            .text("Here is some text")
+            .index("test_index")
+            .analyzer("test_analyzer");
+
+        Request request = IndicesRequestConverters.analyze(indexAnalyzeRequest);
+        assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
+        RequestConvertersTests.assertToXContentBody(indexAnalyzeRequest, request.getEntity());
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
+            .text("more text")
+            .analyzer("test_analyzer");
+        assertThat(IndicesRequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
+    }
+
     public void testIndicesExist() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 10);
 

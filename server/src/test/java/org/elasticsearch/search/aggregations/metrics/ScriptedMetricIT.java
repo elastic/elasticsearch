@@ -329,10 +329,14 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
     public void testMap() {
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state['count'] = 1", Collections.emptyMap());
+        Script combineScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(scriptedMetric("scripted").mapScript(mapScript))
+                .addAggregation(scriptedMetric("scripted").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -370,10 +374,18 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Map<String, Object> aggregationParams = Collections.singletonMap("param2", 1);
 
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state[param1] = param2", scriptParams);
+        Script combineScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
-            .addAggregation(scriptedMetric("scripted").params(aggregationParams).mapScript(mapScript))
+            .addAggregation(scriptedMetric("scripted")
+                .params(aggregationParams)
+                .mapScript(mapScript)
+                .combineScript(combineScript)
+                .reduceScript(reduceScript))
             .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -424,7 +436,11 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .initScript(
                                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap()))
                                 .mapScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                    "state.list.add(vars.multiplier)", Collections.emptyMap())))
+                                    "state.list.add(vars.multiplier)", Collections.emptyMap()))
+                                .combineScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "sum state values as a new aggregation", Collections.emptyMap()))
+                                .reduceScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "sum all states (lists) values as a new aggregation", Collections.emptyMap())))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -467,6 +483,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(1)", Collections.emptyMap());
         Script combineScript =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -475,7 +493,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                         scriptedMetric("scripted")
                                 .params(params)
                                 .mapScript(mapScript)
-                                .combineScript(combineScript))
+                                .combineScript(combineScript)
+                                .reduceScript(reduceScript))
                 .execute().actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -520,6 +539,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap());
         Script combineScript =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
+        Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "sum all states (lists) values as a new aggregation", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -529,7 +550,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .params(params)
                                 .initScript(initScript)
                                 .mapScript(mapScript)
-                                .combineScript(combineScript))
+                                .combineScript(combineScript)
+                                .reduceScript(reduceScript))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -714,6 +736,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap());
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
             Collections.emptyMap());
+        Script combineScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
             "sum all states' state.list values as a new aggregation", Collections.emptyMap());
 
@@ -725,6 +749,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                 .params(params)
                                 .initScript(initScript)
                                 .mapScript(mapScript)
+                                .combineScript(combineScript)
                                 .reduceScript(reduceScript))
                 .get();
         assertSearchResponse(response);
@@ -753,6 +778,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
         Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.list.add(vars.multiplier)",
             Collections.emptyMap());
+        Script combineScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum state values as a new aggregation", Collections.emptyMap());
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
             "sum all states' state.list values as a new aggregation", Collections.emptyMap());
 
@@ -763,6 +790,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                         scriptedMetric("scripted")
                                 .params(params)
                                 .mapScript(mapScript)
+                                .combineScript(combineScript)
                                 .reduceScript(reduceScript))
                 .get();
         assertSearchResponse(response);

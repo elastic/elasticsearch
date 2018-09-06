@@ -23,9 +23,11 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -43,10 +45,10 @@ import java.util.Map;
 public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
     private int size;
-    private TopDocs topDocs;
+    private TopDocsAndMaxScore topDocs;
     private SearchHits searchHits;
 
-    public InternalTopHits(String name, int from, int size, TopDocs topDocs, SearchHits searchHits,
+    public InternalTopHits(String name, int from, int size, TopDocsAndMaxScore topDocs, SearchHits searchHits,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.from = from;
@@ -85,7 +87,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return searchHits;
     }
 
-    TopDocs getTopDocs() {
+    TopDocsAndMaxScore getTopDocs() {
         return topDocs;
     }
 
@@ -115,12 +117,12 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
 
-        if (topDocs instanceof TopFieldDocs) {
-            Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
+        if (topDocs.topDocs instanceof TopFieldDocs) {
+            Sort sort = new Sort(((TopFieldDocs) topDocs.topDocs).fields);
             shardDocs = new TopFieldDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs;
+                shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
             reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
@@ -128,10 +130,22 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs;
+                shardDocs[i] = topHitsAgg.topDocs.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
             reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
+        }
+
+        float maxScore = Float.NaN;
+        for (InternalAggregation agg : aggregations) {
+            InternalTopHits topHitsAgg = (InternalTopHits) agg;
+            if (Float.isNaN(topHitsAgg.topDocs.maxScore) == false) {
+                if (Float.isNaN(maxScore)) {
+                    maxScore = topHitsAgg.topDocs.maxScore;
+                } else {
+                    maxScore = Math.max(maxScore, topHitsAgg.topDocs.maxScore);
+                }
+            }
         }
 
         final int[] tracker = new int[shardHits.length];
@@ -144,9 +158,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
-        return new InternalTopHits(name, this.from, this.size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
-                reducedTopDocs.getMaxScore()),
-                pipelineAggregators(), getMetaData());
+        assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+        return new InternalTopHits(name, this.from, this.size,
+            new TopDocsAndMaxScore(reducedTopDocs, maxScore),
+            new SearchHits(hits, reducedTopDocs.totalHits.value, maxScore), pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -170,11 +185,12 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
         if (size != other.size) return false;
-        if (topDocs.totalHits != other.topDocs.totalHits) return false;
-        if (topDocs.scoreDocs.length != other.topDocs.scoreDocs.length) return false;
-        for (int d = 0; d < topDocs.scoreDocs.length; d++) {
-            ScoreDoc thisDoc = topDocs.scoreDocs[d];
-            ScoreDoc otherDoc = other.topDocs.scoreDocs[d];
+        if (topDocs.topDocs.totalHits.value != other.topDocs.topDocs.totalHits.value) return false;
+        if (topDocs.topDocs.totalHits.relation != other.topDocs.topDocs.totalHits.relation) return false;
+        if (topDocs.topDocs.scoreDocs.length != other.topDocs.topDocs.scoreDocs.length) return false;
+        for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
+            ScoreDoc thisDoc = topDocs.topDocs.scoreDocs[d];
+            ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
             if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
@@ -195,9 +211,10 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     protected int doHashCode() {
         int hashCode = from;
         hashCode = 31 * hashCode + size;
-        hashCode = 31 * hashCode + Long.hashCode(topDocs.totalHits);
-        for (int d = 0; d < topDocs.scoreDocs.length; d++) {
-            ScoreDoc doc = topDocs.scoreDocs[d];
+        hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value);
+        hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation.hashCode();
+        for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
+            ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;
             hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
             hashCode = 31 * hashCode + doc.shardIndex;

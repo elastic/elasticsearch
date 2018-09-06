@@ -463,7 +463,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
-            assertUniqueSeqNoInLucene(shard);
             shard.close("test", false);
         } finally {
             IOUtils.close(shard.store());
@@ -667,13 +666,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Engine engine = shard.getEngineOrNull();
         if (engine != null) {
             EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
-        }
-    }
-
-    public static void assertUniqueSeqNoInLucene(IndexShard shard) throws IOException {
-        final Engine engine = shard.getEngineOrNull();
-        if (engine != null) {
-            EngineTestCase.assertUniqueSeqNoInLucene(engine);
         }
     }
 

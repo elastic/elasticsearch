@@ -33,10 +33,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
@@ -249,12 +246,10 @@ public abstract class EngineTestCase extends ESTestCase {
         if (engine != null && engine.isClosed.get() == false) {
             engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
-            assertUniqueSeqNoInLucene(engine);
         }
         if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
             replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
-            assertUniqueSeqNoInLucene(replicaEngine);
         }
         IOUtils.close(
                 replicaEngine, storeReplica,
@@ -868,33 +863,6 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
-            }
-        }
-    }
-
-    /**
-     * Asserts that there is at most one (root) document in Lucene for every sequence number.
-     */
-    public static void assertUniqueSeqNoInLucene(Engine engine) throws IOException {
-        final Set<Long> foundSeqNos = new HashSet<>();
-        try (Engine.Searcher searcher = engine.acquireSearcher("assert-seqno", Engine.SearcherScope.INTERNAL)) {
-            List<LeafReaderContext> leaves = searcher.reader().leaves();
-            for (LeafReaderContext leaf : leaves) {
-                DocIdSetIterator rootDocIterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(
-                    SeqNoFieldMapper.PRIMARY_TERM_NAME, leaf.reader());
-                Bits liveDocs = leaf.reader().getLiveDocs();
-                NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                while (rootDocIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (liveDocs == null || liveDocs.get(rootDocIterator.docID())) {
-                        if (seqNoDocValues.advanceExact(rootDocIterator.docID()) == false) {
-                            throw new AssertionError("seq_no docValues not found");
-                        }
-                        long seqNo = seqNoDocValues.longValue();
-                        if (foundSeqNos.add(seqNo) == false) {
-                            throw new AssertionError("seq_no [" + seqNo + "] appear twice");
-                        }
-                    }
-                }
             }
         }
     }

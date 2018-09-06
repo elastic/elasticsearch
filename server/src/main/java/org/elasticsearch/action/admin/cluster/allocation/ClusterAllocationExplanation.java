@@ -191,7 +191,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());
         builder.field("at",
-            UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
+            UnassignedInfo.DATE_TIME_FORMATTER.print(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
         if (unassignedInfo.getNumFailedAllocations() >  0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
@@ -474,7 +474,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
+        String javaTimeOut = DateFormatters.forPattern(format).print(javaDate);
         String jodaTimeOut = Joda.forPattern(format).printer().print(jodaDate);
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
                 format, jodaTimeOut, javaTimeOut);
@@ -485,7 +485,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 
-        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
@@ -507,7 +507,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
         assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
     }

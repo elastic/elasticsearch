@@ -382,7 +382,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexMetaData.getCreationDate());
             ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);
-            table.addCell(DateFormatters.forPattern("strict_date_time").format(creationTime));
+            table.addCell(DateFormatters.forPattern("strict_date_time").print(creationTime));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());

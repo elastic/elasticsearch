@@ -124,7 +124,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             double doubleTerm = longTerm * Math.PI;
 
             ZonedDateTime time = ZonedDateTime.of(2014, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
-            String dateTerm = DateFormatters.forPattern("yyyy-MM-dd").format(time);
+            String dateTerm = DateFormatters.forPattern("yyyy-MM-dd").print(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()

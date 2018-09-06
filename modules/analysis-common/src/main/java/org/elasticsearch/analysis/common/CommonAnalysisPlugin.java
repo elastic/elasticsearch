@@ -167,8 +167,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     }
 
     @Override
-    @SuppressWarnings("rawtypes")  // TODO ScriptPlugin needs to change this to pass precommit?
-    public List<ScriptContext> getContexts() {
+    public List<ScriptContext<?>> getContexts() {
         return Collections.singletonList(AnalysisPredicateScript.CONTEXT);
     }
 

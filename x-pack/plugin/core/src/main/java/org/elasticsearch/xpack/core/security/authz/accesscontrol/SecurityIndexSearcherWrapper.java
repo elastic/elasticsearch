@@ -183,7 +183,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
             indexSearcher.setQueryCache(indexSearcher.getQueryCache());
             indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
+            indexSearcher.setSimilarity(indexSearcher.getSimilarity());
             return indexSearcher;
         }
         return searcher;

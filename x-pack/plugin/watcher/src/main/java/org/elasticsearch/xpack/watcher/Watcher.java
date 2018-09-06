@@ -602,7 +602,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     }
 
     @Override
-    public List<ScriptContext> getContexts() {
+    public List<ScriptContext<?>> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 

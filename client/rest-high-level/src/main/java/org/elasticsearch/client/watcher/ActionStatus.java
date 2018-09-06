@@ -72,45 +72,6 @@ public class ActionStatus {
         return Objects.hash(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
 
-    public void update(DateTime timestamp, Action.Result result) {
-        switch (result.status()) {
-
-            case FAILURE:
-                String reason = result instanceof Action.Result.Failure ? ((Action.Result.Failure) result).reason() : "";
-                lastExecution = Execution.failure(timestamp, reason);
-                return;
-
-            case THROTTLED:
-                reason = result instanceof Action.Result.Throttled ? ((Action.Result.Throttled) result).reason() : "";
-                lastThrottle = new Throttle(timestamp, reason);
-                return;
-
-            case SUCCESS:
-            case SIMULATED:
-                lastExecution = Execution.successful(timestamp);
-                lastSuccessfulExecution = lastExecution;
-                if (ackStatus.state == AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION) {
-                    ackStatus = new AckStatus(timestamp, AckStatus.State.ACKABLE);
-                }
-        }
-    }
-
-    public boolean onAck(DateTime timestamp) {
-        if (ackStatus.state == AckStatus.State.ACKABLE) {
-            ackStatus = new AckStatus(timestamp, AckStatus.State.ACKED);
-            return true;
-        }
-        return false;
-    }
-
-    public boolean resetAckStatus(DateTime timestamp) {
-        if (ackStatus.state != AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION) {
-            ackStatus = new AckStatus(timestamp, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION);
-            return true;
-        }
-        return false;
-    }
-
     public static ActionStatus parse(String watchId, String actionId, XContentParser parser) throws IOException {
         AckStatus ackStatus = null;
         Execution lastExecution = null;

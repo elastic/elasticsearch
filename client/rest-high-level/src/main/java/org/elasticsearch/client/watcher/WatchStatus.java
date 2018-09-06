@@ -24,8 +24,6 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus {
 
-    public static final String INCLUDE_STATE = "include_state";
-
     private State state;
 
     @Nullable private ExecutionState executionState;
@@ -108,71 +106,6 @@ public class WatchStatus {
     @Override
     public int hashCode() {
         return Objects.hash(lastChecked, lastMetCondition, actions, version, executionState, headers);
-    }
-
-    /**
-     * Called whenever an watch is checked, ie. the condition of the watch is evaluated to see if
-     * the watch should be executed.
-     *
-     * @param metCondition  indicates whether the watch's condition was met.
-     */
-    public void onCheck(boolean metCondition, DateTime timestamp) {
-        lastChecked = timestamp;
-        if (metCondition) {
-            lastMetCondition = timestamp;
-        } else {
-            for (ActionStatus status : actions.values()) {
-                status.resetAckStatus(timestamp);
-            }
-        }
-    }
-
-    public void onActionResult(String actionId, DateTime timestamp, Action.Result result) {
-        ActionStatus status = actions.get(actionId);
-        status.update(timestamp, result);
-    }
-
-    /**
-     * Notifies this status that the givne actions were acked. If the current state of one of these actions is
-     * {@link ActionStatus.AckStatus.State#ACKABLE ACKABLE},
-     * then we'll it'll change to {@link ActionStatus.AckStatus.State#ACKED ACKED}
-     * (when set to {@link ActionStatus.AckStatus.State#ACKED ACKED}, the AckThrottler
-     * will throttle the execution of the action.
-     *
-     * @return {@code true} if the state of changed due to the ack, {@code false} otherwise.
-     */
-    boolean onAck(DateTime timestamp, String... actionIds) {
-        boolean changed = false;
-        boolean containsAll = false;
-        for (String actionId : actionIds) {
-            if (actionId.equals(WatchField.ALL_ACTIONS_ID)) {
-                containsAll = true;
-                break;
-            }
-        }
-        if (containsAll) {
-            for (ActionStatus status : actions.values()) {
-                changed |= status.onAck(timestamp);
-            }
-            return changed;
-        }
-
-        for (String actionId : actionIds) {
-            ActionStatus status = actions.get(actionId);
-            if (status != null) {
-                changed |= status.onAck(timestamp);
-            }
-        }
-
-        return changed;
-    }
-
-    boolean setActive(boolean active, DateTime now) {
-        boolean change = this.state.active != active;
-        if (change) {
-            this.state = new State(active, now);
-        }
-        return change;
     }
 
     public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {

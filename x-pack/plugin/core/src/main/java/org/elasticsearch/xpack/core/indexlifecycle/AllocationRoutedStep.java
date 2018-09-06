@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,8 +55,9 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData idxMeta = clusterState.metaData().index(index);
         if (idxMeta == null) {
-            throw new IndexNotFoundException("Index not found when executing " + getKey().getAction() + " lifecycle action.",
-                index.getName());
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return new Result(false, null);
         }
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

@@ -34,9 +34,12 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -164,6 +167,20 @@ public class MLRequestConvertersTests extends ESTestCase {
                 "{\"job_id\":\"" + jobId + "\",\"calc_interim\":true,\"start\":\"105\"," +
                         "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
                 requestEntityToString(request));
+    }
+
+    public void testUpdateJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        JobUpdate updates = JobUpdateTests.createRandom(jobId);
+        UpdateJobRequest updateJobRequest = new UpdateJobRequest(updates);
+
+        Request request = MLRequestConverters.updateJob(updateJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_update", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            JobUpdate.Builder parsedRequest = JobUpdate.PARSER.apply(parser, null);
+            assertThat(parsedRequest.build(), equalTo(updates));
+        }
     }
 
     public void testGetBuckets() throws IOException {

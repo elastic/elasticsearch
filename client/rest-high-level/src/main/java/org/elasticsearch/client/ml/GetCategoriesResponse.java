@@ -35,8 +35,9 @@ public class GetCategoriesResponse extends AbstractResultResponse<CategoryDefini
     public static final ParseField CATEGORIES = new ParseField("categories");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetCategoriesResponse, Void> PARSER = new ConstructingObjectParser<>("get_categories_response",
-            true, a -> new GetCategoriesResponse((List<CategoryDefinition>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetCategoriesResponse, Void> PARSER = 
+            new ConstructingObjectParser<>("get_categories_response", true,
+                    a -> new GetCategoriesResponse((List<CategoryDefinition>) a[0], (long) a[1]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), CategoryDefinition.PARSER, CATEGORIES);

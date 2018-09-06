@@ -38,7 +38,8 @@ public class GetCategoriesRequest extends ActionRequest implements ToXContentObj
 
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
 
-    public static final ObjectParser<GetCategoriesRequest, Void> PARSER = new ObjectParser<>("get_categories_request", GetCategoriesRequest::new);
+    public static final ObjectParser<GetCategoriesRequest, Void> PARSER = 
+        new ObjectParser<>("get_categories_request", GetCategoriesRequest::new);
 
 
     static {

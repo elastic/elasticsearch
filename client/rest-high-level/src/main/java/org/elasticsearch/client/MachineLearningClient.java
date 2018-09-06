@@ -432,7 +432,8 @@ public final class MachineLearningClient {
      * Gets the categories for a Machine Learning Job.
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">ML GET categories documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">
+     *     ML GET categories documentation</a>
      *
      * @param request  The request
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -449,7 +450,8 @@ public final class MachineLearningClient {
      * Gets the categories for a Machine Learning Job, notifies listener once the requested buckets are retrieved.
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">ML GET categories documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">
+     *     ML GET categories documentation</a>
      *
      * @param request  The request
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

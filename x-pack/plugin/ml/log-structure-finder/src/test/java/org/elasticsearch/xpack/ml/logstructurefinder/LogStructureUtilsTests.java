@@ -12,7 +12,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.contains;
 
@@ -178,96 +180,83 @@ public class LogStructureUtilsTests extends LogStructureTestCase {
     }
 
     public void testGuessMappingGivenNothing() {
-        assertNull(LogStructureUtils.guessMapping(explanation, "foo", Collections.emptyList()));
+        assertNull(guessMapping(explanation, "foo", Collections.emptyList()));
     }
 
     public void testGuessMappingGivenKeyword() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "keyword");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
     }
 
     public void testGuessMappingGivenText() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "text");
 
-        assertEquals(expected, LogStructureUtils.guessMapping(explanation, "foo",
-            Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
     }
 
     public void testGuessMappingGivenIp() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "ip");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
     }
 
     public void testGuessMappingGivenDouble() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "double");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("3.14159265359", "0", "-8")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("3.14159265359", "0", "-8")));
         // 12345678901234567890 is too long for long
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("1", "2", "12345678901234567890")));
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList(3.14159265359, 0.0, 1e-308)));
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("-1e-1", "-1e308", "1e-308")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("1", "2", "12345678901234567890")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(3.14159265359, 0.0, 1e-308)));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("-1e-1", "-1e308", "1e-308")));
     }
 
     public void testGuessMappingGivenLong() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "long");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("500", "3", "-3")));
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList(500, 6, 0)));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("500", "3", "-3")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(500, 6, 0)));
     }
 
     public void testGuessMappingGivenDate() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "date");
 
-        assertEquals(expected, LogStructureUtils.guessMapping(explanation, "foo",
-            Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
     }
 
     public void testGuessMappingGivenBoolean() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "boolean");
 
-        assertEquals(expected, LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList("false", "true")));
-        assertEquals(expected, LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList(true, false)));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("false", "true")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(true, false)));
     }
 
     public void testGuessMappingGivenArray() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "long");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList(42, Arrays.asList(1, -99))));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(42, Arrays.asList(1, -99))));
 
         expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "keyword");
 
-        assertEquals(expected,
-            LogStructureUtils.guessMapping(explanation, "foo", Arrays.asList(new String[]{ "x", "y" }, "z")));
+        assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(new String[]{ "x", "y" }, "z")));
     }
 
     public void testGuessMappingGivenObject() {
         Map<String, String> expected = Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "object");
 
-        assertEquals(expected, LogStructureUtils.guessMapping(explanation, "foo",
+        assertEquals(expected, guessMapping(explanation, "foo",
             Arrays.asList(Collections.singletonMap("name", "value1"), Collections.singletonMap("name", "value2"))));
     }
 
     public void testGuessMappingGivenObjectAndNonObject() {
-        RuntimeException e = expectThrows(RuntimeException.class, () -> LogStructureUtils.guessMapping(explanation,
+        RuntimeException e = expectThrows(RuntimeException.class, () -> guessMapping(explanation,
             "foo", Arrays.asList(Collections.singletonMap("name", "value1"), "value2")));
 
         assertEquals("Field [foo] has both object and non-object values - this is not supported by Elasticsearch", e.getMessage());
     }
 
-    public void testGuessMappings() {
+    public void testGuessMappingsAndCalculateFieldStats() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time", "2018-05-24 17:28:31,735");
@@ -279,7 +268,11 @@ public class LogStructureUtilsTests extends LogStructureTestCase {
         sample2.put("bar", 17);
         sample2.put("nothing", null);
 
-        Map<String, Object> mappings = LogStructureUtils.guessMappings(explanation, Arrays.asList(sample1, sample2));
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
+            LogStructureUtils.guessMappingsAndCalculateFieldStats(explanation, Arrays.asList(sample1, sample2));
+        assertNotNull(mappingsAndFieldStats);
+
+        Map<String, Object> mappings = mappingsAndFieldStats.v1();
         assertNotNull(mappings);
         assertEquals(Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();
@@ -288,5 +281,29 @@ public class LogStructureUtilsTests extends LogStructureTestCase {
         assertEquals(expectedTimeMapping, mappings.get("time"));
         assertEquals(Collections.singletonMap(LogStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
         assertNull(mappings.get("nothing"));
+
+        Map<String, FieldStats> fieldStats = mappingsAndFieldStats.v2();
+        assertNotNull(fieldStats);
+        assertEquals(3, fieldStats.size());
+        assertEquals(new FieldStats(2, 2, makeTopHits("not a time", 1, "whatever", 1)), fieldStats.get("foo"));
+        assertEquals(new FieldStats(2, 2, makeTopHits("2018-05-24 17:28:31,735", 1, "2018-05-29 11:53:02,837", 1)), fieldStats.get("time"));
+        assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17.0, 1, 42.0, 1)), fieldStats.get("bar"));
+        assertNull(fieldStats.get("nothing"));
+    }
+
+    private Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
+        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats =
+            LogStructureUtils.guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues);
+        return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
+    }
+
+    private List<Map<String, Object>> makeTopHits(Object value1, int count1, Object value2, int count2) {
+        Map<String, Object> topHit1 = new LinkedHashMap<>();
+        topHit1.put("value", value1);
+        topHit1.put("count", count1);
+        Map<String, Object> topHit2 = new LinkedHashMap<>();
+        topHit2.put("value", value2);
+        topHit2.put("count", count2);
+        return Arrays.asList(topHit1, topHit2);
     }
 }

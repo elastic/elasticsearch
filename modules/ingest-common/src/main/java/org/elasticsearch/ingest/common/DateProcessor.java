@@ -74,7 +74,7 @@ public final class DateProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
@@ -98,6 +98,7 @@ public final class DateProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        return ingestDocument;
     }
 
     @Override

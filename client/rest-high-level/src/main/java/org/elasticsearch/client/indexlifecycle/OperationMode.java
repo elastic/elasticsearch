@@ -20,6 +20,9 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 
+import java.util.EnumSet;
+import java.util.Locale;
+
 /**
  * Enum representing the different modes that Index Lifecycle Service can operate in.
  */
@@ -56,4 +59,10 @@ public enum OperationMode {
     };
 
     public abstract boolean isValidChange(OperationMode nextMode);
+
+    static OperationMode fromString(String string) {
+        return EnumSet.allOf(OperationMode.class).stream()
+            .filter(e -> string.equalsIgnoreCase(e.name())).findFirst()
+            .orElseThrow(() -> new IllegalArgumentException(String.format(Locale.ROOT, "%s is not a valid operation_mode", string)));
+    }
 }

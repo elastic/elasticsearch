@@ -24,6 +24,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 
 import java.io.IOException;
@@ -44,10 +45,10 @@ final class ProfileCollector extends FilterCollector {
     }
 
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         final long start = System.nanoTime();
         try {
-            return super.needsScores();
+            return super.scoreMode();
         } finally {
             time += Math.max(1, System.nanoTime() - start);
         }

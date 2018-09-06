@@ -203,3 +203,4 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         verify(otherRealm, times(2)).lookupUser(eq(expectedUsername), any(ActionListener.class));
     }
 }
+

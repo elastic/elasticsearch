@@ -1141,6 +1141,7 @@ public final class InternalTestCluster extends TestCluster {
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
+        assertUniqueSeqNoInLucene();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1221,6 +1222,23 @@ public final class InternalTestCluster extends TestCluster {
                 for (IndexShard indexShard : indexService) {
                     try {
                         IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                    } catch (AlreadyClosedException ignored) {
+                        // shard is closed
+                    }
+                }
+            }
+        }
+    }
+
+    /** Asserts that there is at most one (root) document in Lucene for every sequence number */
+    private void assertUniqueSeqNoInLucene() throws IOException {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    try {
+                        IndexShardTestCase.assertUniqueSeqNoInLucene(indexShard);
                     } catch (AlreadyClosedException ignored) {
                         // shard is closed
                     }

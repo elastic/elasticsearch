@@ -132,6 +132,7 @@ import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -2374,6 +2375,49 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
                         assertThat(replicaShardRouting + " global checkpoint syncs mismatch", seqNoStats.getGlobalCheckpoint(),
                             equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId())));
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Asserts that all shards with the same shardId should have document Ids.
+     */
+    public void assertSameDocIdsOnShards() throws Exception {
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
+                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                        continue;
+                    }
+                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
+                    IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNode.getName())
+                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
+                    final Set<String> docsOnPrimary;
+                    try {
+                        docsOnPrimary = IndexShardTestCase.getShardDocUIDs(primaryShard);
+                    } catch (AlreadyClosedException ex) {
+                        continue;
+                    }
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
+                        if (replicaShardRouting.assignedToNode() == false) {
+                            continue;
+                        }
+                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
+                        IndexShard replicaShard = internalCluster().getInstance(IndicesService.class, replicaNode.getName())
+                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
+                        final Set<String> docsOnReplica;
+                        try {
+                            docsOnReplica = IndexShardTestCase.getShardDocUIDs(replicaShard);
+                        } catch (AlreadyClosedException ex) {
+                            continue;
+                        }
+                        assertThat("out of sync shards: primary=[" + primaryShardRouting + "] num_docs_on_primary=[" + docsOnPrimary.size()
+                                + "] vs replica=[" + replicaShardRouting + "] num_docs_on_replica=[" + docsOnReplica.size() + "]",
+                            docsOnReplica, equalTo(docsOnPrimary));
                     }
                 }
             }

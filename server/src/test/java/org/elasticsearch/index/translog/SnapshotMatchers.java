@@ -148,15 +148,6 @@ public final class SnapshotMatchers {
         private List<Translog.Operation> notFoundOps;
         private List<Translog.Operation> notExpectedOps;
 
-        static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
-            final List<Translog.Operation> actualOps = new ArrayList<>();
-            Translog.Operation op;
-            while ((op = snapshot.next()) != null) {
-                actualOps.add(op);
-            }
-            return actualOps;
-        }
-
         public ContainingInAnyOrderMatcher(Collection<Translog.Operation> expectedOps) {
             this.expectedOps = expectedOps;
         }
@@ -164,7 +155,7 @@ public final class SnapshotMatchers {
         @Override
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
-                List<Translog.Operation> actualOps = drainAll(snapshot);
+                List<Translog.Operation> actualOps = TestTranslog.drainAll(snapshot);
                 notFoundOps = expectedOps.stream()
                     .filter(o -> actualOps.contains(o) == false)
                     .collect(Collectors.toList());

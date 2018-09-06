@@ -17,6 +17,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.ml.featureindexbuilder.FeatureIndexBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBu
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction.Response;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
@@ -82,7 +84,10 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
         this.job = job;
         logger.info("construct job task");
         // todo: simplistic implementation for now
-        this.indexer = new FeatureIndexBuilderIndexer(job, client);
+        IndexerState initialState = IndexerState.STOPPED;
+        Map<String, Object> initialPosition = null;
+        this.indexer = new FeatureIndexBuilderIndexer(threadPool.executor(ThreadPool.Names.GENERIC), job,
+                new AtomicReference<>(initialState), initialPosition, client);
     }
 
     public FeatureIndexBuilderJobConfig getConfig() {
@@ -96,6 +101,11 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
 
     @Override
     public void triggered(Event event) {
+        if (event.getJobName().equals(SCHEDULE_NAME + "_" + job.getConfig().getId())) {
+            logger.debug(
+                    "FeatureIndexBuilder indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+            indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
+        }
     }
 
 }

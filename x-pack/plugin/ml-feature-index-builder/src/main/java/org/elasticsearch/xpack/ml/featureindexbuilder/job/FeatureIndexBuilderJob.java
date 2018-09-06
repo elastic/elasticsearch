@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskParams {
@@ -91,5 +93,9 @@ public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskPa
     @Override
     public int hashCode() {
         return Objects.hash(config);
+    }
+
+    public Map<String, String> getHeaders() {
+        return Collections.emptyMap();
     }
 }

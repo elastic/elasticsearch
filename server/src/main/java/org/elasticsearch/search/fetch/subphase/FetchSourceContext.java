@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +45,8 @@ import java.util.function.Function;
  * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(FetchSourceContext.class));
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
@@ -91,8 +95,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
         Boolean fetchSource = null;
-        String[] source_excludes = null;
-        String[] source_includes = null;
+        String[] sourceExcludes = null;
+        String[] sourceIncludes = null;
 
         String source = request.param("_source");
         if (source != null) {
@@ -101,23 +105,32 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
-                source_includes = Strings.splitStringByCommaToArray(source);
+                sourceIncludes = Strings.splitStringByCommaToArray(source);
             }
         }
+
         String sIncludes = request.param("_source_includes");
-        sIncludes = request.param("_source_include", sIncludes);
+        String sInclude = request.param("_source_include");
+        if (sInclude != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated field [_source_include] used, expected [_source_includes] instead");
+            sIncludes = sInclude;
+        }
         if (sIncludes != null) {
-            source_includes = Strings.splitStringByCommaToArray(sIncludes);
+            sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
         String sExcludes = request.param("_source_excludes");
-        sExcludes = request.param("_source_exclude", sExcludes);
+        String sExclude = request.param("_source_exclude");
+        if (sExclude != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated field [_source_exclude] used, expected [_source_excludes] instead");
+            sExcludes = sExclude;
+        }
         if (sExcludes != null) {
-            source_excludes = Strings.splitStringByCommaToArray(sExcludes);
+            sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        if (fetchSource != null || source_includes != null || source_excludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, source_includes, source_excludes);
+        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
+            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
         }
         return null;
     }

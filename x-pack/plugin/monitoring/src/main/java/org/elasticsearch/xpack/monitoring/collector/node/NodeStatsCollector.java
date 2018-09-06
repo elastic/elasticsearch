@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.Collection;
@@ -51,10 +52,11 @@ public class NodeStatsCollector extends Collector {
 
     public NodeStatsCollector(final Settings settings,
                               final ClusterService clusterService,
+                              final MonitoringService monitoringService,
                               final XPackLicenseState licenseState,
                               final Client client) {
 
-        super(settings, NodeStatsMonitoringDoc.TYPE, clusterService, NODE_STATS_TIMEOUT, licenseState);
+        super(settings, NodeStatsMonitoringDoc.TYPE, clusterService, monitoringService, NODE_STATS_TIMEOUT, licenseState);
         this.client = Objects.requireNonNull(client);
     }
 

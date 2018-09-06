@@ -67,14 +67,14 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService);
 
         assertThat(collector.shouldCollect(true), is(true));
     }
@@ -86,7 +86,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(apmIndicesExist));
     }
@@ -97,7 +97,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(false));
     }
@@ -108,7 +108,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService, resolver);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         expectThrows(RuntimeException.class, () -> collector.doAPMIndicesExist(clusterState));
     }
@@ -210,7 +210,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(xPackUsageFuture.actionGet()).thenReturn(xPackUsageResponse);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(settings.build(), clusterService, licenseState,
+                new ClusterStatsCollector(settings.build(), clusterService, monitoringService, licenseState,
                                           client, licenseService, indexNameExpressionResolver);
 
         Assert.assertEquals(timeout, collector.getCollectionTimeout());
@@ -254,6 +254,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getClusterState().stateUUID(), equalTo(clusterState.stateUUID()));
 
         verify(clusterService, times(1)).getClusterName();
+        verify(monitoringService, times(1)).isElasticsearchCollectionEnabled();
         verify(clusterState, times(1)).metaData();
         verify(metaData, times(1)).clusterUUID();
         verify(licenseService, times(1)).getLicense();

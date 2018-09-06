@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -44,7 +45,15 @@ public class MonitoringService extends AbstractLifecycleComponent {
     public static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
 
     /**
-     * Dynamically controls enabling or disabling the collection of Monitoring data.
+     * Dynamically controls enabling or disabling the collection of Monitoring data only from Elasticsearch.
+     */
+    public static final Setting<Boolean> ELASTICSEARCH_COLLECTION_ENABLED =
+            Setting.boolSetting("xpack.monitoring.elasticsearch.collection.enabled", true,
+                                Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    /**
+     * Dynamically controls enabling or disabling the collection of Monitoring data from Elasticsearch as well as other products
+     * in the stack.
      */
     public static final Setting<Boolean> ENABLED =
             Setting.boolSetting("xpack.monitoring.collection.enabled", false,
@@ -68,22 +77,29 @@ public class MonitoringService extends AbstractLifecycleComponent {
     private final Set<Collector> collectors;
     private final Exporters exporters;
 
+    private volatile boolean elasticsearchCollectionEnabled;
     private volatile boolean enabled;
     private volatile TimeValue interval;
     private volatile ThreadPool.Cancellable scheduler;
 
-    MonitoringService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                      Set<Collector> collectors, Exporters exporters) {
+    MonitoringService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Exporters exporters) {
         super(settings);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.collectors = Objects.requireNonNull(collectors);
+        this.collectors = new HashSet<Collector>();
         this.exporters = Objects.requireNonNull(exporters);
+        this.elasticsearchCollectionEnabled = ELASTICSEARCH_COLLECTION_ENABLED.get(settings);
         this.enabled = ENABLED.get(settings);
         this.interval = INTERVAL.get(settings);
 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
+    }
+
+    void setElasticsearchCollectionEnabled(final boolean enabled) {
+        this.elasticsearchCollectionEnabled = enabled;
+        scheduleExecution();
     }
 
     void setMonitoringActive(final boolean enabled) {
@@ -96,12 +112,21 @@ public class MonitoringService extends AbstractLifecycleComponent {
         scheduleExecution();
     }
 
+    void addCollectors(Set<Collector> collectors) {
+        this.collectors.addAll(Objects.requireNonNull(collectors));
+        scheduleExecution();
+    }
+
     public TimeValue getInterval() {
         return interval;
     }
 
     public boolean isMonitoringActive() {
         return isStarted() && enabled;
+    }
+
+    public boolean isElasticsearchCollectionEnabled() {
+        return this.elasticsearchCollectionEnabled;
     }
 
     private String threadPoolName() {

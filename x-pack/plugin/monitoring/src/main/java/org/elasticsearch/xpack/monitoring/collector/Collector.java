@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 
 import java.util.Collection;
 import java.util.List;
@@ -44,15 +45,17 @@ public abstract class Collector extends AbstractComponent {
 
     private final String name;
     private final Setting<TimeValue> collectionTimeoutSetting;
+    private final MonitoringService monitoringService;
 
     protected final ClusterService clusterService;
     protected final XPackLicenseState licenseState;
 
-    public Collector(final Settings settings, final String name, final ClusterService clusterService,
+    public Collector(final Settings settings, final String name, final ClusterService clusterService, final MonitoringService monitoringService,
                      final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
+        this.monitoringService = monitoringService;
         this.collectionTimeoutSetting = timeoutSetting;
         this.licenseState = licenseState;
     }
@@ -76,6 +79,13 @@ public abstract class Collector extends AbstractComponent {
             logger.trace("collector [{}] can not collect data due to invalid license", name());
             return false;
         }
+
+        // TODO: Check if Elasticsearch collection is enabled
+        if (this.monitoringService.isElasticsearchCollectionEnabled() == false) {
+            logger.trace("collector [{}] will not collect data because elasticsearch collection is disabled", name());
+            return false;
+        }
+
         return true;
     }
 

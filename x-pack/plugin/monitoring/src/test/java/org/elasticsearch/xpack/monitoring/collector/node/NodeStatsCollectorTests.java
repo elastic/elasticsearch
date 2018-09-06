@@ -43,7 +43,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -55,7 +55,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         final boolean isElectedMaster = true;
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -76,7 +76,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
@@ -110,7 +110,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

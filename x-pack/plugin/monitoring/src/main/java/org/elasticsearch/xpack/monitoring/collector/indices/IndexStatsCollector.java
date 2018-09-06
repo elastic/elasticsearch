@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.ArrayList;
@@ -42,9 +43,10 @@ public class IndexStatsCollector extends Collector {
 
     public IndexStatsCollector(final Settings settings,
                                final ClusterService clusterService,
+                               final MonitoringService monitoringService,
                                final XPackLicenseState licenseState,
                                final Client client) {
-        super(settings, "index-stats", clusterService, INDEX_STATS_TIMEOUT, licenseState);
+        super(settings, "index-stats", clusterService, monitoringService, INDEX_STATS_TIMEOUT, licenseState);
         this.client = client;
     }
 

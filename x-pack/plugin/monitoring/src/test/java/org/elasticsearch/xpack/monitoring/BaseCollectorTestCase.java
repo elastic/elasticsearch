@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.function.Function;
@@ -34,6 +35,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
 
     protected ClusterName clusterName;
     protected ClusterService clusterService;
+    protected MonitoringService monitoringService;
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
     protected MetaData metaData;
@@ -46,6 +48,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         super.setUp();
         clusterName = mock(ClusterName.class);
         clusterService = mock(ClusterService.class);
+        monitoringService = mock(MonitoringService.class);
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
         metaData = mock(MetaData.class);

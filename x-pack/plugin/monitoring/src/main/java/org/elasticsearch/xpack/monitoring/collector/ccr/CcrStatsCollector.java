@@ -39,18 +39,20 @@ public class CcrStatsCollector extends Collector {
     public CcrStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
+            final MonitoringService monitoringService,
             final XPackLicenseState licenseState,
             final Client client) {
-        this(settings, clusterService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
+        this(settings, clusterService, monitoringService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
     }
 
     CcrStatsCollector(
             final Settings settings,
             final ClusterService clusterService,
+            final MonitoringService monitoringService,
             final XPackLicenseState licenseState,
             final CcrClient ccrClient,
             final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+        super(settings, TYPE, clusterService, monitoringService, CCR_STATS_TIMEOUT, licenseState);
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;
     }

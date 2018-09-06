@@ -78,6 +78,34 @@ public class FollowIndexIT extends ESRestTestCase {
         }
     }
 
+    public void testAutoFollowPatterns() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+
+        Request request = new Request("PUT", "/_ccr/_auto_follow/leader_cluster");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        assertOK(client().performRequest(request));
+
+        try (RestClient leaderClient = buildLeaderClient()) {
+            Settings settings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            request = new Request("PUT", "/logs-20190101");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
+                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+            assertOK(leaderClient.performRequest(request));
+
+            for (int i = 0; i < 5; i++) {
+                String id = Integer.toString(i);
+                index(leaderClient, "logs-20190101", id, "field", i, "filtered_field", "true");
+            }
+        }
+
+        assertBusy(() -> {
+            ensureYellow("logs-20190101");
+            verifyDocuments("logs-20190101", 5);
+        });
+    }
+
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
@@ -133,6 +161,15 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+    }
+
+    private static void ensureYellow(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client().performRequest(request);
     }
 
     private RestClient buildLeaderClient() throws IOException {

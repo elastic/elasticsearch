@@ -125,6 +125,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
+    protected TranslogHandler translogHandler;
 
     protected Store store;
     protected Store storeReplica;
@@ -189,6 +190,7 @@ public abstract class EngineTestCase extends ESTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
+        translogHandler = createTranslogHandler(defaultSettings);
         engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -213,7 +215,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), tombstoneDocSupplier());
     }
 
@@ -222,7 +224,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+                config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
                 config.getTombstoneDocSupplier());
     }
@@ -232,7 +234,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getWarmer(), config.getStore(), mergePolicy, config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
             config.getTombstoneDocSupplier());
     }
@@ -377,6 +379,10 @@ public abstract class EngineTestCase extends ESTestCase {
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
     }
 
+    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
+        return new TranslogHandler(xContentRegistry(), indexSettings);
+    }
+
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
         return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
     }
@@ -478,7 +484,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(Long.MAX_VALUE);
+        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
 
@@ -553,14 +559,12 @@ public abstract class EngineTestCase extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        final TranslogHandler handler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
-                indexSettings.getSettings()));
         final List<ReferenceManager.RefreshListener> refreshListenerList =
                 refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
+                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort,
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}) :

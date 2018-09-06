@@ -51,7 +51,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
         this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
     }
 
     @Override

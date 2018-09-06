@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -71,8 +72,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public boolean needsScores() {
-        return valuesSource != null && valuesSource.needsScores();
+    public ScoreMode scoreMode() {
+        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {

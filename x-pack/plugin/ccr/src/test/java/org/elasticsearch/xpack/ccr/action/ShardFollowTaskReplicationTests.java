@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -121,6 +122,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             thread.join();
 
             leaderGroup.assertAllEqual(docCount);
+            assertThat(shardFollowTask.getFailure(), nullValue());
             assertBusy(() -> followerGroup.assertAllEqual(docCount));
             shardFollowTask.markAsCompleted();
             assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
@@ -205,8 +207,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
                     Exception exception = null;
                     for (IndexShard indexShard : indexShards) {
-                        final SeqNoStats seqNoStats = indexShard.seqNoStats();
                         try {
+                            final SeqNoStats seqNoStats = indexShard.seqNoStats();
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
                                 maxOperationCount, params.getMaxBatchSizeInBytes());
                             // hard code mapping version; this is ok, as mapping updates are not tested here

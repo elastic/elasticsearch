@@ -160,7 +160,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setPageParams(new PageParams(0, 10000));
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(3L));
             assertThat(response.categories().size(), equalTo(3));
@@ -183,7 +184,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setPageParams(new PageParams(0, 1));
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(3L));
             assertThat(response.categories().size(), equalTo(1));
@@ -196,7 +198,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setPageParams(new PageParams(1, 2));
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(3L));
             assertThat(response.categories().size(), equalTo(2));
@@ -214,7 +217,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setCategoryId(0L); // request a non-existent category
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(0L));
             assertThat(response.categories().size(), equalTo(0));
@@ -223,7 +227,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setCategoryId(1L);
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(1L));
             assertThat(response.categories().size(), equalTo(1));
@@ -236,7 +241,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setCategoryId(2L);
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(1L));
             assertThat(response.categories().get(0).getCategoryId(), equalTo(2L));
@@ -249,7 +255,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             GetCategoriesRequest request = new GetCategoriesRequest(JOB_ID);
             request.setCategoryId(3L);
 
-            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories, machineLearningClient::getCategoriesAsync);
+            GetCategoriesResponse response = execute(request, machineLearningClient::getCategories,
+                    machineLearningClient::getCategoriesAsync);
 
             assertThat(response.count(), equalTo(1L));
             assertThat(response.categories().get(0).getCategoryId(), equalTo(3L));

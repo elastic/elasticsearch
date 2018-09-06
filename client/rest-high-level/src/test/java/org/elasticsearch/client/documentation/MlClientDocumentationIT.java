@@ -20,9 +20,11 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlRestTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
@@ -31,10 +33,16 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
+import org.elasticsearch.client.ml.GetOverallBucketsRequest;
+import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -47,6 +55,8 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
+import org.elasticsearch.client.ml.job.results.OverallBucket;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -60,9 +70,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -453,6 +465,228 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-get-buckets-execute-async
             client.machineLearning().getBucketsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-get-buckets-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testFlushJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("flushing-my-first-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("flushing-my-second-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(secondJob.getId()), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-flush-job-request
+            FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-first-machine-learning-job"); //<1>
+            //end::x-pack-ml-flush-job-request
+
+            //tag::x-pack-ml-flush-job-request-options
+            flushJobRequest.setCalcInterim(true); //<1>
+            flushJobRequest.setAdvanceTime("2018-08-31T16:35:07+00:00"); //<2>
+            flushJobRequest.setStart("2018-08-31T16:35:17+00:00"); //<3>
+            flushJobRequest.setEnd("2018-08-31T16:35:27+00:00"); //<4>
+            flushJobRequest.setSkipTime("2018-08-31T16:35:00+00:00"); //<5>
+            //end::x-pack-ml-flush-job-request-options
+
+            //tag::x-pack-ml-flush-job-execute
+            FlushJobResponse flushJobResponse = client.machineLearning().flushJob(flushJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-ml-flush-job-execute
+
+            //tag::x-pack-ml-flush-job-response
+            boolean isFlushed = flushJobResponse.isFlushed(); //<1>
+            Date lastFinalizedBucketEnd = flushJobResponse.getLastFinalizedBucketEnd(); //<2>
+            //end::x-pack-ml-flush-job-response
+
+        }
+        {
+            //tag::x-pack-ml-flush-job-listener
+            ActionListener<FlushJobResponse> listener = new ActionListener<FlushJobResponse>() {
+                @Override
+                public void onResponse(FlushJobResponse FlushJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-flush-job-listener
+            FlushJobRequest flushJobRequest = new FlushJobRequest("flushing-my-second-machine-learning-job");
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-flush-job-execute-async
+            client.machineLearning().flushJobAsync(flushJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-flush-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+
+    public void testGetJobStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("get-machine-learning-job-stats1");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        Job secondJob = MachineLearningIT.buildJob("get-machine-learning-job-stats2");
+        client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-ml-get-job-stats-request
+            GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*"); //<1>
+            request.setAllowNoJobs(true); //<2>
+            //end::x-pack-ml-get-job-stats-request
+
+            //tag::x-pack-ml-get-job-stats-execute
+            GetJobStatsResponse response = client.machineLearning().getJobStats(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-job-stats-execute
+
+            //tag::x-pack-ml-get-job-stats-response
+            long numberOfJobStats = response.count(); //<1>
+            List<JobStats> jobStats = response.jobStats(); //<2>
+            //end::x-pack-ml-get-job-stats-response
+
+            assertEquals(2, response.count());
+            assertThat(response.jobStats(), hasSize(2));
+            assertThat(response.jobStats().stream().map(JobStats::getJobId).collect(Collectors.toList()),
+                containsInAnyOrder(job.getId(), secondJob.getId()));
+        }
+        {
+            GetJobStatsRequest request = new GetJobStatsRequest("get-machine-learning-job-stats1", "get-machine-learning-job-*");
+
+            // tag::x-pack-ml-get-job-stats-listener
+            ActionListener<GetJobStatsResponse> listener = new ActionListener<GetJobStatsResponse>() {
+                @Override
+                public void onResponse(GetJobStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-get-job-stats-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-job-stats-execute-async
+            client.machineLearning().getJobStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-job-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetOverallBuckets() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId1 = "test-get-overall-buckets-1";
+        String jobId2 = "test-get-overall-buckets-2";
+        Job job1 = MachineLearningGetResultsIT.buildJob(jobId1);
+        Job job2 = MachineLearningGetResultsIT.buildJob(jobId2);
+        client.machineLearning().putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
+        client.machineLearning().putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
+
+        // Let us index some buckets
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        {
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            indexRequest.source("{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
+                    "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+            indexRequest.source("{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000," +
+                    "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::x-pack-ml-get-overall-buckets-request
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(jobId1, jobId2); // <1>
+            // end::x-pack-ml-get-overall-buckets-request
+
+            // tag::x-pack-ml-get-overall-buckets-bucket-span
+            request.setBucketSpan(TimeValue.timeValueHours(24)); // <1>
+            // end::x-pack-ml-get-overall-buckets-bucket-span
+
+            // tag::x-pack-ml-get-overall-buckets-end
+            request.setEnd("2018-08-21T00:00:00Z"); // <1>
+            // end::x-pack-ml-get-overall-buckets-end
+
+            // tag::x-pack-ml-get-overall-buckets-exclude-interim
+            request.setExcludeInterim(true); // <1>
+            // end::x-pack-ml-get-overall-buckets-exclude-interim
+
+            // tag::x-pack-ml-get-overall-buckets-overall-score
+            request.setOverallScore(75.0); // <1>
+            // end::x-pack-ml-get-overall-buckets-overall-score
+
+            // tag::x-pack-ml-get-overall-buckets-start
+            request.setStart("2018-08-01T00:00:00Z"); // <1>
+            // end::x-pack-ml-get-overall-buckets-start
+
+            // tag::x-pack-ml-get-overall-buckets-top-n
+            request.setTopN(2); // <1>
+            // end::x-pack-ml-get-overall-buckets-top-n
+
+            // tag::x-pack-ml-get-overall-buckets-execute
+            GetOverallBucketsResponse response = client.machineLearning().getOverallBuckets(request, RequestOptions.DEFAULT);
+            // end::x-pack-ml-get-overall-buckets-execute
+
+            // tag::x-pack-ml-get-overall-buckets-response
+            long count = response.count(); // <1>
+            List<OverallBucket> overallBuckets = response.overallBuckets(); // <2>
+            // end::x-pack-ml-get-overall-buckets-response
+
+            assertEquals(1, overallBuckets.size());
+            assertThat(overallBuckets.get(0).getOverallScore(), is(closeTo(80.0, 0.001)));
+
+        }
+        {
+            GetOverallBucketsRequest request = new GetOverallBucketsRequest(jobId1, jobId2);
+
+            // tag::x-pack-ml-get-overall-buckets-listener
+            ActionListener<GetOverallBucketsResponse> listener =
+                    new ActionListener<GetOverallBucketsResponse>() {
+                        @Override
+                        public void onResponse(GetOverallBucketsResponse getOverallBucketsResponse) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::x-pack-ml-get-overall-buckets-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-overall-buckets-execute-async
+            client.machineLearning().getOverallBucketsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-overall-buckets-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

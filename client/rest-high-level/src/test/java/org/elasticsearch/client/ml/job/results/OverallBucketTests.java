@@ -32,6 +32,10 @@ public class OverallBucketTests extends AbstractXContentTestCase<OverallBucket> 
 
     @Override
     protected OverallBucket createTestInstance() {
+        return createRandom();
+    }
+
+    public static OverallBucket createRandom() {
         int jobCount = randomIntBetween(0, 10);
         List<OverallBucket.JobInfo> jobs = new ArrayList<>(jobCount);
         for (int i = 0; i < jobCount; ++i) {

@@ -119,7 +119,7 @@ public final class RemoteClusterLicenseChecker {
     }
 
     private final Client client;
-    private final Predicate<XPackInfoResponse.LicenseInfo> predicate;
+    private final Predicate<License.OperationMode> predicate;
 
     /**
      * Constructs a remote cluster license checker with the specified license predicate for checking license compatibility. The predicate
@@ -128,7 +128,7 @@ public final class RemoteClusterLicenseChecker {
      * @param client    the client
      * @param predicate the license predicate
      */
-    public RemoteClusterLicenseChecker(final Client client, final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
+    public RemoteClusterLicenseChecker(final Client client, final Predicate<License.OperationMode> predicate) {
         this.client = client;
         this.predicate = predicate;
     }
@@ -159,7 +159,8 @@ public final class RemoteClusterLicenseChecker {
             @Override
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
-                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false || predicate.test(licenseInfo) == false) {
+                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
+                        || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }

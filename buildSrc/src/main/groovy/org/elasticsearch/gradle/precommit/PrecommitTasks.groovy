@@ -100,7 +100,7 @@ class PrecommitTasks {
 
     private static Task configureForbiddenApisCli(Project project) {
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-        project.sourceSets.forEach { sourceSet ->
+        project.sourceSets.all { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')

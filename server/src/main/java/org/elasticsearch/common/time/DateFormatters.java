@@ -25,10 +25,12 @@ import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
@@ -879,11 +881,47 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for parsing the milliseconds since the epoch
+     * This one needs a custom implementation, because the standard date formatter can not parse negative values
+     * or anything +- 999 milliseconds around the epoch
+     *
+     * This implementation just resorts to parsing the input directly to an Instant by trying to parse a number.
      */
-    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter EPOCH_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS, 1, 19, SignStyle.NEVER)
         .appendValue(ChronoField.MILLI_OF_SECOND, 3)
-        .toFormatter(Locale.ROOT));
+        .toFormatter(Locale.ROOT);
+
+    private static final class EpochDateTimeFormatter extends CompoundDateTimeFormatter {
+
+        private EpochDateTimeFormatter() {
+            super(EPOCH_MILLIS_FORMATTER);
+        }
+
+        private EpochDateTimeFormatter(ZoneId zoneId) {
+            super(EPOCH_MILLIS_FORMATTER.withZone(zoneId));
+        }
+
+        @Override
+        public TemporalAccessor parse(String input) {
+            try {
+                return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
+            } catch (NumberFormatException e) {
+                throw new DateTimeParseException("invalid number", input, 0, e);
+            }
+        }
+
+        @Override
+        public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
+            return new EpochDateTimeFormatter(zoneId);
+        }
+
+        @Override
+        public String format(TemporalAccessor accessor) {
+            return String.valueOf(Instant.from(accessor).toEpochMilli());
+        }
+    }
+
+    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new EpochDateTimeFormatter();
 
     /*
      * Returns a formatter that combines a full date and two digit hour of

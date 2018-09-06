@@ -51,7 +51,8 @@ public class ForbiddenApisCliTask extends DefaultTask {
     private JavaVersion targetCompatibility;
     private FileCollection classesDirs;
     private SourceSet sourceSet;
-    private String javaHome;
+    // This needs to be an object so it can hold Groovy GStrings
+    private Object javaHome;
 
     @Input
     public JavaVersion getTargetCompatibility() {
@@ -142,11 +143,11 @@ public class ForbiddenApisCliTask extends DefaultTask {
     }
 
     @Input
-    public String getJavaHome() {
+    public Object getJavaHome() {
         return javaHome;
     }
 
-    public void setJavaHome(String javaHome) {
+    public void setJavaHome(Object javaHome) {
         this.javaHome = javaHome;
     }
 

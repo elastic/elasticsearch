@@ -908,7 +908,7 @@ public final class PainlessLookupBuilder {
         int methodTypeParametersSize = javaMethod.getParameterCount();
 
         for (int typeParameterIndex = 0; typeParameterIndex < methodTypeParametersSize; ++typeParameterIndex) {
-            Class<?> typeParameter = typeParameters.get(typeParameterIndex);
+            Class<?> typeParameter = typeParameters.get(constructorTypeParametersSize + typeParameterIndex);
 
             if (isValidType(typeParameter) == false) {
                 throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found " +

@@ -651,8 +651,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
-    public FieldCapabilitiesRequestBuilder prepareFieldCaps() {
-        return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE);
+    public FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices) {
+        return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE, indices);
     }
 
     static class Admin implements AdminClient {

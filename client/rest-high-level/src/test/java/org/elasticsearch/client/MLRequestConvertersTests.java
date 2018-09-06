@@ -25,8 +25,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetOverallBucketsRequest;
+import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -77,6 +81,24 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
     }
 
+    public void testGetJobStats() {
+        GetJobStatsRequest getJobStatsRequestRequest = new GetJobStatsRequest();
+
+        Request request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/_stats", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+
+        getJobStatsRequestRequest = new GetJobStatsRequest("job1", "jobs*");
+        getJobStatsRequestRequest.setAllowNoJobs(true);
+        request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
+
+        assertEquals("/_xpack/ml/anomaly_detectors/job1,jobs*/_stats", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+    }
+
+
     public void testOpenJob() throws Exception {
         String jobId = "some-job-id";
         OpenJobRequest openJobRequest = new OpenJobRequest(jobId);
@@ -122,6 +144,27 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
     }
 
+    public void testFlushJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        FlushJobRequest flushJobRequest = new FlushJobRequest(jobId);
+
+        Request request = MLRequestConverters.flushJob(flushJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_flush", request.getEndpoint());
+        assertEquals("{\"job_id\":\"" + jobId + "\"}", requestEntityToString(request));
+
+        flushJobRequest.setSkipTime("1000");
+        flushJobRequest.setStart("105");
+        flushJobRequest.setEnd("200");
+        flushJobRequest.setAdvanceTime("100");
+        flushJobRequest.setCalcInterim(true);
+        request = MLRequestConverters.flushJob(flushJobRequest);
+        assertEquals(
+                "{\"job_id\":\"" + jobId + "\",\"calc_interim\":true,\"start\":\"105\"," +
+                        "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
+                requestEntityToString(request));
+    }
+
     public void testGetBuckets() throws IOException {
         String jobId = randomAlphaOfLength(10);
         GetBucketsRequest getBucketsRequest = new GetBucketsRequest(jobId);
@@ -136,6 +179,44 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetBucketsRequest parsedRequest = GetBucketsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getBucketsRequest));
+        }
+    }
+
+    public void testGetOverallBuckets() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetOverallBucketsRequest getOverallBucketsRequest = new GetOverallBucketsRequest(jobId);
+        getOverallBucketsRequest.setBucketSpan(TimeValue.timeValueHours(3));
+        getOverallBucketsRequest.setTopN(3);
+        getOverallBucketsRequest.setStart("2018-08-08T00:00:00Z");
+        getOverallBucketsRequest.setEnd("2018-09-08T00:00:00Z");
+        getOverallBucketsRequest.setExcludeInterim(true);
+
+        Request request = MLRequestConverters.getOverallBuckets(getOverallBucketsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/overall_buckets", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetOverallBucketsRequest parsedRequest = GetOverallBucketsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getOverallBucketsRequest));
+        }
+    }
+
+    public void testGetRecords() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetRecordsRequest getRecordsRequest = new GetRecordsRequest(jobId);
+        getRecordsRequest.setStart("2018-08-08T00:00:00Z");
+        getRecordsRequest.setEnd("2018-09-08T00:00:00Z");
+        getRecordsRequest.setPageParams(new PageParams(100, 300));
+        getRecordsRequest.setRecordScore(75.0);
+        getRecordsRequest.setSort("anomaly_score");
+        getRecordsRequest.setDescending(true);
+        getRecordsRequest.setExcludeInterim(true);
+
+        Request request = MLRequestConverters.getRecords(getRecordsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/records", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetRecordsRequest parsedRequest = GetRecordsRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getRecordsRequest));
         }
     }
 

@@ -23,15 +23,6 @@ plugins {
   id 'groovy'
 }
 
-gradlePlugin {
-  plugins {
-    simplePlugin {
-      id = 'elasticsearch.clusterformation'
-      implementationClass = 'org.elasticsearch.gradle.clusterformation.ClusterformationPlugin'
-    }
-  }
-}
-
 group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()

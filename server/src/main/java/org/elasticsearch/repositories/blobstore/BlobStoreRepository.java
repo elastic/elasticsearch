@@ -1337,7 +1337,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         private void failStoreIfCorrupted(Exception e) {
-            if (e instanceof CorruptIndexException || e instanceof IndexFormatTooOldException || e instanceof IndexFormatTooNewException) {
+            if (Lucene.isCorruptionException(e)) {
                 try {
                     store.markStoreCorrupted((IOException) e);
                 } catch (IOException inner) {

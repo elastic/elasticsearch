@@ -35,6 +35,8 @@ import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -591,6 +593,63 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testForecastJob() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("forecasting-my-first-machine-learning-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+
+        //post data
+
+        {
+            //tag::x-pack-ml-forecast-job-request
+            ForecastJobRequest forecastJobRequest = new ForecastJobRequest("forecasting-my-first-machine-learning-job"); //<1>
+            //end::x-pack-ml-forecast-job-request
+
+            //tag::x-pack-ml-forecast-job-request-options
+            forecastJobRequest.setExpiresIn(TimeValue.timeValueHours(48)); //<1>
+            forecastJobRequest.setDuration(TimeValue.timeValueHours(24)); //<2>
+            //end::x-pack-ml-forecast-job-request-options
+
+            //tag::x-pack-ml-forecast-job-execute
+            ForecastJobResponse forecastJobResponse = client.machineLearning().forecastJob(forecastJobRequest, RequestOptions.DEFAULT);
+            //end::x-pack-ml-forecast-job-execute
+
+            //tag::x-pack-ml-forecast-job-response
+            boolean isAcknowledged = forecastJobResponse.isAcknowledged(); //<1>
+            String forecastId = forecastJobResponse.getForecastId(); //<2>
+            //end::x-pack-ml-forecast-job-response
+
+        }
+        {
+            //tag::x-pack-ml-forecast-job-listener
+            ActionListener<ForecastJobResponse> listener = new ActionListener<ForecastJobResponse>() {
+                @Override
+                public void onResponse(ForecastJobResponse forecastJobResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-forecast-job-listener
+            ForecastJobRequest forecastJobRequest = new ForecastJobRequest("forecasting-my-first-machine-learning-job");
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-forecast-job-execute-async
+            client.machineLearning().forecastJobAsync(forecastJobRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-forecast-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetOverallBuckets() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

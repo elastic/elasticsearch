@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
@@ -227,6 +229,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        //post data
+
+        ForecastJobRequest request = new ForecastJobRequest(jobId);
+        ForecastJobResponse response = execute(request, machineLearningClient::forecastJob, machineLearningClient::forecastJobAsync);
+
+        assertTrue(response.isAcknowledged());
+        assertNotNull(response.getForecastId());
     }
 
     public static String randomValidJobId() {

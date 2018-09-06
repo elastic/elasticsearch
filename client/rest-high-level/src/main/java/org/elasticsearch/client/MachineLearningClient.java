@@ -379,7 +379,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Creates a forecast of an existing, opened Machine Learning Job
+     * Creates a forecast of an existing, opened Machine Learning Job asynchronously
      *
      * This predicts the future behavior of a time series by using its historical behavior.
      *

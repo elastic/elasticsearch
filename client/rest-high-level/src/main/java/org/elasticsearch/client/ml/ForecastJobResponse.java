@@ -37,7 +37,9 @@ public class ForecastJobResponse extends ActionResponse implements ToXContentObj
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
 
     public static final ConstructingObjectParser<ForecastJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("forecast_job_response", true, (a) -> new ForecastJobResponse((Boolean)a[0], (String)a[1]));
+        new ConstructingObjectParser<>("forecast_job_response",
+            true,
+            (a) -> new ForecastJobResponse((Boolean)a[0], (String)a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACKNOWLEDGED);

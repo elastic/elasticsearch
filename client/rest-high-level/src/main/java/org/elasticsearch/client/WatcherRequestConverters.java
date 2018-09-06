@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -57,6 +58,19 @@ public class WatcherRequestConverters {
             .build();
 
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    public static Request ackWatch(AckWatchRequest ackWatchRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(ackWatchRequest.getWatchId())
+            .addPathPartAsIs("_ack")
+            .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         return request;
     }
 }

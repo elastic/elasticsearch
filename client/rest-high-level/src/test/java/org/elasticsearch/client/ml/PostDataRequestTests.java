@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,7 +35,7 @@ public class PostDataRequestTests extends AbstractXContentTestCase<PostDataReque
         String jobId = randomAlphaOfLength(10);
         XContentType contentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
-        PostDataRequest request = new PostDataRequest(jobId, contentType);
+        PostDataRequest request = new PostDataRequest(jobId, contentType, new byte[0]);
         if (randomBoolean()) {
            request.setResetEnd(randomAlphaOfLength(10));
         }
@@ -55,47 +56,35 @@ public class PostDataRequestTests extends AbstractXContentTestCase<PostDataReque
         return false;
     }
 
-    public void testAddMapAndByteReference() throws IOException {
-        PostDataRequest request = new PostDataRequest(randomAlphaOfLength(10), XContentType.JSON);
+    public void testJsonBuilder() throws IOException {
+
+        String jobId = randomAlphaOfLength(10);
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
 
         Map<String, Object> obj1 = new HashMap<>();
         obj1.put("entry1", "value1");
         obj1.put("entry2", "value2");
-        request.addDoc(obj1);
+        builder.addDoc(obj1);
 
-        assertEquals("{\"entry1\":\"value1\",\"entry2\":\"value2\"}", request.getContent().utf8ToString());
+        builder.addDoc("{\"entry3\":\"value3\"}");
+        builder.addDoc("{\"entry4\":\"value4\"}".getBytes(StandardCharsets.UTF_8));
 
-        request.addDoc(request.getContent());
-        assertEquals("{\"entry1\":\"value1\",\"entry2\":\"value2\"} {\"entry1\":\"value1\",\"entry2\":\"value2\"}",
+        PostDataRequest request = new PostDataRequest(jobId, builder);
+
+        assertEquals("{\"entry1\":\"value1\",\"entry2\":\"value2\"}{\"entry3\":\"value3\"}{\"entry4\":\"value4\"}",
             request.getContent().utf8ToString());
-    }
-
-    public void testPostJsonDataRequest() {
-        PostDataRequest request = PostDataRequest.postJsonDataRequest(randomAlphaOfLength(10));
         assertEquals(XContentType.JSON, request.getXContentType());
+        assertEquals(jobId, request.getJobId());
     }
 
-    public void testPostSmileDataRequest() {
-        PostDataRequest request = PostDataRequest.postSmileDataRequest(randomAlphaOfLength(10));
-        assertEquals(XContentType.SMILE, request.getXContentType());
-    }
+    public void testFromByteArray() {
+        String jobId = randomAlphaOfLength(10);
+        PostDataRequest request = new PostDataRequest(jobId,
+            XContentType.JSON,
+            "{\"others\":{\"foo\":100}}".getBytes(StandardCharsets.UTF_8));
 
-    public void testSetContentAndAddByteReference() throws IOException {
-        PostDataRequest request = new PostDataRequest(randomAlphaOfLength(10), XContentType.JSON);
-
-        Map<String, Object> obj3 = new HashMap<>();
-        Map<String, Integer> inner = new HashMap<>();
-        inner.put("foo", 100);
-        obj3.put("others", inner);
-
-        request.addDoc(obj3);
-
-        PostDataRequest otherRequest = new PostDataRequest(randomAlphaOfLength(10), XContentType.JSON);
-        otherRequest.setContent(request.getContent());
         assertEquals("{\"others\":{\"foo\":100}}", request.getContent().utf8ToString());
-
-        PostDataRequest thirdRequest = new PostDataRequest(randomAlphaOfLength(10), XContentType.JSON);
-        thirdRequest.addDoc(request.getContent());
-        assertEquals(request.getContent(), thirdRequest.getContent());
+        assertEquals(XContentType.JSON, request.getXContentType());
+        assertEquals(jobId, request.getJobId());
     }
 }

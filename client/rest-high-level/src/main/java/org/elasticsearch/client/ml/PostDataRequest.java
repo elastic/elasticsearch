@@ -23,13 +23,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,50 +47,57 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
 
     public static final ConstructingObjectParser<PostDataRequest, Void> PARSER =
         new ConstructingObjectParser<>("post_data_request",
-            (a) -> new PostDataRequest((String)a[0], XContentType.fromMediaTypeOrFormat((String)a[1])));
+            (a) -> new PostDataRequest((String)a[0], XContentType.fromMediaTypeOrFormat((String)a[1]), new byte[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), CONTENT_TYPE);
-        PARSER.declareString(PostDataRequest::setResetEnd, RESET_END);
-        PARSER.declareString(PostDataRequest::setResetStart, RESET_START);
+        PARSER.declareStringOrNull(PostDataRequest::setResetEnd, RESET_END);
+        PARSER.declareStringOrNull(PostDataRequest::setResetStart, RESET_START);
     }
 
     private final String jobId;
     private final XContentType xContentType;
-    private final List<BytesReference> bytesReferences;
-    private final List<Map<String, Object>> objectMaps;
+    private final BytesReference content;
     private String resetStart;
     private String resetEnd;
-    private BytesReference content;
-
-    /**
-     * PostDataRequest for sending data in JSON format
-     * @param jobId non-null jobId of the job to post data to
-     */
-    public static PostDataRequest postJsonDataRequest(String jobId) {
-        return new PostDataRequest(jobId, XContentType.JSON);
-    }
-
-    /**
-     * PostDataRequest for sending data in SMILE format
-     * @param jobId non-null jobId of the job to post data to
-     */
-    public static PostDataRequest postSmileDataRequest(String jobId) {
-        return new PostDataRequest(jobId, XContentType.SMILE);
-    }
 
     /**
      * Create a new PostDataRequest object
      *
      * @param jobId non-null jobId of the job to post data to
-     * @param xContentType content type of the data to post. Only {@link XContentType#JSON} {@link XContentType#SMILE} are supported
+     * @param xContentType content type of the data to post. Only {@link XContentType#JSON} or {@link XContentType#SMILE} are supported
+     * @param content bulk serialized content in the format of the passed {@link XContentType}
      */
-    public PostDataRequest(String jobId, XContentType xContentType) {
+    public PostDataRequest(String jobId, XContentType xContentType, BytesReference content) {
         this.jobId = Objects.requireNonNull(jobId, "job_id must not be null");
         this.xContentType = Objects.requireNonNull(xContentType, "content_type must not be null");
-        this.bytesReferences = new ArrayList<>();
-        this.objectMaps = new ArrayList<>();
+        this.content = content;
+    }
+
+    /**
+     * Create a new PostDataRequest object referencing the passed {@code byte[]} content
+     *
+     * @param jobId non-null jobId of the job to post data to
+     * @param xContentType content type of the data to post. Only {@link XContentType#JSON} or {@link XContentType#SMILE} are supported
+     * @param content bulk serialized content in the format of the passed {@link XContentType}
+     */
+    public PostDataRequest(String jobId, XContentType xContentType, byte[] content) {
+        this.jobId = Objects.requireNonNull(jobId, "job_id must not be null");
+        this.xContentType = Objects.requireNonNull(xContentType, "content_type must not be null");
+        ByteBuffer buffer = ByteBuffer.wrap(content);
+        ByteBuffer[] buffers = new ByteBuffer[]{ buffer };
+        this.content = BytesReference.fromByteBuffers(buffers);
+    }
+
+    /**
+     * Create a new PostDataRequest object referencing the passed {@link JsonBuilder} object
+     *
+     * @param jobId non-null jobId of the job to post data to
+     * @param builder {@link JsonBuilder} object containing documents to be serialized and sent in {@link XContentType#JSON} format
+     */
+    public PostDataRequest(String jobId, JsonBuilder builder) {
+        this(jobId, XContentType.JSON, builder.build());
     }
 
     public String getJobId() {
@@ -103,7 +111,7 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
     /**
      * Specifies the start of the bucket resetting range
      *
-     * @param resetStart String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
+     * @param resetStart String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO 8601 string
      */
     public void setResetStart(String resetStart) {
         this.resetStart = resetStart;
@@ -116,72 +124,18 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
     /**
      * Specifies the end of the bucket resetting range
      *
-     * @param resetEnd String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
+     * @param resetEnd String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO 8601 string
      */
     public void setResetEnd(String resetEnd) {
         this.resetEnd = resetEnd;
     }
 
-    /**
-     * Gets the transformed content to post.
-     *
-     * This combines both documents added through {@link PostDataRequest#addDoc(BytesReference)} and {@link PostDataRequest#addDoc(Map)}
-     * into a single BytesReference object according to the set XContentType for bulk submission
-     *
-     * If content was set via {@link PostDataRequest#setContent(BytesReference)}, then simply that content is returned.
-     *
-     * @throws IOException on parsing/serialization errors
-     */
-    public BytesReference getContent() throws IOException {
-        if (content != null) {
-            return content;
-        }
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            for (BytesReference bytesReference : bytesReferences) {
-                try (StreamInput streamInput = bytesReference.streamInput()) {
-                    builder.rawValue(streamInput, xContentType);
-                }
-            }
-            for (Map<String, Object> objectMap : objectMaps) {
-                builder.map(objectMap);
-            }
-            return BytesReference.bytes(builder);
-        }
+    public BytesReference getContent() {
+        return content;
     }
 
     public XContentType getXContentType() {
         return xContentType;
-    }
-
-    /**
-     * Set the total content to post.
-     *
-     * @param content BytesReference content to set, format must match the set XContentType
-     */
-    public void setContent(BytesReference content) {
-        this.content = content;
-    }
-
-    /**
-     * Add a document via a ByteReference.
-     *
-     * Ignored if total content is set via {@link PostDataRequest#setContent(BytesReference)}
-     *
-     * @param bytesReference document to add to bulk request, format must match the set XContentType
-     */
-    public void addDoc(BytesReference bytesReference) {
-        this.bytesReferences.add(Objects.requireNonNull(bytesReference, "bytesReferences must not be null"));
-    }
-
-    /**
-     * Add a document via an object map
-     *
-     * Ignored if total content is set via {@link PostDataRequest#setContent(BytesReference)}
-     *
-     * @param objectMap document object to add to bulk request
-     */
-    public void addDoc(Map<String, Object> objectMap) {
-        this.objectMaps.add(Objects.requireNonNull(objectMap, "objectMap must not be null"));
     }
 
     @Override
@@ -216,9 +170,61 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(CONTENT_TYPE.getPreferredName(), xContentType.mediaType());
-        builder.field(RESET_END.getPreferredName(), resetEnd);
-        builder.field(RESET_START.getPreferredName(), resetStart);
+        if (resetEnd != null) {
+            builder.field(RESET_END.getPreferredName(), resetEnd);
+        }
+        if (resetStart != null) {
+            builder.field(RESET_START.getPreferredName(), resetStart);
+        }
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Class for incrementally building a bulk document request in {@link XContentType#JSON} format
+     */
+    public static class JsonBuilder {
+
+        private final List<ByteBuffer> bytes = new ArrayList<>();
+
+        /**
+         * Add a document via a {@code byte[]} array
+         *
+         * @param doc {@code byte[]} array of a serialized JSON object
+         */
+        public JsonBuilder addDoc(byte[] doc) {
+            bytes.add(ByteBuffer.wrap(doc));
+            return this;
+        }
+
+        /**
+         * Add a document via a serialized JSON String
+         *
+         * @param doc a serialized JSON String
+         */
+        public JsonBuilder addDoc(String doc) {
+            bytes.add(ByteBuffer.wrap(doc.getBytes(StandardCharsets.UTF_8)));
+            return this;
+        }
+
+        /**
+         * Add a document via an object map
+         *
+         * @param doc document object to add to bulk request
+         * @throws IOException on parsing/serialization errors
+         */
+        public JsonBuilder addDoc(Map<String, Object> doc) throws IOException {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.map(doc);
+                bytes.add(ByteBuffer.wrap(BytesReference.toBytes(BytesReference.bytes(builder))));
+            }
+            return this;
+        }
+
+        private BytesReference build() {
+            ByteBuffer[] buffers = bytes.toArray(new ByteBuffer[bytes.size()]);
+            return BytesReference.fromByteBuffers(buffers);
+        }
+
     }
 }

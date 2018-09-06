@@ -71,7 +71,6 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
@@ -895,22 +894,18 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-ml-post-data-request
-            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", XContentType.JSON); //<1>
-            //end::x-pack-ml-post-data-request
-
+            PostDataRequest.JsonBuilder jsonBuilder = new PostDataRequest.JsonBuilder(); //<1>
             Map<String, Object> mapData = new HashMap<>();
             mapData.put("total", 109);
-            postDataRequest.addDoc(mapData);
-            BytesReference bytesReference = postDataRequest.getContent();
+            jsonBuilder.addDoc(mapData); //<2>
+            jsonBuilder.addDoc("{\"total\":1000}"); //<3>
+            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", jsonBuilder); //<4>
+            //end::x-pack-ml-post-data-request
+
 
             //tag::x-pack-ml-post-data-request-options
             postDataRequest.setResetStart("2018-08-31T16:35:07+00:00"); //<1>
             postDataRequest.setResetEnd("2018-08-31T16:35:17+00:00"); //<2>
-            Map<String, Object> data = new HashMap<>();
-            data.put("total", 109);
-            postDataRequest.addDoc(data); //<3>
-            postDataRequest.addDoc(bytesReference); //<4>
-            postDataRequest.setContent(bytesReference); //<5>
             //end::x-pack-ml-post-data-request-options
             postDataRequest.setResetEnd(null);
             postDataRequest.setResetStart(null);
@@ -922,7 +917,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-ml-post-data-response
             DataCounts dataCounts = postDataResponse.getDataCounts(); //<1>
             //end::x-pack-ml-post-data-response
-            assertEquals(1, dataCounts.getInputRecordCount());
+            assertEquals(2, dataCounts.getInputRecordCount());
 
         }
         {
@@ -939,11 +934,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
             //end::x-pack-ml-post-data-listener
-            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", XContentType.JSON); //<1>
-
+            PostDataRequest.JsonBuilder jsonBuilder = new PostDataRequest.JsonBuilder();
             Map<String, Object> mapData = new HashMap<>();
-            mapData.put("total", 100);
-            postDataRequest.addDoc(mapData);
+            mapData.put("total", 109);
+            jsonBuilder.addDoc(mapData);
+            PostDataRequest postDataRequest = new PostDataRequest("test-post-data", jsonBuilder); //<1>
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);

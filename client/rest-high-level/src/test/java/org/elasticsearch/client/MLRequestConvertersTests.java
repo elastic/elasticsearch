@@ -244,11 +244,12 @@ public class MLRequestConvertersTests extends ESTestCase {
 
     public void testPostData() throws Exception {
         String jobId = randomAlphaOfLength(10);
-        PostDataRequest postDataRequest = new PostDataRequest(jobId, XContentType.JSON);
+        PostDataRequest.JsonBuilder jsonBuilder = new PostDataRequest.JsonBuilder();
         Map<String, Object> obj = new HashMap<>();
         obj.put("foo", "bar");
-        postDataRequest.addDoc(obj);
+        jsonBuilder.addDoc(obj);
 
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, jsonBuilder);
         Request request = MLRequestConverters.postData(postDataRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -258,8 +259,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_END.getPreferredName()));
         assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_START.getPreferredName()));
 
-        PostDataRequest postDataRequest2 = new PostDataRequest(jobId, XContentType.SMILE);
-        postDataRequest2.addDoc(obj);
+        PostDataRequest postDataRequest2 = new PostDataRequest(jobId, XContentType.SMILE, new byte[0]);
         postDataRequest2.setResetStart("2018-08-08T00:00:00Z");
         postDataRequest2.setResetEnd("2018-09-08T00:00:00Z");
 

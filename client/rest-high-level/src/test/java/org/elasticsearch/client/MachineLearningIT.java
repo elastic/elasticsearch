@@ -45,7 +45,6 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.After;
 
 import java.io.IOException;
@@ -231,15 +230,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
 
-        PostDataRequest postDataRequest = new PostDataRequest(jobId, XContentType.JSON);
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
         for(int i = 0; i < 10; i++) {
             Map<String, Object> hashMap = new HashMap<>();
             hashMap.put("total", randomInt(1000));
-            postDataRequest.addDoc(hashMap);
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
         }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
 
         PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
         assertEquals(10, response.getDataCounts().getInputRecordCount());
+        assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
     }
 
     public void testUpdateJob() throws Exception {
@@ -278,8 +280,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeFormat(randomFrom(DataDescription.EPOCH_MS, DataDescription.EPOCH));
-        dataDescription.setTimeField(randomAlphaOfLength(10));
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        dataDescription.setTimeField("timestamp");
         builder.setDataDescription(dataDescription);
 
         return builder.build();

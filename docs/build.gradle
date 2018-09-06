@@ -33,6 +33,8 @@ buildRestTests.expectedUnconvertedCandidates = [
         'reference/ml/apis/post-data.asciidoc',
         'reference/ml/apis/revert-snapshot.asciidoc',
         'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/security/authorization/run-as-privilege.asciidoc',
+        'reference/security/authorization/custom-roles-provider.asciidoc',
 ]
 
 integTestCluster {

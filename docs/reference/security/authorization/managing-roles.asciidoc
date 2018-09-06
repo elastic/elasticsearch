@@ -164,6 +164,7 @@ POST /_xpack/security/role/clicks_admin
 }
 -----------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 Based on the above definition, users owning the `clicks_admin` role can:
 

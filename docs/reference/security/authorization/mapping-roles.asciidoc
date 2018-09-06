@@ -101,6 +101,7 @@ PUT _xpack/security/role_mapping/admins
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 [source,js]
 --------------------------------------------------
@@ -115,6 +116,7 @@ PUT _xpack/security/role_mapping/basic_users
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 [float]
 [[pki-role-mapping]]
@@ -145,6 +147,7 @@ PUT _xpack/security/role_mapping/admin_user
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 [source,js]
 --------------------------------------------------
@@ -156,3 +159,4 @@ PUT _xpack/security/role_mapping/basic_user
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]

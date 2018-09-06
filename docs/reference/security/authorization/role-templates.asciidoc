@@ -33,6 +33,7 @@ POST /_xpack/security/role/example1
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 You can access the following information through the `_user` variable:
 
@@ -70,3 +71,4 @@ POST /_xpack/security/role/example2
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]

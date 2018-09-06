@@ -49,6 +49,11 @@ public class ScoreTests extends ScriptTestCase {
                 public float score() throws IOException {
                     return 2.5f;
                 }
+
+                @Override
+                public float getMaxScore(int upTo) throws IOException {
+                    return 2.5f;
+                }
             },
             true));
     }
@@ -59,6 +64,11 @@ public class ScoreTests extends ScriptTestCase {
                 @Override
                 public float score() throws IOException {
                     throw new AssertionError("score() should not be called");
+                }
+
+                @Override
+                public float getMaxScore(int upTo) throws IOException {
+                    return Float.MAX_VALUE;
                 }
             },
             true));
@@ -74,6 +84,11 @@ public class ScoreTests extends ScriptTestCase {
                         return 4.5f;
                     }
                     throw new AssertionError("score() should not be called twice");
+                }
+
+                @Override
+                public float getMaxScore(int upTo) throws IOException {
+                    return 4.5f;
                 }
             },
             true));

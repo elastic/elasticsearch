@@ -539,9 +539,9 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }

@@ -109,7 +109,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
@@ -1132,13 +1131,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

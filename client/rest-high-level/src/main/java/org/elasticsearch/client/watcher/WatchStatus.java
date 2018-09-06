@@ -6,7 +6,6 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
@@ -24,21 +23,22 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus {
 
-    private State state;
+    private final State state;
 
-    @Nullable private ExecutionState executionState;
-    @Nullable private DateTime lastChecked;
-    @Nullable private DateTime lastMetCondition;
-    @Nullable private long version;
-    @Nullable private Map<String, String> headers;
-    private Map<String, ActionStatus> actions;
+    private final ExecutionState executionState;
+    private final DateTime lastChecked;
+    private final DateTime lastMetCondition;
+    private final long version;
+    private final Map<String, String> headers;
+    private final Map<String, ActionStatus> actions;
 
-    public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
-        this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
-    }
-
-    private WatchStatus(long version, State state, ExecutionState executionState, DateTime lastChecked, DateTime lastMetCondition,
-                        Map<String, ActionStatus> actions, Map<String, String> headers) {
+    public WatchStatus(long version,
+                       State state,
+                       ExecutionState executionState,
+                       DateTime lastChecked,
+                       DateTime lastMetCondition,
+                       Map<String, ActionStatus> actions,
+                       Map<String, String> headers) {
         this.version = version;
         this.lastChecked = lastChecked;
         this.lastMetCondition = lastMetCondition;
@@ -68,24 +68,12 @@ public class WatchStatus {
         return version;
     }
 
-    public void version(long version) {
-        this.version = version;
-    }
-
-    public void setExecutionState(ExecutionState executionState) {
-        this.executionState = executionState;
-    }
-
     public ExecutionState getExecutionState() {
         return executionState;
     }
 
     public Map<String, String> getHeaders() {
         return headers;
-    }
-
-    public void setHeaders(Map<String, String> headers) {
-        this.headers = headers;
     }
 
     @Override
@@ -185,8 +173,8 @@ public class WatchStatus {
 
     public static class State {
 
-        final boolean active;
-        final DateTime timestamp;
+        private final boolean active;
+        private final DateTime timestamp;
 
         public State(boolean active, DateTime timestamp) {
             this.active = active;

@@ -21,16 +21,14 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class ActionStatus {
 
-    private AckStatus ackStatus;
-    @Nullable private Execution lastExecution;
-    @Nullable private Execution lastSuccessfulExecution;
-    @Nullable private Throttle lastThrottle;
+    private final AckStatus ackStatus;
+    @Nullable private final Execution lastExecution;
+    @Nullable private final Execution lastSuccessfulExecution;
+    @Nullable private final Throttle lastThrottle;
 
-    public ActionStatus(DateTime now) {
-        this(new AckStatus(now, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION), null, null, null);
-    }
-
-    public ActionStatus(AckStatus ackStatus, @Nullable Execution lastExecution, @Nullable Execution lastSuccessfulExecution,
+    public ActionStatus(AckStatus ackStatus,
+                        @Nullable Execution lastExecution,
+                        @Nullable Execution lastSuccessfulExecution,
                         @Nullable Throttle lastThrottle) {
         this.ackStatus = ackStatus;
         this.lastExecution = lastExecution;
@@ -110,7 +108,7 @@ public class ActionStatus {
             ACKABLE((byte) 2),
             ACKED((byte) 3);
 
-            private byte value;
+            private final byte value;
 
             State(byte value) {
                 this.value = value;
@@ -342,13 +340,10 @@ public class ActionStatus {
     interface Field {
         ParseField ACK_STATUS = new ParseField("ack");
         ParseField ACK_STATUS_STATE = new ParseField("state");
-
         ParseField LAST_EXECUTION = new ParseField("last_execution");
         ParseField LAST_SUCCESSFUL_EXECUTION = new ParseField("last_successful_execution");
         ParseField EXECUTION_SUCCESSFUL = new ParseField("successful");
-
         ParseField LAST_THROTTLE = new ParseField("last_throttle");
-
         ParseField TIMESTAMP = new ParseField("timestamp");
         ParseField REASON = new ParseField("reason");
     }

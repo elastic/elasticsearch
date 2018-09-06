@@ -119,6 +119,7 @@ public final class GrokPatternCreator {
      * Both this class and other classes will update it.
      */
     private final Map<String, Object> mappings;
+    private final Map<String, FieldStats> fieldStats;
     private final Map<String, Integer> fieldNameCountStore = new HashMap<>();
     private final StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
@@ -128,22 +129,26 @@ public final class GrokPatternCreator {
      *                    can be appended by the methods of this class.
      * @param sampleMessages Sample messages that any Grok pattern found must match.
      * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
+     * @param fieldStats Will be updated with field stats for the fields in the returned pattern, if non-<code>null</code>.
      */
-    public GrokPatternCreator(List<String> explanation, Collection<String> sampleMessages, Map<String, Object> mappings) {
+    public GrokPatternCreator(List<String> explanation, Collection<String> sampleMessages, Map<String, Object> mappings,
+                              Map<String, FieldStats> fieldStats) {
         this.explanation = explanation;
         this.sampleMessages = Collections.unmodifiableCollection(sampleMessages);
         this.mappings = mappings;
+        this.fieldStats = fieldStats;
     }
 
     /**
      * This method attempts to find a Grok pattern that will match all of the sample messages in their entirety.
+     * It will also update mappings and field stats if they are non-<code>null</code>.
      * @return A tuple of (time field name, Grok string), or <code>null</code> if no suitable Grok pattern was found.
      */
     public Tuple<String, String> findFullLineGrokPattern() {
 
         for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
             if (candidate.matchesAll(sampleMessages)) {
-                return candidate.processMatch(explanation, sampleMessages, mappings);
+                return candidate.processMatch(explanation, sampleMessages, mappings, fieldStats);
             }
         }
 
@@ -186,7 +191,8 @@ public final class GrokPatternCreator {
 
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
-        String patternBuilderContent = chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings);
+        String patternBuilderContent =
+            chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings, fieldStats);
         appendBestGrokMatchForStrings(false, prefaces, ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
         overallGrokPatternBuilder.append(patternBuilderContent);
         appendBestGrokMatchForStrings(isLast, epilogues, ignoreKeyValueCandidateRight, ignoreValueOnlyCandidatesRight);
@@ -375,11 +381,12 @@ public final class GrokPatternCreator {
         /**
          * After it has been determined that this Grok pattern candidate matches a collection of strings,
          * return collections of the bits that come before (prefaces) and after (epilogues) the bit
-         * that matches.  Also update mappings with the most appropriate field name and type.
+         * that matches.  Also update mappings with the most appropriate field name and type, and
+         * calculate field stats.
          * @return The string that needs to be incorporated into the overall Grok pattern for the line.
          */
         String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                               Collection<String> epilogues, Map<String, Object> mappings);
+                               Collection<String> epilogues, Map<String, Object> mappings, Map<String, FieldStats> fieldStats);
     }
 
     /**
@@ -436,7 +443,7 @@ public final class GrokPatternCreator {
          */
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Object> mappings) {
+                                      Collection<String> epilogues, Map<String, Object> mappings, Map<String, FieldStats> fieldStats) {
             String sampleValue = null;
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
@@ -505,7 +512,7 @@ public final class GrokPatternCreator {
 
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Object> mappings) {
+                                      Collection<String> epilogues, Map<String, Object> mappings, Map<String, FieldStats> fieldStats) {
             if (fieldName == null) {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
@@ -526,6 +533,9 @@ public final class GrokPatternCreator {
             if (mappings != null) {
                 mappings.put(adjustedFieldName, LogStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values));
             }
+            if (fieldStats != null) {
+                fieldStats.put(adjustedFieldName, LogStructureUtils.calculateFieldStats(values));
+            }
             return "\\b" + fieldName + "=%{USER:" + adjustedFieldName + "}";
         }
     }
@@ -541,8 +551,8 @@ public final class GrokPatternCreator {
 
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
-                                      Collection<String> epilogues, Map<String, Object> mappings) {
-            return super.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, null);
+                                      Collection<String> epilogues, Map<String, Object> mappings, Map<String, FieldStats> fieldStats) {
+            return super.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, null, fieldStats);
         }
     }
 
@@ -570,11 +580,11 @@ public final class GrokPatternCreator {
          * @return A tuple of (time field name, Grok string).
          */
         public Tuple<String, String> processMatch(List<String> explanation, Collection<String> sampleMessages,
-                                                  Map<String, Object> mappings) {
+                                                  Map<String, Object> mappings, Map<String, FieldStats> fieldStats) {
 
             explanation.add("A full message Grok pattern [" + grokString.substring(2, grokString.length() - 1) + "] looks appropriate");
 
-            if (mappings != null) {
+            if (mappings != null || fieldStats != null) {
                 Map<String, Collection<String>> valuesPerField = new HashMap<>();
 
                 for (String sampleMessage : sampleMessages) {
@@ -604,8 +614,14 @@ public final class GrokPatternCreator {
 
                 for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
                     String fieldName = valuesForField.getKey();
-                    mappings.put(fieldName,
-                        LogStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
+                    if (mappings != null) {
+                        mappings.put(fieldName,
+                            LogStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
+                    }
+                    if (fieldStats != null) {
+                        fieldStats.put(fieldName,
+                            LogStructureUtils.calculateFieldStats(valuesForField.getValue()));
+                    }
                 }
             }
 

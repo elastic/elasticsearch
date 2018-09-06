@@ -27,6 +27,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -521,28 +523,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
-            bulkRequestModifier.markCurrentItemAsFailed(exception);
-        }, (exception) -> {
-            if (exception != null) {
-                logger.error("failed to execute pipeline for a bulk request", exception);
-                listener.onFailure(exception);
-            } else {
-                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
-                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
-                if (bulkRequest.requests().isEmpty()) {
-                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                    // so we stop and send an empty response back to the client.
-                    // (this will happen if pre-processing all items in the bulk failed)
-                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+        ingestService.executeBulkRequest(() -> bulkRequestModifier,
+            (indexRequest, exception) -> {
+                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+                    indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
+                bulkRequestModifier.markCurrentItemAsFailed(exception);
+            }, (exception) -> {
+                if (exception != null) {
+                    logger.error("failed to execute pipeline for a bulk request", exception);
+                    listener.onFailure(exception);
                 } else {
-                    doExecute(task, bulkRequest, actionListener);
+                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
+                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
+                    if (bulkRequest.requests().isEmpty()) {
+                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                        // so we stop and send an empty response back to the client.
+                        // (this will happen if pre-processing all items in the bulk failed)
+                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                    } else {
+                        doExecute(task, bulkRequest, actionListener);
+                    }
                 }
-            }
-        });
+            },
+            indexRequest -> bulkRequestModifier.markCurrentItemAsDropped());
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
@@ -602,6 +606,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
+        }
+
+        void markCurrentItemAsDropped() {
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(currentSlot);
+            failedSlots.set(currentSlot);
+            itemResponses.add(
+                new BulkItemResponse(currentSlot, indexRequest.opType(),
+                    new UpdateResponse(
+                        new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
+                        indexRequest.type(), indexRequest.id(), indexRequest.version(), DocWriteResponse.Result.NOOP
+                    )
+                )
+            );
         }
 
         void markCurrentItemAsFailed(Exception e) {

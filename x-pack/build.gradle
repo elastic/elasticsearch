@@ -31,16 +31,7 @@ subprojects {
   }
 }
 
-File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
 subprojects {
-  tasks.withType(Checkstyle) {
-    inputs.file(checkstyleSuppressions)
-    // Use x-pack-elasticsearch specific suppressions file rather than the open source one.
-    configProperties = [
-      suppressions: checkstyleSuppressions
-    ]
-  }
-
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]

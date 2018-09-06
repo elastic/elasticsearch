@@ -29,16 +29,56 @@ import java.util.stream.Collectors;
 
 public interface DateFormatter {
 
+    /**
+     * Try to parse input to a java time TemporalAccessor
+     * @param input                   An arbitrary string resembling the string representation of a date or time
+     * @throws DateTimeParseException If parsing fails, this exception will be thrown.
+     *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
+     * @return                        The java time object containing the parsed input
+     */
     TemporalAccessor parse(String input);
 
+    /**
+     * Create a copy of this formatter that is configured to parse dates in the specified time zone
+     *
+     * @param zoneId The time zone to act on
+     * @return       A copy of the date formatter this has been called on
+     */
     DateFormatter withZone(ZoneId zoneId);
 
+    /**
+     * Print the supplied java time accessor in a string based representation according to this formatter
+     *
+     * @param accessor The temporal accessor used to format
+     * @return         The string result for the formatting
+     */
     String print(TemporalAccessor accessor);
 
+    /**
+     * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
+     * a configured format like <code>HH:mm:ss</code>
+     *
+     * @return The name of this formatter
+     */
     String format();
 
+    /**
+     * Configure a formatter using default fields for a TemporalAccessor that should be used in case
+     * the supplied date is not having all of those fields
+     *
+     * @param fields A <code>Map&lt;TemporalField, Long&gt;</code> of fields to be used as fallbacks
+     * @return       A new date formatter instance, that will use those fields during parsing
+     */
     DateFormatter parseDefaulting(Map<TemporalField, Long> fields);
 
+    /**
+     * Merge several date formatters into a single one. Useful if you need to have several formatters with
+     * different formats act as one, for example when you specify a
+     * format like <code>date_hour||epoch_millis</code>
+     *
+     * @param formatters The list of date formatters to be merged together
+     * @return           The new date formtter containing the specified date formatters
+     */
     static DateFormatter merge(DateFormatter ... formatters) {
         return new MergedDateFormatter(formatters);
     }

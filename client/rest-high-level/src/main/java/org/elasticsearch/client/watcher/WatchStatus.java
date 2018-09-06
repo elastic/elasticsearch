@@ -267,7 +267,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return builder.endObject();
     }
 
-    public static WatchStatus parse(String watchId, WatcherXContentParser parser) throws IOException {
+    public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
         DateTime lastChecked = null;
@@ -338,14 +338,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
             }
         }
 
-        // if the watch status doesn't have a state, we assume active
-        // this is to support old watches that weren't upgraded yet to
-        // contain the state
-        if (state == null) {
-            state = new State(true, parser.getParseDateTime());
-        }
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
-
         return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions, headers);
     }
 

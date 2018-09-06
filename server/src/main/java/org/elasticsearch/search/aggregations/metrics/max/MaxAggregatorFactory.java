@@ -19,12 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.max;
 
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -38,10 +32,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-
-import static org.elasticsearch.search.aggregations.metrics.min.MinAggregatorFactory.createEmpty;
-import static org.elasticsearch.search.aggregations.metrics.min.MinAggregatorFactory.getPointReaderOrNull;
 
 public class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, MaxAggregatorFactory> {
 
@@ -53,71 +43,13 @@ public class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSo
     @Override
     protected Aggregator createUnmapped(Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new MaxAggregator(name, null, config.format(), context, parent, pipelineAggregators, metaData, null);
+        return new MaxAggregator(name, config, null, context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
-        final Function<byte[], Number> converter = getPointReaderOrNull(context, getParent(), config);
-        final CheckedFunction<LeafReader, Number, IOException> shortcutMaxFunc;
-        if (converter == null) {
-            shortcutMaxFunc = createEmpty();
-        } else {
-            final String fieldName = config.fieldContext().field();
-            shortcutMaxFunc = createShortcutMax(fieldName, converter);
-        }
-        return new MaxAggregator(name, valuesSource, config.format(), context, parent, pipelineAggregators, metaData, shortcutMaxFunc);
-    }
-
-    /**
-     * Returns a function that can extract the maximum value of a field using
-     * {@link PointValues}.
-     * @param fieldName The name of the field.
-     * @param converter The point value converter.
-     */
-    public static CheckedFunction<LeafReader, Number, IOException> createShortcutMax(String fieldName, Function<byte[], Number> converter) {
-        return (reader) -> {
-            final PointValues pointValues = reader.getPointValues(fieldName);
-            if (pointValues == null) {
-                return null;
-            }
-            final Bits liveDocs = reader.getLiveDocs();
-            if (liveDocs == null) {
-                return converter.apply(pointValues.getMaxPackedValue());
-            }
-            int numBytes = pointValues.getBytesPerDimension();
-            final byte[] maxValue = pointValues.getMaxPackedValue();
-            final Number[] result = new Number[1];
-            try {
-                pointValues.intersect(new PointValues.IntersectVisitor() {
-                    @Override
-                    public void visit(int docID) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public void visit(int docID, byte[] packedValue) {
-                        if (liveDocs.get(docID)) {
-                            // we need to collect all values in this leaf (the sort is ascending) where
-                            // the last live doc is guaranteed to contain the max value for the segment.
-                            result[0] = converter.apply(packedValue);
-                        }
-                    }
-
-                    @Override
-                    public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                        if (FutureArrays.compareUnsigned(maxValue, 0, numBytes, maxPackedValue, 0, numBytes) == 0) {
-                            // we only check leaves that contain the max value for the segment.
-                            return PointValues.Relation.CELL_CROSSES_QUERY;
-                        } else {
-                            return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                        }
-                    }
-                });
-            } catch (CollectionTerminatedException e) {}
-            return result[0];
-        };
+        return new MaxAggregator(name, config, valuesSource, context, parent, pipelineAggregators, metaData);
     }
 }

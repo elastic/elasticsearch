@@ -32,7 +32,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
@@ -46,7 +45,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -54,7 +52,6 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -202,31 +199,25 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Collections.sort(values, Comparator.comparingDouble(t -> t.v2().doubleValue()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            CheckedFunction<LeafReader, Number, IOException> maxFunc =
-                MaxAggregatorFactory.createShortcutMax("number", pointConvertFunc);
-            Number res = maxFunc.apply(ctx.reader());
+            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
             assertThat(res, equalTo(values.get(values.size()-1).v2()));
         }
         for (int i = values.size()-1; i > 0; i--) {
             indexWriter.deleteDocuments(new Term("id", values.get(i).v1().toString()));
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
-                LeafReader leafReader = reader.leaves().get(0).reader();
-                CheckedFunction<LeafReader, Number, IOException> maxFunc =
-                    MaxAggregatorFactory.createShortcutMax("number", pointConvertFunc);
-                Number res = maxFunc.apply(leafReader);
+                LeafReaderContext ctx = reader.leaves().get(0);
+                Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
                 if (res != null) {
                     assertThat(res, equalTo(values.get(i - 1).v2()));
                 } else {
-                    assertAllDeleted(leafReader.getLiveDocs(), leafReader.getPointValues("number"));
+                    assertAllDeleted(ctx.reader().getLiveDocs(), ctx.reader().getPointValues("number"));
                 }
             }
         }
         indexWriter.deleteDocuments(new Term("id", values.get(0).v1().toString()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            CheckedFunction<LeafReader, Number, IOException> maxFunc =
-                MaxAggregatorFactory.createShortcutMax("number", pointConvertFunc);
-            Number res = maxFunc.apply(ctx.reader());
+            Number res = MaxAggregator.findLeafMaxValue(ctx.reader(), "number" , pointConvertFunc);
             assertThat(res, equalTo(null));
         }
         indexWriter.close();

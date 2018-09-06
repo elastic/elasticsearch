@@ -33,7 +33,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -44,19 +43,16 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregator;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -74,7 +70,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -228,42 +223,42 @@ public class MinAggregatorTests extends AggregatorTestCase {
     public void testShortcutIsApplicable() {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             assertNotNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(new MatchAllDocsQuery()),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNotNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(null),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(null),
-                    mockTermsAggregatorFactory("_index", false),
+                    mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(null),
-                    mockTermsAggregatorFactory("foo", true),
+                    mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregatorFactory.getPointReaderOrNull(
+                MinAggregator.getPointReaderOrNull(
                     mockSearchContext(null),
                     null,
                     mockNumericValuesSourceConfig("number", type, false)
@@ -271,35 +266,35 @@ public class MinAggregatorTests extends AggregatorTestCase {
             );
         }
         assertNotNull(
-            MinAggregatorFactory.getPointReaderOrNull(
+            MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
                 null,
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
-            MinAggregatorFactory.getPointReaderOrNull(
+            MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
-                mockTermsAggregatorFactory("_index", false),
+                mockAggregator(),
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
-            MinAggregatorFactory.getPointReaderOrNull(
+            MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                 null,
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
-            MinAggregatorFactory.getPointReaderOrNull(
+            MinAggregator.getPointReaderOrNull(
                 mockSearchContext(null),
-                mockTermsAggregatorFactory("foo", true),
+                mockAggregator(),
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
-            MinAggregatorFactory.getPointReaderOrNull(
+            MinAggregator.getPointReaderOrNull(
                 mockSearchContext(null),
                 null,
                 mockDateValuesSourceConfig("number", false)
@@ -376,27 +371,21 @@ public class MinAggregatorTests extends AggregatorTestCase {
         Collections.sort(values, Comparator.comparingDouble(t -> t.v2().doubleValue()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            CheckedFunction<LeafReader, Number, IOException> minFunc =
-                MinAggregatorFactory.createShortcutMin("number", pointConvertFunc);
-            Number res = minFunc.apply(ctx.reader());
+            Number res = MinAggregator.findLeafMinValue(ctx.reader(), "number", pointConvertFunc);
             assertThat(res, equalTo(values.get(0).v2()));
         }
         for (int i = 1; i < values.size(); i++) {
             indexWriter.deleteDocuments(new Term("id", values.get(i-1).v1().toString()));
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
-                CheckedFunction<LeafReader, Number, IOException> minFunc =
-                    MinAggregatorFactory.createShortcutMin("number", pointConvertFunc);
-                Number res = minFunc.apply(ctx.reader());
+                Number res = MinAggregator.findLeafMinValue(ctx.reader(), "number", pointConvertFunc);
                 assertThat(res, equalTo(values.get(i).v2()));
             }
         }
         indexWriter.deleteDocuments(new Term("id", values.get(values.size()-1).v1().toString()));
         try (IndexReader reader = DirectoryReader.open(indexWriter)) {
             LeafReaderContext ctx = reader.leaves().get(0);
-            CheckedFunction<LeafReader, Number, IOException> minFunc =
-                MinAggregatorFactory.createShortcutMin("number", pointConvertFunc);
-            Number res = minFunc.apply(ctx.reader());
+            Number res = MinAggregator.findLeafMinValue(ctx.reader(), "number", pointConvertFunc);
             assertThat(res, equalTo(null));
         }
         indexWriter.close();
@@ -409,14 +398,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return searchContext;
     }
 
-    private TermsAggregatorFactory mockTermsAggregatorFactory(String fieldName, boolean withParent) {
-        TermsAggregatorFactory factory = mock(TermsAggregatorFactory.class);
-        ValuesSourceConfig<ValuesSource> config = mock(ValuesSourceConfig.class);
-        when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, null));
-        when(factory.getConfig()).thenReturn(config);
-        AggregatorFactory<?> parent = withParent ? mock(AggregatorFactory.class) : null;
-        doReturn(parent).when(factory).getParent();
-        return factory;
+    private Aggregator mockAggregator() {
+        return mock(Aggregator.class);
     }
 
     private ValuesSourceConfig<ValuesSource.Numeric> mockNumericValuesSourceConfig(String fieldName,

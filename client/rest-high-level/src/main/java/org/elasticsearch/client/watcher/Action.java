@@ -5,21 +5,16 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Locale;
 
-public interface Action extends ToXContentObject {
+public interface Action {
 
     String type();
 
-    abstract class Result implements ToXContentFragment {
+    abstract class Result {
 
         public enum Status {
             SUCCESS,
@@ -58,8 +53,6 @@ public interface Action extends ToXContentObject {
          */
         public static class StoppedResult extends Result {
 
-            private static ParseField REASON = new ParseField("reason");
-
             private final String reason;
 
             protected StoppedResult(String type, Status status, String reason, Object... args) {
@@ -70,12 +63,6 @@ public interface Action extends ToXContentObject {
             public String reason() {
                 return reason;
             }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(REASON.getPreferredName(), reason);
-            }
-
         }
 
         /**
@@ -100,12 +87,6 @@ public interface Action extends ToXContentObject {
 
             public Exception getException() {
                 return exception;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                ElasticsearchException.generateFailureXContent(builder, params, exception, true);
-                return builder;
             }
         }
 

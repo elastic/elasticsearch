@@ -8,10 +8,6 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -23,7 +19,7 @@ import java.util.Objects;
 import static org.elasticsearch.client.watcher.Exceptions.illegalArgument;
 import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.dateTimeFormatter;
 
-public class ActionStatus implements ToXContentObject {
+public class ActionStatus {
 
     private AckStatus ackStatus;
     @Nullable private Execution lastExecution;
@@ -115,46 +111,6 @@ public class ActionStatus implements ToXContentObject {
         return false;
     }
 
-    public static void writeTo(ActionStatus status, StreamOutput out) throws IOException {
-        AckStatus.writeTo(status.ackStatus, out);
-        out.writeBoolean(status.lastExecution != null);
-        if (status.lastExecution != null) {
-            Execution.writeTo(status.lastExecution, out);
-        }
-        out.writeBoolean(status.lastSuccessfulExecution != null);
-        if (status.lastSuccessfulExecution != null) {
-            Execution.writeTo(status.lastSuccessfulExecution, out);
-        }
-        out.writeBoolean(status.lastThrottle != null);
-        if (status.lastThrottle != null) {
-            Throttle.writeTo(status.lastThrottle, out);
-        }
-    }
-
-    public static ActionStatus readFrom(StreamInput in) throws IOException {
-        AckStatus ackStatus = AckStatus.readFrom(in);
-        Execution lastExecution = in.readBoolean() ? Execution.readFrom(in) : null;
-        Execution lastSuccessfulExecution = in.readBoolean() ? Execution.readFrom(in) : null;
-        Throttle lastThrottle = in.readBoolean() ? Throttle.readFrom(in) : null;
-        return new ActionStatus(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Field.ACK_STATUS.getPreferredName(), ackStatus, params);
-        if (lastExecution != null) {
-            builder.field(Field.LAST_EXECUTION.getPreferredName(), lastExecution, params);
-        }
-        if (lastSuccessfulExecution != null) {
-            builder.field(Field.LAST_SUCCESSFUL_EXECUTION.getPreferredName(), lastSuccessfulExecution, params);
-        }
-        if (lastThrottle != null) {
-            builder.field(Field.LAST_THROTTLE.getPreferredName(), lastThrottle, params);
-        }
-        return builder.endObject();
-    }
-
     public static ActionStatus parse(String watchId, String actionId, XContentParser parser) throws IOException {
         AckStatus ackStatus = null;
         Execution lastExecution = null;
@@ -186,7 +142,7 @@ public class ActionStatus implements ToXContentObject {
         return new ActionStatus(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
 
-    public static class AckStatus implements ToXContentObject {
+    public static class AckStatus {
 
         public enum State {
             AWAITS_SUCCESSFUL_EXECUTION((byte) 1),
@@ -241,14 +197,6 @@ public class ActionStatus implements ToXContentObject {
             return Objects.hash(timestamp, state);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
-                    .field(Field.ACK_STATUS_STATE.getPreferredName(), state.name().toLowerCase(Locale.ROOT))
-                    .endObject();
-        }
-
         public static AckStatus parse(String watchId, String actionId, XContentParser parser) throws IOException {
             DateTime timestamp = null;
             State state = null;
@@ -277,20 +225,9 @@ public class ActionStatus implements ToXContentObject {
             }
             return new AckStatus(timestamp, state);
         }
-
-        static void writeTo(AckStatus status, StreamOutput out) throws IOException {
-            out.writeLong(status.timestamp.getMillis());
-            out.writeByte(status.state.value);
-        }
-
-        static AckStatus readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
-            State state = State.resolve(in.readByte());
-            return new AckStatus(timestamp, state);
-        }
     }
 
-    public static class Execution implements ToXContentObject {
+    public static class Execution {
 
         public static Execution successful(DateTime timestamp) {
             return new Execution(timestamp, true, null);
@@ -339,17 +276,6 @@ public class ActionStatus implements ToXContentObject {
             return Objects.hash(timestamp, successful, reason);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp));
-            builder.field(Field.EXECUTION_SUCCESSFUL.getPreferredName(), successful);
-            if (reason != null) {
-                builder.field(Field.REASON.getPreferredName(), reason);
-            }
-            return builder.endObject();
-        }
-
         public static Execution parse(String watchId, String actionId, XContentParser parser) throws IOException {
             DateTime timestamp = null;
             Boolean successful = null;
@@ -388,26 +314,9 @@ public class ActionStatus implements ToXContentObject {
             }
             return failure(timestamp, reason);
         }
-
-        public static void writeTo(Execution execution, StreamOutput out) throws IOException {
-            out.writeLong(execution.timestamp.getMillis());
-            out.writeBoolean(execution.successful);
-            if (!execution.successful) {
-                out.writeString(execution.reason);
-            }
-        }
-
-        public static Execution readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
-            boolean successful = in.readBoolean();
-            if (successful) {
-                return successful(timestamp);
-            }
-            return failure(timestamp, in.readString());
-        }
     }
 
-    public static class Throttle implements ToXContentObject {
+    public static class Throttle {
 
         private final DateTime timestamp;
         private final String reason;
@@ -439,14 +348,6 @@ public class ActionStatus implements ToXContentObject {
             return Objects.hash(timestamp, reason);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
-                    .field(Field.REASON.getPreferredName(), reason)
-                    .endObject();
-        }
-
         public static Throttle parse(String watchId, String actionId, XContentParser parser) throws IOException {
             DateTime timestamp = null;
             String reason = null;
@@ -474,16 +375,6 @@ public class ActionStatus implements ToXContentObject {
                         watchId, actionId, Field.LAST_THROTTLE.getPreferredName(), Field.REASON.getPreferredName());
             }
             return new Throttle(timestamp, reason);
-        }
-
-        static void writeTo(Throttle throttle, StreamOutput out) throws IOException {
-            out.writeLong(throttle.timestamp.getMillis());
-            out.writeString(throttle.reason);
-        }
-
-        static Throttle readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
-            return new Throttle(timestamp, in.readString());
         }
     }
 

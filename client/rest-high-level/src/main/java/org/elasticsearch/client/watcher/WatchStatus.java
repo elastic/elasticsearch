@@ -8,11 +8,6 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 
@@ -25,13 +20,9 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.parseDate;
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.readDate;
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.readOptionalDate;
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.writeDate;
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.writeOptionalDate;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class WatchStatus implements ToXContentObject, Streamable {
+public class WatchStatus {
 
     public static final String INCLUDE_STATE = "include_state";
 
@@ -43,10 +34,6 @@ public class WatchStatus implements ToXContentObject, Streamable {
     @Nullable private long version;
     @Nullable private Map<String, String> headers;
     private Map<String, ActionStatus> actions;
-
-    // for serialization
-    private WatchStatus() {
-    }
 
     public WatchStatus(DateTime now, Map<String, ActionStatus> actions) {
         this(-1, new State(true, now), null, null, null, actions, Collections.emptyMap());
@@ -188,85 +175,6 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return change;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(version);
-        writeOptionalDate(out, lastChecked);
-        writeOptionalDate(out, lastMetCondition);
-        out.writeInt(actions.size());
-        for (Map.Entry<String, ActionStatus> entry : actions.entrySet()) {
-            out.writeString(entry.getKey());
-            ActionStatus.writeTo(entry.getValue(), out);
-        }
-        out.writeBoolean(state.active);
-        writeDate(out, state.timestamp);
-        out.writeBoolean(executionState != null);
-        if (executionState != null) {
-            out.writeString(executionState.id());
-        }
-        boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
-        out.writeBoolean(statusHasHeaders);
-        if (statusHasHeaders) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        version = in.readLong();
-        lastChecked = readOptionalDate(in, UTC);
-        lastMetCondition = readOptionalDate(in, UTC);
-        int count = in.readInt();
-        Map<String, ActionStatus> actions = new HashMap<>(count);
-        for (int i = 0; i < count; i++) {
-            actions.put(in.readString(), ActionStatus.readFrom(in));
-        }
-        this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), readDate(in, UTC));
-        boolean executionStateExists = in.readBoolean();
-        if (executionStateExists) {
-            executionState = ExecutionState.resolve(in.readString());
-        }
-        if (in.readBoolean()) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        }
-    }
-
-    public static WatchStatus read(StreamInput in) throws IOException {
-        WatchStatus status = new WatchStatus();
-        status.readFrom(in);
-        return status;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (params.paramAsBoolean(INCLUDE_STATE, true)) {
-            builder.field(Field.STATE.getPreferredName(), state, params);
-        }
-        if (lastChecked != null) {
-            builder.timeField(Field.LAST_CHECKED.getPreferredName(), lastChecked);
-        }
-        if (lastMetCondition != null) {
-            builder.timeField(Field.LAST_MET_CONDITION.getPreferredName(), lastMetCondition);
-        }
-        if (actions != null) {
-            builder.startObject(Field.ACTIONS.getPreferredName());
-            for (Map.Entry<String, ActionStatus> entry : actions.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), params);
-            }
-            builder.endObject();
-        }
-        if (executionState != null) {
-            builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
-        }
-        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
-            builder.field(Field.HEADERS.getPreferredName(), headers);
-        }
-        builder.field(Field.VERSION.getPreferredName(), version);
-        return builder.endObject();
-    }
-
     public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
@@ -342,7 +250,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actions, headers);
     }
 
-    public static class State implements ToXContentObject {
+    public static class State {
 
         final boolean active;
         final DateTime timestamp;
@@ -358,14 +266,6 @@ public class WatchStatus implements ToXContentObject, Streamable {
 
         public DateTime getTimestamp() {
             return timestamp;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Field.ACTIVE.getPreferredName(), active);
-            writeDate(Field.TIMESTAMP.getPreferredName(), builder, timestamp);
-            return builder.endObject();
         }
 
         public static State parse(XContentParser parser) throws IOException {

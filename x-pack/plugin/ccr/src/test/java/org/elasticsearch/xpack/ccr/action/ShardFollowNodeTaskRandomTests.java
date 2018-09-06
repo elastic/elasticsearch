@@ -81,7 +81,9 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
-            threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
+            if (stopped.get() == false) {
+                threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
+            }
         };
         List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(testRun.startSeqNo - 1, testRun.startSeqNo - 1);

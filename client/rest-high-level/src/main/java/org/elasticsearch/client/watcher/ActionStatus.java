@@ -104,25 +104,9 @@ public class ActionStatus {
     public static class AckStatus {
 
         public enum State {
-            AWAITS_SUCCESSFUL_EXECUTION((byte) 1),
-            ACKABLE((byte) 2),
-            ACKED((byte) 3);
-
-            private final byte value;
-
-            State(byte value) {
-                this.value = value;
-            }
-
-            static State resolve(byte value) {
-                switch (value) {
-                    case 1 : return AWAITS_SUCCESSFUL_EXECUTION;
-                    case 2 : return ACKABLE;
-                    case 3 : return ACKED;
-                    default:
-                        throw new IllegalArgumentException(format("unknown action ack status state value [{}]", value));
-                }
-            }
+            AWAITS_SUCCESSFUL_EXECUTION,
+            ACKABLE,
+            ACKED;
         }
 
         private final DateTime timestamp;

@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[field-and-document-access-control]]
 === Setting up field and document level security
 

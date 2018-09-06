@@ -1,4 +1,5 @@
 [[templating-role-query]]
+[testenv="platinum"]
 ==== Templating a role query
 
 When you create a role, you can specify a query that defines the 

@@ -1,3 +1,4 @@
+[testenv="gold"]
 [[set-security-user-processor]]
 ==== Pre-processing documents to add security details
 

@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[mapping-roles]]
 === Mapping users and groups to roles
 

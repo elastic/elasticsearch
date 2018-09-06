@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="platinum"]
 [[custom-roles-provider]]
 === Custom roles provider extension
 

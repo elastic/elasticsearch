@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[run-as-privilege]]
 === Submitting requests on behalf of other users
 

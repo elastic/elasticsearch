@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold"]
 [[securing-aliases]]
 === Granting privileges for indices and aliases
 

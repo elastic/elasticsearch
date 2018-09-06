@@ -89,7 +89,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
         long version = instance.getVersion();
-        long creationDate = instance.getCreationDate();
+        long creationDate = instance.getModifiedDate();
         switch (between(0, 3)) {
         case 0:
             policy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),

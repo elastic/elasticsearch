@@ -30,8 +30,8 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
     static final ParseField VERSION = new ParseField("version");
-    static final ParseField CREATION_DATE = new ParseField("creation_date");
-    static final ParseField CREATION_DATE_STRING = new ParseField("creation_date_string");
+    static final ParseField MODIFIED_DATE = new ParseField("modified_date");
+    static final ParseField MODIFIED_DATE_STRING = new ParseField("modified_date_string");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>("policy_metadata",
@@ -43,8 +43,8 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), CREATION_DATE);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), CREATION_DATE_STRING);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_STRING);
     }
 
     public static LifecyclePolicyMetadata parse(XContentParser parser, String name) {
@@ -54,13 +54,13 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     private final LifecyclePolicy policy;
     private final Map<String, String> headers;
     private final long version;
-    private final long creationDate;
+    private final long modifiedDate;
 
-    public LifecyclePolicyMetadata(LifecyclePolicy policy, Map<String, String> headers, long version, long creationDate) {
+    public LifecyclePolicyMetadata(LifecyclePolicy policy, Map<String, String> headers, long version, long modifiedDate) {
         this.policy = policy;
         this.headers = headers;
         this.version = version;
-        this.creationDate = creationDate;
+        this.modifiedDate = modifiedDate;
     }
 
     @SuppressWarnings("unchecked")
@@ -68,7 +68,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         this.policy = new LifecyclePolicy(in);
         this.headers = (Map<String, String>) in.readGenericValue();
         this.version = in.readVLong();
-        this.creationDate = in.readVLong();
+        this.modifiedDate = in.readVLong();
     }
 
     public Map<String, String> getHeaders() {
@@ -87,13 +87,13 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         return version;
     }
 
-    public long getCreationDate() {
-        return creationDate;
+    public long getModifiedDate() {
+        return modifiedDate;
     }
 
-    public String getCreationDateString() {
-        ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
-        return creationDateTime.toString();
+    public String getModifiedDateString() {
+        ZonedDateTime modifiedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(modifiedDate), ZoneOffset.UTC);
+        return modifiedDateTime.toString();
     }
 
     @Override
@@ -102,8 +102,8 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         builder.field(POLICY.getPreferredName(), policy);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
-        builder.field(CREATION_DATE.getPreferredName(), creationDate);
-        builder.field(CREATION_DATE_STRING.getPreferredName(), getCreationDateString());
+        builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
+        builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());
         builder.endObject();
         return builder;
     }
@@ -113,12 +113,12 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         policy.writeTo(out);
         out.writeGenericValue(headers);
         out.writeVLong(version);
-        out.writeVLong(creationDate);
+        out.writeVLong(modifiedDate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(policy, headers, version, creationDate);
+        return Objects.hash(policy, headers, version, modifiedDate);
     }
 
     @Override
@@ -133,7 +133,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
         return Objects.equals(policy, other.policy) &&
             Objects.equals(headers, other.headers) &&
             Objects.equals(version, other.version) &&
-            Objects.equals(creationDate, other.creationDate);
+            Objects.equals(modifiedDate, other.modifiedDate);
     }
 
 }

@@ -55,10 +55,14 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         if (metadata == null) {
             listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames())));
         } else {
-            List<LifecyclePolicyMetadata> requestedPolicies;
+            List<LifecyclePolicyResponseItem> requestedPolicies;
             // if no policies explicitly provided, behave as if `*` was specified
             if (request.getPolicyNames().length == 0) {
-                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().values());
+                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().size());
+                for (LifecyclePolicyMetadata policyMetadata : metadata.getPolicyMetadatas().values()) {
+                    requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
+                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
+                }
             } else {
                 requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
                 for (String name : request.getPolicyNames()) {
@@ -67,15 +71,11 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    requestedPolicies.add(policyMetadata);
+                    requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
+                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
                 }
             }
-            List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>(requestedPolicies.size());
-            for (LifecyclePolicyMetadata policyMetadata : requestedPolicies) {
-                responseItems.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
-                    policyMetadata.getVersion(), policyMetadata.getCreationDateString()));
-            }
-            listener.onResponse(new Response(responseItems));
+            listener.onResponse(new Response(requestedPolicies));
         }
     }
 

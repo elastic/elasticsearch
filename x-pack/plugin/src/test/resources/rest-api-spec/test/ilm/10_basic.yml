@@ -47,7 +47,7 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
-  - is_true: my_timeseries_lifecycle.creation_date
+  - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.after: "10s" }
   - match: { my_timeseries_lifecycle.policy.phases.delete.after: "30s" }
 
@@ -94,7 +94,7 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
-  - is_true: my_timeseries_lifecycle.creation_date
+  - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.after: "10s" }
   - match: { my_timeseries_lifecycle.policy.phases.delete.after: "30s" }
 
@@ -144,7 +144,7 @@ setup:
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 2 }
-  - is_true: my_timeseries_lifecycle.creation_date
+  - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.after: "300s" }
   - match: { my_timeseries_lifecycle.policy.phases.delete.after: "600s" }
 

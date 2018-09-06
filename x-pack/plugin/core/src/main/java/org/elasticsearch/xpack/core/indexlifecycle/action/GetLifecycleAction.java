@@ -57,7 +57,7 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             for (LifecyclePolicyResponseItem item : policies) {
                 builder.startObject(item.getLifecyclePolicy().getName());
                 builder.field("version", item.getVersion());
-                builder.field("creation_date", item.getCreationDate());
+                builder.field("modified_date", item.getModifiedDate());
                 builder.field("policy", item.getLifecyclePolicy());
                 builder.endObject();
             }
@@ -156,25 +156,25 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
     public static class LifecyclePolicyResponseItem implements Writeable {
         private final LifecyclePolicy lifecyclePolicy;
         private final long version;
-        private final String creationDate;
+        private final String modifiedDate;
 
-        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String creationDate) {
+        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String modifiedDate) {
             this.lifecyclePolicy = lifecyclePolicy;
             this.version = version;
-            this.creationDate = creationDate;
+            this.modifiedDate = modifiedDate;
         }
 
         LifecyclePolicyResponseItem(StreamInput in) throws IOException {
             this.lifecyclePolicy = new LifecyclePolicy(in);
             this.version = in.readVLong();
-            this.creationDate = in.readString();
+            this.modifiedDate = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
-            out.writeString(creationDate);
+            out.writeString(modifiedDate);
         }
 
         public LifecyclePolicy getLifecyclePolicy() {
@@ -185,13 +185,13 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             return version;
         }
 
-        public String getCreationDate() {
-            return creationDate;
+        public String getModifiedDate() {
+            return modifiedDate;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lifecyclePolicy, version, creationDate);
+            return Objects.hash(lifecyclePolicy, version, modifiedDate);
         }
 
         @Override
@@ -205,7 +205,7 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
             return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
                 Objects.equals(version, other.version) &&
-                Objects.equals(creationDate, other.creationDate);
+                Objects.equals(modifiedDate, other.modifiedDate);
         }
 
     }

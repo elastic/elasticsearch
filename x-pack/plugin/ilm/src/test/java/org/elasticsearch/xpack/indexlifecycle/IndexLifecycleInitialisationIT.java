@@ -139,21 +139,21 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        long lowerBoundCreationDate = Instant.now().toEpochMilli();
+        long lowerBoundModifiedDate = Instant.now().toEpochMilli();
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
         assertAcked(putLifecycleResponse);
-        long upperBoundCreationDate = Instant.now().toEpochMilli();
+        long upperBoundModifiedDate = Instant.now().toEpochMilli();
 
-        // assert version and creation_date
+        // assert version and modified_date
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
         assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualCreationDate = Instant.parse(responseItem.getCreationDate()).toEpochMilli();
-        assertThat(actualCreationDate,
-            is(both(greaterThanOrEqualTo(lowerBoundCreationDate)).and(lessThanOrEqualTo(upperBoundCreationDate))));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        assertThat(actualModifiedDate,
+            is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))

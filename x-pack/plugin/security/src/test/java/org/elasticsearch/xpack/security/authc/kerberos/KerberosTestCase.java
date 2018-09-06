@@ -135,7 +135,9 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     @After
     public void tearDownMiniKdc() throws IOException, PrivilegedActionException {
-        simpleKdcLdapServer.stop();
+        if (simpleKdcLdapServer != null) {
+            simpleKdcLdapServer.stop();
+        }
     }
 
     /**

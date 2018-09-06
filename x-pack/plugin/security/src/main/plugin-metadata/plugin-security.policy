@@ -59,3 +59,9 @@ grant codeBase "${codebase.httpasyncclient}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };
+
+grant codeBase "${codebase.mina-core}" {
+   // kerberos test simple kdc server component depends on apache mina,
+   // which internally requires this permission
+   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+};

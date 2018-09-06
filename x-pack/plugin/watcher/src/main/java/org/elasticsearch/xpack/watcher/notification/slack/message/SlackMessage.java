@@ -27,16 +27,8 @@ public class SlackMessage implements MessageElement {
     final String from;
     final String[] to;
     final String icon;
-    String text;
-    Attachment[] attachments;
-
-    public SlackMessage(String from, String[] to, String icon) {
-        this(from, to, icon, null, null); // Empty text and empty attachments
-    }
-
-    public SlackMessage(String from, String[] to, String icon, String text) {
-        this(from, to, icon, text, null); // Empty attachments
-    }
+    final String text;
+    final Attachment[] attachments;
 
     public SlackMessage(String from, String[] to, String icon, @Nullable String text, @Nullable Attachment[] attachments) {
         if(text == null && attachments == null) {
@@ -69,10 +61,6 @@ public class SlackMessage implements MessageElement {
     public Attachment[] getAttachments() {
         return attachments;
     }
-
-    public void setText(String text) { this.text = text;}
-
-    public void setAttachments(Attachment[] attachments) { this.attachments = attachments;}
 
     @Override
     public boolean equals(Object o) {
@@ -219,7 +207,7 @@ public class SlackMessage implements MessageElement {
                 attachments.addAll(dynamicAttachments.render(engine, model, defaults.attachment));
             }
             if (attachments == null) {
-                return new SlackMessage(from, to, icon, text);
+                return new SlackMessage(from, to, icon, text, null);
             }
             return new SlackMessage(from, to, icon, text, attachments.toArray(new Attachment[attachments.size()]));
         }

@@ -575,7 +575,7 @@ public class SlackMessageTests extends ESTestCase {
         HttpResponse response = new HttpResponse(500);
         String path = randomAlphaOfLength(20);
         HttpRequest request = HttpRequest.builder("localhost", 1234).path(path).build();
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
         SentMessages sentMessages = new SentMessages("foo",
                 Arrays.asList(SentMessages.SentMessage.responded("recipient", slackMessage, request, response)));
 

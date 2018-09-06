@@ -94,7 +94,7 @@ The maximum duration for which translog files will be kept. Defaults to `12h`.
 
 [WARNING]
 This tool is deprecated and will be completely removed in 7.0.
-Use the <<index-modules-shard-tool,elasticsearch-shard tool>> instead of this one.
+Use the <<shard-tool,elasticsearch-shard tool>> instead of this one.
 
 In some cases (a bad drive, user error) the translog on a shard copy can become
 corrupted. When this corruption is detected by Elasticsearch due to mismatching

@@ -1,4 +1,4 @@
-[[index-modules-shard-tool]]
+[[shard-tool]]
 == elasticsearch-shard
 
 In some cases (a bad drive, user error) the Lucene index or translog on a shard copy can become corrupted.

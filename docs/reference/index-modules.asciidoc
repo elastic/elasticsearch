@@ -273,13 +273,6 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
-[float]
-[[elasticsearch-shard-tool]]
-=== elasticsearch-shard tool
-
-You can use the <<index-modules-shard-tool,shard-tool>> tool to remove corrupted data if a shard cannot be
-recovered automatically or restored from backup.
-
 --
 
 include::index-modules/analysis.asciidoc[]
@@ -297,7 +290,5 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
-
-include::index-modules/shard-tool.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]

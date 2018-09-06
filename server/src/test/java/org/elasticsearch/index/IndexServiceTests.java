@@ -211,7 +211,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                assertEquals(1, search.totalHits);
+                assertEquals(1, search.totalHits.value);
             }
         });
         assertFalse(refreshTask.isClosed());
@@ -224,7 +224,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                assertEquals(2, search.totalHits);
+                assertEquals(2, search.totalHits.value);
             }
         });
         client().prepareIndex("test", "test", "2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
@@ -232,7 +232,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-                assertEquals(3, search.totalHits);
+                assertEquals(3, search.totalHits.value);
             }
         });
     }
@@ -318,7 +318,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             createIndex("test", settings);
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [0ms] for setting [index.translog.sync_interval] must be >= 100ms", ex.getMessage());
+            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
         }
     }
 }

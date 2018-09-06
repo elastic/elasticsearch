@@ -5,19 +5,18 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.LifecyclePolicyResponseItem;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests.randomTestLifecyclePolicy;
 
@@ -26,12 +25,12 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
     @Override
     protected Response createTestInstance() {
         String randomPrefix = randomAlphaOfLength(5);
-        Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>();
+        List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            policyMap.put(randomTestLifecyclePolicy(randomPrefix + i),
-                new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(8)));
+            responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomPrefix + i),
+                randomNonNegativeLong(), randomAlphaOfLength(8)));
         }
-        return new Response(policyMap);
+        return new Response(responseItems);
     }
 
     @Override
@@ -47,17 +46,18 @@ public class GetLifecycleResponseTests extends AbstractStreamableTestCase<GetLif
 
     @Override
     protected Response mutateInstance(Response response) {
-        Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>(response.getPoliciesToMetadata());
-        if (policyMap.size() > 0) {
+        List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>(response.getPolicies());
+        if (responseItems.size() > 0) {
             if (randomBoolean()) {
-                policyMap.put(randomTestLifecyclePolicy(randomAlphaOfLength(5)),
-                    new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(4)));
+                responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(5)),
+                    randomNonNegativeLong(), randomAlphaOfLength(4)));
             } else {
-                policyMap.remove(randomFrom(response.getPoliciesToMetadata().keySet()));
+                responseItems.remove(0);
             }
         } else {
-            policyMap.put(randomTestLifecyclePolicy(randomAlphaOfLength(2)), new Tuple<>(randomNonNegativeLong(), randomAlphaOfLength(4)));
+            responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(2)),
+                randomNonNegativeLong(), randomAlphaOfLength(4)));
         }
-        return new Response(policyMap);
+        return new Response(responseItems);
     }
 }

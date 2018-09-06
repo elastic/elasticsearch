@@ -15,23 +15,20 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.LifecyclePolicyResponseItem;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -73,12 +70,12 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                     requestedPolicies.add(policyMetadata);
                 }
             }
-            Map<LifecyclePolicy, Tuple<Long, String>> policyMap = new HashMap<>(requestedPolicies.size());
+            List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>(requestedPolicies.size());
             for (LifecyclePolicyMetadata policyMetadata : requestedPolicies) {
-                policyMap.put(policyMetadata.getPolicy(),
-                    new Tuple<>(policyMetadata.getVersion(), policyMetadata.getCreationDateString()));
+                responseItems.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
+                    policyMetadata.getVersion(), policyMetadata.getCreationDateString()));
             }
-            listener.onResponse(new Response(policyMap));
+            listener.onResponse(new Response(responseItems));
         }
     }
 

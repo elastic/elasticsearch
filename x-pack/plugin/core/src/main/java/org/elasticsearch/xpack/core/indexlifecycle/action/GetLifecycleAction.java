@@ -11,16 +11,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.List;
 import java.util.Objects;
 
 public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
@@ -38,27 +38,27 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Map<LifecyclePolicy, Tuple<Long, String>> policiesToMetadata;
+        private List<LifecyclePolicyResponseItem> policies;
 
         public Response() {
         }
 
-        public Response(Map<LifecyclePolicy, Tuple<Long, String>> policiesToMetadata) {
-            this.policiesToMetadata = policiesToMetadata;
+        public Response(List<LifecyclePolicyResponseItem> policies) {
+            this.policies = policies;
         }
 
-        public Map<LifecyclePolicy, Tuple<Long, String>> getPoliciesToMetadata() {
-            return policiesToMetadata;
+        public List<LifecyclePolicyResponseItem> getPolicies() {
+            return policies;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<LifecyclePolicy, Tuple<Long, String>> entry : policiesToMetadata.entrySet()) {
-                builder.startObject(entry.getKey().getName());
-                builder.field("version", entry.getValue().v1());
-                builder.field("creation_date", entry.getValue().v2());
-                builder.field("policy", entry.getKey());
+            for (LifecyclePolicyResponseItem item : policies) {
+                builder.startObject(item.getLifecyclePolicy().getName());
+                builder.field("version", item.getVersion());
+                builder.field("creation_date", item.getCreationDate());
+                builder.field("policy", item.getLifecyclePolicy());
                 builder.endObject();
             }
             builder.endObject();
@@ -67,20 +67,17 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policiesToMetadata = in.readMap(LifecyclePolicy::new, (inn) -> new Tuple<>(inn.readVLong(), inn.readString()));
+            this.policies = in.readList(LifecyclePolicyResponseItem::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(policiesToMetadata, (o, policy) -> policy.writeTo(o), (o, tuple) -> {
-                o.writeVLong(tuple.v1());
-                o.writeString(tuple.v2());
-            });
+            out.writeList(policies);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policiesToMetadata);
+            return Objects.hash(policies);
         }
 
         @Override
@@ -92,7 +89,7 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(policiesToMetadata, other.policiesToMetadata);
+            return Objects.equals(policies, other.policies);
         }
 
         @Override
@@ -152,6 +149,63 @@ public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
             }
             Request other = (Request) obj;
             return Arrays.equals(policyNames, other.policyNames);
+        }
+
+    }
+
+    public static class LifecyclePolicyResponseItem implements Writeable {
+        private final LifecyclePolicy lifecyclePolicy;
+        private final long version;
+        private final String creationDate;
+
+        public LifecyclePolicyResponseItem(LifecyclePolicy lifecyclePolicy, long version, String creationDate) {
+            this.lifecyclePolicy = lifecyclePolicy;
+            this.version = version;
+            this.creationDate = creationDate;
+        }
+
+        LifecyclePolicyResponseItem(StreamInput in) throws IOException {
+            this.lifecyclePolicy = new LifecyclePolicy(in);
+            this.version = in.readVLong();
+            this.creationDate = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            lifecyclePolicy.writeTo(out);
+            out.writeVLong(version);
+            out.writeString(creationDate);
+        }
+
+        public LifecyclePolicy getLifecyclePolicy() {
+            return lifecyclePolicy;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+
+        public String getCreationDate() {
+            return creationDate;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(lifecyclePolicy, version, creationDate);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
+                Objects.equals(version, other.version) &&
+                Objects.equals(creationDate, other.creationDate);
         }
 
     }

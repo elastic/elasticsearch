@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -148,12 +147,11 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         // assert version and creation_date
         GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
-        assertThat(getLifecycleResponse.getPoliciesToMetadata().size(), equalTo(1));
-        Map.Entry<LifecyclePolicy, Tuple<Long, String>> getPolicyEntry = getLifecycleResponse.getPoliciesToMetadata().entrySet()
-            .iterator().next();
-        assertThat(getPolicyEntry.getKey(), equalTo(lifecyclePolicy));
-        assertThat(getPolicyEntry.getValue().v1(), equalTo(1L));
-        long actualCreationDate = Instant.parse(getPolicyEntry.getValue().v2()).toEpochMilli();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualCreationDate = Instant.parse(responseItem.getCreationDate()).toEpochMilli();
         assertThat(actualCreationDate,
             is(both(greaterThanOrEqualTo(lowerBoundCreationDate)).and(lessThanOrEqualTo(upperBoundCreationDate))));
 

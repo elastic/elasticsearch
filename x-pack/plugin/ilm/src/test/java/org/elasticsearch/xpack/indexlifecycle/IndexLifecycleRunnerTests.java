@@ -1072,7 +1072,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         MockAsyncActionStep step = new MockAsyncActionStep(stepKey, null);
         step.setWillComplete(true);
         SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap = new TreeMap<>(Collections.singletonMap(policyName,
-            new LifecyclePolicyMetadata(createPolicy(policyName, null, step.getKey()), new HashMap<>())));
+            new LifecyclePolicyMetadata(createPolicy(policyName, null, step.getKey()), new HashMap<>(),
+                randomNonNegativeLong(), randomNonNegativeLong())));
         Index index = new Index("my_index",  "uuid");
         Map<String, Step> firstStepMap = Collections.singletonMap(policyName, step);
         Map<StepKey, Step> policySteps = Collections.singletonMap(step.getKey(), step);

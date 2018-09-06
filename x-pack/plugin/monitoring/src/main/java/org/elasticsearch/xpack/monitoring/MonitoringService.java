@@ -92,7 +92,8 @@ public class MonitoringService extends AbstractLifecycleComponent {
         this.enabled = ENABLED.get(settings);
         this.interval = INTERVAL.get(settings);
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ELASTICSEARCH_COLLECTION_ENABLED, this::setElasticsearchCollectionEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
     }

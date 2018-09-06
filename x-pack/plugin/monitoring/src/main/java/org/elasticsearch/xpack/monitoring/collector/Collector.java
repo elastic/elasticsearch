@@ -50,8 +50,9 @@ public abstract class Collector extends AbstractComponent {
     protected final ClusterService clusterService;
     protected final XPackLicenseState licenseState;
 
-    public Collector(final Settings settings, final String name, final ClusterService clusterService, final MonitoringService monitoringService,
-                     final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
+    public Collector(final Settings settings, final String name, final ClusterService clusterService,
+                     final MonitoringService monitoringService, final Setting<TimeValue> timeoutSetting,
+                        final XPackLicenseState licenseState) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;

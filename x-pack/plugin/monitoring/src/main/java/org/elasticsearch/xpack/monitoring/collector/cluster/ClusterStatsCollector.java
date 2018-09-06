@@ -66,7 +66,8 @@ public class ClusterStatsCollector extends Collector {
                                  final XPackLicenseState licenseState,
                                  final Client client,
                                  final LicenseService licenseService) {
-        this(settings, clusterService, monitoringService, licenseState, client, licenseService, new IndexNameExpressionResolver(Settings.EMPTY));
+        this(settings, clusterService, monitoringService, licenseState, client, licenseService,
+             new IndexNameExpressionResolver(Settings.EMPTY));
     }
 
     ClusterStatsCollector(final Settings settings,

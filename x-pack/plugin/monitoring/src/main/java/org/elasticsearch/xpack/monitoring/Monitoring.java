@@ -141,7 +141,8 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
-        collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client, getLicenseService()));
+        collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client,
+            getLicenseService()));
         collectors.add(new ShardsCollector(settings, clusterService, monitoringService, getLicenseState()));
         collectors.add(new NodeStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
         collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringService, getLicenseState(), client));

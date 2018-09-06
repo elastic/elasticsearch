@@ -48,7 +48,8 @@ public class JobStatsCollector extends Collector {
 
     public JobStatsCollector(final Settings settings, final ClusterService clusterService, final MonitoringService monitoringService,
                              final XPackLicenseState licenseState, final Client client) {
-        this(settings, clusterService, monitoringService, licenseState, new XPackClient(client).machineLearning(), client.threadPool().getThreadContext());
+        this(settings, clusterService, monitoringService, licenseState, new XPackClient(client).machineLearning(),
+             client.threadPool().getThreadContext());
     }
 
     JobStatsCollector(final Settings settings, final ClusterService clusterService, final MonitoringService monitoringService,

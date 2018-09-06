@@ -33,7 +33,7 @@ The following example gets a watch with `my-watch` id:
 GET _xpack/watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 Response:
 

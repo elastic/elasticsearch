@@ -84,6 +84,7 @@ watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
 GET _xpack/watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 The action state of a newly-created watch is `awaits_successful_execution`:
 
@@ -230,6 +231,7 @@ comma-separated list of action ids:
 POST _xpack/watcher/watch/my_watch/_ack/action1,action2
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 To acknowledge all of the actions of a watch, simply omit the `actions`
 parameter:
@@ -238,8 +240,13 @@ parameter:
 --------------------------------------------------
 POST _xpack/watcher/watch/my_watch/_ack
 --------------------------------------------------
-// TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
 // CONSOLE
+// TEST[skip:non-compliant license]
+
+////
+//After testing is re-enabled:
+// [s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
+////
 
 
 The response looks like a get watch response, but only contains the status:

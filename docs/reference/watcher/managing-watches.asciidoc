@@ -35,4 +35,4 @@ GET .watches/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]

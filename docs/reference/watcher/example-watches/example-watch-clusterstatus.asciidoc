@@ -34,6 +34,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds to you can easily see the watches being triggered.
     Since this watch runs so frequently, don't forget to <<health-delete, delete the watch>>
@@ -71,6 +72,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 If you're using Security, then you'll also need to supply some authentication credentials as part of the watch configuration:
 
@@ -99,6 +101,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 It would be a good idea to create a user with the minimum privileges required for use with such a watch configuration.
 
@@ -158,6 +161,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds to you can easily see the watches being triggered.
 
@@ -224,6 +228,7 @@ PUT _xpack/watcher/watch/cluster_health_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 For {watcher} to send email, you must configure an email account in your
 `elasticsearch.yml` configuration file and restart Elasticsearch. To add an email

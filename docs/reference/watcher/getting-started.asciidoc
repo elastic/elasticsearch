@@ -50,6 +50,7 @@ PUT _xpack/watcher/watch/log_error_watch
 }
 ------------------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds so you can easily see the watches being triggered.
     Since this watch runs so frequently, don't forget to <<log-delete, delete the watch>>
@@ -109,6 +110,7 @@ PUT _xpack/watcher/watch/log_error_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> The {xpack-ref}/condition-compare.html[compare] condition lets you easily compare against
     values in the execution context.
 
@@ -195,6 +197,7 @@ PUT _xpack/watcher/watch/log_error_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 [float]
 [[log-delete]]

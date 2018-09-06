@@ -46,7 +46,7 @@ The following example deletes a watch with the `my-watch` id:
 DELETE _xpack/watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 Response:
 

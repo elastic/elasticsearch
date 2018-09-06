@@ -141,7 +141,7 @@ The following example executes the `my_watch` watch:
 POST _xpack/watcher/watch/my_watch/_execute
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 The following example shows a comprehensive example of executing the `my-watch` watch:
 
@@ -164,7 +164,7 @@ POST _xpack/watcher/watch/my_watch/_execute
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 <1> The triggered and schedule times are provided.
 <2> The input as defined by the watch is ignored and instead the provided input
     is used as the execution payload.
@@ -299,7 +299,7 @@ POST _xpack/watcher/watch/my_watch/_execute
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 You can also associate a single execution mode with all the actions in the watch
 using `_all` as the action id:
@@ -314,7 +314,7 @@ POST _xpack/watcher/watch/my_watch/_execute
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 The following example shows how to execute a watch inline:
 
@@ -350,6 +350,7 @@ POST _xpack/watcher/watch/_execute
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 All other settings for this API still apply when inlining a watch. In the
 following snippet, while the inline watch defines a `compare` condition,
@@ -388,3 +389,4 @@ POST _xpack/watcher/watch/_execute
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]

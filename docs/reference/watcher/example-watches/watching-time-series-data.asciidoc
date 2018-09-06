@@ -206,9 +206,14 @@ PUT _xpack/watcher/watch/rss_watch
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total > params.threshold"/]
+// TEST[skip:non-compliant license]
 <1> Replace `<username>@<domainname>` with your email address to receive
     notifications.
+
+////
+//After testing is re-enabled:
+// [s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total > params.threshold"/]
+////
 
 [TIP]
 =================================================

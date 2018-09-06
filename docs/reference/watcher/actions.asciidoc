@@ -93,6 +93,7 @@ PUT _xpack/watcher/watch/error_logs_alert
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> There will be at least 15 minutes between subsequent `email_administrator`
 		action executions.
 <2> See <<actions-email, Email Action>> for more information.
@@ -152,6 +153,7 @@ PUT _xpack/watcher/watch/log_event_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:skip:non-compliant license]
 
 <1> There will be at least 15 minutes between subsequent action executions
 		(applies to both `email_administrator` and `notify_pager` actions)
@@ -257,6 +259,7 @@ PUT _xpack/watcher/watch/log_event_watch
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).

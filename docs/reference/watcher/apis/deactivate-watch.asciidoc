@@ -34,7 +34,7 @@ call the <<watcher-api-get-watch, Get Watch API>>:
 GET _xpack/watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 [source,js]
 --------------------------------------------------
@@ -65,7 +65,7 @@ You can deactivate the watch by executing the following API call:
 PUT _xpack/watcher/watch/my_watch/_deactivate
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:my_active_watch]
+// TEST[skip:non-compliant license, setup my_active_watch]
 
 The new state of the watch is returned as part of its overall status:
 

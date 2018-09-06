@@ -291,6 +291,7 @@ PUT _xpack/watcher/watch/meetup
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 
 <1> The email body can include Mustache templates to reference data in the watch payload. By default,it will be <<email-html-sanitization, sanitized>> to block dangerous content.
 <2> Replace the `from` address with the email address you configured in `elasticsearch.yml`.

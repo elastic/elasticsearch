@@ -1100,7 +1100,7 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
-setups['my_inactive_watch'] = '''
+buildRestTests.setups['my_inactive_watch'] = '''
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"
@@ -1135,5 +1135,5 @@ setups['my_inactive_watch'] = '''
           }
   - match: { _id: "my_watch" }
 '''
-setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+buildRestTests.setups['my_active_watch'] = buildRestTests.setups['my_inactive_watch'].replace(
         'active: false', 'active: true')

@@ -113,6 +113,7 @@ PUT _xpack/watcher/watch/log_errors
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:non-compliant license]
 <1> Metadata  - You can attach optional static metadata to a watch.
 <2> Trigger   - This schedule trigger executes the watch every 5 minutes.
 <3> Input     - This input searches for errors in the `log-events` index and

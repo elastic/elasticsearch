@@ -42,10 +42,13 @@ import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -56,10 +59,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.regex.Pattern;
-
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -129,9 +133,34 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private ThreadContext threadContext;
     private boolean includeRequestBody;
     private Map<String, String> commonFields;
-    private PatternLayout patternLayout;
     private Logger logger;
     private LoggingAuditTrail auditTrail;
+    private static PatternLayout patternLayout;
+
+    @BeforeClass
+    public static void lookupPatternLayout() throws Exception {
+        final Properties properties = new Properties();
+        try (InputStream configStream = LoggingAuditTrail.class.getClassLoader().getResourceAsStream("log4j2.properties")) {
+            properties.load(configStream);
+        }
+        // This is a minimal and brittle parsing of the security log4j2 config
+        // properties. If any of these fails, then surely the config file changed. In
+        // this case adjust the assertions! The goal of this assertion chain is to
+        // validate that the layout pattern we are testing with is indeed the one
+        // attached to the LoggingAuditTrail.class logger.
+        assertThat(properties.getProperty("logger.xpack_security_audit_logfile.name"), is(LoggingAuditTrail.class.getName()));
+        assertThat(properties.getProperty("logger.xpack_security_audit_logfile.appenderRef.audit_rolling.ref"), is("audit_rolling"));
+        assertThat(properties.getProperty("appender.audit_rolling.name"), is("audit_rolling"));
+        assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
+        final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
+        assertThat(patternLayoutFormat, is(notNullValue()));
+        patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+    }
+
+    @AfterClass
+    public static void releasePatternLayout() {
+        patternLayout = null;
+    }
 
     @Before
     public void init() throws Exception {
@@ -158,37 +187,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
         }
-        patternLayout = PatternLayout.newBuilder().withPattern(
-                "{" +
-                "\"@timestamp\":\"%d{ISO8601}\"" +
-                "%varsNotEmpty{, \"node.name\":\"%enc{%map{node.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"host.name\":\"%enc{%map{host.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"host.ip\":\"%enc{%map{host.ip}}{JSON}\"}" +
-                "%varsNotEmpty{, \"event.type\":\"%enc{%map{event.type}}{JSON}\"}" +
-                "%varsNotEmpty{, \"event.action\":\"%enc{%map{event.action}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.name\":\"%enc{%map{user.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.run_by.name\":\"%enc{%map{user.run_by.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.run_as.name\":\"%enc{%map{user.run_as.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.realm\":\"%enc{%map{user.realm}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.run_by.realm\":\"%enc{%map{user.run_by.realm}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.run_as.realm\":\"%enc{%map{user.run_as.realm}}{JSON}\"}" +
-                "%varsNotEmpty{, \"user.roles\":%map{user.roles}}" +
-                "%varsNotEmpty{, \"origin.type\":\"%enc{%map{origin.type}}{JSON}\"}" +
-                "%varsNotEmpty{, \"origin.address\":\"%enc{%map{origin.address}}{JSON}\"}" +
-                "%varsNotEmpty{, \"realm\":\"%enc{%map{realm}}{JSON}\"}" +
-                "%varsNotEmpty{, \"url.path\":\"%enc{%map{url.path}}{JSON}\"}" +
-                "%varsNotEmpty{, \"url.query\":\"%enc{%map{url.query}}{JSON}\"}" +
-                "%varsNotEmpty{, \"request.body\":\"%enc{%map{request.body}}{JSON}\"}" +
-                "%varsNotEmpty{, \"action\":\"%enc{%map{action}}{JSON}\"}" +
-                "%varsNotEmpty{, \"request.name\":\"%enc{%map{request.name}}{JSON}\"}" +
-                "%varsNotEmpty{, \"indices\":%map{indices}}" +
-                "%varsNotEmpty{, \"opaque_id\":\"%enc{%map{opaque_id}}{JSON}\"}" +
-                "%varsNotEmpty{, \"transport.profile\":\"%enc{%map{transport.profile}}{JSON}\"}" +
-                "%varsNotEmpty{, \"rule\":\"%enc{%map{rule}}{JSON}\"}" +
-                "%varsNotEmpty{, \"event.category\":\"%enc{%map{event.category}}{JSON}\"}" +
-                "}%n")
-                .withCharset(StandardCharsets.UTF_8)
-                .build();
         logger = CapturingLogger.newCapturingLogger(Level.INFO, patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
     }

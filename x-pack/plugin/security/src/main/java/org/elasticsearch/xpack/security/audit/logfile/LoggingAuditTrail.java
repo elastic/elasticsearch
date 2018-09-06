@@ -75,11 +75,12 @@ import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestConten
 
 public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
 
-    // WARNING: changing any of this requires changing the log4j2.properties file too
     public static final String REST_ORIGIN_FIELD_VALUE = "rest";
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
     public static final String IP_FILTER_ORIGIN_FIELD_VALUE = "ip_filter";
+
+    // changing any of this names requires changing the log4j2.properties file too
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String ORIGIN_ADDRESS_FIELD_NAME = "origin.address";
     public static final String NODE_NAME_FIELD_NAME = "node.name";

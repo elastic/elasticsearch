@@ -29,17 +29,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,10 +51,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
-    }
 
     @Before
     public void setup() throws Exception {
@@ -198,41 +190,6 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1", "2", "3");
         assertHitCount(resp, 3L);
     }
-
-    public void testAllFields() throws Exception {
-        String indexBodyWithAll = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index-with-all.json");
-        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
-
-        // Defaults to index.query.default_field=_all
-        prepareCreate("test_1").setSource(indexBodyWithAll, XContentType.JSON).get();
-        Settings.Builder settings = Settings.builder().put("index.query.default_field", "*");
-        prepareCreate("test_2").setSource(indexBody, XContentType.JSON).setSettings(settings).get();
-        ensureGreen("test_1","test_2");
-
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("test_1", "_doc", "1").setSource("f1", "foo", "f2", "eggplant"));
-        reqs.add(client().prepareIndex("test_2", "_doc", "1").setSource("f1", "foo", "f2", "eggplant"));
-        indexRandom(true, false, reqs);
-
-        SearchResponse resp = client().prepareSearch("test_1").setQuery(
-            queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
-        assertHitCount(resp, 0L);
-
-        resp = client().prepareSearch("test_2").setQuery(
-            queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
-        assertHitCount(resp, 0L);
-
-        resp = client().prepareSearch("test_1").setQuery(
-            queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-
-        resp = client().prepareSearch("test_2").setQuery(
-            queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
-        assertHits(resp.getHits(), "1");
-        assertHitCount(resp, 1L);
-    }
-
 
     public void testPhraseQueryOnFieldWithNoPositions() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -420,7 +377,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
-    private void assertHits(SearchHits hits, String... ids) {
+    static void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {

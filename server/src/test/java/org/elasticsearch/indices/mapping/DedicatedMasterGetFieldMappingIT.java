@@ -29,6 +29,11 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     @Before
     public void before1() throws Exception {
         Settings settings = Settings.builder()

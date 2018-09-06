@@ -19,15 +19,9 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -39,14 +33,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,7 +48,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -71,63 +62,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(InternalSettingsPlugin.class);
-    }
-
-    /**
-     * Asserts that the root cause of mapping conflicts is readable.
-     */
-    public void testMappingConflictRootCause() throws Exception {
-        CreateIndexRequestBuilder b = prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_6_9)));
-        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
-            .startObject("text")
-            .field("type", "text")
-            .field("analyzer", "standard")
-            .field("search_analyzer", "whitespace")
-            .endObject().endObject().endObject());
-        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
-            .startObject("text")
-            .field("type", "text")
-            .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
-    }
-
-    public void testDynamicUpdates() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
-                                .put("index.version.created", Version.V_5_6_0) // for multiple types
-                ).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        int recCount = randomIntBetween(200, 600);
-        int numberOfTypes = randomIntBetween(1, 5);
-        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-        for (int rec = 0; rec < recCount; rec++) {
-            String type = "type" + (rec % numberOfTypes);
-            String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec)).setSource(fieldName, "some_value"));
-        }
-        indexRandom(true, indexRequests);
-
-        logger.info("checking all the documents are there");
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
-        assertThat(response.getHits().getTotalHits(), equalTo((long) recCount));
-
-        logger.info("checking all the fields are in the mappings");
-
-        for (int rec = 0; rec < recCount; rec++) {
-            String type = "type" + (rec % numberOfTypes);
-            String fieldName = "field_" + type + "_" + rec;
-            assertConcreteMappingsOnAll("test", type, fieldName);
-        }
     }
 
     public void testUpdateMappingWithoutType() {
@@ -369,23 +303,4 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testUpdateMappingOnAllTypes() {
-        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        assertAcked(prepareCreate("index")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
-
-        assertAcked(client().admin().indices().preparePutMapping("index")
-                .setType("type1")
-                .setUpdateAllTypes(true)
-                .setSource("f", "type=keyword,null_value=n/a")
-                .get());
-
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
-        MappingMetaData type2Mapping = mappings.getMappings().get("index").get("type2").get();
-        Map<String, Object> properties = (Map<String, Object>) type2Mapping.sourceAsMap().get("properties");
-        Map<String, Object> f = (Map<String, Object>) properties.get("f");
-        assertEquals("n/a", f.get("null_value"));
-    }
 }

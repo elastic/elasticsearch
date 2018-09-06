@@ -26,12 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -43,8 +38,8 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     private static final String TYPE = "type";
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     protected void testConflict(String mapping, String mappingUpdate, Version idxVersion, String... errorMessages) throws InterruptedException {

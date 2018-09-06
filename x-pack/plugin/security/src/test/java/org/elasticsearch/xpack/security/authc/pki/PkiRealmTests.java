@@ -65,7 +65,8 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testTokenSupport() {
-        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("", Settings.EMPTY, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         PkiRealm realm = new PkiRealm(config, mock(UserRoleMapper.class));
 
         assertThat(realm.supports(null), is(false));
@@ -152,8 +153,8 @@ public class PkiRealmTests extends ESTestCase {
     public void testCustomUsernamePattern() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)),
-                roleMapper);
+        PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)), roleMapper);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());

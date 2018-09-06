@@ -61,9 +61,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     private static SimilarityService createSimilarityService(Settings settings) {
         IndexMetaData indexMetadata = new IndexMetaData.Builder("index").settings(
                 Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0).build()).build();
+                        .put("index.version.created", Version.CURRENT)
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0).build()).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SimilarityService(indexSettings, null, Collections.emptyMap());
     }

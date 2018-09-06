@@ -430,7 +430,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
@@ -438,7 +438,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         // ignore null values
         if (token == Token.VALUE_NULL) {
-            return null;
+            return;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -477,7 +477,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             context.doc().add(field);
         }
         multiFields.parse(this, context);
-        return null;
     }
 
     /**

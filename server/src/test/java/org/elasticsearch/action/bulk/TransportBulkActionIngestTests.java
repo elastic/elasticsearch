@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,9 +89,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     ClusterService clusterService;
     IngestService ingestService;
 
-    /** The ingest execution service we can capture calls to */
-    PipelineExecutionService executionService;
-
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
     ArgumentCaptor<BiConsumer<IndexRequest, Exception>> failureHandler;
@@ -101,7 +97,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
     @Captor
-    ArgumentCaptor<Iterable<DocWriteRequest>> bulkDocsItr;
+    ArgumentCaptor<Iterable<DocWriteRequest<?>>> bulkDocsItr;
 
     /** The actual action we want to test, with real indexing mocked */
     TestTransportBulkAction action;
@@ -207,8 +203,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
-        executionService = mock(PipelineExecutionService.class);
-        when(ingestService.getPipelineExecutionService()).thenReturn(executionService);
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -265,12 +259,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(executionService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
         // now check success
-        Iterator<DocWriteRequest> req = bulkDocsItr.getValue().iterator();
+        Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
         failureHandler.getValue().accept((IndexRequest)req.next(), exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         completionHandler.getValue().accept(null);
@@ -299,7 +293,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(executionService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
@@ -331,7 +325,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         action.execute(null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(executionService, never()).executeBulkRequest(any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -375,7 +369,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         singleItemBulkWriteAction.execute(null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(executionService, never()).executeBulkRequest(any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -423,7 +417,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(executionService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 
@@ -455,7 +449,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(executionService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture());
         completionHandler.getValue().accept(exception);
         assertTrue(failureCalled.get());
 

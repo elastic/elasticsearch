@@ -23,12 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -38,8 +33,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 public class AllFieldIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void test5xIndicesContinueToUseAll() throws Exception {

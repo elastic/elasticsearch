@@ -44,8 +44,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends ActionRequest {
 
     public static final int SIZE_ALL_MATCHES = -1;
-    static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    static final int DEFAULT_SCROLL_SIZE = 1000;
+    public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
+    public static final int DEFAULT_SCROLL_SIZE = 1000;
 
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";

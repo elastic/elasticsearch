@@ -66,7 +66,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -213,6 +215,7 @@ public class RestHighLevelClient implements Closeable {
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
+    private final SecurityClient securityClient = new SecurityClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -373,6 +376,20 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Provides methods for accessing the Elastic Licensed Security APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
+     * Security APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Security API calls
+     */
+    public SecurityClient security() {
+        return securityClient;
+    }
+
+    /**
      * Executes a bulk request using the Bulk API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      * @param bulkRequest the request
@@ -441,6 +458,64 @@ public class RestHighLevelClient implements Closeable {
     public final void reindexAsync(ReindexRequest reindexRequest, RequestOptions options, ActionListener<BulkByScrollResponse> listener) {
         performRequestAsyncAndParseEntity(
             reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
+    }
+
+    /**
+     * Executes a update by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param updateByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes an update by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void updateByQueryAsync(UpdateByQueryRequest reindexRequest, RequestOptions options,
+                                   ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
+    }
+
+    /**
+     * Executes a delete by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param deleteByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes a delete by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void deleteByQueryAsync(DeleteByQueryRequest reindexRequest, RequestOptions options,
+                                         ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
         );
     }
 

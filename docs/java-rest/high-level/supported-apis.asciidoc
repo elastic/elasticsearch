@@ -16,6 +16,8 @@ Multi-document APIs::
 * <<java-rest-high-document-bulk>>
 * <<java-rest-high-document-multi-get>>
 * <<java-rest-high-document-reindex>>
+* <<java-rest-high-document-update-by-query>>
+* <<java-rest-high-document-delete-by-query>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
@@ -25,6 +27,8 @@ include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
+include::document/update-by-query.asciidoc[]
+include::document/delete-by-query.asciidoc[]
 
 == Search APIs
 
@@ -216,6 +220,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-get-buckets>>
 * <<java-rest-high-x-pack-ml-get-overall-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
+* <<java-rest-high-x-pack-ml-get-influencers>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -227,6 +232,7 @@ include::ml/get-job-stats.asciidoc[]
 include::ml/get-buckets.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
+include::ml/get-influencers.asciidoc[]
 
 == Migration APIs
 

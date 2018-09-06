@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.template;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -38,20 +37,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -70,11 +63,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
-    }
 
     @After
     public void cleanupTemplates() {
@@ -377,60 +365,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertNull(getSettingsResponse.getIndexToSettings().get("test").get("index.does_not_exist"));
-    }
-
-    public void testIndexTemplateWithAliases() throws Exception {
-
-        client().admin().indices().preparePutTemplate("template_with_aliases")
-                .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}", XContentType.JSON)
-                .addAlias(new Alias("simple_alias"))
-                .addAlias(new Alias("templated_alias-{index}"))
-                .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
-                .addAlias(new Alias("complex_filtered_alias")
-                        .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ")))
-                .get();
-
-        assertAcked(prepareCreate("test_index")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allow for multiple version
-                .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
-        ensureGreen();
-
-        client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
-        client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
-        client().prepareIndex("test_index", "typeX", "3").setSource("field", "C value").get();
-        client().prepareIndex("test_index", "typeY", "4").setSource("field", "D value").get();
-        client().prepareIndex("test_index", "typeZ", "5").setSource("field", "E value").get();
-
-        GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
-        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(4));
-
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("simple_alias").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("templated_alias-test_index").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("filtered_alias").get();
-        assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
-
-        // Search the complex filter alias
-        searchResponse = client().prepareSearch("complex_filtered_alias").get();
-        assertHitCount(searchResponse, 3L);
-
-        Set<String> types = new HashSet<>();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            types.add(searchHit.getType());
-        }
-        assertThat(types.size(), equalTo(3));
-        assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
     }
 
     public void testIndexTemplateWithAliasesInSource() {

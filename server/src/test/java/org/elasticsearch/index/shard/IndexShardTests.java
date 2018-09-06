@@ -1704,7 +1704,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    public void testRecoverFromStalePrimary() throws IOException {
+    public void testRecoverFromStalePrimaryForceNewHistoryUUID() throws IOException {
         final IndexShard shard = newStartedShard(true);
         int totalOps = randomInt(10);
         for (int i = 0; i < totalOps; i++) {

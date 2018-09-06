@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,7 +27,7 @@ import java.util.TreeMap;
 /**
  * Stores the file format determined by Machine Learning.
  */
-public class FileStructure implements ToXContentObject {
+public class FileStructure implements ToXContentObject, Writeable {
 
     public enum Format {
 
@@ -78,6 +81,8 @@ public class FileStructure implements ToXContentObject {
             return name().toLowerCase(Locale.ROOT);
         }
     }
+
+    public static final String EXPLAIN = "explain";
 
     static final ParseField NUM_LINES_ANALYZED = new ParseField("num_lines_analyzed");
     static final ParseField NUM_MESSAGES_ANALYZED = new ParseField("num_messages_analyzed");
@@ -174,6 +179,66 @@ public class FileStructure implements ToXContentObject {
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
         this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
+    }
+
+    public FileStructure(StreamInput in) throws IOException {
+        numLinesAnalyzed = in.readVInt();
+        numMessagesAnalyzed = in.readVInt();
+        sampleStart = in.readString();
+        charset = in.readString();
+        hasByteOrderMarker = in.readOptionalBoolean();
+        format = in.readEnum(Format.class);
+        multilineStartPattern = in.readOptionalString();
+        excludeLinesPattern = in.readOptionalString();
+        inputFields = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        hasHeaderRow = in.readOptionalBoolean();
+        delimiter = in.readBoolean() ? (char) in.readVInt() : null;
+        shouldTrimFields = in.readOptionalBoolean();
+        grokPattern = in.readOptionalString();
+        timestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        timestampField = in.readOptionalString();
+        needClientTimezone = in.readBoolean();
+        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
+        explanation = Collections.unmodifiableList(in.readList(StreamInput::readString));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(numLinesAnalyzed);
+        out.writeVInt(numMessagesAnalyzed);
+        out.writeString(sampleStart);
+        out.writeString(charset);
+        out.writeOptionalBoolean(hasByteOrderMarker);
+        out.writeEnum(format);
+        out.writeOptionalString(multilineStartPattern);
+        out.writeOptionalString(excludeLinesPattern);
+        if (inputFields == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeCollection(inputFields, StreamOutput::writeString);
+        }
+        out.writeOptionalBoolean(hasHeaderRow);
+        if (delimiter == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(delimiter);
+        }
+        out.writeOptionalBoolean(shouldTrimFields);
+        out.writeOptionalString(grokPattern);
+        if (timestampFormats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeCollection(timestampFormats, StreamOutput::writeString);
+        }
+        out.writeOptionalString(timestampField);
+        out.writeBoolean(needClientTimezone);
+        out.writeMap(mappings);
+        out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeCollection(explanation, StreamOutput::writeString);
     }
 
     public int getNumLinesAnalyzed() {
@@ -300,7 +365,9 @@ public class FileStructure implements ToXContentObject {
             }
             builder.endObject();
         }
-        builder.field(EXPLANATION.getPreferredName(), explanation);
+        if (params.paramAsBoolean(EXPLAIN, false)) {
+            builder.field(EXPLANATION.getPreferredName(), explanation);
+        }
         builder.endObject();
 
         return builder;

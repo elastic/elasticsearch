@@ -17,6 +17,13 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+integTestCluster {
+  setting 'node.name', null
+}
+
 integTestRunner {
   systemProperty 'tests.logfile',
     "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"

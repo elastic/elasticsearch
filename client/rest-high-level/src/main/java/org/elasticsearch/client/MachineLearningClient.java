@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
@@ -499,6 +501,52 @@ public final class MachineLearningClient {
                 GetRecordsResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Sends data to an anomaly detection job for analysis.
+     *
+     * NOTE: The job must have a state of open to receive and process the data.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html">ML POST Data documentation</a>
+     * </p>
+     *
+     * @param request PostDataRequest containing the data to post and some additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing operational progress about the job
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PostDataResponse postData(PostDataRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::postData,
+            options,
+            PostDataResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Sends data to an anomaly detection job for analysis, asynchronously
+     *
+     * NOTE: The job must have a state of open to receive and process the data.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html">ML POST Data documentation</a>
+     * </p>
+     *
+     * @param request PostDataRequest containing the data to post and some additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void postDataAsync(PostDataRequest request, RequestOptions options, ActionListener<PostDataResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::postData,
+            options,
+            PostDataResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

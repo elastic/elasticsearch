@@ -22,10 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,6 +39,8 @@ import static java.util.Collections.emptyList;
  */
 public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bucket> {
     public static final String NAME = "umterms";
+
+    private boolean delegatedReduction = false;
 
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
@@ -97,10 +99,22 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (!(agg instanceof UnmappedTerms)) {
+                delegatedReduction = true;
                 return agg.reduce(aggregations, reduceContext);
             }
         }
         return this;
+    }
+
+    @Override
+    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
+                                                ReduceContext reduceContext) {
+        // If we delegated away the reduction, another aggregation has already run
+        // pipeline aggs and we should just return the current tree
+       if (delegatedReduction) {
+           return reducedAggregations;
+       }
+       return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
     }
 
     @Override

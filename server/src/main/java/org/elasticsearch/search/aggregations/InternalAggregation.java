@@ -134,14 +134,20 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
         if (reduceContext.isFinalReduce()) {
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
-            }
+            aggResult = doPipelineReduce(aggResult, aggregations, reduceContext);
         }
         return aggResult;
     }
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+
+    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
+                                                ReduceContext reduceContext) {
+        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+            reducedAggregations = pipelineAggregator.reduce(reducedAggregations, reduceContext);
+        }
+        return reducedAggregations;
+    }
 
     /**
      * Get the value of specified path in the aggregation.

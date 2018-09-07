@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
@@ -59,8 +60,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean needsScores() {
-        return true; // TODO: how can we know if the script relies on scores?
+    public ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE; // TODO: how can we know if the script relies on scores?
     }
 
     @Override

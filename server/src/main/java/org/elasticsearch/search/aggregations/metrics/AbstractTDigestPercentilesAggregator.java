@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -63,8 +64,8 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     }
 
     @Override
-    public boolean needsScores() {
-        return valuesSource != null && valuesSource.needsScores();
+    public ScoreMode scoreMode() {
+        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override

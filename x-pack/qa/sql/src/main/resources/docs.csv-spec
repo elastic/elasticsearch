@@ -148,7 +148,7 @@ emp            |BASE TABLE
 // end::showTablesLikeMixed
 ;
 
-showTablesLikeEscape
+showTablesLikeEscape-Ignore
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
@@ -183,88 +183,88 @@ SHOW FUNCTIONS;
 
       name      |     type      
 ----------------+---------------
-AVG             |AGGREGATE      
-COUNT           |AGGREGATE      
-MAX             |AGGREGATE      
-MIN             |AGGREGATE      
-SUM             |AGGREGATE      
-STDDEV_POP      |AGGREGATE      
-VAR_POP         |AGGREGATE      
-PERCENTILE      |AGGREGATE      
-PERCENTILE_RANK |AGGREGATE      
-SUM_OF_SQUARES  |AGGREGATE      
-SKEWNESS        |AGGREGATE      
-KURTOSIS        |AGGREGATE      
-DAY_OF_MONTH    |SCALAR         
-DAY             |SCALAR         
-DOM             |SCALAR         
-DAY_OF_WEEK     |SCALAR         
-DOW             |SCALAR         
-DAY_OF_YEAR     |SCALAR         
-DOY             |SCALAR         
-HOUR_OF_DAY     |SCALAR         
-HOUR            |SCALAR         
-MINUTE_OF_DAY   |SCALAR         
-MINUTE_OF_HOUR  |SCALAR         
-MINUTE          |SCALAR         
-SECOND_OF_MINUTE|SCALAR         
-SECOND          |SCALAR         
-MONTH_OF_YEAR   |SCALAR         
-MONTH           |SCALAR         
-YEAR            |SCALAR         
-WEEK_OF_YEAR    |SCALAR         
-WEEK            |SCALAR         
-ABS             |SCALAR         
-ACOS            |SCALAR         
-ASIN            |SCALAR         
-ATAN            |SCALAR         
-ATAN2           |SCALAR         
-CBRT            |SCALAR         
-CEIL            |SCALAR         
-CEILING         |SCALAR         
-COS             |SCALAR         
-COSH            |SCALAR         
-COT             |SCALAR         
-DEGREES         |SCALAR         
-E               |SCALAR         
-EXP             |SCALAR         
-EXPM1           |SCALAR         
-FLOOR           |SCALAR         
-LOG             |SCALAR         
-LOG10           |SCALAR         
-MOD             |SCALAR         
-PI              |SCALAR         
-POWER           |SCALAR         
-RADIANS         |SCALAR         
-RANDOM          |SCALAR         
-RAND            |SCALAR         
-ROUND           |SCALAR         
-SIGN            |SCALAR         
-SIGNUM          |SCALAR         
-SIN             |SCALAR         
-SINH            |SCALAR         
-SQRT            |SCALAR         
-TAN             |SCALAR         
-ASCII           |SCALAR         
-CHAR            |SCALAR         
-BIT_LENGTH      |SCALAR         
-CHAR_LENGTH     |SCALAR         
-LCASE           |SCALAR         
-LENGTH          |SCALAR         
-LTRIM           |SCALAR         
-RTRIM           |SCALAR         
-SPACE           |SCALAR         
-UCASE           |SCALAR         
-CONCAT          |SCALAR         
-INSERT          |SCALAR         
-LEFT            |SCALAR         
-LOCATE          |SCALAR         
-POSITION        |SCALAR         
-REPEAT          |SCALAR         
-REPLACE         |SCALAR         
-RIGHT           |SCALAR         
-SUBSTRING       |SCALAR         
-SCORE           |SCORE   
+AVG             |AGGREGATE
+COUNT           |AGGREGATE
+MAX             |AGGREGATE
+MIN             |AGGREGATE
+SUM             |AGGREGATE
+STDDEV_POP      |AGGREGATE
+VAR_POP         |AGGREGATE
+PERCENTILE      |AGGREGATE
+PERCENTILE_RANK |AGGREGATE
+SUM_OF_SQUARES  |AGGREGATE
+SKEWNESS        |AGGREGATE
+KURTOSIS        |AGGREGATE
+DAY_OF_MONTH    |SCALAR
+DAY             |SCALAR
+DOM             |SCALAR
+DAY_OF_WEEK     |SCALAR
+DOW             |SCALAR
+DAY_OF_YEAR     |SCALAR
+DOY             |SCALAR
+HOUR_OF_DAY     |SCALAR
+HOUR            |SCALAR
+MINUTE_OF_DAY   |SCALAR
+MINUTE_OF_HOUR  |SCALAR
+MINUTE          |SCALAR
+SECOND_OF_MINUTE|SCALAR
+SECOND          |SCALAR
+MONTH_OF_YEAR   |SCALAR
+MONTH           |SCALAR
+YEAR            |SCALAR
+WEEK_OF_YEAR    |SCALAR
+WEEK            |SCALAR
+ABS             |SCALAR
+ACOS            |SCALAR
+ASIN            |SCALAR
+ATAN            |SCALAR
+ATAN2           |SCALAR
+CBRT            |SCALAR
+CEIL            |SCALAR
+CEILING         |SCALAR
+COS             |SCALAR
+COSH            |SCALAR
+COT             |SCALAR
+DEGREES         |SCALAR
+E               |SCALAR
+EXP             |SCALAR
+EXPM1           |SCALAR
+FLOOR           |SCALAR
+LOG             |SCALAR
+LOG10           |SCALAR
+MOD             |SCALAR
+PI              |SCALAR
+POWER           |SCALAR
+RADIANS         |SCALAR
+RANDOM          |SCALAR
+RAND            |SCALAR
+ROUND           |SCALAR
+SIGN            |SCALAR
+SIGNUM          |SCALAR
+SIN             |SCALAR
+SINH            |SCALAR
+SQRT            |SCALAR
+TAN             |SCALAR
+ASCII           |SCALAR
+CHAR            |SCALAR
+BIT_LENGTH      |SCALAR
+CHAR_LENGTH     |SCALAR
+LCASE           |SCALAR
+LENGTH          |SCALAR
+LTRIM           |SCALAR
+RTRIM           |SCALAR
+SPACE           |SCALAR
+CONCAT          |SCALAR
+INSERT          |SCALAR
+LEFT            |SCALAR
+LOCATE          |SCALAR
+POSITION        |SCALAR
+REPEAT          |SCALAR
+REPLACE         |SCALAR
+RIGHT           |SCALAR
+SUBSTRING       |SCALAR
+UCASE           |SCALAR
+SCORE           |SCORE
 
 // end::showFunctions
 ;
@@ -331,7 +331,7 @@ MINUTE_OF_DAY  |SCALAR
 
 selectColumnAlias
 // tag::selectColumnAlias
-SELECT 1 + 1 AS result
+SELECT 1 + 1 AS result;
 
     result     
 ---------------
@@ -503,18 +503,19 @@ groupByMulti
 // tag::groupByMulti
 SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
 
-       g       |       l       |       c       
+       g       |       l       |       c
 ---------------+---------------+---------------
-F              |2              |4              
-F              |3              |8              
-F              |4              |7              
-F              |5              |7              
-F              |6              |11             
-M              |2              |12             
-M              |3              |12             
-M              |4              |15             
-M              |5              |11             
-M              |6              |13       
+M              |1              |12
+F              |1              |4
+M              |2              |12
+F              |2              |8
+M              |3              |15
+F              |3              |7
+M              |4              |11
+F              |4              |7
+M              |5              |13
+F              |5              |11 
+
 
 // end::groupByMulti
 ;
@@ -658,7 +659,7 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
 
 orderByScore
 // tag::orderByScore
-SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY SCORE() DESC;
+SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
@@ -672,7 +673,7 @@ SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY SCORE() DESC;
 
 orderByScoreWithMatch
 // tag::orderByScoreWithMatch
-SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY page_count DESC;
+SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DESC;
 
     SCORE()    |    author     |       name        |  page_count   |    release_date    
 ---------------+---------------+-------------------+---------------+--------------------
@@ -682,6 +683,19 @@ SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY page_count DES
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
 
 // end::orderByScoreWithMatch
+;
+
+scoreWithMatch
+// tag::scoreWithMatch
+SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORDER BY YEAR(release_date) DESC;
+
+     score     |       name        |    release_date    
+---------------+-------------------+--------------------
+1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
+1.6086555      |Children of Dune   |1976-04-21T00:00:00Z
+1.8893257      |Dune Messiah       |1969-10-15T00:00:00Z
+2.288635       |Dune               |1965-06-01T00:00:00Z
+// end::scoreWithMatch
 ;
 
 
@@ -700,4 +714,400 @@ SELECT first_name, last_name, emp_no FROM emp LIMIT 1;
 Georgi         |Facello        |10001     
 
 // end::limitBasic
+;
+
+///////////////////////////////
+//
+// Aggregations
+//
+///////////////////////////////
+
+aggAvg
+// tag::aggAvg
+SELECT AVG(salary) AS avg FROM emp;
+
+      avg      
+---------------
+48248          
+// end::aggAvg
+;
+
+aggCountStar
+// tag::aggCountStar
+SELECT COUNT(*) AS count FROM emp;
+
+     count     
+---------------
+100               
+// end::aggCountStar
+;
+
+aggCountDistinct
+// tag::aggCountDistinct
+
+SELECT COUNT(DISTINCT hire_date) AS hires FROM emp;
+
+     hires      
+---------------
+99       
+// end::aggCountDistinct
+;
+
+aggMax
+// tag::aggMax
+SELECT MAX(salary) AS max FROM emp;
+
+      max     
+---------------
+74999               
+// end::aggMax
+;
+
+aggMin
+// tag::aggMin
+SELECT MIN(salary) AS min FROM emp;
+
+      min     
+---------------
+25324               
+// end::aggMin
+;
+
+aggSum
+// tag::aggSum
+SELECT SUM(salary) AS sum FROM emp;
+
+      sum
+---------------
+4824855
+// end::aggSum
+;
+
+aggKurtosis
+// tag::aggKurtosis
+SELECT MIN(salary) AS min, MAX(salary) AS max, KURTOSIS(salary) AS k FROM emp;
+
+      min      |      max      |        k         
+---------------+---------------+------------------
+25324          |74999          |2.0444718929142986
+// end::aggKurtosis
+;
+
+aggPercentile
+// tag::aggPercentile
+SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp 
+       GROUP BY languages;
+
+   languages   |      95th       
+---------------+-----------------
+1              |72605.2          
+2              |71741.0          
+3              |74981.6          
+4              |72115.59999999999
+5              |68927.19999999998
+// end::aggPercentile
+;
+
+aggPercentileRank
+// tag::aggPercentileRank
+SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
+
+   languages   |      rank       
+---------------+-----------------
+1              |75.37108985853756
+2              |89.43605326660112
+3              |77.74873333978765
+4              |85.70446389643493
+5              |92.52677973666592
+// end::aggPercentileRank
+;
+
+aggSkewness
+// tag::aggSkewness
+SELECT MIN(salary) AS min, MAX(salary) AS max, SKEWNESS(salary) AS s FROM emp;
+
+      min      |      max      |        s         
+---------------+---------------+------------------
+25324          |74999          |0.2707722118423227
+// end::aggSkewness
+;
+
+aggStddevPop
+// tag::aggStddevPop
+SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev 
+       FROM emp;
+
+      min      |      max      |      stddev      
+---------------+---------------+------------------
+25324          |74999          |13765.125502787832
+// end::aggStddevPop
+;
+
+
+aggSumOfSquares
+// tag::aggSumOfSquares
+SELECT MIN(salary) AS min, MAX(salary) AS max, SUM_OF_SQUARES(salary) AS sumsq 
+       FROM emp;
+
+      min      |      max      |     sumsq      
+---------------+---------------+----------------
+25324          |74999          |2.51740125721E11
+// end::aggSumOfSquares
+;
+
+
+aggVarPop
+// tag::aggVarPop
+SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_POP(salary) AS varpop FROM emp;
+
+      min      |      max      |     varpop     
+---------------+---------------+----------------
+25324          |74999          |1.894786801075E8
+// end::aggVarPop
+;
+
+
+///////////////////////////////
+//
+// String
+//
+///////////////////////////////
+
+stringAscii
+// tag::stringAscii
+SELECT ASCII('Elastic');
+
+ASCII(Elastic) 
+---------------
+69   
+// end::stringAscii
+;
+
+stringBitLength
+// tag::stringBitLength
+SELECT BIT_LENGTH('Elastic');
+
+BIT_LENGTH(Elastic)
+-------------------
+56  
+// end::stringBitLength
+;
+
+stringChar
+// tag::stringChar
+SELECT CHAR(69);
+
+   CHAR(69)    
+---------------
+E        
+// end::stringChar
+;
+
+stringCharLength
+// tag::stringCharLength
+SELECT CHAR_LENGTH('Elastic');
+
+CHAR_LENGTH(Elastic)
+--------------------
+7     
+// end::stringCharLength
+;
+
+stringConcat
+// tag::stringConcat
+SELECT CONCAT('Elasticsearch', ' SQL');
+
+CONCAT(Elasticsearch, SQL)
+--------------------------
+Elasticsearch SQL  
+// end::stringConcat
+;
+
+stringInsert
+// tag::stringInsert
+SELECT INSERT('Elastic ', 8, 1, 'search');
+
+INSERT(Elastic ,8,1,search)
+---------------------------
+Elasticsearch
+// end::stringInsert
+;
+
+stringLCase
+// tag::stringLCase
+SELECT LCASE('Elastic');
+
+LCASE(Elastic) 
+---------------
+elastic    
+// end::stringLCase
+;
+
+stringLeft
+// tag::stringLeft
+SELECT LEFT('Elastic',3);
+
+LEFT(Elastic,3)
+---------------
+Ela    
+// end::stringLeft
+;
+
+stringLength
+// tag::stringLength
+SELECT LENGTH('Elastic   ');
+
+LENGTH(Elastic   )
+------------------
+7     
+// end::stringLength
+;
+
+stringLocateWoStart
+// tag::stringLocateWoStart
+SELECT LOCATE('a', 'Elasticsearch');
+
+LOCATE(a,Elasticsearch)
+-----------------------
+3        
+// end::stringLocateWoStart
+;
+
+stringLocateWithStart
+// tag::stringLocateWithStart
+SELECT LOCATE('a', 'Elasticsearch', 5);
+
+LOCATE(a,Elasticsearch,5)
+-------------------------
+10
+// end::stringLocateWithStart
+;
+
+stringLTrim
+// tag::stringLTrim
+SELECT LTRIM('   Elastic');
+
+LTRIM(   Elastic)
+-----------------
+Elastic   
+// end::stringLTrim
+;
+
+stringPosition
+// tag::stringPosition
+SELECT POSITION('Elastic', 'Elasticsearch');
+
+POSITION(Elastic,Elasticsearch)
+-------------------------------
+1  
+// end::stringPosition
+;
+
+stringRepeat
+// tag::stringRepeat
+SELECT REPEAT('La', 3);
+
+ REPEAT(La,3)  
+---------------
+LaLaLa      
+// end::stringRepeat
+;
+
+stringReplace-Ignore
+// tag::stringReplace
+SELECT REPLACE('Elastic', 'El', 'Fant');
+
+  REPLACE(Elastic, El, Fant)
+-----------------------------
+Fantastic
+// end::stringReplace
+;
+
+stringRight
+// tag::stringRight
+SELECT RIGHT('Elastic',3);
+
+RIGHT(Elastic,3)
+----------------
+tic    
+// end::stringRight
+;
+
+stringRTrim
+// tag::stringRTrim
+SELECT RTRIM('Elastic   ');
+
+RTRIM(Elastic   )
+-----------------
+Elastic       
+// end::stringRTrim
+;
+
+stringSpace-Ignore
+// tag::stringSpace
+SELECT SPACE(3);
+
+   SPACE(3)    
+---------------
+               
+ 
+// end::stringSpace
+;
+
+stringSubString
+// tag::stringSubString
+SELECT SUBSTRING('Elasticsearch', 0, 7);
+
+SUBSTRING(Elasticsearch,0,7)
+----------------------------
+Elastic    
+// end::stringSubString
+;
+
+stringUCase
+// tag::stringUCase
+SELECT UCASE('Elastic');
+
+UCASE(Elastic) 
+---------------
+ELASTIC    
+// end::stringUCase
+;
+
+
+///////////////////////////////
+//
+// Cast
+//
+///////////////////////////////
+
+conversionStringToIntCast
+// tag::conversionStringToIntCast
+SELECT CAST('123' AS INT) AS int;
+
+      int      
+---------------
+123    
+// end::conversionStringToIntCast
+;
+
+conversionIntToStringCast-Ignore
+// tag::conversionIntToStringCast
+SELECT CAST(123 AS VARCHAR) AS string;
+
+    string     
+---------------
+123   
+
+// end::conversionIntToStringCast
+;
+
+conversionStringToDateCast
+// tag::conversionStringToDateCast
+SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
+
+     year
+---------------
+2018
+// end::conversionStringToDateCast
 ;

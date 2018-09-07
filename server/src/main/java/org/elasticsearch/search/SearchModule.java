@@ -233,6 +233,7 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ScoreFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.VersionFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
@@ -715,6 +716,7 @@ public class SearchModule {
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
         registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new ScoreFetchSubPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -51,7 +52,7 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory<Adjacenc
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
             Query filter = keyedFilter.filter().toFilter(context.getQueryShardContext());
-            this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
+            this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
     }
 

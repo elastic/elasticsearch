@@ -180,6 +180,13 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    public void testValidateStringSetting() {
+        Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
+        Setting<String> stringSetting = Setting.simpleString("foo.bar", Property.NodeScope);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stringSetting.get(settings));
+        assertEquals("Failed to parse [[bla-a, bla-b]] for string setting [foo.bar] because it is not scalar.", e.getMessage());
+    }
+
     private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
             "foo.bar",
             "foobar",

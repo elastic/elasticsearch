@@ -245,6 +245,11 @@ public final class Settings implements ToXContentFragment {
         return retVal == null ? defaultValue : retVal;
     }
 
+    Class<?> getRawType(String setting) {
+        Object value = settings.get(setting);
+        return value == null ? null : value.getClass();
+    }
+
     /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.

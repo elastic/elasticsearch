@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import java.util.Collection;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -385,6 +386,16 @@ public class Setting<T> implements ToXContentObject {
         try {
             T parsed = parser.apply(value);
             if (validate) {
+                if (parsed instanceof String) {
+                    Class<?> rawValueClass = settings.getRawType(getKey());
+                    if (rawValueClass != null
+                        && (Map.class.isAssignableFrom(rawValueClass) || Collection.class.isAssignableFrom(rawValueClass))
+                    ) {
+                        throw new IllegalArgumentException(
+                            "Failed to parse [" + value + "] for string setting [" + getKey() + "] because it is not scalar."
+                        );
+                    }
+                }
                 final Iterator<Setting<T>> it = validator.settings();
                 final Map<Setting<T>, T> map;
                 if (it.hasNext()) {

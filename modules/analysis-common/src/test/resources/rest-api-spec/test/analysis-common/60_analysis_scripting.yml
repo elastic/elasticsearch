@@ -28,7 +28,7 @@
               - type: condition
                 filter: [ "lowercase" ]
                 script:
-                  source: "token.position > 1 && token.positionIncrement > 0 && token.startOffset > 0 && token.endOffset > 0 && (token.positionLength == 1 || token.type == \"a\" || token.keyword)"
+                  source: "token.position >= 1 && token.positionIncrement > 0 && token.startOffset > 0 && token.endOffset > 0 && (token.positionLength == 1 || token.type == \"a\" || token.keyword)"
 
     - length: { tokens: 3 }
     - match: { tokens.0.token: "Vorsprung" }

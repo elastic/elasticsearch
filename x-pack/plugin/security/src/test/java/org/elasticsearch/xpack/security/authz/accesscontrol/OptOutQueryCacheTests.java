@@ -11,6 +11,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -65,7 +66,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("foo", "bar")), BooleanClause.Occur.MUST);
         builder.add(new TermQuery(new Term("no", "baz")), BooleanClause.Occur.MUST_NOT);
-        Weight weight = builder.build().createWeight(searcher, false, 1f);
+        Weight weight = builder.build().createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         // whenever the allowed fields match the fields in the query and we do not deny access to any fields we allow caching.
         IndicesAccessControl.IndexAccessControl permissions = new IndicesAccessControl.IndexAccessControl(true,

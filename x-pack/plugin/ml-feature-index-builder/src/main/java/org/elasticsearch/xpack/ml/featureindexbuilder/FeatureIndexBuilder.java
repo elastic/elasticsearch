@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBu
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStartFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
-import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobTask;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStartFeatureIndexBuilderJobAction;
 
@@ -127,7 +127,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         }
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, Clock.systemUTC());
-        return Collections.singletonList(new FeatureIndexBuilderJobTask.FeatureIndexBuilderJobPersistentTasksExecutor(settings, client,
+        return Collections.singletonList(new FeatureIndexBuilderJobPersistentTasksExecutor(settings, client,
                 schedulerEngine, threadPool));
     }
     @Override

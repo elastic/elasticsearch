@@ -68,6 +68,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsTrue() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
                                                                       client);

@@ -73,6 +73,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsTrue() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         final IndexRecoveryCollector collector = new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringService,
                                                                             licenseState, client);

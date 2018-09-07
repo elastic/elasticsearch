@@ -68,6 +68,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
         final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);

@@ -113,6 +113,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final Settings settings = mlEnabledSettings();
 
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         when(licenseState.isMachineLearningAllowed()).thenReturn(true);
         final boolean isElectedMaster = true;
 

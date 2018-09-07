@@ -54,6 +54,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,

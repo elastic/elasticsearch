@@ -169,6 +169,6 @@ public class WatchStatusTests extends ESTestCase {
             .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
 
-        return WatchStatus.parse("watch-123", parser);
+        return WatchStatus.parse(parser);
     }
 }

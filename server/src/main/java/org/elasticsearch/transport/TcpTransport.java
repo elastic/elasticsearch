@@ -439,7 +439,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     try {
                         PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                         connectionFutures.add(connectFuture);
-                        TcpChannel channel = initiateChannel(node, connectionProfile.getConnectTimeout(), connectFuture);
+                        TcpChannel channel = initiateChannel(node, connectFuture);
                         logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                         channels.add(channel);
                     } catch (Exception e) {
@@ -823,17 +823,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected abstract TcpChannel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
-     * Initiate a single tcp socket channel to a node. Implementations do not have to observe the connectTimeout.
-     * It is provided for synchronous connection implementations.
+     * Initiate a single tcp socket channel.
      *
-     * @param node              the node
-     * @param connectTimeout    the connection timeout
-     * @param connectListener   listener to be called when connection complete
+     * @param node for the initiated connection
+     * @param connectListener listener to be called when connection complete
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
-        throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException;
 
     /**
      * Called to tear down internal resources

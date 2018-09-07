@@ -44,7 +44,6 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -254,8 +253,6 @@ public class FollowingEngineTests extends ESTestCase {
                 Collections.emptyList(),
                 Collections.emptyList(),
                 null,
-                new TranslogHandler(
-                        xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
                 new NoneCircuitBreakerService(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> primaryTerm.get(),
@@ -280,7 +277,8 @@ public class FollowingEngineTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
-        followingEngine.recoverFromTranslog(Long.MAX_VALUE);
+        TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
+        followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return followingEngine;
     }
 

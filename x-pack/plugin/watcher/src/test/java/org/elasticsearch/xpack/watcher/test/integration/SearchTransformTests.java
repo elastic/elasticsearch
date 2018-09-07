@@ -276,7 +276,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
 
         @Override
-        public List<ScriptContext> getContexts() {
+        public List<ScriptContext<?>> getContexts() {
             return Collections.singletonList(Watcher.SCRIPT_TEMPLATE_CONTEXT);
         }
     }

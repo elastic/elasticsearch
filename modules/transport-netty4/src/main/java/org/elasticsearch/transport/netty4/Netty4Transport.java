@@ -51,7 +51,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -230,9 +229,9 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> listener)
-        throws IOException {
-        ChannelFuture channelFuture = bootstrap.connect(node.getAddress().address());
+    protected NettyTcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> listener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
+        ChannelFuture channelFuture = bootstrap.connect(address);
         Channel channel = channelFuture.channel();
         if (channel == null) {
             ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());

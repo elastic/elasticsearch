@@ -5,8 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 
 public class FileStructureActionRequestTests extends AbstractStreamableTestCase<FileStructureAction.Request> {
 
@@ -26,5 +30,30 @@ public class FileStructureActionRequestTests extends AbstractStreamableTestCase<
     @Override
     protected FileStructureAction.Request createBlankInstance() {
         return new FileStructureAction.Request();
+    }
+
+    public void testValidateLinesToSample() {
+
+        FileStructureAction.Request request = new FileStructureAction.Request();
+        request.setLinesToSample(randomFrom(-1, 0));
+        request.setSample(new BytesArray("foo\n"));
+
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), startsWith("Validation Failed: "));
+        assertThat(e.getMessage(), containsString(" lines_to_sample must be positive if specified"));
+    }
+
+    public void testValidateSample() {
+
+        FileStructureAction.Request request = new FileStructureAction.Request();
+        if (randomBoolean()) {
+            request.setSample(BytesArray.EMPTY);
+        }
+
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), startsWith("Validation Failed: "));
+        assertThat(e.getMessage(), containsString(" sample must be specified"));
     }
 }

@@ -136,9 +136,10 @@ public class FileStructureAction extends Action<FileStructureAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (linesToSample != null && linesToSample <= 0) {
-                validationException = addValidationError("lines_to_sample must be positive if specified", validationException);
+                validationException =
+                    addValidationError(LINES_TO_SAMPLE.getPreferredName() + " must be positive if specified", validationException);
             }
-            if (sample == null) {
+            if (sample == null || sample.length() == 0) {
                 validationException = addValidationError("sample must be specified", validationException);
             }
             return validationException;

@@ -67,8 +67,8 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;

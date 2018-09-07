@@ -366,12 +366,22 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
+     * Returns true if and only if this setting is present in the given settings instance. Note that fallback settings are excluded.
+     *
+     * @param settings the settings
+     * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
         return exists(settings, false);
     }
 
+    /**
+     * Returns true if and only if this setting optionally including fallback settings is present in the given settings instance.
+     *
+     * @param settings the settings
+     * @param fallback whether or not to include fallback settings
+     * @return true if the setting and optionally fallback settings is present in the given settings instance, otherwise false
+     */
     public boolean exists(final Settings settings, final boolean fallback) {
         Setting<?> current = this;
         do {

@@ -368,8 +368,15 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
-    public boolean exists(Settings settings) {
-        return settings.keySet().contains(getKey());
+    public boolean exists(final Settings settings) {
+        Setting<?> current = this;
+        do {
+            if (settings.keySet().contains(current.getKey())) {
+                return true;
+            }
+            current = current.fallbackSetting;
+        } while (current != null);
+        return false;
     }
 
     /**
@@ -511,7 +518,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns a set of settings that are required at validation time. Unless all of the dependencies are present in the settings
      * object validation of setting must fail.
      */
-    public Set<String> getSettingsDependencies(String key) {
+    public Set<Setting<?>> getSettingsDependencies(String key) {
         return Collections.emptySet();
     }
 
@@ -634,12 +641,12 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
-        public Set<String> getSettingsDependencies(String settingsKey) {
+        public Set<Setting<?>> getSettingsDependencies(String settingsKey) {
             if (dependencies.isEmpty()) {
                 return Collections.emptySet();
             } else {
                 String namespace = key.getNamespace(settingsKey);
-                return dependencies.stream().map(s -> s.key.toConcreteKey(namespace).key).collect(Collectors.toSet());
+                return dependencies.stream().map(s -> (Setting<?>)s.getConcreteSettingForNamespace(namespace)).collect(Collectors.toSet());
             }
         }
 
@@ -914,40 +921,6 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    private static class ListSetting<T> extends Setting<List<T>> {
-        private final Function<Settings, List<String>> defaultStringValue;
-
-        private ListSetting(String key, Function<Settings, List<String>> defaultStringValue, Function<String, List<T>> parser,
-                            Property... properties) {
-            super(new ListKey(key), (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)), parser,
-                properties);
-            this.defaultStringValue = defaultStringValue;
-        }
-
-        @Override
-        String innerGetRaw(final Settings settings) {
-            List<String> array = settings.getAsList(getKey(), null);
-            return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
-        }
-
-        @Override
-        boolean hasComplexMatcher() {
-            return true;
-        }
-
-        @Override
-        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-            if (exists(source) == false) {
-                List<String> asList = defaultSettings.getAsList(getKey(), null);
-                if (asList == null) {
-                    builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
-                } else {
-                    builder.putList(getKey(), asList);
-                }
-            }
-        }
-    }
-
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final Logger logger;
@@ -1209,26 +1182,44 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
-    public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
-                                                   Property... properties) {
-        return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
+    public static <T> Setting<List<T>> listSetting(
+            final String key,
+            final List<String> defaultStringValue,
+            final Function<String, T> singleValueParser,
+            final Property... properties) {
+        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, properties);
     }
 
     // TODO this one's two argument get is still broken
-    public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser,
-                                                   Property... properties) {
-        return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, properties);
+    public static <T> Setting<List<T>> listSetting(
+            final String key,
+            final Setting<List<T>> fallbackSetting,
+            final Function<String, T> singleValueParser,
+            final Property... properties) {
+        return listSetting(key, fallbackSetting, singleValueParser, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), properties);
     }
 
-    public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
-                                                   Function<String, T> singleValueParser, Property... properties) {
+    public static <T> Setting<List<T>> listSetting(
+            final String key,
+            final Function<String, T> singleValueParser,
+            final Function<Settings, List<String>> defaultStringValue,
+            final Property... properties) {
+        return listSetting(key, null, singleValueParser, defaultStringValue, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
+            final String key,
+            final @Nullable Setting<List<T>> fallbackSetting,
+            final Function<String, T> singleValueParser,
+            final Function<Settings, List<String>> defaultStringValue,
+            final Property... properties) {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new ListSetting<>(key, defaultStringValue, parser, properties);
+        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -1264,6 +1255,51 @@ public class Setting<T> implements ToXContentObject {
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
         }
+    }
+
+    private static class ListSetting<T> extends Setting<List<T>> {
+
+        private final Function<Settings, List<String>> defaultStringValue;
+
+        private ListSetting(
+                final String key,
+                final @Nullable Setting<List<T>> fallbackSetting,
+                final Function<Settings, List<String>> defaultStringValue,
+                final Function<String, List<T>> parser,
+                final Property... properties) {
+            super(
+                    new ListKey(key),
+                    fallbackSetting,
+                    (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
+                    parser,
+                    (v,s) -> {},
+                    properties);
+            this.defaultStringValue = defaultStringValue;
+        }
+
+        @Override
+        String innerGetRaw(final Settings settings) {
+            List<String> array = settings.getAsList(getKey(), null);
+            return array == null ? defaultValue.apply(settings) : arrayToParsableString(array);
+        }
+
+        @Override
+        boolean hasComplexMatcher() {
+            return true;
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            if (exists(source) == false) {
+                List<String> asList = defaultSettings.getAsList(getKey(), null);
+                if (asList == null) {
+                    builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
+                } else {
+                    builder.putList(getKey(), asList);
+                }
+            }
+        }
+
     }
 
     static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {

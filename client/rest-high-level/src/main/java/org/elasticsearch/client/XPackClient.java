@@ -56,7 +56,7 @@ public final class XPackClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public XPackInfoResponse info(XPackInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xPackInfo, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, XPackRequestConverters::info, options,
             XPackInfoResponse::fromXContent, emptySet());
     }
 
@@ -70,7 +70,7 @@ public final class XPackClient {
      */
     public void infoAsync(XPackInfoRequest request, RequestOptions options,
                                   ActionListener<XPackInfoResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::info, options,
             XPackInfoResponse::fromXContent, listener, emptySet());
     }
 
@@ -81,7 +81,7 @@ public final class XPackClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public XPackUsageResponse usage(XPackUsageRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xpackUsage, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, XPackRequestConverters::usage, options,
             XPackUsageResponse::fromXContent, emptySet());
     }
 
@@ -91,7 +91,7 @@ public final class XPackClient {
      * @param listener the listener to be notified upon request completion
      */
     public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::usage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
     }
 }

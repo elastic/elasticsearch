@@ -1,0 +1,25 @@
+{
+  "xpack.ml.find_file_structure": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-file-structure.html",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ml/find_file_structure",
+      "paths": [ "/_xpack/ml/find_file_structure" ],
+      "params": {
+        "lines_to_sample": {
+          "type": "int",
+          "description": "Optional parameter to specify how many lines of the file to include in the analysis"
+        },
+        "explain": {
+          "type": "boolean",
+          "description": "Optional parameter to include an commentary on how the structure was derived"
+        }
+      }
+    },
+    "body": {
+      "description" : "The contents of the file to be analyzed",
+      "required" : true,
+      "serialize" : "bulk"
+    }
+  }
+}

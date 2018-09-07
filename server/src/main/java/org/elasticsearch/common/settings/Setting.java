@@ -387,15 +387,12 @@ public class Setting<T> implements ToXContentObject {
 
     private boolean exists(final Settings settings, final boolean includeFallbackSettings) {
         Setting<?> current = this;
-        do {
-            if (settings.keySet().contains(current.getKey())) {
-                return true;
-            }
-            if (includeFallbackSettings == false) {
-                break;
-            }
-            current = current.fallbackSetting;
-        } while (current != null);
+        if (settings.keySet().contains(getKey())) {
+            return true;
+        }
+        if (includeFallbackSettings) {
+            return current.fallbackSetting.exists(settings, includeFallbackSettings);
+        }
         return false;
     }
 

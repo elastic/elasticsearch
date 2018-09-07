@@ -30,7 +30,7 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       headers:
@@ -65,7 +65,7 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       headers:

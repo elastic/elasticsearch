@@ -84,7 +84,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
         query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
-        Weight weight = query.createWeight(searcher, collector.needsScores(), 1f);
+        Weight weight = query.createWeight(searcher, collector.scoreMode(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
@@ -192,7 +192,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             // The following code groups suggestions matching different contexts by document id and dedup the surface form + contexts
             // if needed (skip_duplicates).
             int size = entries.scoreDocs.length;
-            final List<TopSuggestDocs.SuggestScoreDoc> suggestDocs = new ArrayList(size);
+            final List<TopSuggestDocs.SuggestScoreDoc> suggestDocs = new ArrayList<>(size);
             final CharArraySet seenSurfaceForms = doSkipDuplicates() ? new CharArraySet(size, false) : null;
             for (TopSuggestDocs.SuggestScoreDoc suggestEntry : entries.scoreLookupDocs()) {
                 final SuggestDoc suggestDoc;
@@ -209,8 +209,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
                 suggestDocs.add(suggestDoc);
             }
-            return new TopSuggestDocs((int) entries.totalHits,
-                suggestDocs.toArray(new TopSuggestDocs.SuggestScoreDoc[0]), entries.getMaxScore());
+            return new TopSuggestDocs(entries.totalHits,
+                suggestDocs.toArray(new TopSuggestDocs.SuggestScoreDoc[0]));
         }
     }
 }

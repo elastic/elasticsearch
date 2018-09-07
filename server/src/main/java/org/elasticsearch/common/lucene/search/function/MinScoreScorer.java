@@ -60,6 +60,16 @@ final class MinScoreScorer extends Scorer {
     }
 
     @Override
+    public int advanceShallow(int target) throws IOException {
+        return in.advanceShallow(target);
+    }
+
+    @Override
+    public float getMaxScore(int upTo) throws IOException {
+        return in.getMaxScore(upTo);
+    }
+
+    @Override
     public DocIdSetIterator iterator() {
         return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
     }

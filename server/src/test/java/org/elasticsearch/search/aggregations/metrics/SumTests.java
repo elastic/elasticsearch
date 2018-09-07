@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-
 public class SumTests extends AbstractNumericMetricTestCase<SumAggregationBuilder> {
 
     @Override

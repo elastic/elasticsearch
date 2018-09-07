@@ -20,11 +20,11 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.security.AuthenticateRequest;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
-
 import java.io.IOException;
-
 import static java.util.Collections.emptySet;
 
 /**
@@ -65,5 +65,15 @@ public final class SecurityClient {
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, listener, emptySet());
+    }
+
+    public AuthenticateResponse authenticate(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(AuthenticateRequest.INSTANCE, AuthenticateRequest::getRequest, options,
+                AuthenticateResponse::fromXContent, emptySet());
+    }
+
+    public void authenticateAsync(RequestOptions options, ActionListener<AuthenticateResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(AuthenticateRequest.INSTANCE, AuthenticateRequest::getRequest, options,
+                AuthenticateResponse::fromXContent, listener, emptySet());
     }
 }

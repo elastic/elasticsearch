@@ -292,6 +292,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(Strings.toString(
                     XContentFactory.jsonBuilder().map(entry.getValue()))));
             } catch (Exception e) {
+                logger.info("problem", e);
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
@@ -371,6 +372,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 documentMapper =
                     documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
             } catch (Exception e) {
+                logger.info("problem", e);
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }

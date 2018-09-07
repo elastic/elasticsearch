@@ -66,7 +66,7 @@ public class IndexLifecycleService extends AbstractComponent
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry);
+        this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -146,7 +146,7 @@ public class IndexLifecycleService extends AbstractComponent
                 policyRegistry.removeIndices(event.indicesDeleted());
             }
             if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
-                policyRegistry.update(event.state(), client);
+                policyRegistry.update(event.state());
             }
         }
     }

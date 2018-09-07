@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,11 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
         return new IterationResult<>(processBuckets(agg), agg.afterKey(), agg.getBuckets().isEmpty());
     }
 
+    /*
+     * Mocked demo case
+     *
+     * TODO: replace with proper implementation
+     */
     private List<IndexRequest> processBuckets(CompositeAggregation agg) {
         return agg.getBuckets().stream().map(b -> {
             InternalAvg avgAgg = b.getAggregations().get("avg_rating");
@@ -76,7 +82,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
                 builder.field("avg_rating", avgAgg.getValue());
                 builder.endObject();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
 
             String indexName = PIVOT_INDEX + "_" + job.getConfig().getId();

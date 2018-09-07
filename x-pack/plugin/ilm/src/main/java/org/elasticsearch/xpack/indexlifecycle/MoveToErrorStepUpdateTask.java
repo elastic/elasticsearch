@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -49,7 +50,12 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
-        Settings indexSettings = currentState.getMetaData().index(index).getSettings();
+        IndexMetaData idxMeta = currentState.getMetaData().index(index);
+        if (idxMeta == null) {
+            // Index must have been since deleted, ignore it
+            return currentState;
+        }
+        Settings indexSettings = idxMeta.getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
             return IndexLifecycleRunner.moveClusterStateToErrorStep(index, currentState, currentStepKey, cause, nowSupplier);

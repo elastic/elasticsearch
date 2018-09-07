@@ -13,9 +13,9 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.grok.Grok;
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructure;
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinder;
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinderManager;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -114,16 +114,16 @@ public class LogConfigCreator extends Command {
         validateHost(logstashHost, "Logstash host");
 
         String sampleLinesStr = getSingleOptionValueOrDefault(options, "c", "sample-line-count", "value for the number of lines to analyze",
-            "1000");
+            Integer.toString(FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT));
         int sampleLines;
         try {
             sampleLines = Integer.parseInt(sampleLinesStr);
         } catch (NumberFormatException e) {
             sampleLines = 0;
         }
-        if (sampleLines <= 2) {
-            throw new UserException(ExitCodes.USAGE, "Number of lines to analyze must be an integer greater than 2, got [" +
-                sampleLinesStr + "]");
+        if (sampleLines <= FileStructureFinderManager.MIN_SAMPLE_LINE_COUNT) {
+            throw new UserException(ExitCodes.USAGE, "Number of lines to analyze must be an integer greater than " +
+                FileStructureFinderManager.MIN_SAMPLE_LINE_COUNT + ", got [" + sampleLinesStr + "]");
         }
 
         Path filebeatModulePath;
@@ -158,9 +158,9 @@ public class LogConfigCreator extends Command {
         try {
             LogConfigWriter logConfigWriter = new LogConfigWriter(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            LogStructureFinderManager structureFinderManager = new LogStructureFinderManager();
-            LogStructureFinder structureFinder = structureFinderManager.findLogStructure(sampleLines, Files.newInputStream(file));
-            LogStructure structure = structureFinder.getStructure();
+            FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
+            FileStructureFinder structureFinder = structureFinderManager.findFileStructure(sampleLines, Files.newInputStream(file));
+            FileStructure structure = structureFinder.getStructure();
             for (String reason : structure.getExplanation()) {
                 terminal.println(Verbosity.VERBOSE, reason);
             }

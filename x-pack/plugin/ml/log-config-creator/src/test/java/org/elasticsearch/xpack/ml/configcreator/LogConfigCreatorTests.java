@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinder;
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureFinderManager;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -30,12 +30,12 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
     private static final String INDEX_MAPPINGS_CONSOLE = TEST_TYPE + "-index-mappings.console";
     private static final String INDEX_MAPPINGS_SH = TEST_TYPE + "-index-mappings.sh";
 
-    private LogStructureFinderManager structureFinderManager;
+    private FileStructureFinderManager structureFinderManager;
     private LogConfigWriter logConfigWriter;
 
     @Before
     public void setup() throws IOException {
-        structureFinderManager = new LogStructureFinderManager();
+        structureFinderManager = new FileStructureFinderManager();
         logConfigWriter = new LogConfigWriter(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
             randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
     }
@@ -44,8 +44,8 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
         Path outputDirectory = createTempDir();
 
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(JSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            LogStructureFinder logFileStructureFinder =
-                structureFinderManager.findLogStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
+            FileStructureFinder logFileStructureFinder =
+                structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),
                 outputDirectory);
         }
@@ -64,8 +64,8 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
         Path outputDirectory = createTempDir();
 
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(XML_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            LogStructureFinder logFileStructureFinder =
-                structureFinderManager.findLogStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
+            FileStructureFinder logFileStructureFinder =
+                structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),
                 outputDirectory);
         }
@@ -84,8 +84,8 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
         Path outputDirectory = createTempDir();
 
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(CSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            LogStructureFinder logFileStructureFinder =
-                structureFinderManager.findLogStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
+            FileStructureFinder logFileStructureFinder =
+                structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),
                 outputDirectory);
         }
@@ -104,8 +104,8 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
         Path outputDirectory = createTempDir();
 
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(TSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            LogStructureFinder logFileStructureFinder =
-                structureFinderManager.findLogStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
+            FileStructureFinder logFileStructureFinder =
+                structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),
                 outputDirectory);
         }
@@ -124,8 +124,8 @@ public class LogConfigCreatorTests extends LogConfigCreatorTestCase {
         Path outputDirectory = createTempDir();
 
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(TEXT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            LogStructureFinder logFileStructureFinder =
-                structureFinderManager.findLogStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
+            FileStructureFinder logFileStructureFinder =
+                structureFinderManager.findFileStructure(explanation, IDEAL_SAMPLE_LINE_COUNT, inputStream);
             logConfigWriter.writeConfigs(logFileStructureFinder.getStructure(), logFileStructureFinder.getSampleMessages(),
                 outputDirectory);
         }

@@ -8,7 +8,9 @@ archivesBaseName = 'log-config-creator'
 description = 'Create log file import configurations'
 
 dependencies {
-    compile project(path: xpackModule('ml:log-structure-finder'))
+    compile project(path: xpackModule('core'))
+    compile project(path: xpackModule('ml'))
+    compile "org.elasticsearch:elasticsearch:${version}"
     compile "org.elasticsearch:elasticsearch-cli:${version}"
     compile 'joda-time:joda-time:2.10'
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -16,7 +18,7 @@ dependencies {
     compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
     testCompile "org.elasticsearch.test:framework:${version}"
-    testCompile project(path: xpackModule('ml:log-structure-finder'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses.enabled = false

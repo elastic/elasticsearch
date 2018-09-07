@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
-import org.elasticsearch.xpack.ml.logstructurefinder.LogStructureTestCase;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class LogConfigCreatorTestCase extends LogStructureTestCase {
+public abstract class LogConfigCreatorTestCase extends FileStructureTestCase {
 
     protected static final List<String> REDUCED_CHARSETS = Arrays.asList("UTF-8", "UTF-16BE", "UTF-16LE");
     protected static final List<String> POSSIBLE_TIMEZONES = Arrays.asList(null, "Europe/London", "UTC", "+05:30", "-08:00", "EST");

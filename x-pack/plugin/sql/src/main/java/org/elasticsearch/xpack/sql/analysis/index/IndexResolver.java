@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -117,6 +119,10 @@ public class IndexResolver {
         }
     }
 
+    private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
+            EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
+
+
     private final Client client;
     private final String clusterName;
 
@@ -144,7 +150,6 @@ public class IndexResolver {
         if (retrieveAliases) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest()
                     .local(true)
-                    .indices(indices)
                     .aliases(indices)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
     
@@ -176,7 +181,7 @@ public class IndexResolver {
                     .indices(indices)
                     .features(Feature.SETTINGS)
                     .includeDefaults(false)
-                    .indicesOptions(IndicesOptions.lenientExpandOpen());
+                    .indicesOptions(INDICES_ONLY_OPTIONS);
     
             client.admin().indices().getIndex(indexRequest,
                     ActionListener.wrap(response -> filterResults(javaRegex, aliases, response, listener),

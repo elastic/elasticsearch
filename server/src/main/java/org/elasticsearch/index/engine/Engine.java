@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -569,7 +570,31 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
+        try {
+            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -1642,9 +1667,10 @@ public abstract class Engine implements Closeable {
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
      *
-     * @param recoverUpToSeqNo the upper bound, inclusive, of sequence number to be recovered
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog(long recoverUpToSeqNo) throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1662,4 +1688,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 }

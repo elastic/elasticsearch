@@ -221,6 +221,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-get-buckets>>
 * <<java-rest-high-x-pack-ml-get-overall-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
+* <<java-rest-high-x-pack-ml-post-data>>
 * <<java-rest-high-x-pack-ml-get-influencers>>
 
 include::ml/put-job.asciidoc[]
@@ -234,6 +235,7 @@ include::ml/get-job-stats.asciidoc[]
 include::ml/get-buckets.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
+include::ml/post-data.asciidoc[]
 include::ml/get-influencers.asciidoc[]
 
 == Migration APIs

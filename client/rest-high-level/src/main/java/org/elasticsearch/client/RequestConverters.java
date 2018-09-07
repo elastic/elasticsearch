@@ -30,17 +30,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -111,13 +100,9 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -139,17 +124,6 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
-    }
-
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
-        Params params = new Params(request);
-        params.withTimeout(cancelTasksRequest.getTimeout())
-            .withTaskId(cancelTasksRequest.getTaskId())
-            .withNodes(cancelTasksRequest.getNodes())
-            .withParentTaskId(cancelTasksRequest.getParentTaskId())
-            .withActions(cancelTasksRequest.getActions());
-        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -763,22 +737,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request listTasks(ListTasksRequest listTaskRequest) {
-        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
-            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
-        }
-        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
-        Params params = new Params(request);
-        params.withTimeout(listTaskRequest.getTimeout())
-            .withDetailed(listTaskRequest.getDetailed())
-            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
-            .withParentTaskId(listTaskRequest.getParentTaskId())
-            .withNodes(listTaskRequest.getNodes())
-            .withActions(listTaskRequest.getActions())
-            .putParam("group_by", "none");
-        return request;
-    }
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -926,126 +884,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
-        String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
-        parameters.withLocal(getRepositoriesRequest.local());
-        return request;
-    }
-
-    static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_snapshot").addPathPart(putRepositoryRequest.name()).build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(putRepositoryRequest.timeout());
-        parameters.withVerify(putRepositoryRequest.verify());
-
-        request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(deleteRepositoryRequest.timeout());
-        return request;
-    }
-
-    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(verifyRepositoryRequest.name())
-            .addPathPartAsIs("_verify")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(verifyRepositoryRequest.timeout());
-        return request;
-    }
-
-    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_snapshot")
-            .addPathPart(createSnapshotRequest.repository())
-            .addPathPart(createSnapshotRequest.snapshot())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
-        params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
-        request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
-        EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(getSnapshotsRequest.repository());
-        String endpoint;
-        if (getSnapshotsRequest.snapshots().length == 0) {
-            endpoint = endpointBuilder.addPathPart("_all").build();
-        } else {
-            endpoint = endpointBuilder.addCommaSeparatedPathParts(getSnapshotsRequest.snapshots()).build();
-        }
-
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
-        parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
-        parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
-
-        return request;
-    }
-
-    static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(snapshotsStatusRequest.repository())
-            .addCommaSeparatedPathParts(snapshotsStatusRequest.snapshots())
-            .addPathPartAsIs("_status")
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
-        parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
-        return request;
-    }
-
-    static Request restoreSnapshot(RestoreSnapshotRequest restoreSnapshotRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(restoreSnapshotRequest.repository())
-            .addPathPart(restoreSnapshotRequest.snapshot())
-            .addPathPartAsIs("_restore")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(restoreSnapshotRequest.masterNodeTimeout());
-        parameters.withWaitForCompletion(restoreSnapshotRequest.waitForCompletion());
-        request.setEntity(createEntity(restoreSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(deleteSnapshotRequest.repository())
-            .addPathPart(deleteSnapshotRequest.snapshot())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
-        return request;
-    }
-
     static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -1152,13 +990,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1194,41 +1025,6 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withTimeout(putLicenseRequest.timeout());
-        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
-        if (putLicenseRequest.isAcknowledge()) {
-            parameters.putParam("acknowledge", "true");
-        }
-        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
-        return request;
-    }
-
-    static Request getLicense(GetLicenseRequest getLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withLocal(getLicenseRequest.local());
-        return request;
-    }
-
-    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
-        Params parameters = new Params(request);
-        parameters.withTimeout(deleteLicenseRequest.timeout());
-        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
         return request;
     }
 

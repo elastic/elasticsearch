@@ -63,10 +63,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -694,47 +690,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(putPipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(putPipelineRequest.timeout());
-        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(deletePipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(deletePipelineRequest.timeout());
-        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
-
-        return request;
-    }
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -908,20 +863,6 @@ final class RequestConverters {
         params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
         params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
         request.setEntity(createEntity(validateQueryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
-        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
-            builder.addPathPart(simulatePipelineRequest.getId());
-        }
-        builder.addPathPartAsIs("_simulate");
-        String endpoint = builder.build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
-        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

@@ -363,7 +363,6 @@ public final class MachineLearningClient {
     }
 
     /**
-<<<<<<< HEAD
      * Creates a forecast of an existing, opened Machine Learning Job
      *
      * This predicts the future behavior of a time series by using its historical behavior.
@@ -384,6 +383,7 @@ public final class MachineLearningClient {
             ForecastJobResponse::fromXContent,
             Collections.emptySet());
     }
+
     /**
      * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
      *

@@ -2374,11 +2374,6 @@ public class InternalEngine extends Engine {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
     }
 
-    // TODO: remove this method after we restore local history on primary promotion
-    void resetLocalCheckpoint(long localCheckpoint) {
-        localCheckpointTracker.resetCheckpoint(localCheckpoint);
-    }
-
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);

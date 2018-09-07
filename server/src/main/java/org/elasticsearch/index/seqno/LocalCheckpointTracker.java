@@ -109,6 +109,7 @@ public class LocalCheckpointTracker {
      * @param checkpoint the local checkpoint to reset this tracker to
      */
     public synchronized void resetCheckpoint(final long checkpoint) {
+        // TODO: remove this method as we no longer need it.
         assert checkpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
         assert checkpoint <= this.checkpoint;
         processedSeqNo.clear();

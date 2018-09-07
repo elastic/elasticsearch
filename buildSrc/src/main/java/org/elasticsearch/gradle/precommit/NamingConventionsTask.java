@@ -2,21 +2,17 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.test.NamingConventionsCheck;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 
@@ -26,7 +22,7 @@ import java.net.URL;
  * gradle. Read the Javadoc for NamingConventionsCheck to learn more.
  */
 @SuppressWarnings("unchecked")
-public class NamingConventionsTask extends DefaultTask {
+public class NamingConventionsTask extends PrecommitTask {
 
     public NamingConventionsTask() {
         setDescription("Tests that test classes aren't misnamed or misplaced");
@@ -57,14 +53,6 @@ public class NamingConventionsTask extends DefaultTask {
             }
             spec.args(getExistingClassesDirs().getAsPath());
         });
-        try {
-            getSuccessMarker().getParentFile().mkdirs();
-            try (FileWriter fw = new FileWriter(getSuccessMarker())) {
-                fw.write("");
-            }
-        } catch (IOException e) {
-            throw new GradleException("io exception", e);
-        }
     }
 
     @Input
@@ -108,11 +96,6 @@ public class NamingConventionsTask extends DefaultTask {
         FileCollection classesDirs = getJavaSourceSets().getByName(checkForTestsInMain ? "main" : "test")
             .getOutput().getClassesDirs();
         return classesDirs.filter(it -> it.exists());
-    }
-
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + this.getName());
     }
 
     @Input

@@ -20,22 +20,15 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 
 /**
  * Runs CheckJarHell on a classpath.
  */
-public class JarHellTask extends DefaultTask {
+public class JarHellTask extends PrecommitTask {
 
     private FileCollection classpath;
 
@@ -52,14 +45,6 @@ public class JarHellTask extends DefaultTask {
             spec.executable(getJavaHome() + "/bin/java");
             spec.setMain("org.elasticsearch.bootstrap.JarHell");
         });
-        try {
-            getSuccessMarker().getParentFile().mkdirs();
-            try (FileWriter fw = new FileWriter(getSuccessMarker())) {
-                fw.write("");
-            }
-        } catch (IOException e) {
-            throw new GradleException("io exception", e);
-        }
     }
 
     @Input
@@ -78,11 +63,6 @@ public class JarHellTask extends DefaultTask {
 
     public void setClasspath(FileCollection classpath) {
         this.classpath = classpath;
-    }
-
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + this.getName());
     }
 
 }

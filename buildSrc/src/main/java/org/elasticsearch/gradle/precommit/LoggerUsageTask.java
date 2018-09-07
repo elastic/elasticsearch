@@ -20,25 +20,20 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.LoggedExec;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 
 /**
  * Runs LoggerUsageCheck on a set of directories.
  */
-public class LoggerUsageTask extends DefaultTask {
+public class LoggerUsageTask extends PrecommitTask {
 
     public LoggerUsageTask() {
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
@@ -55,14 +50,6 @@ public class LoggerUsageTask extends DefaultTask {
             spec.executable(getJavaHome() + "/bin/java");
             getClassDirectories().forEach(spec::args);
         });
-        try {
-            getSuccessMarker().getParentFile().mkdirs();
-            try (FileWriter fw = new FileWriter(getSuccessMarker())) {
-                fw.write("");
-            }
-        } catch (IOException e) {
-            throw new GradleException("io exception", e);
-        }
     }
 
     @Classpath
@@ -84,11 +71,6 @@ public class LoggerUsageTask extends DefaultTask {
             .reduce(FileCollection::plus)
             .orElse(getProject().files())
             .filter(File::exists);
-    }
-
-    @OutputFile
-    public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     @Input

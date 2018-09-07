@@ -166,7 +166,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("soraninormalization",       MovedToAnalysisCommon.class)
         .put("soranistem",                MovedToAnalysisCommon.class)
         .put("spanishlightstem",          MovedToAnalysisCommon.class)
-        .put("standard",                  Void.class)
+        .put("standard",                  Deprecated.class)
         .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          MovedToAnalysisCommon.class)

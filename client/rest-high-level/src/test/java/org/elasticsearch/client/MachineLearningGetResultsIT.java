@@ -92,9 +92,6 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         addBucketIndexRequest(time, true, bulkRequest);
         addRecordIndexRequest(time, true, bulkRequest);
 
-        // index some category results
-        addCategoriesIndexRequests(bulkRequest);
-
         highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
     }
 
@@ -154,6 +151,15 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetCategories() throws IOException {
+
+        // index some category results
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        addCategoriesIndexRequests(bulkRequest);
+
+        highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         {

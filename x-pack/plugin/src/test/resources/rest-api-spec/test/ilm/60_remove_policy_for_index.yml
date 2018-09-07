@@ -6,7 +6,7 @@ setup:
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -30,12 +30,12 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
         
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -59,7 +59,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
   - do:
       indices.create:
@@ -120,22 +120,22 @@ teardown:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_moveable_timeseries_lifecycle"
+        policy: "my_moveable_timeseries_lifecycle"
 
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_alternative_timeseries_lifecycle"
+        policy: "my_alternative_timeseries_lifecycle"
 
 ---
 "Test Remove Policy Single Index":

@@ -64,6 +64,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -377,7 +378,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
+            // TODO we can remove either IndexStore or DirectoryService. All we need is a simple Supplier<Directory>
+            DirectoryService directoryService = indexStore.newDirectoryService(path);
+            store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,

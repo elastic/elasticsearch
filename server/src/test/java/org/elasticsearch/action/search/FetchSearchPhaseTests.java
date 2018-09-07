@@ -20,7 +20,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
@@ -55,7 +57,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
         final int numHits;
         if (hasHits) {
             QuerySearchResult queryResult = new QuerySearchResult();
-            queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 1.0F), new DocValueFormat[0]);
+            queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                    new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 1.0F), new DocValueFormat[0]);
             queryResult.size(1);
             FetchSearchResult fetchResult = new FetchSearchResult();
             fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, 1, 1.0F));
@@ -94,19 +97,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -149,19 +154,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -209,13 +216,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
-            queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(i+1, i)}, i), new DocValueFormat[0]);
+            queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                    new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
             queryResult.size(resultSetSize); // the size of the result set
             queryResult.setShardIndex(i);
             results.consumeResult(queryResult);
         }
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -265,19 +273,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
         AtomicInteger numFetches = new AtomicInteger(0);
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -319,19 +329,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = 1;
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1, null));
-        queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
+        queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

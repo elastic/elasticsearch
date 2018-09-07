@@ -574,7 +574,9 @@ public abstract class Engine implements Closeable {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
-        store.incRef();
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
         Releasable releasable = store::decRef;
         try {
             EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
@@ -583,6 +585,7 @@ public abstract class Engine implements Closeable {
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
             logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
@@ -1590,7 +1593,7 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
             this.indexCommit = indexCommit;
             this.onClose = onClose;
         }
@@ -1664,9 +1667,10 @@ public abstract class Engine implements Closeable {
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
      *
-     * @param recoverUpToSeqNo the upper bound, inclusive, of sequence number to be recovered
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog(long recoverUpToSeqNo) throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1684,4 +1688,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 }

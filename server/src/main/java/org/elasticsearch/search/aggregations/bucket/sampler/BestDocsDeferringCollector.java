@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -89,7 +90,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         // Deferring collector
         return new LeafBucketCollector() {
             @Override
-            public void setScorer(Scorer scorer) throws IOException {
+            public void setScorer(Scorable scorer) throws IOException {
                 perSegCollector.setScorer(scorer);
             }
 
@@ -156,7 +157,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private long parentBucket;
         private int matchedDocs;
 
-        PerParentBucketSamples(long parentBucket, Scorer scorer, LeafReaderContext readerContext) {
+        PerParentBucketSamples(long parentBucket, Scorable scorer, LeafReaderContext readerContext) {
             try {
                 this.parentBucket = parentBucket;
                 tdc = createTopDocsCollector(shardSize);
@@ -185,7 +186,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             currentLeafCollector.collect(doc);
         }
 
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
             currentLeafCollector.setScorer(scorer);
         }
 
@@ -203,7 +204,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;
-        private Scorer currentScorer;
+        private Scorable currentScorer;
 
         PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
             // The publisher behaviour for Reader/Scorer listeners triggers a
@@ -221,7 +222,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
         }
 
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
             this.currentScorer = scorer;
             for (int i = 0; i < perBucketSamples.size(); i++) {
                 PerParentBucketSamples perBucketSample = perBucketSamples.get(i);

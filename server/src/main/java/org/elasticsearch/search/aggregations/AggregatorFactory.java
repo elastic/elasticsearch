@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
@@ -110,10 +111,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
                 collectors.set(i, null);
             }
             return new LeafBucketCollector() {
-                Scorer scorer;
+                Scorable scorer;
 
                 @Override
-                public void setScorer(Scorer scorer) throws IOException {
+                public void setScorer(Scorable scorer) throws IOException {
                     this.scorer = scorer;
                 }
 

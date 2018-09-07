@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 
@@ -48,7 +49,7 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
     }
 
     @Override
-    public void setScorer(Scorer s) throws IOException {
+    public void setScorer(Scorable s) throws IOException {
         sub.setScorer(s);
         if (values != null) {
             values.setScorer(s);

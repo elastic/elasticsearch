@@ -35,6 +35,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.wrapClient;
+
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
  * if they match with a auto follow pattern that is defined in {@link AutoFollowMetadata}.
@@ -100,11 +102,16 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest,
+            void createAndFollow(Client followerClient,
+                                 FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                client.execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest),
-                    ActionListener.wrap(r -> successHandler.run(), failureHandler));
+                CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
+                followerClient.execute(
+                    CreateAndFollowIndexAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(r -> successHandler.run(), failureHandler)
+                );
             }
 
             @Override
@@ -164,6 +171,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 String clusterAlias = entry.getKey();
                 AutoFollowPattern autoFollowPattern = entry.getValue();
                 Client leaderClient = clusterAlias.equals("_local_") ? client : client.getRemoteClusterClient(clusterAlias);
+                leaderClient = wrapClient(leaderClient, autoFollowPattern.getHeaders());
                 List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
 
                 getLeaderClusterState(leaderClient, (leaderClusterState, e) -> {
@@ -229,7 +237,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             finalise(followError);
                         }
                     };
-                    createAndFollow(followRequest, successHandler, failureHandler);
+                    Client followerClient = wrapClient(this.client, autoFollowPattern.getHeaders());
+                    createAndFollow(followerClient, followRequest, successHandler, failureHandler);
                 }
             }
         }
@@ -295,7 +304,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                             BiConsumer<ClusterState,
                                             Exception> handler);
 
-        abstract void createAndFollow(FollowIndexAction.Request followRequest,
+        abstract void createAndFollow(Client followerClient,
+                                      FollowIndexAction.Request followRequest,
                                       Runnable successHandler,
                                       Consumer<Exception> failureHandler);
 

@@ -30,7 +30,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -40,7 +40,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
             existingAutoFollowPatterns.put("asia_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -69,7 +69,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,

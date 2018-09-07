@@ -85,11 +85,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         ShardFollowTask params = taskInProgress.getParams();
         final Client leaderClient;
         if (params.getLeaderClusterAlias() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderClusterAlias()), params);
+            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderClusterAlias()), params.getHeaders());
         } else {
-            leaderClient = wrapClient(client, params);
+            leaderClient = wrapClient(client, params.getHeaders());
         }
-        Client followerClient = wrapClient(client, params);
+        Client followerClient = wrapClient(client, params.getHeaders());
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
         return new ShardFollowNodeTask(
@@ -148,7 +148,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final ShardFollowTask params, final PersistentTaskState state) {
-        Client followerClient = wrapClient(client, params);
+        Client followerClient = wrapClient(client, params.getHeaders());
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Started to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
         fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
@@ -177,12 +177,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }, errorHandler));
     }
 
-    private static Client wrapClient(Client client, ShardFollowTask shardFollowTask) {
-        if (shardFollowTask.getHeaders().isEmpty()) {
+    static Client wrapClient(Client client, Map<String, String> headers) {
+        if (headers.isEmpty()) {
             return client;
         } else {
             final ThreadContext threadContext = client.threadPool().getThreadContext();
-            Map<String, String> filteredHeaders = shardFollowTask.getHeaders().entrySet().stream()
+            Map<String, String> filteredHeaders = headers.entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             return new FilterClient(client) {

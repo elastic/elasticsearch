@@ -2,7 +2,7 @@ ccruser:
   cluster:
     - manage_ccr
   indices:
-    - names: [ 'allowed-index' ]
+    - names: [ 'allowed-index', 'logs-eu-*' ]
       privileges:
         - monitor
         - read

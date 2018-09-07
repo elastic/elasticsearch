@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
 
@@ -109,6 +112,42 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testAutoFollowPatterns() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+        String allowedIndex = "logs-eu-20190101";
+        String disallowedIndex = "logs-us-20190101";
+
+        Request request = new Request("PUT", "/_ccr/_auto_follow/leader_cluster");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        assertOK(client().performRequest(request));
+
+        try (RestClient leaderClient = buildLeaderClient()) {
+            for (String index : new String[]{allowedIndex, disallowedIndex}) {
+                Settings settings = Settings.builder()
+                    .put("index.soft_deletes.enabled", true)
+                    .build();
+                String requestBody = "{\"settings\": " + Strings.toString(settings) +
+                    ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }";
+                request = new Request("PUT", "/" + index);
+                request.setJsonEntity(requestBody);
+                assertOK(leaderClient.performRequest(request));
+
+                for (int i = 0; i < 5; i++) {
+                    String id = Integer.toString(i);
+                    index(leaderClient, index, id, "field", i, "filtered_field", "true");
+                }
+            }
+        }
+
+        assertBusy(() -> {
+            ensureYellow(allowedIndex);
+            verifyDocuments(adminClient(), allowedIndex, 5);
+        });
+        // TODO: The disallowed index should not get created, but it does today. We should fix this.:
+        assertThat(indexExists(adminClient(), disallowedIndex), is(true));
+        verifyDocuments(adminClient(), disallowedIndex, 0);
+    }
+
     private int countCcrNodeTasks() throws IOException {
         final Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
@@ -129,6 +168,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     private static void index(String index, String id, Object... fields) throws IOException {
+        index(adminClient(), index, id, fields);
+    }
+
+    private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
             document.field((String) fields[i], fields[i + 1]);
@@ -136,7 +179,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         document.endObject();
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
-        assertOK(adminClient().performRequest(request));
+        assertOK(client.performRequest(request));
     }
 
     private static void refresh(String index) throws IOException {
@@ -189,6 +232,29 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         final Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
         assertOK(adminClient().performRequest(request));
+    }
+
+    private static void ensureYellow(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        adminClient().performRequest(request);
+    }
+
+    private RestClient buildLeaderClient() throws IOException {
+        assert runningAgainstLeaderCluster == false;
+        String leaderUrl = System.getProperty("tests.leader_host");
+        int portSeparator = leaderUrl.lastIndexOf(':');
+        HttpHost httpHost = new HttpHost(leaderUrl.substring(0, portSeparator),
+            Integer.parseInt(leaderUrl.substring(portSeparator + 1)), getProtocol());
+        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+    }
+
+    private static boolean indexExists(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("HEAD", "/" + index));
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
 }

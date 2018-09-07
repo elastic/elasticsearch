@@ -71,6 +71,10 @@ public class TransportPutAutoFollowPatternAction extends
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
         leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
             final ClusterState leaderClusterState = clusterStateResponse.getState();
             clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
@@ -83,13 +87,14 @@ public class TransportPutAutoFollowPatternAction extends
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        return innerPut(request, currentState, leaderClusterState);
+                        return innerPut(request, filteredHeaders, currentState, leaderClusterState);
                     }
                 });
         }, listener::onFailure));
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
+                                 Map<String, String> filteredHeaders,
                                  ClusterState localState,
                                  ClusterState leaderClusterState) {
         // auto patterns are always overwritten
@@ -131,8 +136,8 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
             request.getRetryTimeout(),
-            request.getIdleShardRetryDelay()
-        );
+            request.getIdleShardRetryDelay(),
+            filteredHeaders);
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

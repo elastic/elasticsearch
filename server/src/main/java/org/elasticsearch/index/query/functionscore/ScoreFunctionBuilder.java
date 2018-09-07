@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -34,8 +32,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, NamedWriteable {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ScoreFunctionBuilder.class));
 
     private Float weight;
 
@@ -78,8 +74,8 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     }
 
     private Float checkWeight(Float weight) {
-        if (weight != null && weight < 0) {
-            DEPRECATION_LOGGER.deprecated("[weight] cannot be negative  for a filtering function [{}]", weight);
+        if (weight != null && Float.compare(weight, 0) < 0) {
+            throw new IllegalArgumentException("[weight] cannot be negative  for a filtering function");
         }
         return weight;
     }

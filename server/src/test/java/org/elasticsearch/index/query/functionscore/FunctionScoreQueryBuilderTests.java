@@ -273,12 +273,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
-    }
-
-    public void testDeprecatedArgumanets() {
-        float weight = -1 * randomFloat();
-        new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(weight));
-        assertWarnings("[weight] cannot be negative  for a filtering function [" + weight + "]");
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(-1 * randomFloat())));
     }
 
     public void testParseFunctionsArray() throws IOException {

@@ -63,7 +63,7 @@ class PrecommitTasks {
              * (which provides NamingConventionsCheck) and :test:logger-usage
              * which provides the logger usage check. Since the build tools
              * don't use the logger usage check because they don't have any
-             * of Elaticsearch's loggers and :test:logger-usage actually does
+             * of Elasticsearch's loggers and :test:logger-usage actually does
              * use the NamingConventionsCheck we break the circular dependency
              * here.
              */

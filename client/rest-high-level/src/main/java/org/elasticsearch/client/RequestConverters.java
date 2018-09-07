@@ -100,7 +100,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -1025,17 +1024,6 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
-        EndpointBuilder endpointBuilder = new EndpointBuilder()
-            .addPathPartAsIs("_xpack/migration/assistance")
-            .addCommaSeparatedPathParts(indexUpgradeInfoRequest.indices());
-        String endpoint = endpointBuilder.build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withIndicesOptions(indexUpgradeInfoRequest.indicesOptions());
         return request;
     }
 

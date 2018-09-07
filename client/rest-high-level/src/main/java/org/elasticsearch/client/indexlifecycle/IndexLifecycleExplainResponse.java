@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -56,18 +56,18 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
             "index_lifecycle_explain_response",
             a -> new IndexLifecycleExplainResponse(
-                    (String) a[0], 
-                    (boolean) a[1], 
-                    (String) a[2], 
-                    (boolean) (a[3] == null ? false: a[3]), 
-                    (long) (a[4] == null ? -1L: a[4]), 
+                    (String) a[0],
+                    (boolean) a[1],
+                    (String) a[2],
+                    (boolean) (a[3] == null ? false: a[3]),
+                    (long) (a[4] == null ? -1L: a[4]),
                     (String) a[5],
-                    (String) a[6], 
-                    (String) a[7], 
-                    (String) a[8], 
-                    (long) (a[9] == null ? -1L: a[9]), 
-                    (long) (a[10] == null ? -1L: a[10]), 
-                    (long) (a[11] == null ? -1L: a[11]),  
+                    (String) a[6],
+                    (String) a[7],
+                    (String) a[8],
+                    (long) (a[9] == null ? -1L: a[9]),
+                    (long) (a[10] == null ? -1L: a[10]),
+                    (long) (a[11] == null ? -1L: a[11]),
                     (BytesReference) a[12]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
@@ -158,7 +158,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             actionTime = in.readZLong();
             stepTime = in.readZLong();
             stepInfo = in.readOptionalBytesReference();
-            
+
         } else {
             policyName = null;
             skip = false;
@@ -196,7 +196,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public String getIndex() {
         return index;
     }
-    
+
     public boolean managedByILM() {
         return managedByILM;
     }
@@ -204,7 +204,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public String getPolicyName() {
         return policyName;
     }
-    
+
     public boolean skip() {
         return skip;
     }
@@ -240,7 +240,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public String getFailedStep() {
         return failedStep;
     }
-    
+
     public BytesReference getStepInfo() {
         return stepInfo;
     }

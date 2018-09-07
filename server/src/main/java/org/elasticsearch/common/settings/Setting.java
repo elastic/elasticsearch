@@ -372,7 +372,7 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return exists(settings, /* includeFallbackSettings */ false);
+        return settings.keySet().contains(getKey());
     }
 
     /**
@@ -382,18 +382,7 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting including fallback settings is present in the given settings instance, otherwise false
      */
     public boolean existsOrFallbackExists(final Settings settings) {
-        return exists(settings, /* includeFallbackSettings */ true);
-    }
-
-    private boolean exists(final Settings settings, final boolean includeFallbackSettings) {
-        Setting<?> current = this;
-        if (settings.keySet().contains(getKey())) {
-            return true;
-        }
-        if (includeFallbackSettings) {
-            return current.fallbackSetting.exists(settings, includeFallbackSettings);
-        }
-        return false;
+        return settings.keySet().contains(getKey()) || (fallbackSetting != null && fallbackSetting.existsOrFallbackExists(settings));
     }
 
     /**

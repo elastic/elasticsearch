@@ -39,7 +39,6 @@ import static java.util.Collections.emptyList;
  */
 public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bucket> {
     public static final String NAME = "umterms";
-
     private boolean delegatedReduction = false;
 
     /**
@@ -111,10 +110,10 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
                                                 ReduceContext reduceContext) {
         // If we delegated away the reduction, another aggregation has already run
         // pipeline aggs and we should just return the current tree
-       if (delegatedReduction) {
-           return reducedAggregations;
-       }
-       return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
+        if (delegatedReduction) {
+            return reducedAggregations;
+        }
+        return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
     }
 
     @Override

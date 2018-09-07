@@ -31,6 +31,7 @@ import java.util.Map;
 
 public class UnmappedSampler extends InternalSampler {
     public static final String NAME = "unmapped_sampler";
+    private boolean delegatedReduction = false;
 
     UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, 0, InternalAggregations.EMPTY, pipelineAggregators, metaData);
@@ -52,10 +53,22 @@ public class UnmappedSampler extends InternalSampler {
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (!(agg instanceof UnmappedSampler)) {
+                delegatedReduction = true;
                 return agg.reduce(aggregations, reduceContext);
             }
         }
         return this;
+    }
+
+    @Override
+    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
+                                                ReduceContext reduceContext) {
+        // If we delegated away the reduction, another aggregation has already run
+        // pipeline aggs and we should just return the current tree
+        if (delegatedReduction) {
+            return reducedAggregations;
+        }
+        return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
     }
 
     @Override

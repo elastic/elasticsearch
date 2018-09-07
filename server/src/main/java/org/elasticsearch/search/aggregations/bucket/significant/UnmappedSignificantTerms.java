@@ -44,7 +44,7 @@ import static java.util.Collections.emptyList;
 public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
 
     public static final String NAME = "umsigterms";
-
+    private boolean delegatedReduction = false;
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
@@ -102,10 +102,22 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation aggregation : aggregations) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
+                delegatedReduction = true;
                 return aggregation.reduce(aggregations, reduceContext);
             }
         }
         return this;
+    }
+
+    @Override
+    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
+                                                ReduceContext reduceContext) {
+        // If we delegated away the reduction, another aggregation has already run
+        // pipeline aggs and we should just return the current tree
+        if (delegatedReduction) {
+            return reducedAggregations;
+        }
+        return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
     }
 
     @Override

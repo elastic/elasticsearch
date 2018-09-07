@@ -523,7 +523,8 @@ public class MaxBucketIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh();
 
-        TermsAggregationBuilder groupByLicenseAgg = AggregationBuilders.terms("group_by_license_partnumber").field("license.partnumber.keyword");
+        TermsAggregationBuilder groupByLicenseAgg = AggregationBuilders.terms("group_by_license_partnumber")
+            .field("license.partnumber.keyword");
         MaxBucketPipelineAggregationBuilder peakPipelineAggBuilder =
             PipelineAggregatorBuilders.maxBucket("peak", "licenses_per_day>total_licenses");
         SumAggregationBuilder sumAggBuilder = AggregationBuilders.sum("total_licenses").field("license.count");

@@ -703,7 +703,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
 
-        //post data
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
+        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
             //tag::x-pack-ml-forecast-job-request
@@ -723,7 +732,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             boolean isAcknowledged = forecastJobResponse.isAcknowledged(); //<1>
             String forecastId = forecastJobResponse.getForecastId(); //<2>
             //end::x-pack-ml-forecast-job-response
-
+            assertTrue(isAcknowledged);
+            assertNotNull(forecastId);
         }
         {
             //tag::x-pack-ml-forecast-job-listener

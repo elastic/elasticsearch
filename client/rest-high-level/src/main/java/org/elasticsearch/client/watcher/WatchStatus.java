@@ -11,14 +11,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.parseDate;
+import static org.elasticsearch.client.watcher.WatchStatusDateParser.parseDate;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.joda.time.DateTimeZone.UTC;
 
@@ -125,14 +124,14 @@ public class WatchStatus {
                 }
             } else if (Field.LAST_CHECKED.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
-                    lastChecked = parseDate(currentFieldName, parser, UTC);
+                    lastChecked = parseDate(currentFieldName, parser);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (Field.LAST_MET_CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
-                    lastMetCondition = parseDate(currentFieldName, parser, UTC);
+                    lastMetCondition = parseDate(currentFieldName, parser);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
@@ -200,7 +199,7 @@ public class WatchStatus {
                 } else if (Field.ACTIVE.match(currentFieldName, parser.getDeprecationHandler())) {
                     active = parser.booleanValue();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = parseDate(currentFieldName, parser, UTC);
+                    timestamp = parseDate(currentFieldName, parser);
                 }
             }
             return new State(active, timestamp);

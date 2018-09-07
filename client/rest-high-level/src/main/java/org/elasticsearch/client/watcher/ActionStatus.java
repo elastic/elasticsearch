@@ -16,9 +16,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.client.watcher.WatcherDateTimeUtils.dateTimeFormatter;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-
 public class ActionStatus {
 
     private final AckStatus ackStatus;
@@ -149,7 +146,7 @@ public class ActionStatus {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = WatchStatusDateParser.parseDate(parser.text());
                 } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
@@ -228,7 +225,7 @@ public class ActionStatus {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = WatchStatusDateParser.parseDate(parser.text());
                 } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName, parser.getDeprecationHandler())) {
                     successful = parser.booleanValue();
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -298,7 +295,7 @@ public class ActionStatus {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = WatchStatusDateParser.parseDate(parser.text());
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {

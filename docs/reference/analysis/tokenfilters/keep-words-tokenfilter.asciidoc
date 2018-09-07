@@ -27,11 +27,11 @@ PUT /keep_words_example
             "analyzer" : {
                 "example_1" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "words_till_three"]
+                    "filter" : ["lowercase", "words_till_three"]
                 },
                 "example_2" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "words_in_file"]
+                    "filter" : ["lowercase", "words_in_file"]
                 }
             },
             "filter" : {

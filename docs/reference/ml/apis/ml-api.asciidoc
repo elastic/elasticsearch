@@ -48,7 +48,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-flush-job,Flush job>>
 * <<ml-post-data,Post data to job>>
 * <<ml-update-job,Update job>>
-* <<ml-forecast,Forecast job behavior>>
+* <<ml-forecast,Forecast job behavior>>, <<ml-delete-forecast,Delete forecasts>>
 
 [float]
 [[ml-api-snapshot-endpoint]]
@@ -85,6 +85,7 @@ include::delete-calendar.asciidoc[]
 include::delete-datafeed.asciidoc[]
 include::delete-calendar-event.asciidoc[]
 include::delete-filter.asciidoc[]
+include::delete-forecast.asciidoc[]
 include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -62,8 +63,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public boolean needsScores() {
-            return in.needsScores();
+        public ScoreMode scoreMode() {
+            return in.scoreMode();
         }
 
         @Override

@@ -30,14 +30,10 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -107,16 +103,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -138,17 +133,6 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
-    }
-
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
-        Params params = new Params(request);
-        params.withTimeout(cancelTasksRequest.getTimeout())
-            .withTaskId(cancelTasksRequest.getTaskId())
-            .withNodes(cancelTasksRequest.getNodes())
-            .withParentTaskId(cancelTasksRequest.getParentTaskId())
-            .withActions(cancelTasksRequest.getActions());
-        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -721,28 +705,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
-        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
-
-        Params parameters = new Params(request);
-        parameters.withLocal(clusterGetSettingsRequest.local());
-        parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
-        parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
-
-        return request;
-    }
-
     static Request getPipeline(GetPipelineRequest getPipelineRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ingest/pipeline")
@@ -784,44 +746,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request listTasks(ListTasksRequest listTaskRequest) {
-        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
-            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
-        }
-        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
-        Params params = new Params(request);
-        params.withTimeout(listTaskRequest.getTimeout())
-            .withDetailed(listTaskRequest.getDetailed())
-            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
-            .withParentTaskId(listTaskRequest.getParentTaskId())
-            .withNodes(listTaskRequest.getNodes())
-            .withActions(listTaskRequest.getActions())
-            .putParam("group_by", "none");
-        return request;
-    }
-
-    static Request clusterHealth(ClusterHealthRequest healthRequest) {
-        String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_cluster/health")
-            .addCommaSeparatedPathParts(indices)
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        new Params(request)
-            .withWaitForStatus(healthRequest.waitForStatus())
-            .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
-            .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
-            .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
-            .withWaitForNodes(healthRequest.waitForNodes())
-            .withWaitForEvents(healthRequest.waitForEvents())
-            .withTimeout(healthRequest.timeout())
-            .withMasterTimeout(healthRequest.masterNodeTimeout())
-            .withLocal(healthRequest.local())
-            .withLevel(healthRequest.level());
-        return request;
-    }
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -834,6 +758,59 @@ final class RequestConverters {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(updateByQueryRequest.getRouting())
+            .withPipeline(updateByQueryRequest.getPipeline())
+            .withRefresh(updateByQueryRequest.isRefresh())
+            .withTimeout(updateByQueryRequest.getTimeout())
+            .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(updateByQueryRequest.getBatchSize()));
+        }
+        if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", updateByQueryRequest.getScrollTime());
+        }
+        if (updateByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
+            .withTimeout(deleteByQueryRequest.getTimeout())
+            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
+        }
+        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
+        }
+        if (deleteByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -1142,13 +1119,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xPackGraphExplore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(exploreRequest, REQUEST_BODY_CONTENT_TYPE));        
-        return request;
-    }    
-    
     static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack")
@@ -1184,41 +1154,6 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withTimeout(putLicenseRequest.timeout());
-        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
-        if (putLicenseRequest.isAcknowledge()) {
-            parameters.putParam("acknowledge", "true");
-        }
-        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
-        return request;
-    }
-
-    static Request getLicense(GetLicenseRequest getLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withLocal(getLicenseRequest.local());
-        return request;
-    }
-
-    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
-        Params parameters = new Params(request);
-        parameters.withTimeout(deleteLicenseRequest.timeout());
-        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
         return request;
     }
 

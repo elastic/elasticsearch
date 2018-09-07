@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.PutUserRequest;
 
 import java.io.IOException;
 
@@ -45,4 +46,15 @@ public final class SecurityRequestConverters {
     }
 
 
+    static Request putUser(PutUserRequest putUserRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/user")
+            .addPathPart(putUserRequest.getUsername())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        return request;
+    }
 }

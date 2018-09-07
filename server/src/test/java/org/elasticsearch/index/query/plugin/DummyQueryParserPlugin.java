@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.plugin;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -52,8 +53,8 @@ public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-            return matchAllDocsQuery.createWeight(searcher, needsScores, boost);
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return matchAllDocsQuery.createWeight(searcher, scoreMode, boost);
         }
 
         @Override

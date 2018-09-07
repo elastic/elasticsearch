@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 
 import java.io.IOException;
@@ -69,14 +71,14 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public boolean needsScores() {
-        return true;
+    public ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE;
     }
 
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.deferred = BucketCollector.wrap(deferredCollectors);
+        this.deferred = MultiBucketCollector.wrap(deferredCollectors);
     }
 
     @Override
@@ -101,7 +103,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     // Designed to be overridden by subclasses that may score docs by criteria
     // other than Lucene score
     protected TopDocsCollector<? extends ScoreDoc> createTopDocsCollector(int size) throws IOException {
-        return TopScoreDocCollector.create(size);
+        return TopScoreDocCollector.create(size, Integer.MAX_VALUE);
     }
 
     @Override
@@ -278,6 +280,11 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
             sampler.collect(docId);
             maxDocId = Math.max(maxDocId, docId);
+        }
+
+        @Override
+        public float getMaxScore(int upTo) throws IOException {
+            return Float.MAX_VALUE;
         }
     }
 

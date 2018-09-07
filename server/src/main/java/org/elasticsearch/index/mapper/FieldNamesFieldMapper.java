@@ -215,9 +215,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // Adding values to the _field_names field is handled by the mappers for each field type
-        return null;
     }
 
     static Iterable<String> extractFieldNames(final String fullPath) {

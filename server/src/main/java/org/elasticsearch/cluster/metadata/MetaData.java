@@ -309,15 +309,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 includeAliases.add(alias);
             }
         }
-        boolean matchAllAliases = matchAllAliases(includeAliases);
+        String[] included = includeAliases.toArray(Strings.EMPTY_ARRAY);
+        String[] excluded = excludeAliases.toArray(Strings.EMPTY_ARRAY);
+        boolean matchAllAliases = matchAllAliases(included);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if ((matchAllAliases || Regex.simpleMatch(includeAliases, value.alias()))
-                    && Regex.simpleMatch(excludeAliases, value.alias()) == false) {
+                if ((matchAllAliases || Regex.simpleMatch(included, value.alias()))
+                    && Regex.simpleMatch(excluded, value.alias()) == false) {
                     filteredValues.add(value);
                 }
             }
@@ -331,13 +333,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return mapBuilder.build();
     }
 
-    private static boolean matchAllAliases(final List<String> aliases) {
+    private static boolean matchAllAliases(final String[] aliases) {
         for (String alias : aliases) {
             if (alias.equals(ALL)) {
                 return true;
             }
         }
-        return aliases.isEmpty();
+        return aliases.length == 0;
     }
 
     /**

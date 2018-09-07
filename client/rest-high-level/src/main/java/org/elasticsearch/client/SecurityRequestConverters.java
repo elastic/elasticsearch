@@ -35,8 +35,9 @@ public final class SecurityRequestConverters {
 
     static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security")
+            .addPathPartAsIs("_xpack/security/user")
             .addPathPart(changePasswordRequest.getUsername())
+            .addPathPartAsIs("_password")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));

@@ -19,25 +19,19 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import java.io.IOException;
 
-public class ChangePasswordResponse {
+/**
+ * Response for a request which simply returns an empty object.
+ */
+public final class EmptyResponse {
 
-    public ChangePasswordResponse(){
+    private static final ObjectParser<EmptyResponse, Void> PARSER = new ObjectParser<>("empty_response", false, EmptyResponse::new);
 
-    }
-
-    private static final ConstructingObjectParser<ChangePasswordResponse, Void> PARSER =
-        ConstructingObjectParser<>("change_password_response"), true, args -> new ChangePasswordResponse()));
-
-    static {
-        PARSER.
-    }
-
-    public static ChangePasswordResponse fromXContent(XContentParser parser) {
+    public static EmptyResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

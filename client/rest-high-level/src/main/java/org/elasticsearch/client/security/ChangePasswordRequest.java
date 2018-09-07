@@ -34,12 +34,12 @@ import java.util.Optional;
 public final class ChangePasswordRequest implements Validatable, Closeable, ToXContentObject {
 
     private final String username;
-    private final char[] passwordHash;
+    private final char[] password;
     private final RefreshPolicy refreshPolicy;
 
-    public ChangePasswordRequest(String username, char[] passwordHash, RefreshPolicy refreshPolicy){
-        this.username = Objects.requireNonNull(username, "username is required");
-        this.passwordHash = Objects.requireNonNull(passwordHash, "password is required");
+    public ChangePasswordRequest(String username, char[] password, RefreshPolicy refreshPolicy) {
+        this.username = username;
+        this.password = Objects.requireNonNull(password, "password is required");
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
     }
 
@@ -48,8 +48,8 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
         return username;
     }
 
-    public char[] getPasswordHash() {
-        return passwordHash;
+    public char[] getPassword() {
+        return password;
     }
 
     public RefreshPolicy getRefreshPolicy() {
@@ -62,20 +62,20 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
         if (o == null || getClass() != o.getClass()) return false;
         ChangePasswordRequest that = (ChangePasswordRequest) o;
         return Objects.equals(username, that.username) &&
-            Arrays.equals(passwordHash, that.passwordHash) &&
+            Arrays.equals(password, that.password) &&
             refreshPolicy == that.refreshPolicy;
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(username, refreshPolicy);
-        result = 31 * result + Arrays.hashCode(passwordHash);
+        result = 31 * result + Arrays.hashCode(password);
         return result;
     }
     @Override
     public void close() throws IOException {
-        if (passwordHash != null){
-            Arrays.fill(passwordHash, '\u0000');
+        if (password != null) {
+            Arrays.fill(password, '\u0000');
         }
     }
 
@@ -85,9 +85,9 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
         if (null != username){
             builder.field("username", username);
         }
-        if (passwordHash != null){
-            byte[] charBytes = CharArrays.toUtf8Bytes(passwordHash);
-            builder.field("passwordHash").utf8Value(charBytes, 0, charBytes.length);
+        if (password != null) {
+            byte[] charBytes = CharArrays.toUtf8Bytes(password);
+            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
         }
         return builder.endObject();
     }

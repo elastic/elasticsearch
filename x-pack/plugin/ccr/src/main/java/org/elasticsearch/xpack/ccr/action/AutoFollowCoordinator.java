@@ -110,6 +110,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
                 } else {
                     final Client leaderClient = client.getRemoteClusterClient(leaderClusterAlias);
+                    // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                             leaderClient,
                             leaderClusterAlias,

@@ -76,7 +76,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             builder.copyCurrentStructure(p);
             return BytesArray.bytes(builder);
         }, STEP_INFO_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""), PHASE_EXECUTION_INFO);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
+            PHASE_EXECUTION_INFO);
     }
 
     private final String index;

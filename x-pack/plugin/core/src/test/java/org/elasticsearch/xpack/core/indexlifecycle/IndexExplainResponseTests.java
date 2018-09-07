@@ -45,7 +45,7 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
             randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
     }
 
     @Override

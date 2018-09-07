@@ -41,6 +41,10 @@ public class PhaseTests extends AbstractXContentTestCase<Phase> {
 
     @Override
     protected Phase createTestInstance() {
+        return randomPhase(phaseName);
+    }
+
+    static Phase randomPhase(String phaseName) {
         TimeValue after = null;
         if (randomBoolean()) {
             after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");

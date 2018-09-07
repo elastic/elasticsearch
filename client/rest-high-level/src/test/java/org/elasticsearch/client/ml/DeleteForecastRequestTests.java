@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DeleteForecastRequestTests extends AbstractXContentTestCase<DeleteForecastRequest> {
 
@@ -31,7 +33,12 @@ public class DeleteForecastRequestTests extends AbstractXContentTestCase<DeleteF
 
         DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest(JobTests.randomValidJobId());
         if (randomBoolean()) {
-            deleteForecastRequest.setForecastId(randomAlphaOfLength(10));
+            int length = randomInt(10);
+            List<String> ids = new ArrayList<>(length);
+            for(int i = 0; i < length; i++) {
+                ids.add(randomAlphaOfLength(10));
+            }
+            deleteForecastRequest.setForecastIds(ids);
         }
         if (randomBoolean()) {
             deleteForecastRequest.setAllowNoForecasts(randomBoolean());

@@ -22,12 +22,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -45,7 +49,8 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareStringOrNull(DeleteForecastRequest::setForecastId, FORECAST_ID);
+        PARSER.declareStringOrNull(
+            (c, p) -> c.setForecastIds(Strings.commaDelimitedListToStringArray(p)), FORECAST_ID);
         PARSER.declareBoolean(DeleteForecastRequest::setAllowNoForecasts, ALLOW_NO_FORECASTS);
         PARSER.declareString(DeleteForecastRequest::timeout, TIMEOUT);
     }
@@ -57,12 +62,12 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
      */
     public static DeleteForecastRequest deleteAllForecasts(String jobId) {
         DeleteForecastRequest request = new DeleteForecastRequest(jobId);
-        request.setForecastId(ALL);
+        request.setForecastIds(ALL);
         return request;
     }
 
     private final String jobId;
-    private String forecastId;
+    private List<String> forecastIds = new ArrayList<>();
     private Boolean allowNoForecasts;
     private TimeValue timeout;
 
@@ -79,17 +84,24 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
         return jobId;
     }
 
-    public String getForecastId() {
-        return forecastId;
+    public List<String> getForecastIds() {
+        return forecastIds;
     }
 
     /**
-     * The forecast ID to delete. Can be also be {@link DeleteForecastRequest#ALL} to explicitly delete ALL forecasts
+     * The forecast IDs to delete. Can be also be {@link DeleteForecastRequest#ALL} to explicitly delete ALL forecasts
      *
-     * @param forecastId forecast ID to delete or {@link DeleteForecastRequest#ALL}
+     * @param forecastIds forecast IDs to delete
      */
-    public void setForecastId(String forecastId) {
-        this.forecastId = forecastId;
+    public void setForecastIds(String... forecastIds) {
+        setForecastIds(Arrays.asList(forecastIds));
+    }
+
+    void setForecastIds(List<String> forecastIds) {
+        if (forecastIds.stream().anyMatch(Objects::isNull)) {
+            throw new NullPointerException("forecastIds must not contain null values");
+        }
+        this.forecastIds = new ArrayList<>(forecastIds);
     }
 
     public Boolean isAllowNoForecasts() {
@@ -137,14 +149,14 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
 
         DeleteForecastRequest that = (DeleteForecastRequest) other;
         return Objects.equals(jobId, that.jobId) &&
-            Objects.equals(forecastId, that.forecastId) &&
+            Objects.equals(forecastIds, that.forecastIds) &&
             Objects.equals(allowNoForecasts, that.allowNoForecasts) &&
             Objects.equals(timeout, that.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, forecastId, allowNoForecasts, timeout);
+        return Objects.hash(jobId, forecastIds, allowNoForecasts, timeout);
     }
 
     @Override
@@ -156,8 +168,8 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        if (forecastId != null) {
-            builder.field(FORECAST_ID.getPreferredName(), forecastId);
+        if (forecastIds != null) {
+            builder.field(FORECAST_ID.getPreferredName(), Strings.collectionToCommaDelimitedString(forecastIds));
         }
         if (allowNoForecasts != null) {
             builder.field(ALLOW_NO_FORECASTS.getPreferredName(), allowNoForecasts);

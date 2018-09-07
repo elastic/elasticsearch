@@ -44,6 +44,7 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -214,12 +215,16 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertFalse(request.getParameters().containsKey("timeout"));
         assertFalse(request.getParameters().containsKey("allow_no_forecasts"));
 
-        deleteForecastRequest.setForecastId(randomAlphaOfLength(10));
+        deleteForecastRequest.setForecastIds(randomAlphaOfLength(10), randomAlphaOfLength(10));
         deleteForecastRequest.timeout("10s");
         deleteForecastRequest.setAllowNoForecasts(true);
 
         request = MLRequestConverters.deleteForecast(deleteForecastRequest);
-        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_forecast/" + deleteForecastRequest.getForecastId(),
+        assertEquals(
+            "/_xpack/ml/anomaly_detectors/" +
+                jobId +
+                "/_forecast/" +
+                Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()),
             request.getEndpoint());
         assertEquals("10s",
             request.getParameters().get(DeleteForecastRequest.TIMEOUT.getPreferredName()));

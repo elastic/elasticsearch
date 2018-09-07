@@ -21,6 +21,8 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -645,9 +647,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         Job job = MachineLearningIT.buildJob("deleting-forecast-for-job");
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
-        //post data
-        //forecast
-        String forecastId = "";
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+
+        PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
+        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse = client.machineLearning().
+            forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
+        String forecastId = forecastJobResponse.getForecastId();
+
+        GetRequest request = new GetRequest(".ml-anomalies-" + job.getId());
+        request.id(job.getId() + "_model_forecast_request_stats_" + forecastId);
+        assertBusy(() -> {
+            GetResponse getResponse = highLevelClient().get(request, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertTrue(getResponse.getSourceAsString().contains("finished"));
+        }, 30, TimeUnit.SECONDS);
 
         {
             //tag::x-pack-ml-delete-forecast-request
@@ -655,7 +676,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::x-pack-ml-delete-forecast-request
 
             //tag::x-pack-ml-delete-forecast-request-options
-            deleteForecastRequest.setForecastId(forecastId); //<1>
+            deleteForecastRequest.setForecastIds(forecastId); //<1>
             deleteForecastRequest.timeout("30s"); //<2>
             deleteForecastRequest.setAllowNoForecasts(true); //<3>
             //end::x-pack-ml-delete-forecast-request-options
@@ -668,7 +689,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-ml-delete-forecast-response
             boolean isAcknowledged = deleteForecastResponse.isAcknowledged(); //<1>
             //end::x-pack-ml-delete-forecast-response
-
         }
         {
             //tag::x-pack-ml-delete-forecast-listener
@@ -684,7 +704,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
             //end::x-pack-ml-delete-forecast-listener
-            DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest("deleting-forecast-for-job");
+            DeleteForecastRequest deleteForecastRequest = DeleteForecastRequest.deleteAllForecasts(job.getId());
+            deleteForecastRequest.setAllowNoForecasts(true);
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);

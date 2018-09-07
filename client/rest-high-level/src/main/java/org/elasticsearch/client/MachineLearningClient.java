@@ -450,14 +450,14 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Deletes a Machine Learning Job Forecast
+     * Deletes Machine Learning Job Forecasts
      *
      * <p>
      *     For additional info
-     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-delete-forecast.html"></a>
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
      * </p>
      *
-     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastID, and other options
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return a AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -471,14 +471,14 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Deletes a Machine Learning Job Forecast
+     * Deletes Machine Learning Job Forecasts asynchronously
      *
      * <p>
      *     For additional info
-     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-delete-forecast.html"></a>
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
      * </p>
      *
-     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastID, and other options
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */

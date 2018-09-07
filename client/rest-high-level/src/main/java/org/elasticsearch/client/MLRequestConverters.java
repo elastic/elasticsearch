@@ -188,7 +188,7 @@ final class MLRequestConverters {
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(deleteForecastRequest.getJobId())
             .addPathPartAsIs("_forecast")
-            .addPathPart(deleteForecastRequest.getForecastId())
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()))
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);

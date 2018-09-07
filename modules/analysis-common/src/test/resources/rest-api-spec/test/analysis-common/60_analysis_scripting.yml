@@ -43,7 +43,7 @@
             text: "Vorsprung Durch Technik"
             tokenizer: "whitespace"
             filter:
-              - type: script_filter
+              - type: predicate_token_filter
                 script:
                   source: "token.term.length() > 5"
 
@@ -59,7 +59,7 @@
             text: "a b c d e f g h"
             tokenizer: "whitespace"
             filter:
-              - type: script_filter
+              - type: predicate_token_filter
                 script:
                   source: "token.position >= 4"
 

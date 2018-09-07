@@ -37,7 +37,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.Collections;
 
-public class ScriptedFilteringTokenFilterTests extends ESTokenStreamTestCase {
+public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     public void testSimpleFilter() throws IOException {
         Settings settings = Settings.builder()
@@ -45,7 +45,7 @@ public class ScriptedFilteringTokenFilterTests extends ESTokenStreamTestCase {
             .build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put("index.analysis.filter.f.type", "script_filter")
+            .put("index.analysis.filter.f.type", "predicate_token_filter")
             .put("index.analysis.filter.f.script.source", "token.getTerm().length() > 5")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")

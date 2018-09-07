@@ -39,7 +39,7 @@ include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
 
 include::tokenfilters/condition-tokenfilter.asciidoc[]
 
-include::tokenfilters/scriptfilter-tokenfilter.asciidoc[]
+include::tokenfilters/predicate-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 

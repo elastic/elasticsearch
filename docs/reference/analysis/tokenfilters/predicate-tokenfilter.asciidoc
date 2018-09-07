@@ -1,7 +1,7 @@
-[[analysis-scriptfilter-tokenfilter]]
-=== Scripted Filtering Token Filter
+[[analysis-predicatefilter-tokenfilter]]
+=== Predicate Token Script Filter
 
-The script_filter token filter takes a predicate script, and removes tokens that do
+The predicate_token_filter token filter takes a predicate script, and removes tokens that do
 not match the predicate.
 
 [float]
@@ -29,7 +29,7 @@ PUT /condition_example
             },
             "filter" : {
                 "my_script_filter" : {
-                    "type" : "script_filter",
+                    "type" : "predicate_token_filter",
                     "script" : {
                         "source" : "token.getTerm().length() > 5"  <1>
                     }
@@ -41,7 +41,7 @@ PUT /condition_example
 --------------------------------------------------
 // CONSOLE
 
-<1> This will skip tokens that are 5 characters long or less
+<1> This will emit tokens that are more than 5 characters long
 
 And test it like:
 

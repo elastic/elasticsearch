@@ -17,34 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 
-public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
+public class StopILMRequestTests extends AbstractStreamableTestCase<StopILMRequest> {
 
-    public StartILMRequest() {
+    @Override
+    protected StopILMRequest createBlankInstance() {
+        return new StopILMRequest();
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    protected StopILMRequest createTestInstance() {
+        return new StopILMRequest();
     }
 
-    @Override
-    public int hashCode() {
-        return 64;
+    public void testValidate() {
+        StopILMRequest request = createTestInstance();
+        assertNull(request.validate());
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-        return true;
-    }
 }

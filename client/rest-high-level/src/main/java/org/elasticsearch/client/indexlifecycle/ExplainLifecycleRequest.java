@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
@@ -29,7 +29,7 @@ import java.util.Objects;
 
 /**
  * The request object used by the Explain Lifecycle API.
- * 
+ *
  * Multiple indices may be queried in the same request using the
  * {@link #indices(String...)} method
  */

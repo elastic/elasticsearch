@@ -25,12 +25,12 @@ import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.SetIndexLifecyclePolicyResponse;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StartILMRequest;
-import org.elasticsearch.protocol.xpack.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.StartILMRequest;
+import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 
 import java.io.IOException;
 

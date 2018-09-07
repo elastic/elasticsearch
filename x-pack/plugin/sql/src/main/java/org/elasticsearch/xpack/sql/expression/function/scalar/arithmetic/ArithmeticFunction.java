@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
@@ -66,7 +67,7 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
     public String name() {
         StringBuilder sb = new StringBuilder();
         sb.append("(");
-        appendFunctionArg(left(), sb);
+        sb.append(Expressions.name(left()));
         if (!(left() instanceof Literal)) {
             sb.insert(1, "(");
             sb.append(")");
@@ -75,7 +76,7 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
         sb.append(operation);
         sb.append(" ");
         int pos = sb.length();
-        appendFunctionArg(right(), sb);
+        sb.append(Expressions.name(right()));
         if (!(right() instanceof Literal)) {
             sb.insert(pos, "(");
             sb.append(")");
@@ -87,13 +88,5 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
     @Override
     public String toString() {
         return name() + "#" + functionId();
-    }
-
-    private void appendFunctionArg(Expression arg, StringBuilder sb) {
-        if (arg instanceof FieldAttribute) {
-            sb.append(((FieldAttribute) arg).name());
-        } else {
-            sb.append(arg);
-        }
     }
 }

@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  * Tests that wait for refresh is fired if the index is closed.
  */
-public class WaitForRefreshAndCloseTests extends ESRestTestCase {
+public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
         try {

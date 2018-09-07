@@ -178,7 +178,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();
@@ -233,7 +233,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();
@@ -290,7 +290,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
 
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
@@ -315,7 +315,7 @@ public class NewPathForShardTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+        NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings), nodeId -> {});
 
         // Make sure all our mocking above actually worked:
         NodePath[] nodePaths = nodeEnv.nodePaths();

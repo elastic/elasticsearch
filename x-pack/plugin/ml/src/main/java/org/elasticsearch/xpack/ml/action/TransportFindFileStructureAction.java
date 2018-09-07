@@ -13,24 +13,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.FileStructureAction;
+import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
 
-public class TransportFileStructureAction extends HandledTransportAction<FileStructureAction.Request, FileStructureAction.Response> {
+public class TransportFindFileStructureAction
+    extends HandledTransportAction<FindFileStructureAction.Request, FindFileStructureAction.Response> {
 
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportFileStructureAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                        ThreadPool threadPool) {
-        super(settings, FileStructureAction.NAME, transportService, actionFilters, FileStructureAction.Request::new);
+    public TransportFindFileStructureAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+                                            ThreadPool threadPool) {
+        super(settings, FindFileStructureAction.NAME, transportService, actionFilters, FindFileStructureAction.Request::new);
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void doExecute(Task task, FileStructureAction.Request request, ActionListener<FileStructureAction.Response> listener) {
+    protected void doExecute(Task task, FindFileStructureAction.Request request,
+                             ActionListener<FindFileStructureAction.Response> listener) {
 
         // As determining the file structure might take a while, we run
         // in a different thread to avoid blocking the network thread.
@@ -43,13 +45,13 @@ public class TransportFileStructureAction extends HandledTransportAction<FileStr
         });
     }
 
-    private FileStructureAction.Response buildFileStructureResponse(FileStructureAction.Request request) throws Exception {
+    private FindFileStructureAction.Response buildFileStructureResponse(FindFileStructureAction.Request request) throws Exception {
 
         FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
 
         FileStructureFinder fileStructureFinder =
             structureFinderManager.findFileStructure(request.getLinesToSample(), request.getSample().streamInput());
 
-        return new FileStructureAction.Response(fileStructureFinder.getStructure());
+        return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
     }
 }

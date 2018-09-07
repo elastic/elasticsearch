@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ml.action.FileStructureAction;
+import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
@@ -21,23 +21,23 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
-public class RestFileStructureAction extends BaseRestHandler {
+public class RestFindFileStructureAction extends BaseRestHandler {
 
-    public RestFileStructureAction(Settings settings, RestController controller) {
+    public RestFindFileStructureAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "file_structure", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "find_file_structure", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_file_structure_action";
+        return "xpack_ml_find_file_structure_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
 
-        FileStructureAction.Request request = new FileStructureAction.Request();
-        request.setLinesToSample(restRequest.paramAsInt(FileStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
+        request.setLinesToSample(restRequest.paramAsInt(FindFileStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
             FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT));
         if (restRequest.hasContent()) {
             request.setSample(restRequest.content());
@@ -45,7 +45,7 @@ public class RestFileStructureAction extends BaseRestHandler {
             throw new ElasticsearchParseException("request body is required");
         }
 
-        return channel -> client.execute(FileStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FindFileStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -5,7 +5,7 @@
         # This is to stop the usual content type randomization, which
         # would obviously ruin the results for this particular test
         Content-Type: "application/json"
-      xpack.ml.file_structure:
+      xpack.ml.find_file_structure:
         body:
           - airline: AAL
             responsetime: 132.2046

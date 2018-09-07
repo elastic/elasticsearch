@@ -12,12 +12,12 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FileStructureActionRequestTests extends AbstractStreamableTestCase<FileStructureAction.Request> {
+public class FindFileStructureActionRequestTests extends AbstractStreamableTestCase<FindFileStructureAction.Request> {
 
     @Override
-    protected FileStructureAction.Request createTestInstance() {
+    protected FindFileStructureAction.Request createTestInstance() {
 
-        FileStructureAction.Request request = new FileStructureAction.Request();
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
 
         if (randomBoolean()) {
             request.setLinesToSample(randomIntBetween(10, 2000));
@@ -28,13 +28,13 @@ public class FileStructureActionRequestTests extends AbstractStreamableTestCase<
     }
 
     @Override
-    protected FileStructureAction.Request createBlankInstance() {
-        return new FileStructureAction.Request();
+    protected FindFileStructureAction.Request createBlankInstance() {
+        return new FindFileStructureAction.Request();
     }
 
     public void testValidateLinesToSample() {
 
-        FileStructureAction.Request request = new FileStructureAction.Request();
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
         request.setLinesToSample(randomFrom(-1, 0));
         request.setSample(new BytesArray("foo\n"));
 
@@ -46,7 +46,7 @@ public class FileStructureActionRequestTests extends AbstractStreamableTestCase<
 
     public void testValidateSample() {
 
-        FileStructureAction.Request request = new FileStructureAction.Request();
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
         if (randomBoolean()) {
             request.setSample(BytesArray.EMPTY);
         }

@@ -1,10 +1,10 @@
 {
-  "xpack.ml.file_structure": {
+  "xpack.ml.find_file_structure": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-file-structure.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/ml/file_structure",
-      "paths": [ "/_xpack/ml/file_structure" ],
+      "path": "/_xpack/ml/find_file_structure",
+      "paths": [ "/_xpack/ml/find_file_structure" ],
       "params": {
         "lines_to_sample": {
           "type": "int",

@@ -26,12 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FileStructureAction extends Action<FileStructureAction.Response> {
+public class FindFileStructureAction extends Action<FindFileStructureAction.Response> {
 
-    public static final FileStructureAction INSTANCE = new FileStructureAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/filestructure";
+    public static final FindFileStructureAction INSTANCE = new FindFileStructureAction();
+    public static final String NAME = "cluster:monitor/xpack/ml/findfilestructure";
 
-    private FileStructureAction() {
+    private FindFileStructureAction() {
         super(NAME);
     }
 
@@ -42,7 +42,7 @@ public class FileStructureAction extends Action<FileStructureAction.Response> {
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        RequestBuilder(ElasticsearchClient client, FileStructureAction action) {
+        RequestBuilder(ElasticsearchClient client, FindFileStructureAction action) {
             super(client, action, new Request());
         }
     }
@@ -55,7 +55,7 @@ public class FileStructureAction extends Action<FileStructureAction.Response> {
             this.fileStructure = fileStructure;
         }
 
-        public Response() {
+        Response() {
         }
 
         public FileStructure getFileStructure() {
@@ -101,7 +101,7 @@ public class FileStructureAction extends Action<FileStructureAction.Response> {
                 return false;
             }
 
-            FileStructureAction.Response that = (FileStructureAction.Response) other;
+            FindFileStructureAction.Response that = (FindFileStructureAction.Response) other;
             return Objects.equals(fileStructure, that.fileStructure);
         }
     }

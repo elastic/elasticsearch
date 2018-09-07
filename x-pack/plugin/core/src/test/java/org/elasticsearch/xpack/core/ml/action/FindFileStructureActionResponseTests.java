@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructureTests;
 
-public class FileStructureActionResponseTests extends AbstractStreamableTestCase<FileStructureAction.Response> {
+public class FindFileStructureActionResponseTests extends AbstractStreamableTestCase<FindFileStructureAction.Response> {
 
     @Override
-    protected FileStructureAction.Response createTestInstance() {
-        return new FileStructureAction.Response(FileStructureTests.createTestFileStructure());
+    protected FindFileStructureAction.Response createTestInstance() {
+        return new FindFileStructureAction.Response(FileStructureTests.createTestFileStructure());
     }
 
     @Override
-    protected FileStructureAction.Response createBlankInstance() {
-        return new FileStructureAction.Response();
+    protected FindFileStructureAction.Response createBlankInstance() {
+        return new FindFileStructureAction.Response();
     }
 }

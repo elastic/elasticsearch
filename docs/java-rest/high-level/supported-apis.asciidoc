@@ -248,6 +248,18 @@ The Java High Level REST Client supports the following Migration APIs:
 
 include::migration/get-assistance.asciidoc[]
 
+== Security APIs
+
+The Java High Level REST Client supports the following Security APIs:
+
+* <<java-rest-high-security-put-user>>
+* <<java-rest-high-security-enable-user>>
+* <<java-rest-high-security-disable-user>>
+
+include::security/put-user.asciidoc[]
+include::security/enable-user.asciidoc[]
+include::security/disable-user.asciidoc[]
+
 == Watcher APIs
 
 The Java High Level REST Client supports the following Watcher APIs:

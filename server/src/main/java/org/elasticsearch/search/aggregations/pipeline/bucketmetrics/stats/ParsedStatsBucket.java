@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedStats;
 
 
 public class ParsedStatsBucket extends ParsedStats implements StatsBucket {

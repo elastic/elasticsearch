@@ -21,9 +21,11 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 
 import java.io.IOException;
@@ -96,12 +98,25 @@ public class MultiBucketCollector extends BucketCollector {
     private MultiBucketCollector(BucketCollector... collectors) {
         this.collectors = collectors;
         int numNeedsScores = 0;
-        for (BucketCollector collector : collectors) {
-            if (collector.needsScores()) {
+        for (Collector collector : collectors) {
+            if (collector.scoreMode().needsScores()) {
                 numNeedsScores += 1;
             }
         }
         this.cacheScores = numNeedsScores >= 2;
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+        ScoreMode scoreMode = null;
+        for (Collector collector : collectors) {
+            if (scoreMode == null) {
+                scoreMode = collector.scoreMode();
+            } else if (scoreMode != collector.scoreMode()) {
+                return ScoreMode.COMPLETE;
+            }
+        }
+        return scoreMode;
     }
 
     @Override
@@ -116,16 +131,6 @@ public class MultiBucketCollector extends BucketCollector {
         for (BucketCollector collector : collectors) {
             collector.postCollection();
         }
-    }
-
-    @Override
-    public boolean needsScores() {
-        for (BucketCollector collector : collectors) {
-            if (collector.needsScores()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override

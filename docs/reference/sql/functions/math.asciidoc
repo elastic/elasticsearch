@@ -1,0 +1,159 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-math]]
+=== Math Functions
+
+All math and trigonometric functions require their input (where applicable)
+to be numeric.
+
+==== Generic
+
+* `ABS`
+
+https://en.wikipedia.org/wiki/Absolute_value[Absolute value], returns \[same type as input]
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[abs]
+--------------------------------------------------
+
+* `CBRT`
+
+https://en.wikipedia.org/wiki/Cube_root[Cube root], returns `double`
+
+// TODO make the example in the tests presentable
+
+* `CEIL`
+
+https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Ceiling], returns `double`
+
+* `CEILING`
+
+Same as `CEIL`
+
+// TODO make the example in the tests presentable
+
+* `E`
+
+https://en.wikipedia.org/wiki/E_%28mathematical_constant%29[Euler's number], returns `2.7182818284590452354`
+
+
+* https://en.wikipedia.org/wiki/Rounding#Round_half_up[Round] (`ROUND`)
+
+// TODO make the example in the tests presentable
+
+NOTE: This rounds "half up" meaning that `ROUND(-1.5)` results in `-1`.
+
+
+* https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Floor] (`FLOOR`)
+
+// TODO make the example in the tests presentable
+
+* https://en.wikipedia.org/wiki/Natural_logarithm[Natural logarithm] (`LOG`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[log]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Logarithm[Logarithm] base 10 (`LOG10`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[log10]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Square_root[Square root] (`SQRT`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[sqrt]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Exponential_function[e^x^] (`EXP`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[exp]
+--------------------------------------------------
+
+* https://docs.oracle.com/javase/8/docs/api/java/lang/Math.html#expm1-double-[e^x^ - 1] (`EXPM1`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[expm1]
+--------------------------------------------------
+
+==== Trigonometric
+
+* Convert from https://en.wikipedia.org/wiki/Radian[radians]
+to https://en.wikipedia.org/wiki/Degree_(angle)[degrees] (`DEGREES`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[degrees]
+--------------------------------------------------
+
+* Convert from https://en.wikipedia.org/wiki/Degree_(angle)[degrees]
+to https://en.wikipedia.org/wiki/Radian[radians] (`RADIANS`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[degrees]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Trigonometric_functions#sine[Sine] (`SIN`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[sin]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Trigonometric_functions#cosine[Cosine] (`COS`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[cos]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Trigonometric_functions#tangent[Tangent] (`TAN`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[tan]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[Arc sine] (`ASIN`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[asin]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[Arc cosine] (`ACOS`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[acos]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[Arc tangent] (`ATAN`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[atan]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Hyperbolic_function[Hyperbolic sine] (`SINH`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[sinh]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Hyperbolic_function[Hyperbolic cosine] (`COSH`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/math.sql-spec[cosh]
+--------------------------------------------------

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
@@ -75,6 +76,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         closeWhileListenerEngaged(start("POST", "/_update", "{\"doc\":{\"name\":\"test\"}}"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33533")
     public void testDeleteAndThenClose() throws Exception {
         Request request = new Request("PUT", docPath());
         request.setJsonEntity("{\"test\":\"test\"}");

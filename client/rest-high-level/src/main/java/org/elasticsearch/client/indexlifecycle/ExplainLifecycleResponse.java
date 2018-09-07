@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 /**
  * The response object returned by the Explain Lifecycle API.
- * 
+ *
  * Since the API can be run over multiple indices the response provides a map of
  * index to the explanation of the lifecycle status for that index.
  */

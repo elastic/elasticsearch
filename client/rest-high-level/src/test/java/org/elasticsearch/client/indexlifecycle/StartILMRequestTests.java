@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.indexlifecycle;
+package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
-public class StopILMRequestTests extends AbstractStreamableTestCase<StopILMRequest> {
+public class StartILMRequestTests extends AbstractStreamableTestCase<StartILMRequest> {
 
     @Override
-    protected StopILMRequest createBlankInstance() {
-        return new StopILMRequest();
+    protected StartILMRequest createBlankInstance() {
+        return new StartILMRequest();
     }
 
     @Override
-    protected StopILMRequest createTestInstance() {
-        return new StopILMRequest();
+    protected StartILMRequest createTestInstance() {
+        return new StartILMRequest();
     }
 
     public void testValidate() {
-        StopILMRequest request = createTestInstance();
+        StartILMRequest request = createTestInstance();
         assertNull(request.validate());
     }
 

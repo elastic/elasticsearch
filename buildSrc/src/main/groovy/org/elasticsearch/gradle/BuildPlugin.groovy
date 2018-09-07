@@ -66,7 +66,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
         final String minimumGradleVersion

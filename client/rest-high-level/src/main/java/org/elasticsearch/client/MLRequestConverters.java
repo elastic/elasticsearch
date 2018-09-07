@@ -30,6 +30,7 @@ import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -150,6 +151,19 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(flushJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request forecastJob(ForecastJobRequest forecastJobRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(forecastJobRequest.getJobId())
+            .addPathPartAsIs("_forecast")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(forecastJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

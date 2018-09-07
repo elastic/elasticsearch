@@ -218,6 +218,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-flush-job>>
 * <<java-rest-high-x-pack-ml-update-job>>
 * <<java-rest-high-x-pack-ml-get-job-stats>>
+* <<java-rest-high-x-pack-ml-forecast-job>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
 * <<java-rest-high-x-pack-ml-get-overall-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
@@ -232,6 +233,7 @@ include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
+include::ml/forecast-job.asciidoc[]
 include::ml/get-buckets.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]

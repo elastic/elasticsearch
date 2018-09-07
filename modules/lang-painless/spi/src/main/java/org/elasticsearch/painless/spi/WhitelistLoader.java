@@ -193,18 +193,18 @@ public final class WhitelistLoader {
                         whitelistConstructors = new ArrayList<>();
                         whitelistMethods = new ArrayList<>();
                         whitelistFields = new ArrayList<>();
-                    } else if (line.startsWith("static ")) {
+                    } else if (line.startsWith("static_import ")) {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
                             throw new IllegalArgumentException(
-                                    "invalid static definition: failed to parse static opening bracket [" + line + "]");
+                                    "invalid static import definition: failed to parse static import opening bracket [" + line + "]");
                         }
 
                         if (parseType != null) {
-                            throw new IllegalArgumentException("invalid definition: cannot embed static definition [" + line + "]");
+                            throw new IllegalArgumentException("invalid definition: cannot embed static import definition [" + line + "]");
                         }
 
-                        parseType = "static";
+                        parseType = "static_import";
 
                     // Handle the end of a definition and reset all previously gathered values.
                     // Expects the following format: '}' '\n'
@@ -230,9 +230,9 @@ public final class WhitelistLoader {
                         // Reset the parseType.
                         parseType = null;
 
-                    // Handle static definition types.
-                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from' | 'bound_to' ) ID '\n'
-                    } else if ("static".equals(parseType)) {
+                    // Handle static import definition types.
+                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from_class' | 'bound_to' ) ID '\n'
+                    } else if ("static_import".equals(parseType)) {
                         // Mark the origin of this parsable object.
                         String origin = "[" + filepath + "]:[" + number + "]";
 
@@ -241,7 +241,7 @@ public final class WhitelistLoader {
 
                         if (parameterStartIndex == -1) {
                             throw new IllegalArgumentException(
-                                    "illegal static definition: start of method parameters not found [" + line + "]");
+                                    "illegal static import definition: start of method parameters not found [" + line + "]");
                         }
 
                         String[] tokens = line.substring(0, parameterStartIndex).trim().split("\\s+");
@@ -262,7 +262,7 @@ public final class WhitelistLoader {
 
                         if (parameterEndIndex == -1) {
                             throw new IllegalArgumentException(
-                                    "illegal static definition: end of method parameters not found [" + line + "]");
+                                    "illegal static import definition: end of method parameters not found [" + line + "]");
                         }
 
                         String[] canonicalTypeNameParameters =
@@ -273,41 +273,36 @@ public final class WhitelistLoader {
                             canonicalTypeNameParameters = new String[0];
                         }
 
-                        // Parse the static type and class.
+                        // Parse the static import type and class.
                         tokens = line.substring(parameterEndIndex + 1).trim().split("\\s+");
 
-                        String staticType;
+                        String staticImportType;
                         String targetJavaClassName;
 
                         // Based on the number of tokens, look up the type and class.
                         if (tokens.length == 2) {
-                            staticType = tokens[0];
+                            staticImportType = tokens[0];
                             targetJavaClassName = tokens[1];
                         } else {
-                            throw new IllegalArgumentException("invalid static definition: unexpected format [" + line + "]");
+                            throw new IllegalArgumentException("invalid static import definition: unexpected format [" + line + "]");
                         }
 
-                        // Add a static method or binding depending on the static type.
-                        if ("from".equals(staticType)) {
+                        // Add a static import method or binding depending on the static import type.
+                        if ("from_class".equals(staticImportType)) {
                             whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
-                        } else if ("bound_to".equals(staticType)) {
+                        } else if ("bound_to".equals(staticImportType)) {
                             whitelistBindings.add(new WhitelistBinding(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
                         } else {
-                            throw new IllegalArgumentException(
-                                    "invalid static definition: unexpected static type [" + staticType + "] [" + line + "]");
+                            throw new IllegalArgumentException("invalid static import definition: " +
+                                    "unexpected static import type [" + staticImportType + "] [" + line + "]");
                         }
 
                     // Handle class definition types.
                     } else if ("class".equals(parseType)) {
                         // Mark the origin of this parsable object.
                         String origin = "[" + filepath + "]:[" + number + "]";
-
-                        // Ensure we have a defined class before adding any constructors, methods, augmented methods, or fields.
-                        if (parseType == null) {
-                            throw new IllegalArgumentException("invalid definition: expected one of ['class', 'static'] [" + line + "]");
-                        }
 
                         // Handle the case for a constructor definition.
                         // Expects the following format: '(' ( ID ( ',' ID )* )? ')' '\n'

@@ -46,7 +46,7 @@ public final class ECallLocal extends AExpression {
     private final List<AExpression> arguments;
 
     private LocalMethod method = null;
-    private PainlessMethod statik = null;
+    private PainlessMethod imported = null;
     private PainlessBinding binding = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
@@ -68,9 +68,9 @@ public final class ECallLocal extends AExpression {
         method = locals.getMethod(name, arguments.size());
 
         if (method == null) {
-            statik = locals.getPainlessLookup().lookupPainlessStatic(name, arguments.size());
+            imported = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
 
-            if (statik == null) {
+            if (imported == null) {
                 binding = locals.getPainlessLookup().lookupPainlessBinding(name, arguments.size());
 
                 if (binding == null) {
@@ -85,9 +85,9 @@ public final class ECallLocal extends AExpression {
         if (method != null) {
             typeParameters = new ArrayList<>(method.typeParameters);
             actual = method.returnType;
-        } else if (statik != null) {
-            typeParameters = new ArrayList<>(statik.typeParameters);
-            actual = statik.returnType;
+        } else if (imported != null) {
+            typeParameters = new ArrayList<>(imported.typeParameters);
+            actual = imported.returnType;
         } else if (binding != null) {
             typeParameters = new ArrayList<>(binding.typeParameters);
             actual = binding.returnType;
@@ -117,13 +117,13 @@ public final class ECallLocal extends AExpression {
             }
 
             writer.invokeStatic(CLASS_TYPE, new Method(method.name, method.methodType.toMethodDescriptorString()));
-        } else if (statik != null) {
+        } else if (imported != null) {
             for (AExpression argument : arguments) {
                 argument.write(writer, globals);
             }
 
-            writer.invokeStatic(Type.getType(statik.targetClass),
-                    new Method(statik.javaMethod.getName(), statik.methodType.toMethodDescriptorString()));
+            writer.invokeStatic(Type.getType(imported.targetClass),
+                    new Method(imported.javaMethod.getName(), imported.methodType.toMethodDescriptorString()));
         } else if (binding != null) {
             String name = globals.addBinding(binding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(binding.javaConstructor.getDeclaringClass());

@@ -62,18 +62,18 @@ public final class Whitelist {
     public final List<WhitelistClass> whitelistClasses;
 
     /** The {@link List} of all the whitelisted static Painless methods. */
-    public final List<WhitelistMethod> whitelistStatics;
+    public final List<WhitelistMethod> whitelistImportedMethods;
 
     /** The {@link List} of all the whitelisted Painless bindings. */
     public final List<WhitelistBinding> whitelistBindings;
 
-    /** Standard constructor.  All values must be not {@code null}. */
+    /** Standard constructor. All values must be not {@code null}. */
     public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses,
-            List<WhitelistMethod> whitelistStatics, List<WhitelistBinding> whitelistBindings) {
+            List<WhitelistMethod> whitelistImportedMethods, List<WhitelistBinding> whitelistBindings) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
-        this.whitelistStatics = Collections.unmodifiableList(Objects.requireNonNull(whitelistStatics));
+        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
         this.whitelistBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistBindings));
     }
 }

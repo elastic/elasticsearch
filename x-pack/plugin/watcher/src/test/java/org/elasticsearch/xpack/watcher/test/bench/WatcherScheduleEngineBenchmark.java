@@ -94,7 +94,12 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        try (Node node = new Node(Settings.builder().put(SETTINGS).put("node.data", false).build()).start()) {
+        try (Node node = new Node(Settings.builder().put(SETTINGS).put("node.data", false).build()) {
+                    @Override
+                    protected void registerDerivedNodeNameWithLogger(String nodeName) {
+                        // Nothing to do because test uses the thread name
+                    }
+                }.start()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {

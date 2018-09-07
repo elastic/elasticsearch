@@ -39,10 +39,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -74,8 +70,9 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -89,10 +86,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.util.EnumSet;
 import java.util.Locale;
 import java.util.StringJoiner;
-import java.util.stream.Collectors;
 
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -467,47 +462,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(putPipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(putPipelineRequest.timeout());
-        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(deletePipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(deletePipelineRequest.timeout());
-        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
-
-        return request;
-    }
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -576,20 +530,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
-        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
-            builder.addPathPart(simulatePipelineRequest.getId());
-        }
-        builder.addPathPartAsIs("_simulate");
-        String endpoint = builder.build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
-        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -604,19 +544,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request xPackInfo(XPackInfoRequest infoRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
-        if (false == infoRequest.isVerbose()) {
-            request.addParameter("human", "false");
-        }
-        if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
-            request.addParameter("categories", infoRequest.getCategories().stream()
-                    .map(c -> c.toString().toLowerCase(Locale.ROOT))
-                    .collect(Collectors.joining(",")));
-        }
         return request;
     }
 
@@ -651,10 +578,38 @@ final class RequestConverters {
         return request;
     }
 
-    static Request xpackUsage(XPackUsageRequest usageRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+    static Request putLicense(PutLicenseRequest putLicenseRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
-        parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        parameters.withTimeout(putLicenseRequest.timeout());
+        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
+        if (putLicenseRequest.isAcknowledge()) {
+            parameters.putParam("acknowledge", "true");
+        }
+        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
+        return request;
+    }
+
+    static Request getLicense(GetLicenseRequest getLicenseRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("license")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params parameters = new Params(request);
+        parameters.withLocal(getLicenseRequest.local());
+        return request;
+    }
+
+    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
+        Params parameters = new Params(request);
+        parameters.withTimeout(deleteLicenseRequest.timeout());
+        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
         return request;
     }
 

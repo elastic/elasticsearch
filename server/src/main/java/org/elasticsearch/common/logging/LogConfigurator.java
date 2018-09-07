@@ -134,6 +134,15 @@ public class LogConfigurator {
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
     }
 
+    /**
+     * Sets the node name. This is called before logging is configured if the
+     * node name is set in elasticsearch.yml. Otherwise it is called as soon
+     * as the node id is available.
+     */
+    public static void setNodeName(String nodeName) {
+        NodeNamePatternConverter.setNodeName(nodeName);
+    }
+
     private static void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
@@ -158,8 +167,8 @@ public class LogConfigurator {
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
+        final Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         final List<AbstractConfiguration> configurations = new ArrayList<>();
-
         /*
          * Subclass the properties configurator to hack the new pattern in
          * place so users don't have to change log4j2.properties in
@@ -170,7 +179,6 @@ public class LogConfigurator {
          * Everything in this subclass that isn't marked as a hack is copied
          * from log4j2's source.
          */
-        Set<String> locationsWithDeprecatedPatterns = Collections.synchronizedSet(new HashSet<>());
         final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory() {
             @Override
             public PropertiesConfiguration getConfiguration(final LoggerContext loggerContext, final ConfigurationSource source) {

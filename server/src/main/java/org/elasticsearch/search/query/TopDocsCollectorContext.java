@@ -238,7 +238,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     }
                 } else {
                     // total hit count is not needed
-                    this.totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
+                    // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
+                    this.totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 }
                 MaxScoreCollector maxScoreCollector = null;
                 if (trackMaxScore) {

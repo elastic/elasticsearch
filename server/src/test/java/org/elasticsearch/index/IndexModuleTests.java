@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
@@ -432,13 +431,8 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public SimWeight computeWeight(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
-            return delegate.computeWeight(boost, collectionStats, termStats);
-        }
-
-        @Override
-        public SimScorer simScorer(SimWeight weight, LeafReaderContext context) throws IOException {
-            return delegate.simScorer(weight, context);
+        public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            return delegate.scorer(boost, collectionStats, termStats);
         }
     }
 

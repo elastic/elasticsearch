@@ -12,6 +12,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.netty4.Netty4Transport;
@@ -27,7 +29,10 @@ import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
@@ -106,8 +111,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getClientChannelInitializer() {
-        return new SecurityClientChannelInitializer();
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
+        return new SecurityClientChannelInitializer(node);
     }
 
     @Override
@@ -167,16 +172,28 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
 
         private final boolean hostnameVerificationEnabled;
+        private final SNIHostName serverName;
 
-        SecurityClientChannelInitializer() {
+        SecurityClientChannelInitializer(DiscoveryNode node) {
             this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            String configuredServerName = node.getAttributes().get("server_name");
+            if (configuredServerName != null) {
+                try {
+                    serverName = new SNIHostName(configuredServerName);
+                } catch (IllegalArgumentException e) {
+                    throw new ConnectTransportException(node, "invalid DiscoveryNode server_name [" + configuredServerName + "]", e);
+                }
+            } else {
+                serverName = null;
+            }
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled));
+                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
+                    serverName));
             }
         }
     }
@@ -186,11 +203,14 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
         private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
+        private final SNIServerName serverName;
 
-        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled) {
+        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled,
+                                            SNIServerName serverName) {
             this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
+            this.serverName = serverName;
         }
 
         @Override
@@ -207,6 +227,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
             }
 
             sslEngine.setUseClientMode(true);
+            if (serverName != null) {
+                SSLParameters sslParameters = sslEngine.getSSLParameters();
+                sslParameters.setServerNames(Collections.singletonList(serverName));
+                sslEngine.setSSLParameters(sslParameters);
+            }
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }

@@ -20,7 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -165,7 +165,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 }
 
                 @Override
-                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
+                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermStates states) {
                     SpanTermQuery q = new SpanTermQuery(term, states);
                     topLevel.add(q);
                 }

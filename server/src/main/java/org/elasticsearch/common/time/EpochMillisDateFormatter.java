@@ -27,7 +27,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Map;
 
-public class EpochMillisDateFormatter implements DateFormatter {
+class EpochMillisDateFormatter implements DateFormatter {
 
     @Override
     public TemporalAccessor parse(String input) {

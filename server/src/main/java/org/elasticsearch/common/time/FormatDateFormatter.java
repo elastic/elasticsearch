@@ -29,13 +29,13 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 
-public class FormatDateFormatter implements DateFormatter {
+class FormatDateFormatter implements DateFormatter {
 
     private final String format;
     private final DateTimeFormatter printer;
     private final DateTimeFormatter[] parsers;
 
-    public FormatDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+    FormatDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
         long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
         if (distinctZones > 1) {
             throw new IllegalArgumentException("formatters must have the same time zone");

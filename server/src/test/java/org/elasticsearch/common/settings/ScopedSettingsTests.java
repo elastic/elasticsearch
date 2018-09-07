@@ -205,15 +205,8 @@ public class ScopedSettingsTests extends ESTestCase {
                 () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
         assertThat(e, hasToString(containsString("missing required setting [foo.test.name] for setting [foo.test.bar]")));
 
-        service.validate(Settings.builder()
-                .put("foo.test.name", "test")
-                .put("foo.test.bar", 7)
-                .build(), true);
-
-        service.validate(Settings.builder()
-                .put("fallback.test.name", "test")
-                .put("foo.test.bar", 7)
-                .build(), true);
+        service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
+        service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
     }
 
     public void testTupleAffixUpdateConsumer() {

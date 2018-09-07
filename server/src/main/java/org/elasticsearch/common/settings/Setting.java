@@ -369,10 +369,17 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(final Settings settings) {
+        return exists(settings, false);
+    }
+
+    public boolean exists(final Settings settings, final boolean fallback) {
         Setting<?> current = this;
         do {
             if (settings.keySet().contains(current.getKey())) {
                 return true;
+            }
+            if (fallback == false) {
+                break;
             }
             current = current.fallbackSetting;
         } while (current != null);

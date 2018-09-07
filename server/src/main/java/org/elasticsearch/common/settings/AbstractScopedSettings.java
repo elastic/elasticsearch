@@ -468,7 +468,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
             if (validateDependencies && settingsDependencies.isEmpty() == false) {
                 for (final Setting<?> settingDependency : settingsDependencies) {
-                    if (settingDependency.exists(settings) == false) {
+                    if (settingDependency.exists(settings, true) == false) {
                         final String message = String.format(
                                 Locale.ROOT,
                                 "missing required setting [%s] for setting [%s]",

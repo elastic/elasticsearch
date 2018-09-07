@@ -154,7 +154,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Sets the value of "start" which is a timestamp.
      * Only overall buckets whose timestamp is on or after the "start" value will be returned.
-     * @param start value of "start" to be set
+     * @param start String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setStart(String start) {
         this.start = start;
@@ -167,7 +167,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Sets the value of "end" which is a timestamp.
      * Only overall buckets whose timestamp is before the "end" value will be returned.
-     * @param end value of "end" to be set
+     * @param end String representation of a timestamp; may be an epoch seconds, epoch millis or an ISO string
      */
     public void setEnd(String end) {
         this.end = end;

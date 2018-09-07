@@ -351,7 +351,7 @@ public class BigArraysTests extends ESTestCase {
 
     public void testMaxSizeExceededOnResize() throws Exception {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
-            final long maxSize = randomIntBetween(1 << 10, 1 << 22);
+            final int maxSize = randomIntBetween(1 << 10, 1 << 22);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
                     Settings.builder()
                             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
@@ -359,18 +359,12 @@ public class BigArraysTests extends ESTestCase {
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, false).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
-            final int size = scaledRandomIntBetween(1, 20);
+            final int size = scaledRandomIntBetween(10, maxSize / 8);
             BigArray array = (BigArray) create.invoke(bigArrays, size);
             Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
-            while (true) {
-                long newSize = array.size() * 2;
-                try {
-                    array = (BigArray) resize.invoke(bigArrays, array, newSize);
-                } catch (InvocationTargetException e) {
-                    assertTrue(e.getCause() instanceof CircuitBreakingException);
-                    break;
-                }
-            }
+            final long newSize = maxSize + 1;
+            InvocationTargetException e = expectThrows(InvocationTargetException.class, () -> resize.invoke(bigArrays, array, newSize));
+            assertTrue(e.getCause() instanceof CircuitBreakingException);
             assertEquals(array.ramBytesUsed(), hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
             array.close();
             assertEquals(0, hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());

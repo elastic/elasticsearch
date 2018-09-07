@@ -120,38 +120,38 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.ParsedAvg;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.cardinality.ParsedCardinality;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.geobounds.ParsedGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.ParsedGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.ParsedMin;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.ParsedHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.ParsedTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.ParsedTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.scripted.ParsedScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.sum.ParsedSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.tophits.ParsedTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedMax;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedStats;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedSum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -217,6 +217,7 @@ public class RestHighLevelClient implements Closeable {
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
+    private final SecurityClient securityClient = new SecurityClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -374,6 +375,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public MachineLearningClient machineLearning() {
         return machineLearningClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Security APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
+     * Security APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Security API calls
+     */
+    public SecurityClient security() {
+        return securityClient;
     }
 
     /**

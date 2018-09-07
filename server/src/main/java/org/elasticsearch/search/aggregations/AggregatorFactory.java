@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -74,8 +75,8 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         }
 
         @Override
-        public boolean needsScores() {
-            return first.needsScores();
+        public ScoreMode scoreMode() {
+            return first.scoreMode();
         }
 
         @Override

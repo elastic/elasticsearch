@@ -39,21 +39,28 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
+import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.rest.RestCcrStatsAction;
 import org.elasticsearch.xpack.ccr.rest.RestCreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.rest.RestDeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestFollowIndexAction;
+import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -113,7 +120,14 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final Environment environment,
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
-        return Collections.singleton(ccrLicenseChecker);
+        if (enabled == false) {
+            return emptyList();
+        }
+
+        return Arrays.asList(
+            ccrLicenseChecker,
+            new AutoFollowCoordinator(settings, client, threadPool, clusterService)
+        );
     }
 
     @Override
@@ -128,12 +142,18 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
 
         return Arrays.asList(
+                // internal actions
                 new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
+                new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
+                // stats action
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
+                // follow actions
                 new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, CreateAndFollowIndexAction.TransportAction.class),
                 new ActionHandler<>(FollowIndexAction.INSTANCE, FollowIndexAction.TransportAction.class),
-                new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
-                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class));
+                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class),
+                // auto-follow actions
+                new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
+                new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class));
     }
 
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
@@ -141,10 +161,15 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
+                // stats API
                 new RestCcrStatsAction(settings, restController),
+                // follow APIs
                 new RestCreateAndFollowIndexAction(settings, restController),
                 new RestFollowIndexAction(settings, restController),
-                new RestUnfollowIndexAction(settings, restController));
+                new RestUnfollowIndexAction(settings, restController),
+                // auto-follow APIs
+                new RestDeleteAutoFollowPatternAction(settings, restController),
+                new RestPutAutoFollowPatternAction(settings, restController));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

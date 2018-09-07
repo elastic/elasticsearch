@@ -54,11 +54,11 @@ public final class GrokProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String fieldValue = ingestDocument.getFieldValue(matchField, String.class, ignoreMissing);
 
         if (fieldValue == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (fieldValue == null) {
             throw new IllegalArgumentException("field [" + matchField + "] is null, cannot process it.");
         }
@@ -81,6 +81,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 ingestDocument.setFieldValue(PATTERN_MATCH_KEY, "0");
             }
         }
+        return ingestDocument;
     }
 
     @Override

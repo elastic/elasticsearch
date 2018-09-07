@@ -979,9 +979,23 @@ public class ScopedSettingsTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> {
                     final Settings settings = Settings.builder().put("index.internal", "internal").build();
-                    indexScopedSettings.validate(settings, false, /* validateInternalIndex */ true);
+                    indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
                 });
         final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
+        assertThat(e, hasToString(containsString(message)));
+    }
+
+    public void testPrivateIndexSettingsFailsValidation() {
+        final Setting<String> indexInternalSetting = Setting.simpleString("index.private", Property.PrivateIndex, Property.IndexScope);
+        final IndexScopedSettings indexScopedSettings =
+                new IndexScopedSettings(Settings.EMPTY, Collections.singleton(indexInternalSetting));
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    final Settings settings = Settings.builder().put("index.private", "private").build();
+                    indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
+                });
+        final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -991,7 +1005,16 @@ public class ScopedSettingsTests extends ESTestCase {
                 new IndexScopedSettings(Settings.EMPTY, Collections.singleton(internalIndexSetting));
         // nothing should happen, validation should not throw an exception
         final Settings settings = Settings.builder().put("index.internal", "internal").build();
-        indexScopedSettings.validate(settings, false, /* validateInternalIndex */ false);
+        indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
+    }
+
+    public void testPrivateIndexSettingsSkipValidation() {
+        final Setting<String> internalIndexSetting = Setting.simpleString("index.private", Property.PrivateIndex, Property.IndexScope);
+        final IndexScopedSettings indexScopedSettings =
+                new IndexScopedSettings(Settings.EMPTY, Collections.singleton(internalIndexSetting));
+        // nothing should happen, validation should not throw an exception
+        final Settings settings = Settings.builder().put("index.private", "private").build();
+        indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
     }
 
 }

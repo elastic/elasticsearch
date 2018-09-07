@@ -45,9 +45,11 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -148,6 +150,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -207,6 +210,13 @@ public class Node implements Closeable {
                 throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " +
                     "[" + value + "]");
             }
+            if (value.length() > 0 && "node.attr.server_name".equals(key)) {
+                try {
+                    new SNIHostName(value);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("invalid node.attr.server_name [" + value + "]", e );
+                }
+            }
             return value;
         }, Property.NodeScope));
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
@@ -260,10 +270,19 @@ public class Node implements Closeable {
     }
 
     public Node(Environment environment) {
-        this(environment, Collections.emptyList());
+        this(environment, Collections.emptyList(), true);
     }
 
-    protected Node(final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
+    /**
+     * Constructs a node
+     *
+     * @param environment                the environment for this node
+     * @param classpathPlugins           the plugins to be loaded from the classpath
+     * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
+     *                                   test framework for tests that rely on being able to set private settings
+     */
+    protected Node(
+            final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
         logger = Loggers.getLogger(Node.class);
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
@@ -424,6 +443,20 @@ public class Node implements Closeable {
                             threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
                             scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreFactories);
 
+            final AliasValidator aliasValidator = new AliasValidator(settings);
+
+            final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    clusterModule.getAllocationService(),
+                    aliasValidator,
+                    environment,
+                    settingsModule.getIndexScopedSettings(),
+                    threadPool,
+                    xContentRegistry,
+                    forbidPrivateIndexSettings);
+
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), xContentRegistry, environment, nodeEnvironment,
@@ -512,6 +545,8 @@ public class Node implements Closeable {
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
+                    b.bind(AliasValidator.class).toInstance(aliasValidator);
+                    b.bind(MetaDataCreateIndexService.class).toInstance(metaDataCreateIndexService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings,

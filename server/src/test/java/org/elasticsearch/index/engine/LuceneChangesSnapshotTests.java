@@ -25,7 +25,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -182,16 +181,20 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             }
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
+        engine.refresh("test");
+        Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, between(1, 100), 0, maxSeqNo, false)) {
+            searcher = null;
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
             assertThat(snapshot.skippedOperations(), equalTo(totalOps - latestOperations.size()));
+        } finally {
+            IOUtils.close(searcher);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33344")
     public void testUpdateAndReadChangesConcurrently() throws Exception {
         Follower[] followers = new Follower[between(1, 3)];
         CountDownLatch readyLatch = new CountDownLatch(followers.length + 1);
@@ -223,26 +226,30 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             operations.add(op);
         }
         readyLatch.countDown();
+        readyLatch.await();
         concurrentlyApplyOps(operations, engine);
         assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);
         for (Follower follower : followers) {
             follower.join();
+            IOUtils.close(follower.engine, follower.engine.store);
         }
     }
 
     class Follower extends Thread {
         private final Engine leader;
+        private final InternalEngine engine;
         private final TranslogHandler translogHandler;
         private final AtomicBoolean isDone;
         private final CountDownLatch readLatch;
 
-        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) {
+        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) throws IOException {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
             this.translogHandler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
-                engine.engineConfig.getIndexSettings().getSettings()));
+                leader.engineConfig.getIndexSettings().getSettings()));
+            this.engine = createEngine(createStore(), createTempDir());
         }
 
         void pullOperations(Engine follower) throws IOException {
@@ -260,16 +267,15 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
         @Override
         public void run() {
-            try (Store store = createStore();
-                 InternalEngine follower = createEngine(store, createTempDir())) {
+            try {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||
-                    follower.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
-                    pullOperations(follower);
+                    engine.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
+                    pullOperations(engine);
                 }
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, mapperService);
-                assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
+                assertThat(getDocIds(engine, true), equalTo(getDocIds(leader, true)));
             } catch (Exception ex) {
                 throw new AssertionError(ex);
             }

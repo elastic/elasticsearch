@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -51,10 +50,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -268,7 +267,6 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
         bind(MetaDataIndexStateService.class).asEagerSingleton();
         bind(MetaDataMappingService.class).asEagerSingleton();

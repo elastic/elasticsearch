@@ -539,15 +539,15 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }
             // build poms with assemble (if the assemble task exists)
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
+            if (assemble && assemble.enabled) {
                 assemble.dependsOn(generatePOMTask)
             }
         }

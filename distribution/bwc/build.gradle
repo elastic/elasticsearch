@@ -50,8 +50,8 @@ subprojects {
 
   apply plugin: 'distribution'
   // Not published so no need to assemble
-  tasks.remove(assemble)
-  build.dependsOn.remove('assemble')
+  assemble.enabled = false
+  assemble.dependsOn.remove('buildBwcVersion')
 
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
@@ -196,11 +196,19 @@ subprojects {
     }
   }
 
-  artifacts {
-    for (File artifactFile : artifactFiles) {
-      String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-      String suffix = artifactFile.toString()[-3..-1]
-      'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+  if (gradle.startParameter.taskNames == ["assemble"]) {
+    // Gradle needs the `artifacts` declaration, including `builtBy` bellow to make projects dependencies on this
+    // project work, but it will also trigger the build of these for the `assemble` task.
+    // Since these are only used for testing, we don't want to assemble them if `assemble` is the single command being
+    // ran.
+    logger.info("Skipping BWC builds since `assemble` is the only task name provided on the command line")
+  } else {
+    artifacts {
+      for (File artifactFile : artifactFiles) {
+        String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+        String suffix = artifactFile.toString()[-3..-1]
+        'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+      }
     }
   }
 }

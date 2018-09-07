@@ -1957,9 +1957,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
         }
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
             @Override
@@ -1987,9 +1987,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
-            assertEquals(search.totalHits, 0);
+            assertEquals(search.totalHits.value, 0);
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
-            assertEquals(search.totalHits, 1);
+            assertEquals(search.totalHits.value, 1);
         }
         try (Engine.GetResult getResult = newShard
                 .get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
@@ -2596,7 +2596,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33345")
     public void testIndexCheckOnStartup() throws Exception {
         final IndexShard indexShard = newStartedShard(true);
 
@@ -2650,7 +2649,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             closeShards(corruptedShard);
         } catch (RuntimeException e) {
-            assertThat(e.getMessage(), equalTo("CheckIndex failed"));
+            // Ignored because corrupted shard can throw various exceptions on close
         }
     }
 

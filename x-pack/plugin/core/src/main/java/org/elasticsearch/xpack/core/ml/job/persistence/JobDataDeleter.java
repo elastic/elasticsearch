@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -129,8 +127,8 @@ public class JobDataDeleter {
         QueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
                 .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
-        deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(query));
+        deleteByQueryHolder.dbqRequest.setIndicesOptions(IndicesOptions.lenientExpandOpen());
+        deleteByQueryHolder.dbqRequest.setQuery(query);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest,
                 ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure));
     }
@@ -142,9 +140,9 @@ public class JobDataDeleter {
         DeleteByQueryHolder deleteByQueryHolder = new DeleteByQueryHolder(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         deleteByQueryHolder.dbqRequest.setRefresh(false);
 
-        deleteByQueryHolder.searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        deleteByQueryHolder.dbqRequest.setIndicesOptions(IndicesOptions.lenientExpandOpen());
         QueryBuilder qb = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
-        deleteByQueryHolder.searchRequest.source(new SearchSourceBuilder().query(new ConstantScoreQueryBuilder(qb)));
+        deleteByQueryHolder.dbqRequest.setQuery(new ConstantScoreQueryBuilder(qb));
 
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
@@ -156,13 +154,11 @@ public class JobDataDeleter {
     // Wrapper to ensure safety
     private static class DeleteByQueryHolder {
 
-        private final SearchRequest searchRequest;
         private final DeleteByQueryRequest dbqRequest;
 
         private DeleteByQueryHolder(String index) {
-            // The search request has to be constructed and passed to the DeleteByQueryRequest before more details are set to it
-            searchRequest = new SearchRequest(index);
-            dbqRequest = new DeleteByQueryRequest(searchRequest);
+            dbqRequest = new DeleteByQueryRequest();
+            dbqRequest.indices(index);
             dbqRequest.setSlices(5);
             dbqRequest.setAbortOnVersionConflict(false);
         }

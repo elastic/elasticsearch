@@ -61,6 +61,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+        IndexMetaData.SETTING_INDEX_VERSION_CREATED,
         IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
         IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -94,6 +95,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
@@ -200,7 +202,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         switch (key) {
             case IndexMetaData.SETTING_CREATION_DATE:
             case IndexMetaData.SETTING_INDEX_UUID:
-            case IndexMetaData.SETTING_VERSION_CREATED:
             case IndexMetaData.SETTING_VERSION_UPGRADED:
             case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:

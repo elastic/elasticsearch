@@ -89,8 +89,8 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             if (validTicket) {
                 final String expectedUsername = maybeRemoveRealmName(username);
                 final Map<String, Object> metadata = new HashMap<>();
-                metadata.put("realm", realmName(username));
-                metadata.put("user_principal_name", username);
+                metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+                metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
                 final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {

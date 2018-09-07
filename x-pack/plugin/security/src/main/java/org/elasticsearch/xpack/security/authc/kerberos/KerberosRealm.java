@@ -59,6 +59,9 @@ import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthentica
  */
 public final class KerberosRealm extends Realm implements CachingRealm {
 
+    public static final String KRB_METADATA_REALM_NAME_KEY = "kerberos_realm";
+    public static final String KRB_METADATA_UPN_KEY = "kerberos_user_principal_name";
+
     private final Cache<String, User> userPrincipalNameToUserCache;
     private final NativeRoleMappingStore userRoleMapper;
     private final KerberosTicketValidator kerberosTicketValidator;
@@ -214,8 +217,8 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             } else {
                 final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
                 final Map<String, Object> metadata = new HashMap<>();
-                metadata.put("realm", realmName);
-                metadata.put("user_principal_name", userPrincipalName);
+                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
+                metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
                 buildUser(username, metadata, listener);
             }
         }

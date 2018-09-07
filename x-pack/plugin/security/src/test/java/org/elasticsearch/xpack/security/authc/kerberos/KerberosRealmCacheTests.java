@@ -43,8 +43,8 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         final String expectedUsername = maybeRemoveRealmName(username);
         final Map<String, Object> metadata = new HashMap<>();
-        metadata.put("realm", realmName(username));
-        metadata.put("user_principal_name", username);
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
@@ -78,8 +78,8 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(authNUsername, outToken), null);
         final String expectedUsername = maybeRemoveRealmName(authNUsername);
         final Map<String, Object> metadata = new HashMap<>();
-        metadata.put("realm", realmName(authNUsername));
-        metadata.put("user_principal_name", authNUsername);
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(authNUsername));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, authNUsername);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
 
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
@@ -119,8 +119,8 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         final String expectedUsername = maybeRemoveRealmName(username);
         final Map<String, Object> metadata = new HashMap<>();
-        metadata.put("realm", realmName(username));
-        metadata.put("user_principal_name", username);
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));

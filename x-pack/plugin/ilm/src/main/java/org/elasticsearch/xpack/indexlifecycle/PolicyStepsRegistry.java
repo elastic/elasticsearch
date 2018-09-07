@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
 
+    private final Client client;
     // keeps track of existing policies in the cluster state
     private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is, the key is policy name
@@ -55,22 +56,24 @@ public class PolicyStepsRegistry {
     private final Map<Index, List<Step>> indexPhaseSteps;
     private final NamedXContentRegistry xContentRegistry;
 
-    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry) {
+    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client) {
         this.lifecyclePolicyMap = new TreeMap<>();
         this.firstStepMap = new HashMap<>();
         this.stepMap = new HashMap<>();
         this.indexPhaseSteps = new HashMap<>();
         this.xContentRegistry = xContentRegistry;
+        this.client = client;
     }
 
     PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
                         Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap,
-                        Map<Index, List<Step>> indexPhaseSteps, NamedXContentRegistry xContentRegistry) {
+                        Map<Index, List<Step>> indexPhaseSteps, NamedXContentRegistry xContentRegistry, Client client) {
         this.lifecyclePolicyMap = lifecyclePolicyMap;
         this.firstStepMap = firstStepMap;
         this.stepMap = stepMap;
         this.indexPhaseSteps = indexPhaseSteps;
         this.xContentRegistry = xContentRegistry;
+        this.client = client;
     }
 
     SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
@@ -97,7 +100,7 @@ public class PolicyStepsRegistry {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void update(ClusterState clusterState, Client client) {
+    public void update(ClusterState clusterState) {
         final IndexLifecycleMetadata meta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
 
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";

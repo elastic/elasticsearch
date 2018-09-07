@@ -393,7 +393,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public double execute(double weight, Query query, Field field, Term term, Doc doc) throws IOException {
+        public double execute(double weight, Query query, Field field, Term term, Doc doc) {
             Map<String, Object> map = new HashMap<>();
             map.put("weight", weight);
             map.put("query", query);
@@ -413,7 +413,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public double execute(Query query, Field field, Term term) throws IOException {
+        public double execute(Query query, Field field, Term term) {
             Map<String, Object> map = new HashMap<>();
             map.put("query", query);
             map.put("field", field);

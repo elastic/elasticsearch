@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,8 +27,11 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -49,6 +53,31 @@ public class IndexLifecycleRunner {
         this.nowSupplier = nowSupplier;
     }
 
+    /**
+     * Return true or false depending on whether the index is ready to be in {@code phase}
+     */
+    boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
+        final Settings indexSettings = indexMetaData.getSettings();
+        if (indexSettings.hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE) == false) {
+            logger.trace("no index creation date has been set yet");
+            return true;
+        }
+        final long lifecycleDate = indexSettings.getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
+        assert lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
+        final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
+        final long now = nowSupplier.getAsLong();
+        final TimeValue age = new TimeValue(now - lifecycleDate);
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}] checking for index age to be at least [{}] before performing actions in " +
+                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}/{}s]",
+                indexMetaData.getIndex().getName(), after, phase,
+                new TimeValue(now).seconds(),
+                new TimeValue(lifecycleDate).seconds(),
+                age, age.seconds());
+        }
+        return now >= lifecycleDate + after.getMillis();
+    }
+
     public void runPolicy(String policy, IndexMetaData indexMetaData, ClusterState currentState,
             boolean fromClusterStateChange) {
         Settings indexSettings = indexMetaData.getSettings();
@@ -65,13 +94,23 @@ public class IndexLifecycleRunner {
                 + "] with policy [" + policy + "] is not recognized");
             return;
         }
-        logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
+        logger.debug("running policy with current-step [" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
+            return;
         } else if (currentStep instanceof ErrorStep) {
             logger.debug(
-                    "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
-        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
+                "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
+            return;
+        } else if (currentStep instanceof PhaseCompleteStep) {
+            // Only proceed to the next step if enough time has elapsed to go into the next phase
+            if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
+                moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+            }
+            return;
+        }
+
+        if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {
@@ -119,6 +158,10 @@ public class IndexLifecycleRunner {
     }
 
     private void runPolicy(IndexMetaData indexMetaData, ClusterState currentState) {
+        if (indexMetaData == null) {
+            // This index doesn't exist any more, there's nothing to execute
+            return;
+        }
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
         runPolicy(policy, indexMetaData, currentState, false);
@@ -206,7 +249,9 @@ public class IndexLifecycleRunner {
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
             LongSupplier nowSupplier) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
-        Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
+        IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policy, idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }
@@ -214,11 +259,13 @@ public class IndexLifecycleRunner {
     static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, StepKey currentStep, Exception cause,
             LongSupplier nowSupplier) throws IOException {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
-        Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep,
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policy, idxMeta.getSettings(), currentStep,
                 new StepKey(currentStep.getPhase(), currentStep.getAction(), ErrorStep.NAME), nowSupplier)
                         .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, currentStep.getName())
                         .put(LifecycleSettings.LIFECYCLE_STEP_INFO, BytesReference.bytes(causeXContentBuilder).utf8ToString());
@@ -247,8 +294,8 @@ public class IndexLifecycleRunner {
         return newState;
     }
 
-    private static Settings.Builder moveIndexSettingsToNextStep(Settings existingSettings, StepKey currentStep, StepKey nextStep,
-            LongSupplier nowSupplier) {
+    private static Settings.Builder moveIndexSettingsToNextStep(LifecyclePolicy policy, Settings existingSettings,
+                                                                StepKey currentStep, StepKey nextStep, LongSupplier nowSupplier) {
         long nowAsMillis = nowSupplier.getAsLong();
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
@@ -257,6 +304,18 @@ public class IndexLifecycleRunner {
                 .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
+            final String newPhaseDefinition;
+            if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
+                newPhaseDefinition = nextStep.getPhase();
+            } else {
+                Phase nextPhase = policy.getPhases().get(nextStep.getPhase());
+                if (nextPhase == null) {
+                    newPhaseDefinition = null;
+                } else {
+                    newPhaseDefinition = Strings.toString(nextPhase, false, false);
+                }
+            }
+            newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION, newPhaseDefinition);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
@@ -356,7 +415,7 @@ public class IndexLifecycleRunner {
             // next available step
             StepKey nextValidStepKey = newPolicy.getNextValidStep(currentStepKey);
             if (nextValidStepKey.equals(currentStepKey) == false) {
-                newSettings = moveIndexSettingsToNextStep(idxSettings, currentStepKey, nextValidStepKey, nowSupplier);
+                newSettings = moveIndexSettingsToNextStep(newPolicy, idxSettings, currentStepKey, nextValidStepKey, nowSupplier);
             }
         }
         newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);

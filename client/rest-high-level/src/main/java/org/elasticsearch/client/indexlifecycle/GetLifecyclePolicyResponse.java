@@ -34,20 +34,20 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 public class GetLifecyclePolicyResponse implements ToXContentObject {
 
-    private final ImmutableOpenMap<String, LifecyclePolicy> policies;
+    private final ImmutableOpenMap<String, LifecyclePolicyMetadata> policies;
 
-    public GetLifecyclePolicyResponse(ImmutableOpenMap<String, LifecyclePolicy> policies) {
+    public GetLifecyclePolicyResponse(ImmutableOpenMap<String, LifecyclePolicyMetadata> policies) {
         this.policies = policies;
     }
 
-    public ImmutableOpenMap<String, LifecyclePolicy> getPolicies() {
+    public ImmutableOpenMap<String, LifecyclePolicyMetadata> getPolicies() {
         return policies;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, LifecyclePolicy> stringLifecyclePolicyObjectObjectCursor : policies) {
+        for (ObjectObjectCursor<String, LifecyclePolicyMetadata> stringLifecyclePolicyObjectObjectCursor : policies) {
             builder.field(stringLifecyclePolicyObjectObjectCursor.key, stringLifecyclePolicyObjectObjectCursor.value);
         }
         builder.endObject();
@@ -55,7 +55,7 @@ public class GetLifecyclePolicyResponse implements ToXContentObject {
     }
 
     public static GetLifecyclePolicyResponse fromXContent(XContentParser parser) throws IOException {
-        ImmutableOpenMap.Builder<String, LifecyclePolicy> policies = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, LifecyclePolicyMetadata> policies = ImmutableOpenMap.builder();
 
         if (parser.currentToken() == null) {
             parser.nextToken();
@@ -66,7 +66,7 @@ public class GetLifecyclePolicyResponse implements ToXContentObject {
         while (!parser.isClosed()) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 String policyName = parser.currentName();
-                LifecyclePolicy policyDefinion = LifecyclePolicy.parse(parser, policyName);
+                LifecyclePolicyMetadata policyDefinion = LifecyclePolicyMetadata.parse(parser, policyName);
                 policies.put(policyName, policyDefinion);
             } else {
                 parser.nextToken();

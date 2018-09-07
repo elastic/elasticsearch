@@ -23,6 +23,7 @@
       unfair. -->
     <module name="LineLength">
       <property name="max" value="140"/>
+      <property name="ignorePattern" value="^ *\* *https?://[^ ]+$"/>
     </module>
 
     <module name="AvoidStarImport" />

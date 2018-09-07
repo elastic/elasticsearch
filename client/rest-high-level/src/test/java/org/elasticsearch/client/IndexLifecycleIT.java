@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -31,7 +30,11 @@ import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
@@ -51,7 +54,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -93,35 +98,33 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         createIndex("baz", Settings.builder().put("index.lifecycle.name", "eggplant").build());
         createIndex("squash", Settings.EMPTY);
 
-        // TODO: NORELEASE convert this to using the high level client once
-        // there are APIs for it
-        Request statusReq = new Request("GET", "/_ilm/status");
-        Response statusResponse = client().performRequest(statusReq);
-        String statusResponseString = EntityUtils.toString(statusResponse.getEntity());
-        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
+        LifecycleManagementStatusRequest statusRequest = new LifecycleManagementStatusRequest();
+        LifecycleManagementStatusResponse statusResponse = execute(
+            statusRequest,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
+        assertEquals(statusResponse.getOperationMode(), OperationMode.RUNNING);
 
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
                 highLevelClient().indexLifecycle()::stopILMAsync);
         assertTrue(stopResponse.isAcknowledged());
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        statusReq = new Request("GET", "/_ilm/status");
-        statusResponse = client().performRequest(statusReq);
-        statusResponseString = EntityUtils.toString(statusResponse.getEntity());
-        assertThat(statusResponseString,
-                Matchers.anyOf(equalTo("{\"operation_mode\":\"STOPPING\"}"), equalTo("{\"operation_mode\":\"STOPPED\"}")));
+
+        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
+        assertThat(statusResponse.getOperationMode(),
+                Matchers.anyOf(equalTo(OperationMode.STOPPING),
+                    equalTo(OperationMode.STOPPED)));
 
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
                 highLevelClient().indexLifecycle()::startILMAsync);
         assertTrue(startResponse.isAcknowledged());
 
-        // TODO: NORELEASE convert this to using the high level client once there are APIs for it
-        statusReq = new Request("GET", "/_ilm/status");
-        statusResponse = client().performRequest(statusReq);
-        statusResponseString = EntityUtils.toString(statusResponse.getEntity());
-        assertEquals("{\"operation_mode\":\"RUNNING\"}", statusResponseString);
+        statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
+            highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
+        assertEquals(statusResponse.getOperationMode(), OperationMode.RUNNING);
     }
 
     public void testExplainLifecycle() throws Exception {
@@ -150,35 +153,39 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
         assertTrue(putResponse.isAcknowledged());
 
-        createIndex("foo", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
-        createIndex("baz", Settings.builder().put("index.lifecycle.name", policy.getName()).build());
+        createIndex("foo-01", Settings.builder().put("index.lifecycle.name", policy.getName())
+            .put("index.lifecycle.rollover_alias", "foo-alias").build(), "", "\"foo-alias\" : {}");
+
+        createIndex("baz-01", Settings.builder().put("index.lifecycle.name", policy.getName())
+            .put("index.lifecycle.rollover_alias", "baz-alias").build(), "", "\"baz-alias\" : {}");
+
         createIndex("squash", Settings.EMPTY);
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo", "baz");
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("foo-01", "baz-01");
             GetSettingsResponse settingsResponse = highLevelClient().indices().getSettings(getSettingsRequest, RequestOptions.DEFAULT);
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.name"), equalTo(policy.getName()));
-            assertThat(settingsResponse.getSetting("foo", "index.lifecycle.phase"), equalTo("hot"));
-            assertThat(settingsResponse.getSetting("baz", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.name"), equalTo(policy.getName()));
+            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.name"), equalTo(policy.getName()));
+            assertThat(settingsResponse.getSetting("foo-01", "index.lifecycle.phase"), equalTo("hot"));
+            assertThat(settingsResponse.getSetting("baz-01", "index.lifecycle.phase"), equalTo("hot"));
         });
 
         ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo", "baz", "squash");
+        req.indices("foo-01", "baz-01", "squash");
         ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
         Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
         assertEquals(3, indexResponses.size());
-        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo");
+        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
         assertNotNull(fooResponse);
         assertTrue(fooResponse.managedByILM());
-        assertEquals("foo", fooResponse.getIndex());
+        assertEquals("foo-01", fooResponse.getIndex());
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
         assertEquals("attempt_rollover", fooResponse.getStep());
-        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz");
+        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
         assertNotNull(bazResponse);
         assertTrue(bazResponse.managedByILM());
-        assertEquals("baz", bazResponse.getIndex());
+        assertEquals("baz-01", bazResponse.getIndex());
         assertEquals("hot", bazResponse.getPhase());
         assertEquals("rollover", bazResponse.getAction());
         assertEquals("attempt_rollover", bazResponse.getStep());
@@ -217,7 +224,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(name);
         GetLifecyclePolicyResponse response = execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
             highLevelClient().indexLifecycle()::getLifecyclePolicyAsync);
-        assertEquals(policy, response.getPolicies().get(name));
+        assertEquals(policy, response.getPolicies().get(name).getPolicy());
     }
 
     public void testGetMultipleLifecyclePolicies() throws IOException {
@@ -235,6 +242,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(randomFrom(policyNames, null));
         GetLifecyclePolicyResponse response = execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
             highLevelClient().indexLifecycle()::getLifecyclePolicyAsync);
-        assertThat(Arrays.asList(response.getPolicies().values().toArray()), hasItems((Object[]) policies));
+        List<LifecyclePolicy> retrievedPolicies = Arrays.stream(response.getPolicies().values().toArray())
+            .map(p -> ((LifecyclePolicyMetadata) p).getPolicy()).collect(Collectors.toList());
+        assertThat(retrievedPolicies, hasItems(policies));
     }
 }

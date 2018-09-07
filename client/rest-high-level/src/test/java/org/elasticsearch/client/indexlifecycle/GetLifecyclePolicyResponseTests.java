@@ -38,11 +38,11 @@ public class GetLifecyclePolicyResponseTests extends AbstractXContentTestCase<Ge
     @Override
     protected GetLifecyclePolicyResponse createTestInstance() {
         int numPolicies = randomIntBetween(1, 10);
-        ImmutableOpenMap.Builder<String, LifecyclePolicy> policies = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, LifecyclePolicyMetadata> policies = ImmutableOpenMap.builder();
         for (int i = 0; i < numPolicies; i++) {
             String policyName = "policy-" + randomAlphaOfLengthBetween(2, 5);
             LifecyclePolicy policy = createRandomPolicy(policyName);
-            policies.put(policyName, policy);
+            policies.put(policyName, new LifecyclePolicyMetadata(policy, randomLong(), randomLong()));
         }
         return new GetLifecyclePolicyResponse(policies.build());
     }

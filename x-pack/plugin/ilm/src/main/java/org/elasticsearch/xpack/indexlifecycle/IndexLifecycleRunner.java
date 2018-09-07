@@ -158,6 +158,10 @@ public class IndexLifecycleRunner {
     }
 
     private void runPolicy(IndexMetaData indexMetaData, ClusterState currentState) {
+        if (indexMetaData == null) {
+            // This index doesn't exist any more, there's nothing to execute
+            return;
+        }
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
         runPolicy(policy, indexMetaData, currentState, false);

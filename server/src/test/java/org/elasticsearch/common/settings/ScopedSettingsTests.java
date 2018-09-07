@@ -32,6 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +55,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -1043,6 +1046,81 @@ public class ScopedSettingsTests extends ESTestCase {
         // nothing should happen, validation should not throw an exception
         final Settings settings = Settings.builder().put("index.private", "private").build();
         indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
+    }
+
+    public void testUpgradeSetting() {
+        final Setting<?> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<?> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<?> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
+        service.addSettingsUpgrader(oldSetting, entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
+
+        final Settings settings =
+                Settings.builder()
+                        .put("foo.old", randomAlphaOfLength(8))
+                        .put("foo.remaining", randomAlphaOfLength(8))
+                        .build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertFalse(oldSetting.exists(upgradedSettings));
+        assertTrue(newSetting.exists(upgradedSettings));
+        assertThat(newSetting.get(upgradedSettings), equalTo(oldSetting.get(settings)));
+        assertTrue(remainingSetting.exists(upgradedSettings));
+        assertThat(remainingSetting.get(upgradedSettings), equalTo(remainingSetting.get(settings)));
+    }
+
+    public void testUpgradeSettingsNoChangesPreservesInstance() {
+        final Setting<?> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<?> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<?> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
+        service.addSettingsUpgrader(oldSetting, entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
+
+        final Settings settings =
+                Settings.builder().put("foo.remaining", randomAlphaOfLength(8)).build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertThat(upgradedSettings, sameInstance(settings));
+    }
+
+    public void testUpgradeComplexSetting() {
+        final Setting.AffixSetting<String> oldSetting =
+                Setting.affixKeySetting("foo.old.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+        final Setting.AffixSetting<String> newSetting =
+                Setting.affixKeySetting("foo.new.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+        final Setting.AffixSetting<String> remainingSetting =
+                Setting.affixKeySetting("foo.remaining.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
+        service.addSettingsUpgrader(
+                oldSetting,
+                entry -> new AbstractMap.SimpleEntry<>(entry.getKey().replaceFirst("^foo.old", "foo.new"), entry.getValue()));
+
+        final int count = randomIntBetween(1, 8);
+        final List<String> concretes = new ArrayList<>(count);
+        final Settings.Builder builder = Settings.builder();
+        for (int i = 0; i < count; i++) {
+            final String concrete = randomAlphaOfLength(8);
+            concretes.add(concrete);
+            builder.put("foo.old." + concrete + ".suffix", randomAlphaOfLength(8));
+            builder.put("foo.remaining." + concrete + ".suffix", randomAlphaOfLength(8));
+        }
+        final Settings settings = builder.build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        for (final String concrete : concretes) {
+            assertFalse(oldSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertTrue(newSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertThat(
+                    newSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
+                    equalTo(oldSetting.getConcreteSettingForNamespace(concrete).get(settings)));
+            assertTrue(remainingSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
+            assertThat(
+                    remainingSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
+                    equalTo(remainingSetting.getConcreteSettingForNamespace(concrete).get(settings)));
+        }
     }
 
 }

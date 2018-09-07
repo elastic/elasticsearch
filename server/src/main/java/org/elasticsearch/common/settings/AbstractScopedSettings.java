@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,10 +35,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -757,6 +760,23 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return null;
     }
 
+    public Settings upgradeSettings(final Settings settings) {
+        final Settings.Builder builder = Settings.builder();
+        boolean changed = false;
+        for (final String key : settings.keySet()) {
+            final Setting<?> setting = getRaw(key);
+            final Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader = upgraders.get(setting);
+            if (upgrader == null) {
+                builder.copy(key, settings);
+            } else {
+                changed = true;
+                final Map.Entry<String, String> upgrade = upgrader.apply(new Entry(key, settings));
+                builder.put(upgrade.getKey(), upgrade.getValue());
+            }
+        }
+        return changed ? builder.build() : settings;
+    }
+
     /**
      * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
      * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
@@ -847,4 +867,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public boolean isPrivateSetting(String key) {
         return false;
     }
+
+    private Map<Setting<?>, Function<Map.Entry<String, String>, Map.Entry<String, String>>> upgraders = new HashMap<>();
+
+    public synchronized void addSettingsUpgrader(
+            final Setting<?> setting, Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader) {
+        upgraders.put(Objects.requireNonNull(setting, "setting"), Objects.requireNonNull(upgrader, "upgrader"));
+    }
+
 }

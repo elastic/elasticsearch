@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,22 +38,19 @@ public class GetCategoriesRequest extends ActionRequest implements ToXContentObj
 
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
 
-    public static final ObjectParser<GetCategoriesRequest, Void> PARSER = 
-        new ObjectParser<>("get_categories_request", GetCategoriesRequest::new);
+    public static final ConstructingObjectParser<GetCategoriesRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "get_categories_request", a -> new GetCategoriesRequest((String) a[0]));
 
 
     static {
-        PARSER.declareString((GetCategoriesRequest, jobId) -> GetCategoriesRequest.jobId = jobId, Job.ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareLong(GetCategoriesRequest::setCategoryId, CATEGORY_ID);
         PARSER.declareObject(GetCategoriesRequest::setPageParams, PageParams.PARSER, PageParams.PAGE);
     }
 
-    private String jobId;
+    private final String jobId;
     private Long categoryId;
     private PageParams pageParams;
-
-    private GetCategoriesRequest() {}
-
 
     /**
      * Constructs a request to retrieve category information from a given job

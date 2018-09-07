@@ -437,6 +437,7 @@ public final class MachineLearningClient {
      *
      * @param request  The request
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetCategoriesResponse getCategories(GetCategoriesRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,

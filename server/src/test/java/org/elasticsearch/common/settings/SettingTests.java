@@ -874,11 +874,11 @@ public class SettingTests extends ESTestCase {
         final Setting<String> fooSetting = new Setting<>(new Setting.SimpleKey("foo"), current, Function.identity(), Property.NodeScope);
         assertFalse(fooSetting.exists(Settings.EMPTY));
         if (randomBoolean()) {
-            assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build(), randomBoolean()));
+            assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
         } else {
             final String setting = "fallback" + randomIntBetween(0, count - 1);
-            assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build(), false));
-            assertTrue(fooSetting.exists(Settings.builder().put(setting, "bar").build(), true));
+            assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
+            assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
         }
     }
 

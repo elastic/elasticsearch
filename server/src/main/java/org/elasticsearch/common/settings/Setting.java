@@ -372,23 +372,26 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return exists(settings, false);
+        return exists(settings, /* includeFallbackSettings */ false);
     }
 
     /**
-     * Returns true if and only if this setting optionally including fallback settings is present in the given settings instance.
+     * Returns true if and only if this setting including fallback settings is present in the given settings instance.
      *
      * @param settings the settings
-     * @param fallback whether or not to include fallback settings
-     * @return true if the setting and optionally fallback settings is present in the given settings instance, otherwise false
+     * @return true if the setting including fallback settings is present in the given settings instance, otherwise false
      */
-    public boolean exists(final Settings settings, final boolean fallback) {
+    public boolean existsOrFallbackExists(final Settings settings) {
+        return exists(settings, /* includeFallbackSettings */ true);
+    }
+
+    private boolean exists(final Settings settings, final boolean includeFallbackSettings) {
         Setting<?> current = this;
         do {
             if (settings.keySet().contains(current.getKey())) {
                 return true;
             }
-            if (fallback == false) {
+            if (includeFallbackSettings == false) {
                 break;
             }
             current = current.fallbackSetting;

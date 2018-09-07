@@ -22,8 +22,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.ByteBufferReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -222,7 +224,11 @@ public class PostDataRequest extends ActionRequest implements ToXContentObject {
 
         private BytesReference build() {
             ByteBuffer[] buffers = bytes.toArray(new ByteBuffer[bytes.size()]);
-            return BytesReference.fromByteBuffers(buffers);
+            ByteBufferReference[] references = new ByteBufferReference[buffers.length];
+            for (int i = 0; i < references.length; ++i) {
+                references[i] = new ByteBufferReference(buffers[i]);
+            }
+            return new CompositeBytesReference(references);
         }
 
     }

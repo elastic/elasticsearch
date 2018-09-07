@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -85,8 +86,8 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected TcpNioSocketChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener)
-        throws IOException {
+    protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
         TcpNioSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
         channel.addConnectListener(connectListener);
         return channel;

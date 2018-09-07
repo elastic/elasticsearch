@@ -330,7 +330,7 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(long upto) {
+    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
         return this;
     }
 

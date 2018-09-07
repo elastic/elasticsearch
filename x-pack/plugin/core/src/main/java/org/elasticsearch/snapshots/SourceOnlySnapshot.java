@@ -25,6 +25,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -118,7 +119,7 @@ public class SourceOnlySnapshot {
             IndexSearcher s = new IndexSearcher(reader);
             s.setQueryCache(null);
             Query rewrite = s.rewrite(query);
-            Weight weight = s.createWeight(rewrite, false, 1.0f);
+            Weight weight = s.createWeight(rewrite, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             Scorer scorer = weight.scorer(reader.getContext());
             if (scorer != null) {
                 DocIdSetIterator iterator = scorer.iterator();
@@ -159,7 +160,6 @@ public class SourceOnlySnapshot {
         ByteArrayOutputStream output = new ByteArrayOutputStream(1024);
         try (CheckIndex checkIndex = new CheckIndex(targetDirectory)) {
             checkIndex.setFailFast(true);
-            checkIndex.setCrossCheckTermVectors(false);
             checkIndex.setInfoStream(new PrintStream(output, false, IOUtils.UTF_8), false);
             CheckIndex.Status status = checkIndex.checkIndex();
             if (status == null || status.clean == false) {

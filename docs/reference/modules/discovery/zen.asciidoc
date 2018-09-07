@@ -68,14 +68,14 @@ startup.
 
 To enable file-based discovery, configure the `file` hosts provider as follows:
 
-```
+[source,txt]
+----------------------------------------------------------------
 discovery.zen.hosts_provider: file
-```
+----------------------------------------------------------------
 
-Then create a file at `$ES_PATH_CONF/unicast_hosts.txt` in
-<<discovery-file-format,the format described below>>. Any time a change is made
-to the `unicast_hosts.txt` file the new changes will be picked up by
-Elasticsearch and the new hosts list will be used.
+Then create a file at `$ES_PATH_CONF/unicast_hosts.txt` in the format described
+below. Any time a change is made to the `unicast_hosts.txt` file the new
+changes will be picked up by Elasticsearch and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
 `elasticsearch.yml`: if there are valid unicast host entries in
@@ -85,10 +85,6 @@ supplied in `unicast_hosts.txt`.
 The `discovery.zen.ping.unicast.resolve_timeout` setting also applies to DNS
 lookups for nodes specified by address via file-based discovery. This is
 specified as a <<time-units, time unit>> and defaults to 5s.
-
-[[discovery-file-format]]
-[float]
-====== unicast_hosts.txt file format
 
 The format of the file is to specify one node entry per line.  Each node entry
 consists of the host (host name or IP address) and an optional transport port

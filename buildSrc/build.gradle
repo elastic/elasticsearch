@@ -24,15 +24,6 @@ plugins {
   id 'groovy'
 }
 
-gradlePlugin {
-  plugins {
-    simplePlugin {
-      id = 'elasticsearch.testclusters'
-      implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
-    }
-  }
-}
-
 group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
@@ -179,7 +170,6 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

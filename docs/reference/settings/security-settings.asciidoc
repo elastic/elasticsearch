@@ -246,6 +246,13 @@ This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the LDAP realm does not perform role mapping and
+instead loads the user from the listed realms. The referenced realms are
+consulted in the order that they are defined in this list.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -733,6 +740,12 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the PKI realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this period of time. Use the
@@ -855,6 +868,12 @@ Defaults to `false`.
 `populate_user_metadata`::
 Specifies whether to populate the {es} user's metadata with the values that are 
 provided by the SAML attributes. Defaults to `true`.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the SAML realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the

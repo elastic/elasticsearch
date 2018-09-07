@@ -596,7 +596,7 @@ And the response:
                                   ]
                                 },
                                 {
-                                  "name": "BucketCollector: [[my_scoped_agg, my_global_agg]]",
+                                  "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
                                   "reason": "aggregation",
                                   "time_in_nanos": 8273
                                 }

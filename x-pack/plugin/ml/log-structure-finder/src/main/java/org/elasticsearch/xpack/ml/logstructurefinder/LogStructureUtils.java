@@ -21,12 +21,12 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-final class LogStructureUtils {
+public final class LogStructureUtils {
 
-    static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    static final String MAPPING_TYPE_SETTING = "type";
-    static final String MAPPING_FORMAT_SETTING = "format";
-    static final String MAPPING_PROPERTIES_SETTING = "properties";
+    public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
+    public static final String MAPPING_TYPE_SETTING = "type";
+    public static final String MAPPING_FORMAT_SETTING = "format";
+    public static final String MAPPING_PROPERTIES_SETTING = "properties";
 
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");

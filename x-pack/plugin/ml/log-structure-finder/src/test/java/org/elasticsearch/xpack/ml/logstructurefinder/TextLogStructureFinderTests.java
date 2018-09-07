@@ -34,7 +34,7 @@ public class TextLogStructureFinderTests extends LogStructureTestCase {
         }
         assertNull(structure.getExcludeLinesPattern());
         assertEquals("^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
-        assertNull(structure.getSeparator());
+        assertNull(structure.getDelimiter());
         assertNull(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
         assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());

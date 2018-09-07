@@ -381,10 +381,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     /**
      * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
-    public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
-        if (fuzziness != null) {
-            this.fuzziness = Fuzziness.build(fuzziness);
-        }
+    public MultiMatchQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = Objects.requireNonNull(fuzziness);
         return this;
     }
 
@@ -722,7 +720,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .type(type)
                 .analyzer(analyzer)
                 .cutoffFrequency(cutoffFrequency)
-                .fuzziness(fuzziness)
                 .fuzzyRewrite(fuzzyRewrite)
                 .useDisMax(useDisMax)
                 .maxExpansions(maxExpansions)
@@ -738,6 +735,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .fuzzyTranspositions(fuzzyTranspositions);
         if (lenient != null) {
             builder.lenient(lenient);
+        }
+        if (fuzziness != null) {
+            builder.fuzziness(fuzziness);
         }
         return builder;
     }

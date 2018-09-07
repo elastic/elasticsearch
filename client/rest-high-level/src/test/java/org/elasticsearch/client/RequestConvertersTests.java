@@ -2256,7 +2256,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
-    
+
     public void testXPackPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);

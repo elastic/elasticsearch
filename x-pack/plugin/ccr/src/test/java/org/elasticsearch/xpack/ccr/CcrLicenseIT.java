@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 
 import java.util.Collection;
@@ -28,10 +29,10 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(IncompatibleLicenseLocalStateCcr.class);
+        return Collections.singletonList(NonCompliantLicenseLocalStateCcr.class);
     }
 
-    public void testThatFollowingIndexIsUnavailableWithIncompatibleLicense() throws InterruptedException {
+    public void testThatFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final FollowIndexAction.Request followRequest = getFollowRequest();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
@@ -45,14 +46,14 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
                     @Override
                     public void onFailure(final Exception e) {
-                        assertIncompatibleLicense(e);
+                        assertNonCompliantLicense(e);
                         latch.countDown();
                     }
                 });
         latch.await();
     }
 
-    public void testThatCreateAndFollowingIndexIsUnavailableWithIncompatibleLicense() throws InterruptedException {
+    public void testThatCreateAndFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final FollowIndexAction.Request followRequest = getFollowRequest();
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -67,14 +68,14 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
                     @Override
                     public void onFailure(final Exception e) {
-                        assertIncompatibleLicense(e);
+                        assertNonCompliantLicense(e);
                         latch.countDown();
                     }
                 });
         latch.await();
     }
 
-    public void testThatCcrStatsAreUnavailableWithIncompatibleLicense() throws InterruptedException {
+    public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.TasksRequest(), new ActionListener<CcrStatsAction.TasksResponse>() {
             @Override
@@ -84,7 +85,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
             @Override
             public void onFailure(final Exception e) {
-                assertIncompatibleLicense(e);
+                assertNonCompliantLicense(e);
                 latch.countDown();
             }
         });
@@ -92,7 +93,31 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    private void assertIncompatibleLicense(final Exception e) {
+    public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setLeaderClusterAlias("leader");
+        request.setLeaderIndexPatterns(Collections.singletonList("*"));
+        client().execute(
+                PutAutoFollowPatternAction.INSTANCE,
+                request,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(final AcknowledgedResponse response) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        assertNonCompliantLicense(e);
+                        latch.countDown();
+                    }
+                });
+
+        latch.await();
+    }
+
+    private void assertNonCompliantLicense(final Exception e) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [ccr]"));
     }

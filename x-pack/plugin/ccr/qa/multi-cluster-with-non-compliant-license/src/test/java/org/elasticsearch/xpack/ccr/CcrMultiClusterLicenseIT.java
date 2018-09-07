@@ -29,7 +29,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
         if (runningAgainstLeaderCluster == false) {
             final Request request = new Request("POST", "/follower/_ccr/follow");
             request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
-            assertLicenseIncompatible(request);
+            assertNonCompliantLicense(request);
         }
     }
 
@@ -37,11 +37,11 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
         if (runningAgainstLeaderCluster == false) {
             final Request request = new Request("POST", "/follower/_ccr/create_and_follow");
             request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
-            assertLicenseIncompatible(request);
+            assertNonCompliantLicense(request);
         }
     }
 
-    private static void assertLicenseIncompatible(final Request request) {
+    private static void assertNonCompliantLicense(final Request request) {
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         final String expected = String.format(
                 Locale.ROOT,

@@ -167,6 +167,8 @@ public class NodeTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("invalid node.attr.server_name [invalid_hostname]", e.getMessage());
         }
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private static Settings.Builder baseSettings() {

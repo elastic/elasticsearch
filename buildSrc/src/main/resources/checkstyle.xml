@@ -81,5 +81,11 @@
       <property name="ignoreComments" value="true" />
     </module>
     <!-- end Orwellian suppression of Serializable -->
+
+    <!-- Prevent empty javadoc tags like @param or @throws since they are
+      unhelpful. Java 11 doesn't allow empty @param tags and this catches
+      that too which is nice because it prevents us from merging code that
+      will fail in Java 11. -->
+    <module name="NonEmptyAtclauseDescription"/>
   </module>
 </module>

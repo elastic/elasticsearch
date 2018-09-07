@@ -296,14 +296,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return ImmutableOpenMap.of();
         }
 
-        boolean matchAllAliases = matchAllAliases(aliases);
+        List<String> includeAliases = new ArrayList<>();
+        List<String> excludeAliases = new ArrayList<>();
+        boolean wildcardSeen = false;
+        for (final String alias : aliases) {
+            if (Regex.isSimpleMatchPattern(alias)) {
+                wildcardSeen = true;
+            }
+            if (wildcardSeen && alias.charAt(0) == '-') {
+                excludeAliases.add(alias.substring(1));
+            } else {
+                includeAliases.add(alias);
+            }
+        }
+        boolean matchAllAliases = matchAllAliases(includeAliases);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
+                if ((matchAllAliases || Regex.simpleMatch(includeAliases, value.alias()))
+                    && Regex.simpleMatch(excludeAliases, value.alias()) == false) {
                     filteredValues.add(value);
                 }
             }
@@ -317,13 +331,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return mapBuilder.build();
     }
 
-    private static boolean matchAllAliases(final String[] aliases) {
+    private static boolean matchAllAliases(final List<String> aliases) {
         for (String alias : aliases) {
             if (alias.equals(ALL)) {
                 return true;
             }
         }
-        return aliases.length == 0;
+        return aliases.isEmpty();
     }
 
     /**

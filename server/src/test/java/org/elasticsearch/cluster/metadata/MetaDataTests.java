@@ -109,6 +109,21 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testFindAliasWithMultiIndexAndExclusion() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("alias1").build())
+                .putAlias(AliasMetaData.builder("alias2").build())
+        ).build();
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"});
+        assertThat(aliases.size(), equalTo(1));
+        assertThat(aliases.get("index").get(0).alias(), equalTo("alias2"));
+    }
+
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))

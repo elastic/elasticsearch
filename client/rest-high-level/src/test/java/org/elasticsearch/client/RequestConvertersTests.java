@@ -113,7 +113,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -2291,23 +2290,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
     }
 
-    public void testGetMigrationAssistance() {
-        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_xpack/migration/assistance";
-        if (randomBoolean()) {
-            String[] indices = randomIndicesNames(1, 5);
-            upgradeInfoRequest.indices(indices);
-            expectedEndpoint += "/" + String.join(",", indices);
-        }
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
-        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals(expectedEndpoint, request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(expectedParams, request.getParameters());
-    }
-
     public void testXPackPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2410,8 +2392,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
-            Map<String, String> expectedParams) {
+    static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+                                        Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
             setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));

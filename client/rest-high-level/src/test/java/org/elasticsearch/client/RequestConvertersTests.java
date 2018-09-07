@@ -2713,13 +2713,13 @@ public class RequestConvertersTests extends ESTestCase {
                 String[] includes = new String[numIncludes];
                 String includesParam = randomFields(includes);
                 if (numIncludes > 0) {
-                    expectedParams.put("_source_include", includesParam);
+                    expectedParams.put("_source_includes", includesParam);
                 }
                 int numExcludes = randomIntBetween(0, 5);
                 String[] excludes = new String[numExcludes];
                 String excludesParam = randomFields(excludes);
                 if (numExcludes > 0) {
-                    expectedParams.put("_source_exclude", excludesParam);
+                    expectedParams.put("_source_excludes", excludesParam);
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }

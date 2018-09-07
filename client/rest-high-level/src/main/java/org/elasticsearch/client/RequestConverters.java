@@ -1327,10 +1327,10 @@ final class RequestConverters {
                     putParam("_source", Boolean.FALSE.toString());
                 }
                 if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
-                    putParam("_source_include", String.join(",", fetchSourceContext.includes()));
+                    putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
-                    putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
+                    putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
             return this;

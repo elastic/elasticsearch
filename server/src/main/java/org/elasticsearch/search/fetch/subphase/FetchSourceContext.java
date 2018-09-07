@@ -112,7 +112,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         String sIncludes = request.param("_source_includes");
         String sInclude = request.param("_source_include");
         if (sInclude != null) {
-            DEPRECATION_LOGGER.deprecated("Deprecated field [_source_include] used, expected [_source_includes] instead");
+            DEPRECATION_LOGGER.deprecated("Deprecated parameter [_source_include] used, expected [_source_includes] instead");
             sIncludes = sInclude;
         }
         if (sIncludes != null) {
@@ -122,7 +122,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         String sExcludes = request.param("_source_excludes");
         String sExclude = request.param("_source_exclude");
         if (sExclude != null) {
-            DEPRECATION_LOGGER.deprecated("Deprecated field [_source_exclude] used, expected [_source_excludes] instead");
+            DEPRECATION_LOGGER.deprecated("Deprecated parameter [_source_exclude] used, expected [_source_excludes] instead");
             sExcludes = sExclude;
         }
         if (sExcludes != null) {

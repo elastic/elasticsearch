@@ -95,8 +95,8 @@
   - do:
       get: { index:  test_1, type: test, id: 1, _source_include: include.field1 }
       warnings:
-           - "Deprecated field [_source_include] used, expected [_source_includes] instead"
+           - "Deprecated parameter [_source_include] used, expected [_source_includes] instead"
   - do:
       get: { index:  test_1, type: test, id: 1, _source_includes: include, _source_exclude: "*.field2" }
       warnings:
-           - "Deprecated field [_source_exclude] used, expected [_source_excludes] instead"
+           - "Deprecated parameter [_source_exclude] used, expected [_source_excludes] instead"

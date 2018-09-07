@@ -13,6 +13,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -56,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -104,31 +108,37 @@ public class NativeRolesStore extends AbstractComponent {
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(Collections.emptyList());
-        } else if (names != null && names.length == 1) {
+        } else if (names == null || names.length == 0) {
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
+                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .setScroll(TimeValue.timeValueSeconds(10L))
+                        .setQuery(query)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
+                    request.indicesOptions().ignoreUnavailable();
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                        (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
+                }
+            });
+        } else if (names.length == 1) {
             getRoleDescriptor(Objects.requireNonNull(names[0]), ActionListener.wrap(roleDescriptor ->
                     listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
                     listener::onFailure));
         } else {
+            final String[] roleIds = Arrays.stream(names).map(NativeRolesStore::getIdForRole).toArray(String[]::new);
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                QueryBuilder query;
-                if (names == null || names.length == 0) {
-                    query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
-                } else {
-                    final String[] roleNames = Arrays.stream(names).map(s -> getIdForUser(s)).toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
-                }
-                final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                            .setScroll(TimeValue.timeValueSeconds(10L))
-                            .setQuery(query)
-                            .setSize(1000)
-                            .setFetchSource(true)
-                            .request();
-                    request.indicesOptions().ignoreUnavailable();
-                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
-                            (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
-                }
+                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
+                    ActionListener.<MultiGetResponse>wrap(mGetResponse ->
+                        listener.onResponse(Arrays.stream(mGetResponse.getResponses())
+                            .filter(item -> item.isFailed() == false)
+                            .map(item -> transformRole(item.getResponse()))
+                            .collect(Collectors.toList())),
+                        listener::onFailure), client::multiGet);
             });
         }
     }
@@ -136,7 +146,7 @@ public class NativeRolesStore extends AbstractComponent {
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
-                    ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
+                    ROLE_DOC_TYPE, getIdForRole(deleteRoleRequest.name())).request();
             request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -175,7 +185,7 @@ public class NativeRolesStore extends AbstractComponent {
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -293,7 +303,7 @@ public class NativeRolesStore extends AbstractComponent {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareGet(SECURITY_INDEX_NAME,
-                            ROLE_DOC_TYPE, getIdForUser(role)).request(),
+                            ROLE_DOC_TYPE, getIdForRole(role)).request(),
                     listener,
                     client::get));
     }
@@ -373,7 +383,7 @@ public class NativeRolesStore extends AbstractComponent {
     /**
      * Gets the document's id field for the given role name.
      */
-    private static String getIdForUser(final String roleName) {
+    private static String getIdForRole(final String roleName) {
         return ROLE_TYPE + "-" + roleName;
     }
 }

@@ -654,12 +654,6 @@ public abstract class Engine implements Closeable {
     public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
 
     /**
-     * Reset the local checkpoint in the tracker to the given local checkpoint
-     * @param localCheckpoint the new checkpoint to be set
-     */
-    public abstract void resetLocalCheckpoint(long localCheckpoint);
-
-    /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
      */
     public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);

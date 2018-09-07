@@ -2314,7 +2314,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
                                     opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
                                 final Engine engine = getEngine();
-                                engine.resetLocalCheckpoint(localCheckpoint);
                                 if (localCheckpoint < engine.getSeqNoStats(localCheckpoint).getMaxSeqNo()) {
                                     resetEngineToGlobalCheckpoint();
                                 } else {

@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.test.ESTestCase;
@@ -53,12 +55,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         }
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final Map<String, String> expectedParams;
-        if (refreshPolicy != RefreshPolicy.NONE) {
-            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
-        } else {
-            expectedParams = Collections.emptyMap();
-        }
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
 
         PutUserRequest putUserRequest = new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, refreshPolicy);
         Request request = SecurityRequestConverters.putUser(putUserRequest);
@@ -66,5 +63,37 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
+    }
+
+    public void testEnableUser() {
+        final String username = randomAlphaOfLengthBetween(1, 12);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        EnableUserRequest enableUserRequest = new EnableUserRequest(username, refreshPolicy);
+        Request request = SecurityRequestConverters.enableUser(enableUserRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + username + "/_enable", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDisableUser() {
+        final String username = randomAlphaOfLengthBetween(1, 12);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DisableUserRequest disableUserRequest = new DisableUserRequest(username, refreshPolicy);
+        Request request = SecurityRequestConverters.disableUser(disableUserRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/user/" + username + "/_disable", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    private static Map<String, String> getExpectedParamsFromRefreshPolicy(RefreshPolicy refreshPolicy) {
+        if (refreshPolicy != RefreshPolicy.NONE) {
+             return Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            return Collections.emptyMap();
+        }
     }
 }

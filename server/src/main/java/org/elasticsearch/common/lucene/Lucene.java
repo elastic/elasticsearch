@@ -50,13 +50,16 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
@@ -73,6 +76,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -81,6 +85,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -89,7 +94,7 @@ import java.util.Map;
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene70";
+    public static final String LATEST_CODEC = "Lucene80";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -105,7 +110,7 @@ public class Lucene {
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, Float.NaN);
+    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
 
     public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
@@ -251,7 +256,7 @@ public class Lucene {
      * Check whether there is one or more documents matching the provided query.
      */
     public static boolean exists(IndexSearcher searcher, Query query) throws IOException {
-        final Weight weight = searcher.createNormalizedWeight(query, false);
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
         // the scorer API should be more efficient at stopping after the first
         // match than the bulk scorer API
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
@@ -270,19 +275,28 @@ public class Lucene {
         return false;
     }
 
-    public static TopDocs readTopDocs(StreamInput in) throws IOException {
+    private static TotalHits readTotalHits(StreamInput in) throws IOException {
+        long totalHits = in.readVLong();
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
+        }
+        return new TotalHits(totalHits, totalHitsRelation);
+    }
+
+    public static TopDocsAndMaxScore readTopDocs(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
             for (int i = 0; i < scoreDocs.length; i++) {
                 scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
             }
-            return new TopDocs(totalHits, scoreDocs, maxScore);
+            return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             SortField[] fields = new SortField[in.readVInt()];
@@ -294,9 +308,9 @@ public class Lucene {
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
             }
-            return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
+            return new TopDocsAndMaxScore(new TopFieldDocs(totalHits, fieldDocs, fields), maxScore);
         } else if (type == 2) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             String field = in.readString();
@@ -311,7 +325,7 @@ public class Lucene {
                 fieldDocs[i] = readFieldDoc(in);
                 collapseValues[i] = readSortValue(in);
             }
-            return new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues, maxScore);
+            return new TopDocsAndMaxScore(new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -381,13 +395,22 @@ public class Lucene {
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
-    public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs instanceof CollapseTopFieldDocs) {
-            out.writeByte((byte) 2);
-            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs;
+    private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
+        out.writeVLong(totalHits.value);
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+            out.writeEnum(totalHits.relation);
+        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
+        }
+    }
 
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+    public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
+        if (topDocs.topDocs instanceof CollapseTopFieldDocs) {
+            out.writeByte((byte) 2);
+            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs.topDocs;
+
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
             out.writeString(collapseDocs.field);
 
@@ -396,35 +419,35 @@ public class Lucene {
                writeSortField(out, sortField);
             }
 
-            out.writeVInt(topDocs.scoreDocs.length);
-            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
                 ScoreDoc doc = collapseDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, collapseDocs.collapseValues[i]);
             }
-        } else if (topDocs instanceof TopFieldDocs) {
+        } else if (topDocs.topDocs instanceof TopFieldDocs) {
             out.writeByte((byte) 1);
-            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
+            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs.topDocs;
 
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
             out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
               writeSortField(out, sortField);
             }
 
-            out.writeVInt(topDocs.scoreDocs.length);
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
             out.writeByte((byte) 0);
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
-            out.writeVInt(topDocs.scoreDocs.length);
-            for (ScoreDoc doc : topDocs.scoreDocs) {
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
+            for (ScoreDoc doc : topDocs.topDocs.scoreDocs) {
                 writeScoreDoc(out, doc);
             }
         }
@@ -578,6 +601,24 @@ public class Lucene {
         out.writeBoolean(sortField.getReverse());
     }
 
+    private static Number readExplanationValue(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+            final int numberType = in.readByte();
+            switch (numberType) {
+            case 0:
+                return in.readFloat();
+            case 1:
+                return in.readDouble();
+            case 2:
+                return in.readZLong();
+            default:
+                throw new IOException("Unexpected number type: " + numberType);
+            }
+        } else {
+            return in.readFloat();
+        }
+    }
+
     public static Explanation readExplanation(StreamInput in) throws IOException {
         boolean match = in.readBoolean();
         String description = in.readString();
@@ -586,9 +627,26 @@ public class Lucene {
             subExplanations[i] = readExplanation(in);
         }
         if (match) {
-            return Explanation.match(in.readFloat(), description, subExplanations);
+            return Explanation.match(readExplanationValue(in), description, subExplanations);
         } else {
             return Explanation.noMatch(description, subExplanations);
+        }
+    }
+
+    private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+            if (value instanceof Float) {
+                out.writeByte((byte) 0);
+                out.writeFloat(value.floatValue());
+            } else if (value instanceof Double) {
+                out.writeByte((byte) 1);
+                out.writeDouble(value.doubleValue());
+            } else {
+                out.writeByte((byte) 2);
+                out.writeZLong(value.longValue());
+            }
+        } else {
+            out.writeFloat(value.floatValue());
         }
     }
 
@@ -601,7 +659,7 @@ public class Lucene {
             writeExplanation(out, subExp);
         }
         if (explanation.isMatch()) {
-            out.writeFloat(explanation.getValue());
+            writeExplanationValue(out, explanation.getValue());
         }
     }
 
@@ -703,6 +761,10 @@ public class Lucene {
             }
             @Override
             public DocIdSetIterator iterator() {
+                throw new IllegalStateException(message);
+            }
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
                 throw new IllegalStateException(message);
             }
         };
@@ -834,6 +896,19 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Whether a query sorted by {@code searchSort} can be early-terminated if the index is sorted by {@code indexSort}.
+     */
+    public static boolean canEarlyTerminate(Sort searchSort, Sort indexSort) {
+        final SortField[] fields1 = searchSort.getSort();
+        final SortField[] fields2 = indexSort.getSort();
+        // early termination is possible if fields1 is a prefix of fields2
+        if (fields1.length > fields2.length) {
+            return false;
+        }
+        return Arrays.asList(fields1).equals(Arrays.asList(fields2).subList(0, fields1.length));
     }
 
     /**

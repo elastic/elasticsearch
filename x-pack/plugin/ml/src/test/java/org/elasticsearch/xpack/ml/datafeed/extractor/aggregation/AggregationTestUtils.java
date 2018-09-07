@@ -11,9 +11,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.util.ArrayList;
 import java.util.Collections;

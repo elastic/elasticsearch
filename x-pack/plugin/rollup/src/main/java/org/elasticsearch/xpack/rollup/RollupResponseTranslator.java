@@ -28,11 +28,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 

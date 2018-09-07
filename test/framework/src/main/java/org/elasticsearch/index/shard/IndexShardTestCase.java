@@ -59,7 +59,6 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -161,13 +160,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     /**

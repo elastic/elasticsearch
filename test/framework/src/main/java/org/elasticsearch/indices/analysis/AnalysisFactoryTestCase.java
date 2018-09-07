@@ -29,7 +29,6 @@ import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
@@ -167,7 +166,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("soraninormalization",       MovedToAnalysisCommon.class)
         .put("soranistem",                MovedToAnalysisCommon.class)
         .put("spanishlightstem",          MovedToAnalysisCommon.class)
-        .put("standard",                  StandardTokenFilterFactory.class)
+        .put("standard",                  Deprecated.class)
         .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          MovedToAnalysisCommon.class)

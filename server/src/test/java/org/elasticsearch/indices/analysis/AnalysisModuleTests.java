@@ -435,6 +435,19 @@ public class AnalysisModuleTests extends ESTestCase {
         assertSame(dictionary, module.getHunspellService().getDictionary("foo"));
     }
 
+    public void testStandardFilterDeprecation() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+            .put("index.analysis.analyzer.my_standard.filter", "standard")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .build();
+        IndexAnalyzers analyzers = getIndexAnalyzers(settings);
+        assertTokenStreamContents(analyzers.get("my_standard").tokenStream("", "test"), new String[]{"test"});
+        assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
+    }
+
     // Simple char filter that appends text to the term
     public static class AppendCharFilter extends CharFilter {
 

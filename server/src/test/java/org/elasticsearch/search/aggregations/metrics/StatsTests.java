@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
-
 public class StatsTests extends AbstractNumericMetricTestCase<StatsAggregationBuilder> {
 
     @Override

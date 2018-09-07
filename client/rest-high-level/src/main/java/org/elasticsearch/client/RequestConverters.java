@@ -89,6 +89,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
@@ -1212,6 +1213,18 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
         Params parameters = new Params(request);
         parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request getLifecyclePolicy(GetLifecyclePolicyRequest getLifecyclePolicyRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ilm")
+            .addCommaSeparatedPathParts(getLifecyclePolicyRequest.getPolicyNames())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withMasterTimeout(getLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(getLifecyclePolicyRequest.timeout());
         return request;
     }
 

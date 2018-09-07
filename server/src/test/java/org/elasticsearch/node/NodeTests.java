@@ -154,7 +154,7 @@ public class NodeTests extends ESTestCase {
         String attr = "valid-hostname";
         Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
         int i = 0;
-        try (Node node = new MockNode(settings.build(), basePlugins())) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
             final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
             assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("server_name"));
         }
@@ -162,7 +162,7 @@ public class NodeTests extends ESTestCase {
         // non-LDH hostname not allowed
         attr = "invalid_hostname";
         settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
-        try (Node node = new MockNode(settings.build(), basePlugins())) {
+        try (Node node = new MockNode(settings.build(), Collections.singleton(getTestTransportPlugin()))) {
             fail("should not allow a server_name attribute with an underscore");
         } catch (IllegalArgumentException e) {
             assertEquals("invalid node.attr.server_name [invalid_hostname]", e.getMessage());

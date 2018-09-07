@@ -52,11 +52,6 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3082")
-    public void testGetNested() throws IOException {
-        fail("implement after we're sure of the InnerHitExtractor's implementation");
-    }
-
     public void testGetDottedValueWithDocValues() {
         String grandparent = randomAlphaOfLength(5);
         String parent = randomAlphaOfLength(5);

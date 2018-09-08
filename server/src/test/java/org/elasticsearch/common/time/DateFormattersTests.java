@@ -61,7 +61,7 @@ public class DateFormattersTests extends ESTestCase {
         DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
-        assertThat(formatter.format(), is("strict_date_optional_time||epoch_millis"));
+        assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
     }
 
     private void assertThatSameDateTime(DateFormatter formatter, DateFormatter zonedFormatter, long millis) {

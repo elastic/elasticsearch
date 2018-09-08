@@ -27,6 +27,15 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Map;
 
+/**
+ * This is a special formatter to parse the milliseconds since the epoch.
+ * There is no way using a native java time date formatter to resemble
+ * the required behaviour to parse negative milliseconds as well.
+ *
+ * This implementation simply tries to convert the input to a long and uses
+ * this as the milliseconds since the epoch without involving any other
+ * java time code
+ */
 class EpochMillisDateFormatter implements DateFormatter {
 
     @Override
@@ -44,12 +53,12 @@ class EpochMillisDateFormatter implements DateFormatter {
     }
 
     @Override
-    public String print(TemporalAccessor accessor) {
+    public String format(TemporalAccessor accessor) {
         return String.valueOf(Instant.from(accessor).toEpochMilli());
     }
 
     @Override
-    public String format() {
+    public String pattern() {
         return "epoch_millis";
     }
 

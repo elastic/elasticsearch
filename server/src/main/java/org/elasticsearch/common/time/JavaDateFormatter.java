@@ -29,13 +29,13 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 
-class FormatDateFormatter implements DateFormatter {
+class JavaDateFormatter implements DateFormatter {
 
     private final String format;
     private final DateTimeFormatter printer;
     private final DateTimeFormatter[] parsers;
 
-    FormatDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
         long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
         if (distinctZones > 1) {
             throw new IllegalArgumentException("formatters must have the same time zone");
@@ -80,16 +80,16 @@ class FormatDateFormatter implements DateFormatter {
             parsersWithZone[i] = parsers[i].withZone(zoneId);
         }
 
-        return new FormatDateFormatter(format, printer.withZone(zoneId), parsersWithZone);
+        return new JavaDateFormatter(format, printer.withZone(zoneId), parsersWithZone);
     }
 
     @Override
-    public String print(TemporalAccessor accessor) {
+    public String format(TemporalAccessor accessor) {
         return printer.format(accessor);
     }
 
     @Override
-    public String format() {
+    public String pattern() {
         return format;
     }
 
@@ -98,7 +98,7 @@ class FormatDateFormatter implements DateFormatter {
         final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(printer);
         fields.forEach(parseDefaultingBuilder::parseDefaulting);
         if (parsers.length == 1 && parsers[0].equals(printer)) {
-            return new FormatDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
+            return new JavaDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
         } else {
             final DateTimeFormatter[] parsersWithDefaulting = new DateTimeFormatter[parsers.length];
             for (int i = 0; i < parsers.length; i++) {
@@ -106,7 +106,7 @@ class FormatDateFormatter implements DateFormatter {
                 fields.forEach(builder::parseDefaulting);
                 parsersWithDefaulting[i] = builder.toFormatter(Locale.ROOT);
             }
-            return new FormatDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT), parsersWithDefaulting);
+            return new JavaDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT), parsersWithDefaulting);
         }
     }
 }

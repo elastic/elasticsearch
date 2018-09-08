@@ -52,7 +52,7 @@ public interface DateFormatter {
      * @param accessor The temporal accessor used to format
      * @return         The string result for the formatting
      */
-    String print(TemporalAccessor accessor);
+    String format(TemporalAccessor accessor);
 
     /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
@@ -60,7 +60,7 @@ public interface DateFormatter {
      *
      * @return The name of this formatter
      */
-    String format();
+    String pattern();
 
     /**
      * Configure a formatter using default fields for a TemporalAccessor that should be used in case
@@ -90,7 +90,7 @@ public interface DateFormatter {
 
         MergedDateFormatter(DateFormatter ... formatters) {
             this.formatters = formatters;
-            this.format = Arrays.stream(formatters).map(DateFormatter::format).collect(Collectors.joining("||"));
+            this.format = Arrays.stream(formatters).map(DateFormatter::pattern).collect(Collectors.joining("||"));
         }
 
         @Override
@@ -116,12 +116,12 @@ public interface DateFormatter {
         }
 
         @Override
-        public String print(TemporalAccessor accessor) {
-            return formatters[0].print(accessor);
+        public String format(TemporalAccessor accessor) {
+            return formatters[0].format(accessor);
         }
 
         @Override
-        public String format() {
+        public String pattern() {
             return format;
         }
 

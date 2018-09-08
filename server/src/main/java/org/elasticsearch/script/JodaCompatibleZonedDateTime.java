@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.joda.time.DateTime;
@@ -50,14 +51,15 @@ public class JodaCompatibleZonedDateTime {
         new DeprecationLogger(ESLoggerFactory.getLogger(JodaCompatibleZonedDateTime.class));
 
     private static void logDeprecated(String key, String message, Object... params) {
+        // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog(key, message, params);
             return null;
         });
     }
 
-    private static void logDeprecatedMethod(String method) {
-        logDeprecated(method, "Use of joda time method [{}] is deprecated. Use the java time api instead.", method);
+    private static void logDeprecatedMethod(String oldMethod, String newMethod) {
+        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.", oldMethod, newMethod);
     }
 
     private ZonedDateTime dt;
@@ -198,6 +200,7 @@ public class JodaCompatibleZonedDateTime {
         return dt.toOffsetDateTime();
     }
 
+    @SuppressForbidden(reason = "only exposing the method as a passthrough")
     public ZonedDateTime truncatedTo(TemporalUnit unit) {
         return dt.truncatedTo(unit);
     }
@@ -264,106 +267,106 @@ public class JodaCompatibleZonedDateTime {
 
     @Deprecated
     public long getMillis() {
-        logDeprecatedMethod("getMillis()");
+        logDeprecatedMethod("getMillis()", "toInstant().toEpochMilli()");
         return dt.toInstant().toEpochMilli();
     }
 
     @Deprecated
     public int getCenturyOfEra() {
-        logDeprecatedMethod("getCenturyOfEra()");
+        logDeprecatedMethod("getCenturyOfEra()", "get(ChronoField.YEAR_OF_ERA) / 100");
         return dt.get(ChronoField.YEAR_OF_ERA) / 100;
     }
 
     @Deprecated
     public int getEra() {
-        logDeprecatedMethod("getEra()");
+        logDeprecatedMethod("getEra()", "get(ChronoField.ERA)");
         return dt.get(ChronoField.ERA);
     }
 
     @Deprecated
     public int getHourOfDay() {
-        logDeprecatedMethod("getHourOfDay()");
+        logDeprecatedMethod("getHourOfDay()", "getHour()");
         return dt.getHour();
     }
 
     @Deprecated
     public int getMillisOfDay() {
-        logDeprecatedMethod("getMillisOfDay()");
+        logDeprecatedMethod("getMillisOfDay()", "get(ChronoField.MILLI_OF_DAY)");
         return dt.get(ChronoField.MILLI_OF_DAY);
     }
 
     @Deprecated
     public int getMillisOfSecond() {
-        logDeprecatedMethod("getMillisOfSecond()");
+        logDeprecatedMethod("getMillisOfSecond()", "get(ChronoField.MILLI_OF_SECOND)");
         return dt.get(ChronoField.MILLI_OF_SECOND);
     }
 
     @Deprecated
     public int getMinuteOfDay() {
-        logDeprecatedMethod("getMinuteOfDay()");
+        logDeprecatedMethod("getMinuteOfDay()", "get(ChronoField.MINUTE_OF_DAY)");
         return dt.get(ChronoField.MINUTE_OF_DAY);
     }
 
     @Deprecated
     public int getMinuteOfHour() {
-        logDeprecatedMethod("getMinuteOfHour()");
+        logDeprecatedMethod("getMinuteOfHour()", "getMinute()");
         return dt.getMinute();
     }
 
     @Deprecated
     public int getMonthOfYear() {
-        logDeprecatedMethod("getMonthOfYear()");
+        logDeprecatedMethod("getMonthOfYear()", "getMonthValue()");
         return dt.getMonthValue();
     }
 
     @Deprecated
     public int getSecondOfDay() {
-        logDeprecatedMethod("getSecondOfDay()");
+        logDeprecatedMethod("getSecondOfDay()", "get(ChronoField.SECOND_OF_DAY)");
         return dt.get(ChronoField.SECOND_OF_DAY);
     }
 
     @Deprecated
     public int getSecondOfMinute() {
-        logDeprecatedMethod("getSecondOfMinute()");
+        logDeprecatedMethod("getSecondOfMinute()", "getSecond()");
         return dt.getSecond();
     }
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()");
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(WeekFields.ISO.weekOfWeekBasedYear())");
         return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()");
+        logDeprecatedMethod("getWeekyear()", "get(WeekFields.ISO.weekBasedYear())");
         return dt.get(WeekFields.ISO.weekBasedYear());
     }
 
     @Deprecated
     public int getYearOfCentury() {
-        logDeprecatedMethod("getYearOfCentury()");
+        logDeprecatedMethod("getYearOfCentury()", "get(ChronoField.YEAR_OF_ERA) % 100");
         return dt.get(ChronoField.YEAR_OF_ERA) % 100;
     }
 
     @Deprecated
     public int getYearOfEra() {
-        logDeprecatedMethod("getYearOfEra()");
+        logDeprecatedMethod("getYearOfEra()", "get(ChronoField.YEAR_OF_ERA)");
         return dt.get(ChronoField.YEAR_OF_ERA);
     }
 
     @Deprecated
     public String toString(String format) {
-        logDeprecatedMethod("toString(String)");
+        logDeprecatedMethod("toString(String)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC).toString(format);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format);
     }
 
     @Deprecated
     public String toString(String format, Locale locale) {
-        logDeprecatedMethod("toString(String,Locale)");
+        logDeprecatedMethod("toString(String,Locale)", "a DateTimeFormatter");
         // TODO: replace with bwc formatter
-        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC).toString(format, locale);
+        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.forID(dt.getZone().getId())).toString(format, locale);
     }
 
     public DayOfWeek getDayOfWeekEnum() {
@@ -373,7 +376,7 @@ public class JodaCompatibleZonedDateTime {
     @Deprecated
     public int getDayOfWeek() {
         logDeprecated("getDayOfWeek()",
-            "getDayOfWeek() is incompatible with the java time api. Use getDayOfWeekEnum().getValue().");
+            "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
         return dt.getDayOfWeek().getValue();
     }
 }

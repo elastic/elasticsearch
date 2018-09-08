@@ -13,10 +13,11 @@ indices. You can also adjust how monitoring data is displayed.
 
 . To collect monitoring data about your {es} cluster:
 
-.. Verify that the `xpack.monitoring.enabled` and 
-`xpack.monitoring.collection.enabled` settings are `true` on each node in the 
-cluster. By default, data collection is disabled. For more information, see 
-<<monitoring-settings>>.
+.. Verify that the `xpack.monitoring.enabled`, 
+`xpack.monitoring.collection.enabled`, and 
+`xpack.monitoring.elasticsearch.collection.enabled` settings are `true` on each
+node in the  cluster. By default, data collection is disabled. For more
+information, see <<monitoring-settings>>.
 
 .. Optional: Specify which indices you want to monitor. 
 +

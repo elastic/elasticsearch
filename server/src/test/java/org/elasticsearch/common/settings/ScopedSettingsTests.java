@@ -171,7 +171,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
-        assertEquals("Missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
+        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
 
         service.validate(Settings.builder()
             .put("foo.test.name", "test")
@@ -179,6 +179,34 @@ public class ScopedSettingsTests extends ESTestCase {
             .build(), true);
 
         service.validate(Settings.builder().put("foo.test.bar", 7).build(), false);
+    }
+
+    public void testDependentSettingsWithFallback() {
+        Setting.AffixSetting<String> nameFallbackSetting =
+                Setting.affixKeySetting("fallback.", "name", k -> Setting.simpleString(k, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<String> nameSetting = Setting.affixKeySetting(
+                "foo.",
+                "name",
+                k -> Setting.simpleString(
+                        k,
+                        "_na_".equals(k)
+                                ? nameFallbackSetting.getConcreteSettingForNamespace(k)
+                                : nameFallbackSetting.getConcreteSetting(k.replaceAll("^foo", "fallback")),
+                        Property.Dynamic,
+                        Property.NodeScope));
+        Setting.AffixSetting<Integer> barSetting =
+                Setting.affixKeySetting("foo.", "bar", k -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope), nameSetting);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(nameFallbackSetting, nameSetting, barSetting)));
+
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true));
+        assertThat(e, hasToString(containsString("missing required setting [foo.test.name] for setting [foo.test.bar]")));
+
+        service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
+        service.validate(Settings.builder().put("fallback.test.name", "test").put("foo.test.bar", 7).build(), true);
     }
 
     public void testTupleAffixUpdateConsumer() {

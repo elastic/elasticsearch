@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -461,16 +462,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
             throw new IllegalArgumentException(msg);
         } else  {
-            Set<String> settingsDependencies = setting.getSettingsDependencies(key);
+            Set<Setting<?>> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
             if (validateDependencies && settingsDependencies.isEmpty() == false) {
-                Set<String> settingKeys = settings.keySet();
-                for (String requiredSetting : settingsDependencies) {
-                    if (settingKeys.contains(requiredSetting) == false) {
-                        throw new IllegalArgumentException("Missing required setting ["
-                            + requiredSetting + "] for setting [" + setting.getKey() + "]");
+                for (final Setting<?> settingDependency : settingsDependencies) {
+                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+                        final String message = String.format(
+                                Locale.ROOT,
+                                "missing required setting [%s] for setting [%s]",
+                                settingDependency.getKey(),
+                                setting.getKey());
+                        throw new IllegalArgumentException(message);
                     }
                 }
             }

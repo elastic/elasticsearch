@@ -47,11 +47,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -61,6 +63,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction.TransportAction.fetchHistoryUUID;
 
 public class FollowIndexAction extends Action<AcknowledgedResponse> {
 
@@ -352,11 +356,13 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
             // following an index in local cluster, so use local cluster state to fetch leader index metadata
             final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-            try {
-                start(request, null, leaderIndexMetadata, followerIndexMetadata, listener);
-            } catch (final IOException e) {
-                listener.onFailure(e);
-            }
+            fetchHistoryUUID(client, request.getLeaderIndex(), historyUUIDs -> {
+                try {
+                    start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
+                } catch (final IOException e) {
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure);
         }
 
         private void followRemoteIndex(
@@ -371,9 +377,9 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                     clusterAlias,
                     leaderIndex,
                     listener,
-                    leaderIndexMetadata -> {
+                    (leaderHistoryUUID, leaderIndexMetadata) -> {
                         try {
-                            start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);
+                            start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
                         } catch (final IOException e) {
                             listener.onFailure(e);
                         }
@@ -395,25 +401,37 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             String clusterNameAlias,
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
+            Map<Integer, String> leaderIndexHistoryUUIDs,
             ActionListener<AcknowledgedResponse> handler) throws IOException {
 
             MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
-            validate(request, leaderIndexMetadata, followIndexMetadata, mapperService);
+            validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
             final int numShards = followIndexMetadata.getNumberOfShards();
             final AtomicInteger counter = new AtomicInteger(numShards);
             final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
             Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            for (int i = 0; i < numShards; i++) {
                 final int shardId = i;
                 String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
+                String recordedLeaderIndexHistoryUUID = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
+                    .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_" + shardId);
 
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
-                        new ShardId(followIndexMetadata.getIndex(), shardId),
-                        new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                        request.maxBatchOperationCount, request.maxConcurrentReadBatches, request.maxOperationSizeInBytes,
-                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, request.retryTimeout,
-                        request.idleShardRetryDelay, filteredHeaders);
+                    new ShardId(followIndexMetadata.getIndex(), shardId),
+                    new ShardId(leaderIndexMetadata.getIndex(), shardId),
+                    request.maxBatchOperationCount,
+                    request.maxConcurrentReadBatches,
+                    request.maxOperationSizeInBytes,
+                    request.maxConcurrentWriteBatches,
+                    request.maxWriteBufferSize,
+                    request.retryTimeout,
+                    request.idleShardRetryDelay,
+                    recordedLeaderIndexHistoryUUID,
+                    filteredHeaders
+                );
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override
@@ -510,13 +528,27 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
 
     static void validate(Request request,
                          IndexMetaData leaderIndex,
-                         IndexMetaData followIndex, MapperService followerMapperService) {
+                         IndexMetaData followIndex,
+                         Map<Integer, String> leaderIndexHistoryUUID,
+                         MapperService followerMapperService) {
         if (leaderIndex == null) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist");
         }
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.followerIndex + "] does not exist");
         }
+
+        Map<Integer, String> recordedHistoryUUIDs = convert(followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY));
+        assert recordedHistoryUUIDs.size() == leaderIndexHistoryUUID.size();
+        for (Map.Entry<Integer, String> entry : leaderIndexHistoryUUID.entrySet()) {
+            String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs.get(entry.getKey());
+            if (entry.getValue().equals(recordedLeaderIndexHistoryUUID) == false) {
+                throw new IllegalArgumentException("follow index [" + request.followerIndex + "] should reference [" +
+                    entry.getValue() + "] as history uuid but instead reference [" + recordedLeaderIndexHistoryUUID +
+                    "] as history uuid");
+            }
+        }
+
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");
         }
@@ -566,6 +598,18 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             }
         }
         return settings.build();
+    }
+
+    private static Map<Integer, String> convert(Map<String, String> ccrMetadata) {
+        Map<Integer, String> historyUUIDsByShard = new HashMap<>();
+        for (Map.Entry<String, String> entry : ccrMetadata.entrySet()) {
+            if (entry.getKey().startsWith(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY)) {
+                int shardId = Integer.parseInt(entry.getKey().replace(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_", ""));
+                String previousValue = historyUUIDsByShard.put(shardId, entry.getValue());
+                assert previousValue == null;
+            }
+        }
+        return historyUUIDsByShard;
     }
 
 }

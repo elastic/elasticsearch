@@ -159,9 +159,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     private ShardFollowNodeTask createShardFollowTask(ReplicationGroup leaderGroup, ReplicationGroup followerGroup) {
-        ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), between(1, 64), between(1, 8), Long.MAX_VALUE, between(1, 4), 10240,
-            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10), Collections.emptyMap());
+        ShardFollowTask params = new ShardFollowTask(
+            null,
+            new ShardId("follow_index", "", 0),
+            new ShardId("leader_index", "", 0),
+            between(1, 64),
+            between(1, 8),
+            Long.MAX_VALUE,
+            between(1, 4), 10240,
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueMillis(10),
+            "uuid",
+            Collections.emptyMap()
+        );
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         AtomicBoolean stopped = new AtomicBoolean(false);
@@ -212,8 +222,13 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
                                 maxOperationCount, params.getMaxBatchSizeInBytes());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
-                            final ShardChangesAction.Response response =
-                                    new ShardChangesAction.Response(1L, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), ops);
+                            final ShardChangesAction.Response response = new ShardChangesAction.Response(
+                                1L,
+                                seqNoStats.getGlobalCheckpoint(),
+                                seqNoStats.getMaxSeqNo(),
+                                "uuid",
+                                ops
+                            );
                             handler.accept(response);
                             return;
                         } catch (Exception e) {

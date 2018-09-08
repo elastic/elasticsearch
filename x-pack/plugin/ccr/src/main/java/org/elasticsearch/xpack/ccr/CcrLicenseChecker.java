@@ -10,19 +10,30 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 /**
  * Encapsulates licensing checking for CCR.
@@ -62,19 +73,19 @@ public final class CcrLicenseChecker {
      * of the specified listener is invoked. Otherwise, the specified consumer is invoked with the leader index metadata fetched from the
      * remote cluster.
      *
-     * @param client                      the client
-     * @param clusterAlias                the remote cluster alias
-     * @param leaderIndex                 the name of the leader index
-     * @param listener                    the listener
-     * @param leaderIndexMetadataConsumer the leader index metadata consumer
-     * @param <T>                         the type of response the listener is waiting for
+     * @param client                                    the client
+     * @param clusterAlias                              the remote cluster alias
+     * @param leaderIndex                               the name of the leader index
+     * @param listener                                  the listener
+     * @param historyUUIDAndLeaderIndexMetadataConsumer the leader index history uuid and the leader index metadata consumer
+     * @param <T>                                       the type of response the listener is waiting for
      */
     public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
             final Client client,
             final String clusterAlias,
             final String leaderIndex,
             final ActionListener<T> listener,
-            final Consumer<IndexMetaData> leaderIndexMetadataConsumer) {
+            final BiConsumer<Map<Integer, String>, IndexMetaData> historyUUIDAndLeaderIndexMetadataConsumer) {
         // we have to check the license on the remote cluster
         new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
                 Collections.singletonList(clusterAlias),
@@ -93,7 +104,23 @@ public final class CcrLicenseChecker {
                                         final ClusterState remoteClusterState = r.getState();
                                         final IndexMetaData leaderIndexMetadata =
                                                 remoteClusterState.getMetaData().index(leaderIndex);
-                                        leaderIndexMetadataConsumer.accept(leaderIndexMetadata);
+                                        CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
+                                            IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+                                            Map<Integer, String> historyUUIDs = new HashMap<>();
+                                            for (IndexShardStats indexShardStats : indexStats) {
+                                                for (ShardStats shardStats : indexShardStats) {
+                                                    CommitStats commitStats = shardStats.getCommitStats();
+                                                    String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+                                                    ShardId shardId = shardStats.getShardRouting().shardId();
+                                                    historyUUIDs.put(shardId.id(), historyUUID);
+                                                }
+                                            }
+                                            historyUUIDAndLeaderIndexMetadataConsumer.accept(historyUUIDs, leaderIndexMetadata);
+                                        };
+                                        IndicesStatsRequest request = new IndicesStatsRequest();
+                                        request.indices(leaderIndex);
+                                        remoteClient.admin().indices().stats(request,
+                                            ActionListener.wrap(indicesStatsHandler, listener::onFailure));
                                     },
                                     listener::onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata

@@ -278,6 +278,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     synchronized void innerHandleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
         onOperationsFetched(response.getOperations());
+        if (params.getRecordedLeaderIndexHistoryUUID().equals(response.getHistoryUUID()) == false) {
+            markAsFailed(new IllegalStateException("unexpected history uuid, expected [" +
+                params.getRecordedLeaderIndexHistoryUUID() + "], actual [" + response.getHistoryUUID() + "]"));
+            return;
+        }
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
         final long newFromSeqNo;

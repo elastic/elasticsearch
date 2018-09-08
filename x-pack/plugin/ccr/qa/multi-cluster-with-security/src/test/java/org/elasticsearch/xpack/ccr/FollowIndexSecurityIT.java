@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
@@ -96,16 +98,13 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            createAndFollowIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
-            // Verify that nothing has been replicated and no node tasks are running
-            // These node tasks should have been failed due to the fact that the user
-            // has no sufficient priviledges.
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
-            verifyDocuments(adminClient(), unallowedIndex, 0);
+            Exception e = expectThrows(ResponseException.class,
+                () -> createAndFollowIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
+            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
 
-            followIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
-            verifyDocuments(adminClient(), unallowedIndex, 0);
+            e = expectThrows(ResponseException.class,
+                () -> followIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
+            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
         }
     }
 

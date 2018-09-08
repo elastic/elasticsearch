@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -357,16 +358,11 @@ public class ShardChangesIT extends ESIntegTestCase {
         final String leaderIndexSettings =
             getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-
-        final String followerIndexSettings =
-            getIndexSettingsWithNestedMapping(1, between(0, 1), singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
-        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
-
         internalCluster().ensureAtLeastNumDataNodes(2);
-        ensureGreen("index1", "index2");
+        ensureGreen("index1");
 
         final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
-        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
+        client().execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest)).get();
 
         final int numDocs = randomIntBetween(2, 64);
         for (int i = 0; i < numDocs; i++) {
@@ -409,13 +405,13 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
         // Leader index does not exist.
         FollowIndexAction.Request followRequest1 = createFollowRequest("non-existent-leader", "test-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
+        expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
         // Follower index does not exist.
         FollowIndexAction.Request followRequest2 = createFollowRequest("non-test-leader", "non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
+        expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
         // Both indices do not exist.
         FollowIndexAction.Request followRequest3 = createFollowRequest("non-existent-leader", "non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
+        expectThrows(IndexNotFoundException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
     @TestLogging("_root:DEBUG")

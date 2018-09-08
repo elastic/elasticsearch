@@ -82,6 +82,8 @@ import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTIN
 public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
+    public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
+    public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY = "leader_index_history_uuid";
 
     private final boolean enabled;
     private final Settings settings;

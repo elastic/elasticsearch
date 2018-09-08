@@ -179,6 +179,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return maxSeqNo;
         }
 
+        private String historyUUID;
+
+        public String getHistoryUUID() {
+            return historyUUID;
+        }
+
+        public void setHistoryUUID(String historyUUID) {
+            this.historyUUID = historyUUID;
+        }
+
         private Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
@@ -188,10 +198,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response() {
         }
 
-        Response(final long mappingVersion, final long globalCheckpoint, final long maxSeqNo, final Translog.Operation[] operations) {
+        Response(
+            final long mappingVersion,
+            final long globalCheckpoint,
+            final long maxSeqNo,
+            final String historyUUID,
+            final Translog.Operation[] operations) {
+
             this.mappingVersion = mappingVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
+            this.historyUUID = historyUUID;
             this.operations = operations;
         }
 
@@ -201,6 +218,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             mappingVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
+            historyUUID = in.readString();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
@@ -210,6 +228,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeVLong(mappingVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
+            out.writeString(historyUUID);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -221,12 +240,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return mappingVersion == that.mappingVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
+                    Objects.equals(historyUUID, that.historyUUID) &&
                     Arrays.equals(operations, that.operations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
+            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, historyUUID, Arrays.hashCode(operations));
         }
     }
 
@@ -253,6 +273,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats =  indexShard.seqNoStats();
             final long mappingVersion = clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
+            final String historyUUID = indexShard.getHistoryUUID();
 
             final Translog.Operation[] operations = getOperations(
                     indexShard,
@@ -260,7 +281,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     request.fromSeqNo,
                     request.maxOperationCount,
                     request.maxOperationSizeInBytes);
-            return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
+            return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), historyUUID, operations);
         }
 
         @Override

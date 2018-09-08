@@ -12,6 +12,11 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -29,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,18 +42,23 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Response> {
 
@@ -242,8 +253,12 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         private void createFollowerIndexAndFollowLocalIndex(
                 final Request request, final ClusterState state, final ActionListener<Response> listener) {
             // following an index in local cluster, so use local cluster state to fetch leader index metadata
-            final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getFollowRequest().getLeaderIndex());
-            createFollowerIndex(leaderIndexMetadata, request, listener);
+            final String leaderIndex = request.getFollowRequest().getLeaderIndex();
+            final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
+            Consumer<Map<Integer, String>> handler = historyUUID -> {
+                createFollowerIndex(leaderIndexMetadata, historyUUID, request, listener);
+            };
+            fetchHistoryUUID(client, leaderIndex, handler, listener::onFailure);
         }
 
         private void createFollowerIndexAndFollowRemoteIndex(
@@ -256,11 +271,14 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     clusterAlias,
                     leaderIndex,
                     listener,
-                    leaderIndexMetaData -> createFollowerIndex(leaderIndexMetaData, request, listener));
+                    (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
         }
 
         private void createFollowerIndex(
-                final IndexMetaData leaderIndexMetaData, final Request request, final ActionListener<Response> listener) {
+                final IndexMetaData leaderIndexMetaData,
+                final Map<Integer, String> historyUUIDs,
+                final Request request,
+                final ActionListener<Response> listener) {
             if (leaderIndexMetaData == null) {
                 listener.onFailure(new IllegalArgumentException("leader index [" + request.getFollowRequest().getLeaderIndex() +
                     "] does not exist"));
@@ -295,6 +313,13 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
+
+                    // Adding the leader index uuid for each shard as custom metadata:
+                    Map<String, String> metadata = new HashMap<>();
+                    for (Map.Entry<Integer, String> entry : historyUUIDs.entrySet()) {
+                        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_" + entry.getKey(), entry.getValue());
+                    }
+                    imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                     // Copy all settings, but overwrite a few settings.
                     Settings.Builder settingsBuilder = Settings.builder();
@@ -348,6 +373,29 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
+        }
+
+        // would be great if can reuse some of the logic in CcrLicenseChecker to do remote calls for
+        // fetching leader index metadata and leader index uuid
+        static void fetchHistoryUUID(final Client client,
+                                     final String leaderIndex,
+                                     final Consumer<Map<Integer, String>> handler,
+                                     final Consumer<Exception> errorHandler) {
+            IndicesStatsRequest request = new IndicesStatsRequest();
+            request.indices(leaderIndex);
+            CheckedConsumer<IndicesStatsResponse, Exception> onResponseHandler = indicesStatsResponse -> {
+                IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+                Map<Integer, String> historyUUIDs = new HashMap<>();
+                for (IndexShardStats indexShardStats : indexStats) {
+                    for (ShardStats shardStats : indexShardStats) {
+                        String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+                        ShardId shardId = shardStats.getShardRouting().shardId();
+                        historyUUIDs.put(shardId.id(), historyUUID);
+                    }
+                }
+                handler.accept(historyUUIDs);
+            };
+            client.admin().indices().stats(request, ActionListener.wrap(onResponseHandler, errorHandler));
         }
 
     }

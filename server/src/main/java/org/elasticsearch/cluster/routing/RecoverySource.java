@@ -112,7 +112,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     }
 
     /**
-     * Recovery from a refresh copy
+     * Recovery from a fresh copy
      */
     public static final class EmptyStoreRecoverySource extends RecoverySource {
         public static final EmptyStoreRecoverySource INSTANCE = new EmptyStoreRecoverySource();

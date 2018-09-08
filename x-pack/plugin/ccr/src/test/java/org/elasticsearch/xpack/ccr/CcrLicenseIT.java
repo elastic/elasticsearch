@@ -6,12 +6,18 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
@@ -115,6 +121,22 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                     }
                 });
         latch.await();
+    }
+
+    public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
+        final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
+        final MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        appender.addExpectation(
+                new MockLogAppender.ExceptionSeenEventExpectation(
+                        getTestName(),
+                        logger.getName(),
+                        Level.WARN,
+                        "skipping auto-follower coordination",
+                        ElasticsearchSecurityException.class,
+                        "current license is non-compliant for [ccr]"));
+        Loggers.addAppender(logger, appender);
+        assertBusy(appender::assertAllExpectationsMatched);
     }
 
     private void assertNonCompliantLicense(final Exception e) {

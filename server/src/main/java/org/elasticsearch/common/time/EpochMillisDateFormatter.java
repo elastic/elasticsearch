@@ -38,6 +38,10 @@ import java.util.Map;
  */
 class EpochMillisDateFormatter implements DateFormatter {
 
+    public static DateFormatter INSTANCE = new EpochMillisDateFormatter();
+
+    private EpochMillisDateFormatter() {}
+
     @Override
     public TemporalAccessor parse(String input) {
         try {

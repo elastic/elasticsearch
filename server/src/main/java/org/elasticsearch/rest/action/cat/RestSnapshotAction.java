@@ -109,9 +109,9 @@ public class RestSnapshotAction extends AbstractCatAction {
             table.addCell(snapshotStatus.snapshotId().getName());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
-            table.addCell(FORMATTER.print(Instant.ofEpochMilli(snapshotStatus.startTime())));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
-            table.addCell(FORMATTER.print(Instant.ofEpochMilli(snapshotStatus.endTime())));
+            table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.endTime())));
             final long durationMillis;
             if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
                 durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();

@@ -133,14 +133,14 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         transformers.put(Calendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
         transformers.put(GregorianCalendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
         transformers.put(Instant.class, d -> DEFAULT_DATE_PRINTER.print((Instant) d));
-        transformers.put(ZonedDateTime.class, d -> DEFAULT_FORMATTER.print((ZonedDateTime) d));
-        transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.print((OffsetDateTime) d));
-        transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.print((OffsetTime) d));
-        transformers.put(LocalDateTime.class, d -> DEFAULT_FORMATTER.print((LocalDateTime) d));
+        transformers.put(ZonedDateTime.class, d -> DEFAULT_FORMATTER.format((ZonedDateTime) d));
+        transformers.put(OffsetDateTime.class, d -> DEFAULT_FORMATTER.format((OffsetDateTime) d));
+        transformers.put(OffsetTime.class, d -> OFFSET_TIME_FORMATTER.format((OffsetTime) d));
+        transformers.put(LocalDateTime.class, d -> DEFAULT_FORMATTER.format((LocalDateTime) d));
         transformers.put(java.time.Instant.class,
-            d -> DEFAULT_FORMATTER.print(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC)));
+            d -> DEFAULT_FORMATTER.format(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC)));
         transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
-        transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.print((LocalTime) d));
+        transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
         return transformers;
     }
 }

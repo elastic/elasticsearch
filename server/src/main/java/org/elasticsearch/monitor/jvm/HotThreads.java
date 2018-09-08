@@ -138,7 +138,7 @@ public class HotThreads {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Hot threads at ");
-        sb.append(DATE_TIME_FORMATTER.print(LocalDateTime.now(Clock.systemUTC())));
+        sb.append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())));
         sb.append(", interval=");
         sb.append(interval);
         sb.append(", busiestThreads=");

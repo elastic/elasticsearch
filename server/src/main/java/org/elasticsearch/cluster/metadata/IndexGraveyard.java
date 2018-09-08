@@ -433,7 +433,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public String toString() {
-            String date = FORMATTER.print(Instant.ofEpochMilli(deleteDateInMillis));
+            String date = FORMATTER.format(Instant.ofEpochMilli(deleteDateInMillis));
             return "[index=" + index + ", deleteDate=" + date + "]";
         }
 

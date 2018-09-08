@@ -142,7 +142,7 @@ public class RestTasksAction extends AbstractCatAction {
         }
         table.addCell(taskInfo.getType());
         table.addCell(taskInfo.getStartTime());
-        table.addCell(FORMATTER.print(Instant.ofEpochMilli(taskInfo.getStartTime())));
+        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
         table.addCell(taskInfo.getRunningTimeNanos());
         table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
 

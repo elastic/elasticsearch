@@ -410,7 +410,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public String shortSummary() {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
-        sb.append(", at[").append(DATE_TIME_FORMATTER.print(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
+        sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
         if (failedAllocations >  0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
@@ -433,7 +433,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
-        builder.field("at", DATE_TIME_FORMATTER.print(Instant.ofEpochMilli(unassignedTimeMillis)));
+        builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
         if (failedAllocations >  0) {
             builder.field("failed_attempts", failedAllocations);
         }

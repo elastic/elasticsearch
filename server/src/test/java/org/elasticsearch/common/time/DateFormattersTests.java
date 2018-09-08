@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.is;
 
 public class DateFormattersTests extends ESTestCase {
 
-    // the epoch milli parser is a bit special, as it does not use date formatter, see comments in DateFormatters
     public void testEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
 
@@ -74,6 +73,6 @@ public class DateFormattersTests extends ESTestCase {
     private void assertSameFormat(DateFormatter formatter, long millis) {
         String millisAsString = String.valueOf(millis);
         TemporalAccessor accessor = formatter.parse(millisAsString);
-        assertThat(millisAsString, is(formatter.print(accessor)));
+        assertThat(millisAsString, is(formatter.format(accessor)));
     }
 }

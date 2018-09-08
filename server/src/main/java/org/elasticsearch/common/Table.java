@@ -95,7 +95,7 @@ public class Table {
         if (withTime) {
             long time = System.currentTimeMillis();
             addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
-            addCell(FORMATTER.print(Instant.ofEpochMilli(time)));
+            addCell(FORMATTER.format(Instant.ofEpochMilli(time)));
         }
         return this;
     }

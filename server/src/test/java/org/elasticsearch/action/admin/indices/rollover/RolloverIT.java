@@ -274,7 +274,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverWithDateMath() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        String index = "test-" + DateFormatters.forPattern("YYYY.MM.dd").print(now) + "-1";
+        String index = "test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-1";
         String dateMathExp = "<test-{now/d}-1>";
         assertAcked(prepareCreate(dateMathExp).addAlias(new Alias("test_alias")).get());
         ensureGreen(index);
@@ -288,14 +288,14 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen(index);
         RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo(index));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").print(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").print(now) + "-000002"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").print(now) + "-000003"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000002"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
@@ -308,8 +308,8 @@ public class RolloverIT extends ESIntegTestCase {
             IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
 
         response = client().admin().indices().prepareRolloverIndex("test_alias").setNewIndexName("<test-{now/d}-000004>").get();
-        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").print(now) + "-000003"));
-        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM.dd").print(now) + "-000004"));
+        assertThat(response.getOldIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM").format(now) + "-000003"));
+        assertThat(response.getNewIndex(), equalTo("test-" + DateFormatters.forPattern("YYYY.MM.dd").format(now) + "-000004"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));

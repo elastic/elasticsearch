@@ -300,7 +300,7 @@ public class DateMathParserTests extends ESTestCase {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
             fail("Date math not equal\n" +
                 "Original              : " + original + "\n" +
-                "Parsed                : " + formatter.print(zonedDateTime) + "\n" +
+                "Parsed                : " + formatter.format(zonedDateTime) + "\n" +
                 "Expected              : " + expected + "\n" +
                 "Expected milliseconds : " + expectedMillis + "\n" +
                 "Actual milliseconds   : " + gotMillis + "\n");

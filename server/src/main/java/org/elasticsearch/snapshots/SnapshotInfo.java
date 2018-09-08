@@ -497,11 +497,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(REASON, reason);
         }
         if (verbose || startTime != 0) {
-            builder.field(START_TIME, DATE_TIME_FORMATTER.print(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));
+            builder.field(START_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));
             builder.field(START_TIME_IN_MILLIS, startTime);
         }
         if (verbose || endTime != 0) {
-            builder.field(END_TIME, DATE_TIME_FORMATTER.print(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
+            builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
         }

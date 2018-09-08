@@ -899,7 +899,7 @@ public class DateFormatters {
     /*
      * Parses the milliseconds since/before the epoch
      */
-    private static final DateFormatter EPOCH_MILLIS = new EpochMillisDateFormatter();
+    private static final DateFormatter EPOCH_MILLIS = EpochMillisDateFormatter.INSTANCE;
 
     /*
      * Returns a formatter that combines a full date and two digit hour of

@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.AckWatchResponse;
+import org.elasticsearch.client.watcher.ActionStatus;
+import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,6 +30,7 @@ import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import static org.hamcrest.Matchers.is;
 
@@ -72,4 +78,34 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testAckWatch() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        String actionId = "logme";
+
+        PutWatchResponse putWatchResponse = createWatch(watchId);
+        assertThat(putWatchResponse.isCreated(), is(true));
+
+        AckWatchResponse response = highLevelClient().watcher().ackWatch(
+            new AckWatchRequest(watchId, actionId), RequestOptions.DEFAULT);
+
+        ActionStatus actionStatus = response.getStatus().actionStatus(actionId);
+        assertEquals(AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION, actionStatus.ackStatus().state());
+
+        // TODO: use the high-level REST client here once it supports 'execute watch'.
+        Request executeWatchRequest = new Request("POST", "_xpack/watcher/watch/" + watchId + "/_execute");
+        executeWatchRequest.setJsonEntity("{ \"record_execution\": true }");
+        Response executeResponse = client().performRequest(executeWatchRequest);
+        assertEquals(RestStatus.OK.getStatus(), executeResponse.getStatusLine().getStatusCode());
+
+        response = highLevelClient().watcher().ackWatch(
+            new AckWatchRequest(watchId, actionId), RequestOptions.DEFAULT);
+
+        actionStatus = response.getStatus().actionStatus(actionId);
+        assertEquals(AckStatus.State.ACKED, actionStatus.ackStatus().state());
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> highLevelClient().watcher().ackWatch(
+                new AckWatchRequest("nonexistent"), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
 }

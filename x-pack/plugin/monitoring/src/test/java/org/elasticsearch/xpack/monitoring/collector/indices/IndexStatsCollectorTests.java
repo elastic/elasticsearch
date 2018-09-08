@@ -50,8 +50,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                      client);
+        final IndexStatsCollector collector =
+                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -61,8 +61,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                      client);
+        final IndexStatsCollector collector =
+                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
@@ -74,15 +74,15 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final IndexStatsCollector collector =
-            new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
+                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                      client);
+        final IndexStatsCollector collector =
+                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -159,8 +159,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                      client);
+        final IndexStatsCollector collector =
+                new IndexStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

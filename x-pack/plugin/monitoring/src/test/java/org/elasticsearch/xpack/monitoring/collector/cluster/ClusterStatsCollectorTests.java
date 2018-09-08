@@ -79,7 +79,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final ClusterStatsCollector collector =
-            new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService);
+                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService);
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
     }
 
@@ -97,8 +97,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenReturn(indices);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService,
-                                          resolver);
+            new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(apmIndicesExist));
     }
@@ -109,8 +108,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService,
-                                          resolver);
+            new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         assertThat(collector.doAPMIndicesExist(clusterState), is(false));
     }
@@ -121,8 +119,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(resolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*")).thenThrow(exception);
 
         final ClusterStatsCollector collector =
-                new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService,
-                                          resolver);
+            new ClusterStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, licenseService, resolver);
 
         expectThrows(RuntimeException.class, () -> collector.doAPMIndicesExist(clusterState));
     }

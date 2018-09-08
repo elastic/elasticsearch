@@ -43,8 +43,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                    client);
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -59,7 +59,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final NodeStatsCollector collector =
-            new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
     }
 
@@ -68,8 +68,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         final boolean isElectedMaster = true;
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                    client);
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -90,8 +90,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                    client);
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
@@ -125,8 +125,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);
 
-        final NodeStatsCollector collector = new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                    client);
+        final NodeStatsCollector collector =
+                new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

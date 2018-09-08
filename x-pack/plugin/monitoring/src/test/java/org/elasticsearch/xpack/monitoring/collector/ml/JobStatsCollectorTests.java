@@ -145,8 +145,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
 
-        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState,
-                                                                  client, threadContext);
+        final JobStatsCollector collector =
+                new JobStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client, threadContext);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final List<JobStats> jobStats = mockJobStats();

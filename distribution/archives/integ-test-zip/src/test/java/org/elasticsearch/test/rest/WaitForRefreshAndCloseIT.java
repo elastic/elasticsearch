@@ -38,6 +38,7 @@ import java.util.Map;
 /**
  * Tests that wait for refresh is fired if the index is closed.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33533")
 public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
@@ -76,7 +77,6 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         closeWhileListenerEngaged(start("POST", "/_update", "{\"doc\":{\"name\":\"test\"}}"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33533")
     public void testDeleteAndThenClose() throws Exception {
         Request request = new Request("PUT", docPath());
         request.setJsonEntity("{\"test\":\"test\"}");

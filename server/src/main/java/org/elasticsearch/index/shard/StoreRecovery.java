@@ -398,6 +398,9 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
+                if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                    store.bootstrapNewHistory();
+                }
                 if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
                     if (store.ensureIndexHas6xCommitTags()) {
                         si = store.readLastCommittedSegmentsInfo(); // new commit is flushed - refresh SegmentInfo.

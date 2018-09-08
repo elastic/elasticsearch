@@ -93,7 +93,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         Consumer<Exception> handler = e -> {
             if (e != null) {
-                LOGGER.warn("Failure occurred during auto following indices", e);
+                LOGGER.warn("failure occurred during auto-follower coordination", e);
             }
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
         };

@@ -31,8 +31,10 @@ followClusterTestCluster {
 }
 
 followClusterTestRunner {
+    systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.is_leader_cluster', 'false'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}.log"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 

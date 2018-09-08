@@ -856,4 +856,30 @@ public class SettingTests extends ESTestCase {
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix", "anything").build()), hasSize(1));
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
     }
+
+    public void testExists() {
+        final Setting<?> fooSetting = Setting.simpleString("foo", Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+    }
+
+    public void testExistsWithFallback() {
+        final int count = randomIntBetween(1, 16);
+        Setting<String> current = Setting.simpleString("fallback0", Property.NodeScope);
+        for (int i = 1; i < count; i++) {
+            final Setting<String> next =
+                    new Setting<>(new Setting.SimpleKey("fallback" + i), current, Function.identity(), Property.NodeScope);
+            current = next;
+        }
+        final Setting<String> fooSetting = new Setting<>(new Setting.SimpleKey("foo"), current, Function.identity(), Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        if (randomBoolean()) {
+            assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+        } else {
+            final String setting = "fallback" + randomIntBetween(0, count - 1);
+            assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
+            assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
+        }
+    }
+
 }

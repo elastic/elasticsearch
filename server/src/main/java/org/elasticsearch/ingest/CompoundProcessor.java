@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-//TODO(simonw): can all these classes go into org.elasticsearch.ingest?
 
 package org.elasticsearch.ingest;
 

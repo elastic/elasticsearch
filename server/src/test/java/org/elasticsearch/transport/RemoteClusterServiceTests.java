@@ -714,7 +714,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         {
             Settings settings = Settings.builder().put("cluster.remote.foo.skip_unavailable", randomBoolean()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(settings, true));
-            assertEquals("Missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.skip_unavailable]",
+            assertEquals("missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.skip_unavailable]",
                     iae.getMessage());
         }
         {

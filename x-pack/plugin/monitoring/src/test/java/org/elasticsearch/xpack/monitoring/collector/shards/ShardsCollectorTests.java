@@ -66,6 +66,16 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(false), is(false));
     }
 
+    public void testShouldCollectReturnsFalseIfElasticsearchCollectionIsDisabled() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(false);
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
+
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+    }
+
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);

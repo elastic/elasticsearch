@@ -72,6 +72,17 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(false), is(false));
     }
 
+    public void testShouldCollectReturnsFalseIfElasticsearchCollectionIsDisabled() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(false);
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
+
+        final IndexRecoveryCollector collector =
+            new IndexRecoveryCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+    }
+
     public void testShouldCollectReturnsTrue() {
         when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         when(licenseState.isMonitoringAllowed()).thenReturn(true);

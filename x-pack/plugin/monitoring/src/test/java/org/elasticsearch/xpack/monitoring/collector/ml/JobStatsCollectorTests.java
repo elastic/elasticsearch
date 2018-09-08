@@ -109,6 +109,16 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         }
     }
 
+    public void testShouldCollectReturnsFalseIfElasticsearchCollectionIsDisabled() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(false);
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
+
+        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, monitoringService, licenseState, client);
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+    }
+
     public void testShouldCollectReturnsTrue() {
         final Settings settings = mlEnabledSettings();
 

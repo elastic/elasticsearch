@@ -52,6 +52,17 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         }
     }
 
+    public void testShouldCollectReturnsFalseIfElasticsearchCollectionIsDisabled() {
+        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(false);
+        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        final boolean isElectedMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isElectedMaster);
+
+        final NodeStatsCollector collector =
+            new NodeStatsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState, client);
+        assertThat(collector.shouldCollect(isElectedMaster), is(false));
+    }
+
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
         when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);

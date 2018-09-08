@@ -19,6 +19,7 @@
 
 package org.elasticsearch.unconfigured_node_name;
 
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
 
 import java.io.IOException;
@@ -32,6 +33,8 @@ import java.security.PrivilegedAction;
 public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
     @Override
     protected BufferedReader openReader(Path logFile) throws IOException {
+        assumeTrue("We log a line without the node name if we can't install the seccomp filters",
+                BootstrapInfo.isSystemCallFilterInstalled());
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);

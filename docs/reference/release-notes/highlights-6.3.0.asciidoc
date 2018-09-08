@@ -13,6 +13,23 @@ NOTE: We want your feedback on the experimental features in this release! Let
 us know what you’d like to see next and any problems you encounter.
 
 [float]
+=== License management and X-Pack code
+
+Starting with version 6.3, the default distribution of {es} contains open source 
+and free commercial features and access to paid commercial features. You no 
+longer need to install {xpack} as a separate step. When you install {es}, it 
+generates a basic license with no expiration date. All the free commercial 
+features are enabled by default and will never expire. 
+
+You can view the status of your license, update your license, or start a 30-day 
+trial of platinum features by using the <<licensing-apis>> or {kib}. The trial 
+enables you to try out features such as security, machine learning, alerting, 
+graph capabilities, and more.
+
+For more information about licenses, see https://www.elastic.co/subscriptions
+
+
+[float]
 === SQL
 This experimental feature enables users who are familiar with SQL to
 use SQL statements to query Elasticsearch indices. In addition to querying

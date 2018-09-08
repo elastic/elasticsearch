@@ -71,37 +71,41 @@ public class TransportPutAutoFollowPatternAction extends
     protected void masterOperation(PutAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
-        if (ccrLicenseChecker.isCcrAllowed()) {
-            final Client leaderClient;
-            if (request.getLeaderClusterAlias().equals("_local_")) {
-                leaderClient = client;
-            } else {
-                leaderClient = client.getRemoteClusterClient(request.getLeaderClusterAlias());
-            }
-
-            final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-            clusterStateRequest.clear();
-            clusterStateRequest.metaData(true);
-
-            leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
-                final ClusterState leaderClusterState = clusterStateResponse.getState();
-                clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
-                        new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                            @Override
-                            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                                return new AcknowledgedResponse(acknowledged);
-                            }
-
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
-                                return innerPut(request, currentState, leaderClusterState);
-                            }
-                        });
-            }, listener::onFailure));
-        } else {
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+            return;
         }
+        final Client leaderClient;
+        if (request.getLeaderClusterAlias().equals("_local_")) {
+            leaderClient = client;
+        } else {
+            leaderClient = client.getRemoteClusterClient(request.getLeaderClusterAlias());
+        }
+
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.clear();
+        clusterStateRequest.metaData(true);
+
+        leaderClient.admin().cluster().state(
+                clusterStateRequest,
+                ActionListener.wrap(
+                        clusterStateResponse -> {
+                            final ClusterState leaderClusterState = clusterStateResponse.getState();
+                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
+                                    new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+
+                                        @Override
+                                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                                            return new AcknowledgedResponse(acknowledged);
+                                        }
+
+                                        @Override
+                                        public ClusterState execute(ClusterState currentState) throws Exception {
+                                            return innerPut(request, currentState, leaderClusterState);
+                                        }
+                                    });
+                        },
+                        listener::onFailure));
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,

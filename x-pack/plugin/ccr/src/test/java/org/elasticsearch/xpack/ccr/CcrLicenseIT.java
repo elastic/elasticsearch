@@ -104,6 +104,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(final AcknowledgedResponse response) {
+                        latch.countDown();
                         fail();
                     }
 
@@ -113,7 +114,6 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                         latch.countDown();
                     }
                 });
-
         latch.await();
     }
 

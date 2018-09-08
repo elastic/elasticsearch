@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
+public class FieldStatsTests extends AbstractSerializingTestCase<FieldStats> {
 
+    @Override
     protected FieldStats createTestInstance() {
         return createTestFieldStats();
     }
@@ -51,11 +53,13 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
         return new FieldStats(count, cardinality, minValue, maxValue, meanValue, medianValue, topHits);
     }
 
-    protected FieldStats doParseInstance(XContentParser parser) {
-        return FieldStats.PARSER.apply(parser, null);
+    @Override
+    protected Writeable.Reader<FieldStats> instanceReader() {
+        return FieldStats::new;
     }
 
-    protected boolean supportsUnknownFields() {
-        return false;
+    @Override
+    protected FieldStats doParseInstance(XContentParser parser) {
+        return FieldStats.PARSER.apply(parser, null);
     }
 }

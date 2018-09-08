@@ -136,7 +136,12 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                         ElasticsearchSecurityException.class,
                         "current license is non-compliant for [ccr]"));
         Loggers.addAppender(logger, appender);
-        assertBusy(appender::assertAllExpectationsMatched);
+        try {
+            assertBusy(appender::assertAllExpectationsMatched);
+        } finally {
+            Loggers.removeAppender(logger, appender);
+            appender.stop();
+        }
     }
 
     private void assertNonCompliantLicense(final Exception e) {

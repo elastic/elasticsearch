@@ -36,7 +36,7 @@ API has provided a response containing only an empty object since 5.0.0. In
 Starting with version 6.3, all of the {xpack} features ship with the default 
 distribution of {es}. You no longer need to install {xpack} separately. 
 
-==== Removal of the `config/x-pack` directory
+==== Removal of the `x-pack` configuration directory
 
 The <<config-files-location,config directory>>, which is defined by the 
 `ES_PATH_CONF` environment variable, no longer contains an `x-pack` directory. 

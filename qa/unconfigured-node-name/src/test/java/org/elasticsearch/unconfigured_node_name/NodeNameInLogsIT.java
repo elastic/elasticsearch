@@ -43,4 +43,11 @@ public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
             }
         });
     }
+
+    public void testDummy() {
+        /* Dummy test case so that when we run this test on a platform that
+         * does not support our syscall filters and we skip the test above
+         * we don't fail the entire test run because we skipped all the tests.
+         */
+    }
 }

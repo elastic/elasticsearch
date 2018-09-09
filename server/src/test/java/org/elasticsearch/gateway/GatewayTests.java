@@ -53,11 +53,9 @@ public class GatewayTests extends ESTestCase {
         final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Set<Setting<?>> settingsSet =
-                new HashSet<>(
-                        Stream.concat(
-                                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                                Stream.of(oldSetting, newSetting))
-                                .collect(Collectors.toList()));
+                Stream.concat(
+                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+                        Stream.of(oldSetting, newSetting)).collect(Collectors.toSet()))
         final ClusterSettings clusterSettings = new ClusterSettings(
                 Settings.EMPTY,
                 settingsSet,

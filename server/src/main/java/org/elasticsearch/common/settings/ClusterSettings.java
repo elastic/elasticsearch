@@ -108,8 +108,8 @@ import java.util.function.Predicate;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
-    public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
-        super(nodeSettings, settingsSet, Collections.emptyList(), Property.NodeScope);
+    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
+        this(nodeSettings, settingsSet, Collections.emptyList());
     }
 
     public ClusterSettings(

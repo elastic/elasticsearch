@@ -20,7 +20,20 @@ leaderClusterTestRunner {
     systemProperty 'tests.is_leader_cluster', 'true'
 }
 
+task writeJavaPolicy {
+    doLast {
+        final File javaPolicy = file("${buildDir}/tmp/java.policy")
+        javaPolicy.write(
+                [
+                        "grant {",
+                        "  permission java.io.FilePermission \"${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}.log\", \"read\";",
+                        "};"
+                ].join("\n"))
+    }
+}
+
 task followClusterTest(type: RestIntegTestTask) {}
+followClusterTest.dependsOn writeJavaPolicy
 
 followClusterTestCluster {
     dependsOn leaderClusterTestRunner
@@ -31,8 +44,10 @@ followClusterTestCluster {
 }
 
 followClusterTestRunner {
+    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
     systemProperty 'tests.is_leader_cluster', 'false'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}.log"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 

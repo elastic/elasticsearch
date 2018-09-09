@@ -1,5 +1,5 @@
 [[analysis-predicatefilter-tokenfilter]]
-=== Predicate Token Script Filter
+=== Predicate Token Filter Script
 
 The predicate_token_filter token filter takes a predicate script, and removes tokens that do
 not match the predicate.

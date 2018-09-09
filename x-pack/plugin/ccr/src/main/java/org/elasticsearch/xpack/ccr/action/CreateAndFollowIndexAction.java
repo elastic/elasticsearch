@@ -221,21 +221,21 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         @Override
         protected void masterOperation(
                 final Request request, final ClusterState state, final ActionListener<Response> listener) throws Exception {
-            if (ccrLicenseChecker.isCcrAllowed()) {
-                final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-                final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-                if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    createFollowerIndexAndFollowLocalIndex(request, state, listener);
-                } else {
-                    assert remoteClusterIndices.size() == 1;
-                    final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-                    assert entry.getValue().size() == 1;
-                    final String clusterAlias = entry.getKey();
-                    final String leaderIndex = entry.getValue().get(0);
-                    createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
-                }
-            } else {
+            if (ccrLicenseChecker.isCcrAllowed() == false) {
                 listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+                return;
+            }
+            final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
+            final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+            if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                createFollowerIndexAndFollowLocalIndex(request, state, listener);
+            } else {
+                assert remoteClusterIndices.size() == 1;
+                final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
+                assert entry.getValue().size() == 1;
+                final String clusterAlias = entry.getKey();
+                final String leaderIndex = entry.getValue().get(0);
+                createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
             }
         }
 

@@ -47,6 +47,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(final AcknowledgedResponse response) {
+                        latch.countDown();
                         fail();
                     }
 
@@ -69,6 +70,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
                 new ActionListener<CreateAndFollowIndexAction.Response>() {
                     @Override
                     public void onResponse(final CreateAndFollowIndexAction.Response response) {
+                        latch.countDown();
                         fail();
                     }
 
@@ -86,6 +88,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.TasksRequest(), new ActionListener<CcrStatsAction.TasksResponse>() {
             @Override
             public void onResponse(final CcrStatsAction.TasksResponse tasksResponse) {
+                latch.countDown();
                 fail();
             }
 

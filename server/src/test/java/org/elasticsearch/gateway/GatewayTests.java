@@ -58,7 +58,8 @@ public class GatewayTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(
                 Settings.EMPTY,
                 settingsSet,
-                Collections.singletonList(new SettingUpgrader<String>() {
+                Collections.singleton(new SettingUpgrader<String>() {
+
                     @Override
                     public Setting<String> getSetting() {
                         return oldSetting;
@@ -73,6 +74,7 @@ public class GatewayTests extends ESTestCase {
                     public String getValue(final String value) {
                         return "new." + value;
                     }
+
                 }));
         final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
         final Gateway gateway = new Gateway(Settings.EMPTY, clusterService, null, null);

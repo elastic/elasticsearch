@@ -1056,7 +1056,8 @@ public class ScopedSettingsTests extends ESTestCase {
                 new ClusterSettings(
                         Settings.EMPTY,
                         new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
-                        Collections.singletonList(new SettingUpgrader<String>() {
+                        Collections.singleton(new SettingUpgrader<String>() {
+
                             @Override
                             public Setting<String> getSetting() {
                                 return oldSetting;
@@ -1071,6 +1072,7 @@ public class ScopedSettingsTests extends ESTestCase {
                             public String getValue(final String value) {
                                 return "new." + value;
                             }
+
                         }));
 
         final Settings settings =
@@ -1095,7 +1097,7 @@ public class ScopedSettingsTests extends ESTestCase {
                 new ClusterSettings(
                         Settings.EMPTY,
                         new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
-                        Collections.singletonList(new SettingUpgrader<String>() {
+                        Collections.singleton(new SettingUpgrader<String>() {
 
                             @Override
                             public Setting<String> getSetting() {
@@ -1126,8 +1128,8 @@ public class ScopedSettingsTests extends ESTestCase {
                 new ClusterSettings(
                         Settings.EMPTY,
                         new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singleton(new SettingUpgrader<String>() {
 
-                        Collections.singletonList(new SettingUpgrader<String>() {
                             @Override
                             public Setting<String> getSetting() {
                                 return oldSetting;

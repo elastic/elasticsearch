@@ -147,7 +147,7 @@ public abstract class TransportClient extends AbstractClient {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             SettingsModule settingsModule =
-                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, Collections.emptyList());
+                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, Collections.emptySet());
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(Collections.emptyList());

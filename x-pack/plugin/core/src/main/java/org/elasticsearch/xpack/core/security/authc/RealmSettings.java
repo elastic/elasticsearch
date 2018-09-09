@@ -183,7 +183,7 @@ public class RealmSettings {
         settingSet.add(ENABLED_SETTING);
         settingSet.add(ORDER_SETTING);
         final AbstractScopedSettings validator =
-                new AbstractScopedSettings(settings, settingSet, Collections.emptyList(), Setting.Property.NodeScope) { };
+                new AbstractScopedSettings(settings, settingSet, Collections.emptySet(), Setting.Property.NodeScope) { };
         try {
             validator.validate(settings, false);
         } catch (RuntimeException e) {

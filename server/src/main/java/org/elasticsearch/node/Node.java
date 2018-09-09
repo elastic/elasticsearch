@@ -363,11 +363,11 @@ public abstract class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 
-            final List<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
+            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
                     .stream()
                     .map(Plugin::getSettingUpgraders)
                     .flatMap(List::stream)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toSet());
 
             final SettingsModule settingsModule =
                     new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);

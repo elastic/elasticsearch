@@ -63,7 +63,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     protected AbstractScopedSettings(
             final Settings settings,
             final Set<Setting<?>> settingsSet,
-            final List<SettingUpgrader<?>> settingUpgraders,
+            final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;

@@ -20,6 +20,7 @@ import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -122,7 +123,7 @@ public class SettingsFilterTests extends ESTestCase {
         List<String> settingsFilterList = new ArrayList<>();
         settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
-        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList, Collections.emptyList());
+        SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList, Collections.emptySet());
 
         Injector injector = Guice.createInjector(settingsModule);
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);

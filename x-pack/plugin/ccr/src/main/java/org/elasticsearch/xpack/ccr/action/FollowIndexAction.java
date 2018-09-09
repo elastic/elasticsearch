@@ -64,8 +64,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction.TransportAction.fetchHistoryUUID;
-
 public class FollowIndexAction extends Action<AcknowledgedResponse> {
 
     public static final FollowIndexAction INSTANCE = new FollowIndexAction();
@@ -356,13 +354,13 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
             // following an index in local cluster, so use local cluster state to fetch leader index metadata
             final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-            fetchHistoryUUID(client, request.getLeaderIndex(), historyUUIDs -> {
+            ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, request.getLeaderIndex(), listener, historyUUIDs -> {
                 try {
                     start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
-            }, listener::onFailure);
+            });
         }
 
         private void followRemoteIndex(

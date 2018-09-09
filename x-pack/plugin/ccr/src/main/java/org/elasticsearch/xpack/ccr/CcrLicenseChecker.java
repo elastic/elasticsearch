@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Encapsulates licensing checking for CCR.
@@ -105,23 +106,9 @@ public final class CcrLicenseChecker {
                                         final ClusterState remoteClusterState = r.getState();
                                         final IndexMetaData leaderIndexMetadata =
                                                 remoteClusterState.getMetaData().index(leaderIndex);
-                                        CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
-                                            IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
-                                            Map<Integer, String> historyUUIDs = new HashMap<>();
-                                            for (IndexShardStats indexShardStats : indexStats) {
-                                                for (ShardStats shardStats : indexShardStats) {
-                                                    CommitStats commitStats = shardStats.getCommitStats();
-                                                    String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-                                                    ShardId shardId = shardStats.getShardRouting().shardId();
-                                                    historyUUIDs.put(shardId.id(), historyUUID);
-                                                }
-                                            }
+                                        fetchLeaderHistoryUUIDs(remoteClient, leaderIndex, listener, historyUUIDs -> {
                                             historyUUIDAndLeaderIndexMetadataConsumer.accept(historyUUIDs, leaderIndexMetadata);
-                                        };
-                                        IndicesStatsRequest request = new IndicesStatsRequest();
-                                        request.indices(leaderIndex);
-                                        remoteClient.admin().indices().stats(request,
-                                            ActionListener.wrap(indicesStatsHandler, listener::onFailure));
+                                        });
                                     },
                                     listener::onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
@@ -137,6 +124,41 @@ public final class CcrLicenseChecker {
                     }
 
                 });
+    }
+
+    /**
+     * Fetches the history UUIDs for leader index on per shard basis using the specified leaderClient.
+     *
+     * @param leaderClient                              the leader client
+     * @param leaderIndex                               the name of the leader index
+     * @param listener                                  the listener
+     * @param historyUUIDConsumer                       the leader index history uuid and consumer
+     * @param <T>                                       the type of response the listener is waiting for
+     */
+    // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
+    // in case of following a local or a remote cluster.
+    public <T> void fetchLeaderHistoryUUIDs(
+        final Client leaderClient,
+        final String leaderIndex,
+        final ActionListener<T> listener,
+        final Consumer<Map<Integer, String>> historyUUIDConsumer) {
+
+        CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
+            IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+            Map<Integer, String> historyUUIDs = new HashMap<>();
+            for (IndexShardStats indexShardStats : indexStats) {
+                for (ShardStats shardStats : indexShardStats) {
+                    CommitStats commitStats = shardStats.getCommitStats();
+                    String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+                    ShardId shardId = shardStats.getShardRouting().shardId();
+                    historyUUIDs.put(shardId.id(), historyUUID);
+                }
+            }
+            historyUUIDConsumer.accept(historyUUIDs);
+        };
+        IndicesStatsRequest request = new IndicesStatsRequest();
+        request.indices(leaderIndex);
+        leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, listener::onFailure));
     }
 
     private static ElasticsearchStatusException incompatibleRemoteLicense(

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -709,6 +710,25 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
         assertThat(status.followerGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testHistoryUUIDChanged() {
+        ShardFollowNodeTask task = createShardFollowTask(1, 1, 1, Integer.MAX_VALUE, Long.MAX_VALUE);
+        startTask(task, 1, -1);
+
+        task.coordinateReads();
+        assertThat(shardChangesRequests.size(), equalTo(1));
+        assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
+        assertThat(shardChangesRequests.get(0)[1], equalTo(1L));
+
+        ShardChangesAction.Response response = new ShardChangesAction.Response(0, 1, 1, "another-uuid", new Translog.Operation[] {
+            new Translog.Index("doc", "1", 0, 0, "{}".getBytes(StandardCharsets.UTF_8))
+        });
+        task.innerHandleReadResponse(0L, 63L, response);
+        assertThat(task.isStopped(), is(true));
+        assertThat(fatalError, notNullValue());
+        assertThat(fatalError, instanceOf(IllegalStateException.class));
+        assertThat(fatalError.getMessage(), equalTo("unexpected history uuid, expected [uuid], actual [another-uuid]"));
     }
 
     ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount, int maxConcurrentReadBatches, int maxConcurrentWriteBatches,

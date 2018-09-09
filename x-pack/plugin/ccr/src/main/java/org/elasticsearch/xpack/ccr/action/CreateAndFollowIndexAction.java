@@ -247,8 +247,8 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
             // following an index in local cluster, so use local cluster state to fetch leader index metadata
             final String leaderIndex = request.getFollowRequest().getLeaderIndex();
             final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
-            Consumer<Map<Integer, String>> handler = historyUUID -> {
-                createFollowerIndex(leaderIndexMetadata, historyUUID, request, listener);
+            Consumer<Map<Integer, String>> handler = historyUUIDs -> {
+                createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
             };
             ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndex, listener::onFailure, handler);
         }
@@ -309,7 +309,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     // Adding the leader index uuid for each shard as custom metadata:
                     Map<String, String> metadata = new HashMap<>();
                     for (Map.Entry<Integer, String> entry : historyUUIDs.entrySet()) {
-                        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_" + entry.getKey(), entry.getValue());
+                        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS + "_" + entry.getKey(), entry.getValue());
                     }
                     imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 

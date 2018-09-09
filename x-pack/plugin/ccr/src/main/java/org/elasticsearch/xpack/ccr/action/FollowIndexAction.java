@@ -415,7 +415,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                 final int shardId = i;
                 String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                 String recordedLeaderIndexHistoryUUID = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
-                    .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_" + shardId);
+                    .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS + "_" + shardId);
 
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                     new ShardId(followIndexMetadata.getIndex(), shardId),
@@ -601,8 +601,8 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
     private static Map<Integer, String> convert(Map<String, String> ccrMetadata) {
         Map<Integer, String> historyUUIDsByShard = new HashMap<>();
         for (Map.Entry<String, String> entry : ccrMetadata.entrySet()) {
-            if (entry.getKey().startsWith(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY)) {
-                int shardId = Integer.parseInt(entry.getKey().replace(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_", ""));
+            if (entry.getKey().startsWith(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS)) {
+                int shardId = Integer.parseInt(entry.getKey().replace(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS + "_", ""));
                 String previousValue = historyUUIDsByShard.put(shardId, entry.getValue());
                 assert previousValue == null;
             }

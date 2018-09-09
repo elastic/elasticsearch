@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FollowIndexActionTests extends ESTestCase {
 
     private static final Map<String, String> CUSTOM_METADATA =
-        singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_0", "uuid");
+        singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS + "_0", "uuid");
 
     public void testValidation() throws IOException {
         FollowIndexAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
@@ -49,7 +49,7 @@ public class FollowIndexActionTests extends ESTestCase {
             // should fail because the recorded leader index history uuid is not equal to the leader actual index history uuid:
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
             Map<String, String> customMetaData =
-                singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_HISTORY_UUID_KEY + "_0", "another-uuid");
+                singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS + "_0", "another-uuid");
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, UUIDs, null));

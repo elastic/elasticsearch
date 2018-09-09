@@ -212,7 +212,8 @@ public final class CcrLicenseChecker {
                     CommitStats commitStats = shardStats.getCommitStats();
                     String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                     ShardId shardId = shardStats.getShardRouting().shardId();
-                    historyUUIDs.put(shardId.id(), historyUUID);
+                    Object previousValue = historyUUIDs.put(shardId.id(), historyUUID);
+                    assert previousValue == null;
                 }
             }
             historyUUIDConsumer.accept(historyUUIDs);

@@ -25,6 +25,8 @@ public interface SettingUpgrader<T> {
 
     String getKey(String key);
 
-    String getValue(String value);
+    default String getValue(final String value) {
+        return value;
+    }
 
 }

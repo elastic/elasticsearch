@@ -1107,11 +1107,6 @@ public class ScopedSettingsTests extends ESTestCase {
                                 return "foo.new";
                             }
 
-                            @Override
-                            public String getValue(final String value) {
-                                return value;
-                            }
-
                         }));
 
         final Settings settings = Settings.builder().put("foo.remaining", randomAlphaOfLength(8)).build();

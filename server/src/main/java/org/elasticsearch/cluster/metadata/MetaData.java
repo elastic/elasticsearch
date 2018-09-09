@@ -320,7 +320,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 for (int i = 0; i < patterns.length; i++) {
                     if (include[i]) {
                         if (matched == false) {
-                            matched = Regex.simpleMatch(patterns[i], alias);
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
                         }
                     } else if (matched) {
                         matched = Regex.simpleMatch(patterns[i], alias) == false;

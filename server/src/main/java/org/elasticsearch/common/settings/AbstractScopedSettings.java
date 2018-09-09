@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,7 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -54,14 +54,27 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
+    private final Map<Setting<?>, Function<Map.Entry<String, String>, Map.Entry<String, String>>> settingUpgraders;
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
+    protected AbstractScopedSettings(
+            final Settings settings,
+            final Set<Setting<?>> settingsSet,
+            final List<SettingUpgrader<?>> settingUpgraders,
+            final Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
+
+        this.settingUpgraders =
+                Collections.unmodifiableMap(
+                settingUpgraders.stream()
+                .collect(Collectors.toMap(
+                        SettingUpgrader::getSetting,
+                        u -> e -> new AbstractMap.SimpleEntry<>(u.getKey(e.getKey()), u.getValue(e.getValue())))));
+
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
@@ -99,6 +112,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
+        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -764,7 +778,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         for (final String key : settings.keySet()) {
             final Setting<?> setting = getRaw(key);
-            final Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader = upgraders.get(setting);
+            final Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader = settingUpgraders.get(setting);
             if (upgrader == null) {
                 builder.copy(key, settings);
             } else {
@@ -865,13 +879,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     // TODO this should be replaced by Setting.Property.HIDDEN or something like this.
     public boolean isPrivateSetting(String key) {
         return false;
-    }
-
-    private Map<Setting<?>, Function<Map.Entry<String, String>, Map.Entry<String, String>>> upgraders = new HashMap<>();
-
-    public synchronized void addSettingsUpgrader(
-            final Setting<?> setting, Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader) {
-        upgraders.put(Objects.requireNonNull(setting, "setting"), Objects.requireNonNull(upgrader, "upgrader"));
     }
 
 }

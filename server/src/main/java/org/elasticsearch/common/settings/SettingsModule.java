@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,10 +55,14 @@ public class SettingsModule implements Module {
     private final SettingsFilter settingsFilter;
 
     public SettingsModule(Settings settings, Setting<?>... additionalSettings) {
-        this(settings, Arrays.asList(additionalSettings), Collections.emptyList());
+        this(settings, Arrays.asList(additionalSettings), Collections.emptyList(), Collections.emptyList());
     }
 
-    public SettingsModule(Settings settings, List<Setting<?>> additionalSettings, List<String> settingsFilter) {
+    public SettingsModule(
+            Settings settings,
+            List<Setting<?>> additionalSettings,
+            List<String> settingsFilter,
+            List<SettingUpgrader<?>> settingUpgraders) {
         logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
@@ -70,12 +75,20 @@ public class SettingsModule implements Module {
         for (Setting<?> setting : additionalSettings) {
             registerSetting(setting);
         }
-
         for (String filter : settingsFilter) {
             registerSettingsFilter(filter);
         }
+        final List<SettingUpgrader<?>> clusterSettingUpgraders = new ArrayList<>();
+        for (final SettingUpgrader<?> settingUpgrader : ClusterSettings.BUILT_IN_SETTING_UPGRADERS) {
+            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
+            clusterSettingUpgraders.add(settingUpgrader);
+        }
+        for (final SettingUpgrader<?> settingUpgrader : settingUpgraders) {
+            assert settingUpgrader.getSetting().hasNodeScope() : settingUpgrader.getSetting().getKey();
+            clusterSettingUpgraders.add(settingUpgrader);
+        }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
         Settings indexSettings = settings.filter((s) -> (s.startsWith("index.") &&
             // special case - we want to get Did you mean indices.query.bool.max_clause_count
             // which means we need to by-pass this check for this setting
@@ -205,4 +218,5 @@ public class SettingsModule implements Module {
     public SettingsFilter getSettingsFilter() {
         return settingsFilter;
     }
+
 }

@@ -21,21 +21,11 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 
-import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,28 +55,11 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
 
     public static class UpgradeSettingsPlugin extends Plugin {
 
-        static final Setting<?> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
-        static final Setting<?> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
+        static final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
+        static final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
         public UpgradeSettingsPlugin(){
 
-        }
-
-        @Override
-        public Collection<Object> createComponents(
-                final Client client,
-                final ClusterService clusterService,
-                final ThreadPool threadPool,
-                final ResourceWatcherService resourceWatcherService,
-                final ScriptService scriptService,
-                final NamedXContentRegistry xContentRegistry,
-                final Environment environment,
-                final NodeEnvironment nodeEnvironment,
-                final NamedWriteableRegistry namedWriteableRegistry) {
-            clusterService.getClusterSettings().addSettingsUpgrader(
-                    oldSetting,
-                    entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
-            return Collections.emptyList();
         }
 
         @Override
@@ -94,6 +67,26 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
             return Arrays.asList(oldSetting, newSetting);
         }
 
+        @Override
+        public List<SettingUpgrader<?>> getSettingUpgraders() {
+            return Collections.singletonList(new SettingUpgrader<String>() {
+
+                @Override
+                public Setting<String> getSetting() {
+                    return oldSetting;
+                }
+
+                @Override
+                public String getKey(final String key) {
+                    return "foo.new";
+                }
+
+                @Override
+                public String getValue(final String value) {
+                    return "new." + value;
+                }
+            });
+        }
     }
 
     public void testUpgradePersistentSettingsOnUpdate() {
@@ -126,7 +119,7 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
 
         assertFalse(UpgradeSettingsPlugin.oldSetting.exists(settingsFunction.apply(response.getState().metaData())));
         assertTrue(UpgradeSettingsPlugin.newSetting.exists(settingsFunction.apply(response.getState().metaData())));
-        assertThat(UpgradeSettingsPlugin.newSetting.get(settingsFunction.apply(response.getState().metaData())), equalTo(value));
+        assertThat(UpgradeSettingsPlugin.newSetting.get(settingsFunction.apply(response.getState().metaData())), equalTo("new." + value));
     }
 
 }

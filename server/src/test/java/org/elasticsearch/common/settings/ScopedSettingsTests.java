@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1049,13 +1048,30 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testUpgradeSetting() {
-        final Setting<?> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
-        final Setting<?> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
-        final Setting<?> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+        final Setting<String> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<String> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<String> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
 
         final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
-        service.addSettingsUpgrader(oldSetting, entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singletonList(new SettingUpgrader<String>() {
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                            @Override
+                            public String getValue(final String value) {
+                                return "new." + value;
+                            }
+                        }));
 
         final Settings settings =
                 Settings.builder()
@@ -1065,22 +1081,40 @@ public class ScopedSettingsTests extends ESTestCase {
         final Settings upgradedSettings = service.upgradeSettings(settings);
         assertFalse(oldSetting.exists(upgradedSettings));
         assertTrue(newSetting.exists(upgradedSettings));
-        assertThat(newSetting.get(upgradedSettings), equalTo(oldSetting.get(settings)));
+        assertThat(newSetting.get(upgradedSettings), equalTo("new." + oldSetting.get(settings)));
         assertTrue(remainingSetting.exists(upgradedSettings));
         assertThat(remainingSetting.get(upgradedSettings), equalTo(remainingSetting.get(settings)));
     }
 
     public void testUpgradeSettingsNoChangesPreservesInstance() {
-        final Setting<?> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
-        final Setting<?> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
-        final Setting<?> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
+        final Setting<String> oldSetting = Setting.simpleString("foo.old", Property.NodeScope);
+        final Setting<String> newSetting = Setting.simpleString("foo.new", Property.NodeScope);
+        final Setting<String> remainingSetting = Setting.simpleString("foo.remaining", Property.NodeScope);
 
         final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
-        service.addSettingsUpgrader(oldSetting, entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+                        Collections.singletonList(new SettingUpgrader<String>() {
 
-        final Settings settings =
-                Settings.builder().put("foo.remaining", randomAlphaOfLength(8)).build();
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                            @Override
+                            public String getValue(final String value) {
+                                return value;
+                            }
+
+                        }));
+
+        final Settings settings = Settings.builder().put("foo.remaining", randomAlphaOfLength(8)).build();
         final Settings upgradedSettings = service.upgradeSettings(settings);
         assertThat(upgradedSettings, sameInstance(settings));
     }
@@ -1094,10 +1128,27 @@ public class ScopedSettingsTests extends ESTestCase {
                 Setting.affixKeySetting("foo.remaining.", "suffix", key -> Setting.simpleString(key, Property.NodeScope));
 
         final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)));
-        service.addSettingsUpgrader(
-                oldSetting,
-                entry -> new AbstractMap.SimpleEntry<>(entry.getKey().replaceFirst("^foo.old", "foo.new"), entry.getValue()));
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting, remainingSetting)),
+
+                        Collections.singletonList(new SettingUpgrader<String>() {
+                            @Override
+                            public Setting<String> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return key.replaceFirst("^foo\\.old", "foo\\.new");
+                            }
+
+                            @Override
+                            public String getValue(final String value) {
+                                return "new." + value;
+                            }
+
+                        }));
 
         final int count = randomIntBetween(1, 8);
         final List<String> concretes = new ArrayList<>(count);
@@ -1115,7 +1166,7 @@ public class ScopedSettingsTests extends ESTestCase {
             assertTrue(newSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
             assertThat(
                     newSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
-                    equalTo(oldSetting.getConcreteSettingForNamespace(concrete).get(settings)));
+                    equalTo("new." + oldSetting.getConcreteSettingForNamespace(concrete).get(settings)));
             assertTrue(remainingSetting.getConcreteSettingForNamespace(concrete).exists(upgradedSettings));
             assertThat(
                     remainingSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),

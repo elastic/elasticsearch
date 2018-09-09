@@ -43,6 +43,8 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
+
 public class GetIndexActionTests extends ESSingleNodeTestCase {
 
     private TransportService transportService;
@@ -58,7 +60,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, Collections.emptyList(), Collections.emptyList()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);

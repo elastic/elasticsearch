@@ -24,10 +24,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -49,16 +50,33 @@ public class GatewayTests extends ESTestCase {
 
     private void runUpgradeSettings(
             final BiConsumer<MetaData.Builder, Settings> applySettingsToBuilder, final Function<MetaData, Settings> metaDataSettings) {
-        final Setting<?> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
-        final Setting<?> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
+        final Setting<String> oldSetting = Setting.simpleString("foo.old", Setting.Property.Dynamic, Setting.Property.NodeScope);
+        final Setting<String> newSetting = Setting.simpleString("foo.new", Setting.Property.Dynamic, Setting.Property.NodeScope);
         final Set<Setting<?>> settingsSet =
                 new HashSet<>(
                         Stream.concat(
                                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
                                 Stream.of(oldSetting, newSetting))
                                 .collect(Collectors.toList()));
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
-        clusterSettings.addSettingsUpgrader(oldSetting, entry -> new AbstractMap.SimpleEntry<>("foo.new", entry.getValue()));
+        final ClusterSettings clusterSettings = new ClusterSettings(
+                Settings.EMPTY,
+                settingsSet,
+                Collections.singletonList(new SettingUpgrader<String>() {
+                    @Override
+                    public Setting<String> getSetting() {
+                        return oldSetting;
+                    }
+
+                    @Override
+                    public String getKey(final String key) {
+                        return "foo.new";
+                    }
+
+                    @Override
+                    public String getValue(final String value) {
+                        return "new." + value;
+                    }
+                }));
         final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
         final Gateway gateway = new Gateway(Settings.EMPTY, clusterService, null, null);
         final MetaData.Builder builder = MetaData.builder();
@@ -67,7 +85,7 @@ public class GatewayTests extends ESTestCase {
         final ClusterState state = gateway.upgradeAndArchiveUnknownOrInvalidSettings(builder).build();
         assertFalse(oldSetting.exists(metaDataSettings.apply(state.metaData())));
         assertTrue(newSetting.exists(metaDataSettings.apply(state.metaData())));
-        assertThat(newSetting.get(metaDataSettings.apply(state.metaData())), equalTo(oldSetting.get(settings)));
+        assertThat(newSetting.get(metaDataSettings.apply(state.metaData())), equalTo("new." + oldSetting.get(settings)));
     }
 
 }

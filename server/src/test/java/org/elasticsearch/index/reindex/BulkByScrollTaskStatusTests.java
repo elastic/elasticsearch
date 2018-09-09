@@ -23,37 +23,39 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.hamcrest.Matchers;
+import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.hamcrest.Matchers.equalTo;
 
-public class BulkByScrollTaskStatusTests extends ESTestCase {
+public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkByScrollTask.Status> {
+
+    private boolean includeUpdated;
+    private boolean includeCreated;
+
     public void testBulkByTaskStatus() throws IOException {
         BulkByScrollTask.Status status = randomStatus();
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
         assertTaskStatusEquals(out.getVersion(), status, tripped);
-
-        // Also check round tripping pre-5.1 which is the first version to support parallelized scroll
-        out = new BytesStreamOutput();
-        out.setVersion(Version.V_5_0_0_rc1); // This can be V_5_0_0
-        status.writeTo(out);
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.V_5_0_0_rc1);
-        tripped = new BulkByScrollTask.Status(in);
-        assertTaskStatusEquals(Version.V_5_0_0_rc1, status, tripped);
     }
 
     /**
@@ -74,23 +76,19 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
-        if (version.onOrAfter(Version.V_5_1_1)) {
-            assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
-            for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
-                BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
-                if (sliceStatus == null) {
-                    assertNull(actual.getSliceStatuses().get(i));
-                } else if (sliceStatus.getException() == null) {
-                    assertNull(actual.getSliceStatuses().get(i).getException());
-                    assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
-                } else {
-                    assertNull(actual.getSliceStatuses().get(i).getStatus());
-                    // Just check the message because we're not testing exception serialization in general here.
-                    assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
-                }
+        assertThat(actual.getSliceStatuses(), Matchers.hasSize(expected.getSliceStatuses().size()));
+        for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
+            BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);
+            if (sliceStatus == null) {
+                assertNull(actual.getSliceStatuses().get(i));
+            } else if (sliceStatus.getException() == null) {
+                assertNull(actual.getSliceStatuses().get(i).getException());
+                assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+            } else {
+                assertNull(actual.getSliceStatuses().get(i).getStatus());
+                // Just check the message because we're not testing exception serialization in general here.
+                assertEquals(sliceStatus.getException().getMessage(), actual.getSliceStatuses().get(i).getException().getMessage());
             }
-        } else {
-            assertEquals(emptyList(), actual.getSliceStatuses());
         }
     }
 
@@ -113,6 +111,22 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
         return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
     }
 
+    public static BulkByScrollTask.Status randomStatusWithoutException() {
+        if (randomBoolean()) {
+            return randomWorkingStatus(null);
+        }
+        boolean canHaveNullStatues = randomBoolean();
+        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10))
+            .mapToObj(i -> {
+                if (canHaveNullStatues && LuceneTestCase.rarely()) {
+                    return null;
+                }
+                return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            })
+            .collect(toList());
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+    }
+
     private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
         // These all should be believably small because we sum them if we have multiple workers
         int total = between(0, 10000000);
@@ -124,8 +138,83 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
         long versionConflicts = between(0, total);
         long bulkRetries = between(0, 10000000);
         long searchRetries = between(0, 100000);
-        return new BulkByScrollTask.Status(sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
-                searchRetries, parseTimeValue(randomPositiveTimeValue(), "test"), abs(Randomness.get().nextFloat()),
-                randomBoolean() ? null : randomSimpleString(Randomness.get()), parseTimeValue(randomPositiveTimeValue(), "test"));
+        // smallest unit of time during toXContent is Milliseconds
+        TimeUnit[] timeUnits = {TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS};
+        TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
+        TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
+        return
+            new BulkByScrollTask.Status(
+                sliceId, total, updated, created, deleted, batches, versionConflicts, noops,
+                bulkRetries, searchRetries, throttled, abs(Randomness.get().nextFloat()),
+                randomBoolean() ? null : randomSimpleString(Randomness.get()), throttledUntil
+            );
+    }
+
+    public static void assertEqualStatus(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual,
+                                         boolean includeUpdated, boolean includeCreated) {
+        assertNotSame(expected, actual);
+        assertTrue(expected.equalsWithoutSliceStatus(actual, includeUpdated, includeCreated));
+        assertThat(expected.getSliceStatuses().size(), equalTo(actual.getSliceStatuses().size()));
+        for (int i = 0; i< expected.getSliceStatuses().size(); i++) {
+            BulkByScrollTaskStatusOrExceptionTests.assertEqualStatusOrException(
+                expected.getSliceStatuses().get(i), actual.getSliceStatuses().get(i), includeUpdated, includeCreated
+            );
+        }
+    }
+
+    @Override
+    protected void assertEqualInstances(BulkByScrollTask.Status first, BulkByScrollTask.Status second) {
+        assertEqualStatus(first, second, includeUpdated, includeCreated);
+    }
+
+    @Override
+    protected BulkByScrollTask.Status createTestInstance() {
+        // failures are tested separately, so we can test xcontent equivalence at least when we have no failures
+        return randomStatusWithoutException();
+    }
+
+    @Override
+    protected BulkByScrollTask.Status doParseInstance(XContentParser parser) throws IOException {
+        return BulkByScrollTask.Status.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    /**
+     * Test parsing {@link Status} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        Supplier<Status> instanceSupplier = BulkByScrollTaskStatusTests::randomStatus;
+        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        //but that does not bother our assertions, as we only want to test that we don't break.
+        boolean supportsUnknownFields = true;
+        //exceptions are not of the same type whenever parsed back
+        boolean assertToXContentEquivalence = false;
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
+            getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+            this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        Map<String, String> params = new HashMap<>();
+        if (randomBoolean()) {
+            includeUpdated = false;
+            params.put(Status.INCLUDE_UPDATED, "false");
+        } else {
+            includeUpdated = true;
+        }
+        if (randomBoolean()) {
+            includeCreated = false;
+            params.put(Status.INCLUDE_CREATED, "false");
+        } else {
+            includeCreated = true;
+        }
+        return new ToXContent.MapParams(params);
     }
 }

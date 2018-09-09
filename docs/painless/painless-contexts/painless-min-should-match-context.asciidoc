@@ -2,7 +2,7 @@
 === Minimum should match context
 
 Use a Painless script to specify the
-{es_version}/query-dsl-terms-set-query.html[minimum] number of terms that a
+{ref}/query-dsl-terms-set-query.html[minimum] number of terms that a
 specified field needs to match with for a document to be part of the query
 results.
 

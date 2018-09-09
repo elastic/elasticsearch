@@ -30,6 +30,11 @@ import java.util.concurrent.TimeoutException;
 public class NativeController {
     private static final Logger LOGGER = Loggers.getLogger(NativeController.class);
 
+    /**
+     * Process controller native program name
+     */
+    private static final String CONTROLLER = "controller";
+
     // The controller process should already be running by the time this class tries to connect to it, so the timeout
     // can be short (although there's a gotcha with EBS volumes restored from snapshot, so not TOO short)
     private static final Duration CONTROLLER_CONNECT_TIMEOUT = Duration.ofSeconds(10);
@@ -50,7 +55,7 @@ public class NativeController {
     private final OutputStream commandStream;
 
     NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, ProcessCtrl.CONTROLLER, null,
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
                 true, true, false, false, false, false);
         processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
         cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());

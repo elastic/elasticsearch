@@ -37,7 +37,7 @@ public class RollupJobTests extends AbstractDiffableSerializationTestCase {
     @Override
     protected Writeable createTestInstance() {
         if (randomBoolean()) {
-            return new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), null);
+            return new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), null);
         }
 
         Map<String, String> headers = Collections.emptyMap();
@@ -45,7 +45,7 @@ public class RollupJobTests extends AbstractDiffableSerializationTestCase {
             headers = new HashMap<>(1);
             headers.put("foo", "bar");
         }
-        return new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), headers);
+        return new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class RollupJobTests extends AbstractDiffableSerializationTestCase {
                 return new RollupJob(other.getConfig(), null);
             }
         } else {
-            return new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), other.getHeaders());
+            return new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), other.getHeaders());
         }
     }
 }

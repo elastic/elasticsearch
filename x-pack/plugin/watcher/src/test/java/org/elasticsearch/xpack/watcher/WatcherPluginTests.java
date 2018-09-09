@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -36,7 +37,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
                 ".watches,.triggered_watches,.watcher-history*").build(), logger);
@@ -45,16 +46,16 @@ public class WatcherPluginTests extends ESTestCase {
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build(), logger));
-        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build(),
                         logger));
-        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+        assertThat(exception.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history-*]"));
     }
 
     public void testWatcherDisabledTests() throws Exception {
@@ -74,7 +75,7 @@ public class WatcherPluginTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
         AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
                 emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory());
+        IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory(), Collections.emptyMap());
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 

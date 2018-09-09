@@ -195,7 +195,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"unchecked"})
     private Client mockClient(ArgumentCaptor<BulkRequest> captor) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);

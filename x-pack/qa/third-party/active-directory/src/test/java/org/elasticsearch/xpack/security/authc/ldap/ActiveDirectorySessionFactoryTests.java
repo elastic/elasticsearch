@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ResultCode;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -302,7 +303,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29840")
     public void testHandlingLdapReferralErrors() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";

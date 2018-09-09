@@ -86,7 +86,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -1136,14 +1136,14 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::rank-eval-execute
 
             // tag::rank-eval-response
-            double evaluationResult = response.getEvaluationResult();   // <1>
+            double evaluationResult = response.getMetricScore();   // <1>
             assertEquals(1.0 / 3.0, evaluationResult, 0.0);
             Map<String, EvalQueryQuality> partialResults =
                     response.getPartialResults();
             EvalQueryQuality evalQuality =
                     partialResults.get("kimchy_query");                 // <2>
             assertEquals("kimchy_query", evalQuality.getId());
-            double qualityLevel = evalQuality.getQualityLevel();        // <3>
+            double qualityLevel = evalQuality.metricScore();        // <3>
             assertEquals(1.0 / 3.0, qualityLevel, 0.0);
             List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();
             RatedSearchHit ratedSearchHit = hitsAndRatings.get(2);

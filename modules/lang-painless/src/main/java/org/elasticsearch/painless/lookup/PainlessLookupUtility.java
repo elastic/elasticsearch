@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.lookup;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,10 +32,12 @@ import java.util.Objects;
  *
  * A class is a set of methods and fields under a specific class name. A type is either a class or an array under a specific type name.
  * Note the distinction between class versus type is class means that no array classes will be be represented whereas type allows array
- * classes to be represented.  The set of available classes will always be a subset of the available types.
+ * classes to be represented. The set of available classes will always be a subset of the available types.
  *
  * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless. If the variable value is the same for asm,
- * java, and painless, no prefix is used.
+ * java, and painless, no prefix is used. Target is used as a prefix to represent if a constructor, method, or field is being
+ * called/accessed on that specific class.  Parameter is often a postfix used to represent if a type is used as a parameter to a
+ * constructor, method, or field.
  *
  * <ul>
  *     <li> - javaClassName     (String)         - the fully qualified java class name where '$' tokens represent inner classes excluding
@@ -81,7 +82,7 @@ public final class PainlessLookupUtility {
         Objects.requireNonNull(canonicalTypeName);
         Objects.requireNonNull(canonicalClassNamesToClasses);
 
-        Class<?> type = canonicalClassNamesToClasses.get(canonicalTypeName);
+        Class<?> type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
         if (type != null) {
             return type;
@@ -99,45 +100,47 @@ public final class PainlessLookupUtility {
                     canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
-                    throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+                    return null;
                 }
             }
 
             canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
-            type = canonicalClassNamesToClasses.get(canonicalTypeName);
+            type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
-            char arrayBraces[] = new char[arrayDimensions];
-            Arrays.fill(arrayBraces, '[');
-            String javaTypeName = new String(arrayBraces);
+            if (type != null) {
+                char arrayBraces[] = new char[arrayDimensions];
+                Arrays.fill(arrayBraces, '[');
+                String javaTypeName = new String(arrayBraces);
 
-            if (type == boolean.class) {
-                javaTypeName += "Z";
-            } else if (type == byte.class) {
-                javaTypeName += "B";
-            } else if (type == short.class) {
-                javaTypeName += "S";
-            } else if (type == char.class) {
-                javaTypeName += "C";
-            } else if (type == int.class) {
-                javaTypeName += "I";
-            } else if (type == long.class) {
-                javaTypeName += "J";
-            } else if (type == float.class) {
-                javaTypeName += "F";
-            } else if (type == double.class) {
-                javaTypeName += "D";
-            } else {
-                javaTypeName += "L" + type.getName() + ";";
-            }
+                if (type == boolean.class) {
+                    javaTypeName += "Z";
+                } else if (type == byte.class) {
+                    javaTypeName += "B";
+                } else if (type == short.class) {
+                    javaTypeName += "S";
+                } else if (type == char.class) {
+                    javaTypeName += "C";
+                } else if (type == int.class) {
+                    javaTypeName += "I";
+                } else if (type == long.class) {
+                    javaTypeName += "J";
+                } else if (type == float.class) {
+                    javaTypeName += "F";
+                } else if (type == double.class) {
+                    javaTypeName += "D";
+                } else {
+                    javaTypeName += "L" + type.getName() + ";";
+                }
 
-            try {
-                return Class.forName(javaTypeName);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found", cnfe);
+                try {
+                    return Class.forName(javaTypeName);
+                } catch (ClassNotFoundException cnfe) {
+                    throw new IllegalStateException("internal error", cnfe);
+                }
             }
         }
 
-        throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+        return null;
     }
 
     /**
@@ -150,8 +153,10 @@ public final class PainlessLookupUtility {
 
         String canonicalTypeName = type.getCanonicalName();
 
-        if (canonicalTypeName.startsWith(def.class.getName())) {
-            canonicalTypeName = canonicalTypeName.replace(def.class.getName(), DEF_TYPE_NAME);
+        if (canonicalTypeName == null) {
+            canonicalTypeName = ANONYMOUS_CLASS_NAME;
+        } else if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
+            canonicalTypeName = canonicalTypeName.replace(def.class.getCanonicalName(), DEF_CLASS_NAME);
         }
 
         return canonicalTypeName;
@@ -251,22 +256,6 @@ public final class PainlessLookupUtility {
     }
 
     /**
-     * Ensures a type exists based on the terminology specified as part of {@link PainlessLookupUtility}.  Throws an
-     * {@link IllegalArgumentException} if the type does not exist.
-     */
-    public static void validateType(Class<?> type, Collection<Class<?>> classes) {
-        String canonicalTypeName = typeToCanonicalTypeName(type);
-
-        while (type.getComponentType() != null) {
-            type = type.getComponentType();
-        }
-
-        if (classes.contains(type) == false) {
-            throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
-        }
-    }
-
-    /**
      * Converts a type  to its boxed type equivalent if one exists based on the terminology specified as part of
      * {@link PainlessLookupUtility}. Otherwise, this behaves as an identity function.
      */
@@ -335,6 +324,13 @@ public final class PainlessLookupUtility {
     }
 
     /**
+     * Constructs a painless constructor key used to lookup painless constructors from a painless class.
+     */
+    public static String buildPainlessConstructorKey(int constructorArity) {
+        return CONSTRUCTOR_NAME + "/" + constructorArity;
+    }
+
+    /**
      * Constructs a painless method key used to lookup painless methods from a painless class.
      */
     public static String buildPainlessMethodKey(String methodName, int methodArity) {
@@ -349,9 +345,14 @@ public final class PainlessLookupUtility {
     }
 
     /**
+     * The name for an anonymous class.
+     */
+    public static final String ANONYMOUS_CLASS_NAME = "$anonymous";
+
+    /**
      * The def type name as specified in the source for a script.
      */
-    public static final String DEF_TYPE_NAME = "def";
+    public static final String DEF_CLASS_NAME = "def";
 
     /**
      * The method name for all constructors.

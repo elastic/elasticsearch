@@ -56,7 +56,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
@@ -155,6 +155,18 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         rolledSearchSource.size(0);
         AggregatorFactories.Builder sourceAgg = request.source().aggregations();
 
+        // If there are no aggs in the request, our translation won't create any msearch.
+        // So just add an dummy request to the msearch and return.  This is a bit silly
+        // but maintains how the regular search API behaves
+        if (sourceAgg == null || sourceAgg.count() == 0) {
+
+            // Note: we can't apply any query rewriting or filtering on the query because there
+            // are no validated caps, so we have no idea what job is intended here.  The only thing
+            // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
+            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()).types(request.types()));
+            return msearch;
+        }
+
         // Find our list of "best" job caps
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
@@ -191,7 +203,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             copiedSource.query(new BoolQueryBuilder()
                     .must(rewritten)
                     .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), id))
-                    .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION)));
+                    // Both versions are acceptable right now since they are compatible at search time
+                    .filter(new TermsQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD),
+                        new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
 
             // And add a new msearch per JobID
             msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));
@@ -245,11 +259,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         if (request.source().explain() != null && request.source().explain()) {
             throw new IllegalArgumentException("Rollup search does not support explaining.");
-        }
-
-        // Rollup is only useful if aggregations are set, throw an exception otherwise
-        if (request.source().aggregations() == null) {
-            throw new IllegalArgumentException("Rollup requires at least one aggregation to be set.");
         }
     }
 
@@ -328,10 +337,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
                         // If the cap is for a date_histo, and the query is a range, the timezones need to match
                         if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()))
+                            boolean matchingTZ = ((String)agg.get(DateHistogramGroupConfig.TIME_ZONE))
                                 .equalsIgnoreCase(timeZone);
                             if (matchingTZ == false) {
-                                incompatibleTimeZones.add((String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName()));
+                                incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
                             }
                             return matchingTZ;
                         }

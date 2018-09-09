@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.example.role;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
@@ -33,9 +34,16 @@ import static org.hamcrest.Matchers.is;
  * Integration test for custom roles providers.
  */
 public class CustomRolesProviderIT extends ESIntegTestCase {
-
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "change_me";
+
+    private static final RequestOptions AUTH_OPTIONS;
+    static {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
+        AUTH_OPTIONS = options.build();
+    }
 
     @Override
     protected Settings externalClusterClientSettings() {
@@ -59,7 +67,9 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
     public void testAuthorizedCustomRoleSucceeds() throws Exception {
         setupTestUser(ROLE_B);
         // roleB has all permissions on index "foo", so creating "foo" should succeed
-        Response response = getRestClient().performRequest("PUT", "/" + INDEX, authHeader());
+        Request request = new Request("PUT", "/" + INDEX);
+        request.setOptions(AUTH_OPTIONS);
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
@@ -71,7 +81,9 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
         setupTestUser(ROLE_A);
         // roleB has all permissions on index "foo", so creating "foo" should succeed
         try {
-            getRestClient().performRequest("PUT", "/" + INDEX, authHeader());
+            Request request = new Request("PUT", "/" + INDEX);
+            request.setOptions(AUTH_OPTIONS);
+            getRestClient().performRequest(request);
             fail(ROLE_A + " should not be authorized to create index " + INDEX);
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -82,15 +94,12 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
         setupTestUser("unknown");
         // roleB has all permissions on index "foo", so creating "foo" should succeed
         try {
-            getRestClient().performRequest("PUT", "/" + INDEX, authHeader());
+            Request request = new Request("PUT", "/" + INDEX);
+            request.setOptions(AUTH_OPTIONS);
+            getRestClient().performRequest(request);
             fail(ROLE_A + " should not be authorized to create index " + INDEX);
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
-    }
-
-    private BasicHeader authHeader() {
-        return new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                               basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
     }
 }

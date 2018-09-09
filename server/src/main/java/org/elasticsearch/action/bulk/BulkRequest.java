@@ -523,22 +523,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return -1;
     }
 
-    /**
-     * @return Whether this bulk request contains index request with an ingest pipeline enabled.
-     */
-    public boolean hasIndexRequestsWithPipelines() {
-        for (DocWriteRequest<?> actionRequest : requests) {
-            if (actionRequest instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) actionRequest;
-                if (Strings.hasText(indexRequest.getPipeline())) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

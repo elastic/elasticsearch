@@ -28,7 +28,6 @@ import org.elasticsearch.script.Script;
 import org.joda.time.DateTimeZone;
 
 public final class ValuesSourceParserHelper {
-    static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
@@ -62,10 +61,10 @@ public final class ValuesSourceParserHelper {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
-                new ParseField("field"), ObjectParser.ValueType.STRING);
+            ParseField.CommonFields.FIELD, ObjectParser.ValueType.STRING);
 
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
-                new ParseField("missing"), ObjectParser.ValueType.VALUE);
+            ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
         objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
@@ -76,11 +75,11 @@ public final class ValuesSourceParserHelper {
                                 + targetValueType + "]");
             }
             return valueType;
-        }, new ParseField("value_type", "valueType"), ObjectParser.ValueType.STRING);
+        }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
-                    new ParseField("format"), ObjectParser.ValueType.STRING);
+                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
         }
 
         if (scriptable) {
@@ -96,7 +95,7 @@ public final class ValuesSourceParserHelper {
                 } else {
                     return DateTimeZone.forOffsetHours(p.intValue());
                 }
-            }, TIME_ZONE, ObjectParser.ValueType.LONG);
+            }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }
     }
 

@@ -1,7 +1,7 @@
 [[painless-watcher-condition-context]]
 === Watcher condition context
 
-Use a Painless script as a {xp_version}/condition-script.html[watcher condition]
+Use a Painless script as a {xpack-ref}/condition-script.html[watcher condition]
 to test if a response is necessary.
 
 *Variables*
@@ -26,7 +26,7 @@ to test if a response is necessary.
 
 `ctx['payload']` (`Map`, read-only)::
         The accessible watch data based upon the
-        {xp_version}/input.html[watch input].
+        {xpack-ref}/input.html[watch input].
 
 *Return*
 

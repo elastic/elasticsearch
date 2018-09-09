@@ -67,7 +67,10 @@ public class Packages {
         Platforms.onDPKG(() -> {
             assertThat(status.exitCode, anyOf(is(0), is(1)));
             if (status.exitCode == 0) {
-                assertTrue(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find());
+                assertTrue("an uninstalled status should be indicated: " + status.stdout,
+                    Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find() ||
+                    Pattern.compile("(?m)^Status:.+ok not-installed").matcher(status.stdout).find()
+                );
             }
         });
     }
@@ -90,13 +93,27 @@ public class Packages {
     }
 
     public static Installation install(Distribution distribution, String version) {
+        final Result result = runInstallCommand(distribution, version);
+        if (result.exitCode != 0) {
+            throw new RuntimeException("Installing distribution " + distribution + " version " + version + " failed: " + result);
+        }
+
+        return Installation.ofPackage(distribution.packaging);
+    }
+
+    public static Result runInstallCommand(Distribution distribution) {
+        return runInstallCommand(distribution, getCurrentVersion());
+    }
+
+    public static Result runInstallCommand(Distribution distribution, String version) {
         final Shell sh = new Shell();
         final Path distributionFile = getDistributionFile(distribution, version);
 
-        Platforms.onRPM(() -> sh.run("rpm -i " + distributionFile));
-        Platforms.onDPKG(() -> sh.run("dpkg -i " + distributionFile));
-
-        return Installation.ofPackage(distribution.packaging);
+        if (Platforms.isRPM()) {
+            return sh.runIgnoreExitCode("rpm -i " + distributionFile);
+        } else {
+            return sh.runIgnoreExitCode("dpkg -i " + distributionFile);
+        }
     }
 
     public static void remove(Distribution distribution) {

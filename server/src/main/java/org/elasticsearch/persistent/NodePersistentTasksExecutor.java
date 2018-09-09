@@ -45,7 +45,6 @@ public class NodePersistentTasksExecutor {
                 task.markAsFailed(e);
             }
 
-            @SuppressWarnings("unchecked")
             @Override
             protected void doRun() throws Exception {
                 try {

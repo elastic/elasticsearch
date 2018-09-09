@@ -42,7 +42,7 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
@@ -61,7 +61,7 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("foo", "baz");

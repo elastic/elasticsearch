@@ -95,10 +95,16 @@ Contributing to the Elasticsearch codebase
 JDK 10 is required to build Elasticsearch. You must have a JDK 10 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
 your JDK 10 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch, supports JDK 8 the build supports compiling with
+However, since Elasticsearch supports JDK 8, the build supports compiling with
 JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
+
+> Note: It is also required to have `JAVA7_HOME`, `JAVA8_HOME` and
+`JAVA10_HOME` available so that the tests can pass.
+
+> Warning: do not use `sdkman` for Java installations which do not have proper
+`jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
@@ -214,7 +220,7 @@ If your changes affect only the documentation, run:
 ```sh
 ./gradlew -p docs check
 ```
-For more information about testing code examples in the documentation, see 
+For more information about testing code examples in the documentation, see
 https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
 
 ### Project layout
@@ -305,6 +311,37 @@ the `qa` subdirectory functions just like the top level `qa` subdirectory. The
 Elasticsearch process. The `transport-client` subdirectory contains extensions
 to Elasticsearch's standard transport client to work properly with x-pack.
 
+### Gradle Build
+
+We use Gradle to build Elasticsearch because it is flexible enough to not only
+build and package Elasticsearch, but also orchestrate all of the ways that we
+have to test Elasticsearch.
+
+#### Configurations
+
+Gradle organizes dependencies and build artifacts into "configurations" and
+allows you to use these configurations arbitrarilly. Here are some of the most
+common configurations in our build and how we use them:
+
+<dl>
+<dt>`compile`</dt><dd>Code that is on the classpath at both compile and
+runtime.</dd>
+<dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
+on the classpath at runtime. We mostly use this configuration to make sure that
+we do not accidentally compile against dependencies of our dependencies also
+known as "transitive" dependencies".</dd>
+<dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
+should not be shipped with the project because it is "provided" by the runtime
+somehow. Elasticsearch plugins use this configuration to include dependencies
+that are bundled with Elasticsearch's server.</dd>
+<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
+dependencies with this configuration are bundled into the jar produced by the
+build. Since IDEs do not understand this configuration we rig them to treat
+dependencies in this configuration as `compile` dependencies.</dd>
+<dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
+that are part of this project but not production code. The canonical example
+of this is `junit`.</dd>
+</dl>
 
 Contributing as part of a class
 -------------------------------
@@ -337,3 +374,4 @@ repeating in this section because it has come up in this context.
 
 [eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+[shadow-plugin]: https://github.com/johnrengelman/shadow

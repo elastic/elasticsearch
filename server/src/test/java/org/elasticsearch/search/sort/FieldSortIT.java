@@ -86,7 +86,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class FieldSortIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
             scripts.put("doc['number'].value", vars -> sortDoubleScript(vars));
@@ -94,14 +93,12 @@ public class FieldSortIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Double sortDoubleScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
             Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).getValues().get(0)).doubleValue();
             return index;
         }
 
-        @SuppressWarnings("unchecked")
         static String sortStringScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
             String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).getValues().get(0));

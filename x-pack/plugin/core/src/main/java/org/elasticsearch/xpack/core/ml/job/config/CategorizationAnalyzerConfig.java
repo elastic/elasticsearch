@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,7 +60,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
      */
-    public static CategorizationAnalyzerConfig buildFromXContentObject(XContentParser parser, MlParserType parserType) throws IOException {
+    public static CategorizationAnalyzerConfig buildFromXContentObject(XContentParser parser, boolean ignoreUnknownFields)
+        throws IOException {
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Expected start object but got [" + parser.currentToken() + "]");
@@ -71,7 +71,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             throw new IllegalArgumentException("Expected [" + CATEGORIZATION_ANALYZER + "] field but got [" + parser.currentToken() + "]");
         }
         parser.nextToken();
-        CategorizationAnalyzerConfig categorizationAnalyzerConfig = buildFromXContentFragment(parser, parserType);
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = buildFromXContentFragment(parser, ignoreUnknownFields);
         parser.nextToken();
         return categorizationAnalyzerConfig;
     }
@@ -83,7 +83,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      *
      * The parser is strict when parsing config and lenient when parsing cluster state.
      */
-    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, MlParserType parserType) throws IOException {
+    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
 
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
 
@@ -131,7 +131,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                         }
                     }
                 // Be lenient when parsing cluster state - assume unknown fields are from future versions
-                } else if (parserType == MlParserType.CONFIG) {
+                } else if (ignoreUnknownFields == false) {
                     throw new IllegalArgumentException("Parameter [" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
                             "] is unknown or of the wrong type [" + token + "]");
                 }

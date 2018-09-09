@@ -27,6 +27,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -121,7 +122,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private static void addJobAccordingToState(String jobId, PersistentTasksCustomMetaData tasksMetaData,
                                                List<String> openJobs, List<String> closingJobs, List<String> failedJobs) {
 
-        JobState jobState = MlMetadata.getJobState(jobId, tasksMetaData);
+        JobState jobState = MlTasks.getJobState(jobId, tasksMetaData);
         switch (jobState) {
             case CLOSING:
                 closingJobs.add(jobId);
@@ -143,7 +144,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest = new TransportCloseJobAction.WaitForCloseRequest();
 
         for (String jobId : openJobIds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
                 waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
@@ -151,7 +152,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
             }
         }
         for (String jobId : closingJobIds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
             }
@@ -180,7 +181,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
 
         Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
         if (datafeed.isPresent()) {
-            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
+            DatafeedState datafeedState = MlTasks.getDatafeedState(datafeed.get().getId(), tasks);
             if (datafeedState != DatafeedState.STOPPED) {
                 throw ExceptionsHelper.conflictStatusException("cannot close job [{}], datafeed hasn't been stopped", jobId);
             }
@@ -230,7 +231,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                 Set<String> executorNodes = new HashSet<>();
                 PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
                 for (String resolvedJobId : request.getOpenJobIds()) {
-                    PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
+                    PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(resolvedJobId, tasks);
                     if (jobTask == null || jobTask.isAssigned() == false) {
                         String message = "Cannot close job [" + resolvedJobId + "] because the job does not have an assigned node." +
                                 " Use force close to close the job";
@@ -312,7 +313,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfJobs);
 
         for (String jobId : jobIdsToForceClose) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
                 persistentTasksService.sendRemoveRequest(jobTask.getId(),

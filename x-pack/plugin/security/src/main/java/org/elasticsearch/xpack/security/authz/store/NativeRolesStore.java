@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
@@ -63,6 +64,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -173,15 +175,17 @@ public class NativeRolesStore extends AbstractComponent {
                 listener.onFailure(e);
                 return;
             }
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+                    .setSource(xContentBuilder)
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
-                            .setSource(xContentBuilder)
-                            .setRefreshPolicy(request.getRefreshPolicy())
-                            .request(),
+                    indexRequest,
                     new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
                             final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            logger.trace("Created role: [{}]", indexRequest);
                             clearRoleCache(role.getName(), listener, created);
                         }
 
@@ -234,7 +238,6 @@ public class NativeRolesStore extends AbstractComponent {
                             } else {
                                 usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
                             }
-
                             if (responses[1].isFailure()) {
                                 usageStats.put("fls", false);
                             } else {
@@ -289,7 +292,7 @@ public class NativeRolesStore extends AbstractComponent {
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME,
+                    client.prepareGet(SECURITY_INDEX_NAME,
                             ROLE_DOC_TYPE, getIdForUser(role)).request(),
                     listener,
                     client::get));

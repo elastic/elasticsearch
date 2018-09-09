@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -117,13 +116,6 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
         return transportService;
     }
 
-    @Override
-    protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        @SuppressWarnings("unchecked")
-        TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
-    }
-
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
@@ -216,7 +208,14 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     // TODO: These tests currently rely on plaintext transports
 
     @Override
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
     public void testTcpHandshake() throws IOException, InterruptedException {
+    }
+
+    // TODO: These tests as configured do not currently work with the security transport
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
+    public void testTransportProfilesWithPortAndHost() {
     }
 }

@@ -26,9 +26,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -161,7 +164,6 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Diff<MetaData.Custom> diff(final MetaData.Custom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
@@ -321,7 +323,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public IndexGraveyard apply(final MetaData.Custom previous) {
-            @SuppressWarnings("unchecked") final IndexGraveyard old = (IndexGraveyard) previous;
+            final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
                 throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +
                                                 old.tombstones.size() + "] tombstones.");
@@ -365,6 +367,9 @@ public final class IndexGraveyard implements MetaData.Custom {
             TOMBSTONE_PARSER.declareLong(Tombstone.Builder::deleteDateInMillis, new ParseField(DELETE_DATE_IN_MILLIS_KEY));
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
+
+        static final CompoundDateTimeFormatter FORMATTER =
+            DateFormatters.forPattern("strict_date_optional_time").withZone(ZoneOffset.UTC);
 
         static ContextParser<Void, Tombstone> getParser() {
             return (parser, context) -> TOMBSTONE_PARSER.apply(parser, null).build();
@@ -416,7 +421,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             if (other == null || getClass() != other.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked") Tombstone that = (Tombstone) other;
+            Tombstone that = (Tombstone) other;
             return index.equals(that.index) && deleteDateInMillis == that.deleteDateInMillis;
         }
 
@@ -429,7 +434,8 @@ public final class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public String toString() {
-            return "[index=" + index + ", deleteDate=" + Joda.getStrictStandardDateFormatter().printer().print(deleteDateInMillis) + "]";
+            String date = FORMATTER.format(Instant.ofEpochMilli(deleteDateInMillis));
+            return "[index=" + index + ", deleteDate=" + date + "]";
         }
 
         @Override

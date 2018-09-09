@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Locale;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
+public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
 
@@ -154,25 +154,25 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
         if (randomBoolean()) {
             CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                    .admin().indices().prepareCreate(index).get();
+                UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                .admin().indices().prepareCreate(index).get();
             assertThat(createIndexResponse.isAcknowledged(), is(true));
         }
 
         IndexResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareIndex()
-                .setIndex(index)
-                .setType("dashboard")
-                .setSource("foo", "bar")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
+            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+            .prepareIndex()
+            .setIndex(index)
+            .setType("dashboard")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
         DeleteResponse deleteResponse = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareDelete(index, "dashboard", response.getId())
-                .get();
+            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+            .prepareDelete(index, "dashboard", response.getId())
+            .get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 

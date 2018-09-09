@@ -2,7 +2,7 @@
 === Similarity context
 
 Use a Painless script to create a
-{es_version}/index-modules-similarity.html[similarity] equation for scoring
+{ref}/index-modules-similarity.html[similarity] equation for scoring
 documents in a query.
 
 *Variables*

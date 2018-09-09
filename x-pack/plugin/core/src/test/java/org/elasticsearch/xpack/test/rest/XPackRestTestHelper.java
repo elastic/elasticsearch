@@ -10,6 +10,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -25,12 +26,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertEquals;
 
 public final class XPackRestTestHelper {
@@ -47,8 +46,9 @@ public final class XPackRestTestHelper {
         ESTestCase.awaitBusy(() -> {
             String response;
             try {
-                response = EntityUtils
-                        .toString(client.performRequest("GET", "/_cat/nodes", singletonMap("h", "master,version")).getEntity());
+                Request request = new Request("GET", "/_cat/nodes");
+                request.addParameter("h", "master,version");
+                response = EntityUtils.toString(client.performRequest(request).getEntity());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -67,7 +67,7 @@ public final class XPackRestTestHelper {
             ESTestCase.awaitBusy(() -> {
                 Map<?, ?> response;
                 try {
-                    String string = EntityUtils.toString(client.performRequest("GET", "/_template/" + template).getEntity());
+                    String string = EntityUtils.toString(client.performRequest(new Request("GET", "/_template/" + template)).getEntity());
                     response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
                 } catch (ResponseException e) {
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
@@ -89,8 +89,9 @@ public final class XPackRestTestHelper {
     public static void waitForPendingTasks(RestClient adminClient) throws Exception {
         ESTestCase.assertBusy(() -> {
             try {
-                Response response = adminClient.performRequest("GET", "/_cat/tasks",
-                        Collections.singletonMap("detailed", "true"));
+                Request request = new Request("GET", "/_cat/tasks");
+                request.addParameter("detailed", "true");
+                Response response = adminClient.performRequest(request);
                 // Check to see if there are tasks still active. We exclude the
                 // list tasks
                 // actions tasks form this otherwise we will always fail

@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.mockito.Mockito;
 
@@ -50,7 +51,7 @@ public class ProcessPipesTests extends ESTestCase {
         when(namedPipeHelper.openNamedPipeInputStream(contains("persist"), any(Duration.class)))
                 .thenReturn(new ByteArrayInputStream(PERSIST_BYTES));
 
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, ProcessCtrl.AUTODETECT, "my_job",
+        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
                 true, false, true, true, true, true);
 
         List<String> command = new ArrayList<>();

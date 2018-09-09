@@ -6,8 +6,9 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
@@ -73,8 +74,9 @@ public class VersionHttpResourceTests extends ESTestCase {
     }
 
     public void testDoCheckAndPublishFailedWithIOException() throws IOException {
-        // request fails for some reason
-        when(client.performRequest("GET", "/", VersionHttpResource.PARAMETERS)).thenThrow(new IOException("expected"));
+        Request request = new Request("GET", "/");
+        request.addParameter("filter_path", "version.number");
+        when(client.performRequest(request)).thenThrow(new IOException("expected"));
 
         final VersionHttpResource resource = new VersionHttpResource(owner, Version.CURRENT);
 
@@ -82,12 +84,14 @@ public class VersionHttpResourceTests extends ESTestCase {
     }
 
     private Response responseForJSON(final String json) throws IOException {
-        final StringEntity entity = new StringEntity(json, ContentType.APPLICATION_JSON);
+        final NStringEntity entity = new NStringEntity(json, ContentType.APPLICATION_JSON);
 
         final Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(entity);
 
-        when(client.performRequest("GET", "/", VersionHttpResource.PARAMETERS)).thenReturn(response);
+        Request request = new Request("GET", "/");
+        request.addParameter("filter_path", "version.number");
+        when(client.performRequest(request)).thenReturn(response);
 
         return response;
     }

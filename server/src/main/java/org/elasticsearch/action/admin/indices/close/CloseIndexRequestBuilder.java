@@ -21,12 +21,14 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Builder for close index request
  */
-public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
+public class CloseIndexRequestBuilder
+    extends AcknowledgedRequestBuilder<CloseIndexRequest, AcknowledgedResponse, CloseIndexRequestBuilder> {
 
     public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action) {
         super(client, action, new CloseIndexRequest());

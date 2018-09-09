@@ -32,9 +32,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -317,7 +317,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
-        tasksBuilder.reassignTask(MlMetadata.jobTaskId("job_id6"), new Assignment("_node_id3", "test assignment"));
+        tasksBuilder.reassignTask(MlTasks.jobTaskId("job_id6"), new Assignment("_node_id3", "test assignment"));
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
@@ -328,7 +328,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
-        tasksBuilder.updateTaskState(MlMetadata.jobTaskId("job_id6"), null);
+        tasksBuilder.updateTaskState(MlTasks.jobTaskId("job_id6"), null);
         tasks = tasksBuilder.build();
 
         csBuilder = ClusterState.builder(cs);
@@ -354,7 +354,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id1", "_node_id1", JobState.fromString("failed"), tasksBuilder);
         // This will make the allocation stale for job_id1
-        tasksBuilder.reassignTask(MlMetadata.jobTaskId("job_id1"), new Assignment("_node_id1", "test assignment"));
+        tasksBuilder.reassignTask(MlTasks.jobTaskId("job_id1"), new Assignment("_node_id1", "test assignment"));
         addJobTask("job_id2", "_node_id1", null, tasksBuilder);
         addJobTask("job_id3", "_node_id2", null, tasksBuilder);
         addJobTask("job_id4", "_node_id2", null, tasksBuilder);
@@ -420,33 +420,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         cs.routingTable(routingTable.build());
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
-        assertNull(result.getExecutorNode());
-    }
-
-    public void testSelectLeastLoadedMlNode_noNodesPriorTo_V_5_5() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.ML_ENABLED_NODE_ATTR, "true");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_5_4_0))
-                .build();
-
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        addJobTask("incompatible_type_job", "_node_id1", null, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        MetaData.Builder metaData = MetaData.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        addJobAndIndices(metaData, routingTable, "incompatible_type_job");
-        cs.nodes(nodes);
-        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
-        cs.metaData(metaData);
-        cs.routingTable(routingTable.build());
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", cs.build(), 2, 10, 30, logger);
-        assertThat(result.getExplanation(), containsString("because this node does not support jobs of version [" + Version.CURRENT + "]"));
         assertNull(result.getExecutorNode());
     }
 
@@ -559,7 +532,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         } else {
             Index index = new Index(indexToRemove, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(IndexRoutingTable.builder(index)
@@ -606,12 +579,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
-    public void testMappingRequiresUpdateOldMappingVersion() throws IOException {
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_54", Version.V_5_4_0.toString()));
-        String[] indices = new String[] { "version_54" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
-    }
-
     public void testMappingRequiresUpdateBogusMappingVersion() throws IOException {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
@@ -630,21 +597,6 @@ public class TransportOpenJobActionTests extends ESTestCase {
         String[] indices = new String[] { "version_newer_minor" };
         assertArrayEquals(new String[] {},
                 TransportOpenJobAction.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion(), logger));
-    }
-
-    public void testMappingRequiresUpdateSomeVersionMix() throws IOException {
-        Map<String, Object> versionMix = new HashMap<>();
-        versionMix.put("version_54", Version.V_5_4_0);
-        versionMix.put("version_current", Version.CURRENT);
-        versionMix.put("version_null", null);
-        versionMix.put("version_current2", Version.CURRENT);
-        versionMix.put("version_bogus", "0.0.0");
-        versionMix.put("version_current3", Version.CURRENT);
-        versionMix.put("version_bogus2", "0.0.0");
-
-        ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
-        String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
-        assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
     }
 
     public void testNodeNameAndVersion() {
@@ -675,10 +627,10 @@ public class TransportOpenJobActionTests extends ESTestCase {
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {
-        builder.addTask(MlMetadata.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
+        builder.addTask(MlTasks.jobTaskId(jobId), OpenJobAction.TASK_NAME, new OpenJobAction.JobParams(jobId),
                 new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
-            builder.updateTaskState(MlMetadata.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
+            builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(jobState, builder.getLastAllocationId()));
         }
     }
 
@@ -704,7 +656,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
             metaData.put(indexMetaData);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();
@@ -717,7 +669,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
             Job job = jobCreator.apply(jobId);
             mlMetadata.putJob(job, false);
         }
-        metaData.putCustom(MLMetadataField.TYPE, mlMetadata.build());
+        metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());
     }
 
     private ClusterState getClusterStateWithMappingsWithMetaData(Map<String, Object> namesAndVersions) throws IOException {

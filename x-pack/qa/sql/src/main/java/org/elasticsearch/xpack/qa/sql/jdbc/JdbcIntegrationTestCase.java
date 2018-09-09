@@ -84,7 +84,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         index(index, "1", body);
     }
-    
+
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
         request.addParameter("refresh", "true");

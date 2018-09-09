@@ -20,11 +20,10 @@ package org.elasticsearch.client.documentation;/*
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -44,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -153,7 +153,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-stored-script-request-timeout
 
         // tag::delete-stored-script-execute
-        DeleteStoredScriptResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
+        AcknowledgedResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
         // end::delete-stored-script-execute
 
         // tag::delete-stored-script-response
@@ -163,10 +163,10 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         putStoredScript("calculate-score", scriptSource);
 
         // tag::delete-stored-script-execute-listener
-        ActionListener<DeleteStoredScriptResponse> listener =
-            new ActionListener<DeleteStoredScriptResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteStoredScriptResponse response) {
+                public void onResponse(AcknowledgedResponse response) {
                     // <1>
                 }
 
@@ -241,7 +241,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
 
             // tag::put-stored-script-execute
-            PutStoredScriptResponse putStoredScriptResponse = client.putScript(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse putStoredScriptResponse = client.putScript(request, RequestOptions.DEFAULT);
             // end::put-stored-script-execute
 
             // tag::put-stored-script-response
@@ -251,10 +251,10 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::put-stored-script-execute-listener
-            ActionListener<PutStoredScriptResponse> listener =
-                new ActionListener<PutStoredScriptResponse>() {
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutStoredScriptResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         // <1>
                     }
 
@@ -306,8 +306,6 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
         PutStoredScriptRequest request =
             new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
-        PutStoredScriptResponse putResponse = execute(request, highLevelClient()::putScript,
-            highLevelClient()::putScriptAsync);
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

@@ -10,6 +10,25 @@ grant {
 
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
+
+  // needed for Kerberos login
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosKey * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+  permission javax.security.auth.AuthPermission "doAs";
+  permission javax.security.auth.kerberos.ServicePermission "*","initiate,accept";
+
+  permission java.util.PropertyPermission "javax.security.auth.useSubjectCredsOnly","write";
+  permission java.util.PropertyPermission "java.security.krb5.conf","write";
+  permission java.util.PropertyPermission "sun.security.krb5.debug","write";
+  permission java.util.PropertyPermission "java.security.debug","write";
+  permission java.util.PropertyPermission "sun.security.spnego.debug","write";
+
+  // needed for kerberos file permission tests to access user information
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
 };
 
 grant codeBase "${codebase.xmlsec-2.0.8.jar}" {

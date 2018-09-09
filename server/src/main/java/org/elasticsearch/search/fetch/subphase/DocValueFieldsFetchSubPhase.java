@@ -61,7 +61,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldType().name();
+            String name = context.collapse().getFieldName();
             if (context.docValueFieldsContext() == null) {
                 context.docValueFieldsContext(new DocValueFieldsContext(
                         Collections.singletonList(new FieldAndFormat(name, DocValueFieldsContext.USE_DEFAULT_FORMAT))));

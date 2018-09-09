@@ -1,7 +1,7 @@
 [[painless-filter-context]]
 === Filter context
 
-Use a Painless script as a {es_version}/query-dsl-script-query.html[filter] in a
+Use a Painless script as a {ref}/query-dsl-script-query.html[filter] in a
 query to include and exclude documents.
 
 

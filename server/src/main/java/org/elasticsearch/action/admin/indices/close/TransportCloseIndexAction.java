@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -44,7 +45,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
@@ -75,12 +76,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
+    protected void doExecute(Task task, CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
             throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
@@ -94,10 +95,10 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) {
+    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new CloseIndexResponse(true));
+            listener.onResponse(new AcknowledgedResponse(true));
             return;
         }
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
@@ -108,7 +109,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new CloseIndexResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override

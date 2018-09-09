@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
@@ -550,7 +551,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                         Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
-                        Weight weight = indexSearcher.createWeight(luceneQuery, true, 1f);
+                        Weight weight = indexSearcher.createWeight(luceneQuery, ScoreMode.COMPLETE, 1f);
                         Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();

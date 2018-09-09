@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -31,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -51,18 +52,18 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportGetJobsStatsAction(Settings settings, TransportService transportService,
                                        ActionFilters actionFilters, ClusterService clusterService,
-                                       AutodetectProcessManager processManager, JobProvider jobProvider) {
+                                       AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider) {
         super(settings, GetJobsStatsAction.NAME, clusterService, transportService, actionFilters,
             GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
                 ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -102,9 +103,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
-            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
-            JobState jobState = MlMetadata.getJobState(jobId, tasks);
+            JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
             gatherForecastStats(jobId, forecastStats -> {
@@ -137,8 +138,8 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
             String jobId = jobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
-                    JobState jobState = MlMetadata.getJobState(jobId, tasks);
-                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                    JobState jobState = MlTasks.getJobState(jobId, tasks);
+                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
                     if (pTask != null) {
                         assignmentExplanation = pTask.getAssignment().getExplanation();
@@ -157,13 +158,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     }
 
     void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
-        jobProvider.getForecastStats(jobId, handler, errorHandler);
+        jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
     }
     
     void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                    Consumer<Exception> errorHandler) {
-        jobProvider.dataCounts(jobId, dataCounts -> {
-            jobProvider.modelSizeStats(jobId, modelSizeStats -> {
+        jobResultsProvider.dataCounts(jobId, dataCounts -> {
+            jobResultsProvider.modelSizeStats(jobId, modelSizeStats -> {
                 handler.accept(dataCounts, modelSizeStats);
             }, errorHandler);
         }, errorHandler);

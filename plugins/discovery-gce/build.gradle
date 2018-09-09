@@ -22,36 +22,6 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
-
-// needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress();
-
-// location of keystore and files to generate it
-File keystore = new File(project.buildDir, 'keystore/test-node.jks')
-
-// generate the keystore
-task createKey(type: LoggedExec) {
-  doFirst {
-    project.delete(keystore.parentFile)
-    keystore.parentFile.mkdirs()
-  }
-  executable = new File(project.runtimeJavaHome, 'bin/keytool')
-  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
-  args '-genkey',
-          '-alias', 'test-node',
-          '-keystore', keystore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=' + host,
-          '-keypass', 'keypass',
-          '-storepass', 'keypass'
-}
-
-// add keystore to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystore.parentFile)
-processTestResources.dependsOn(createKey)
-
 dependencyLicenses {
   mapping from: /google-.*/, to: 'google'
 }

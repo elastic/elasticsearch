@@ -50,7 +50,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
             new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
-        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
+        GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
         getRequest.masterNodeTimeout("50s");
 
         GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getScript,

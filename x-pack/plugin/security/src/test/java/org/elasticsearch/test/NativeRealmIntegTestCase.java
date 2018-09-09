@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.test;
 
-
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -26,7 +23,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -82,23 +78,22 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
         {
-            String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
-            HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
-            BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
-            String route = "/_xpack/security/user/elastic/_password";
-            Response response = restClient.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
-            assertEquals(response.getStatusLine().getReasonPhrase(), 200, response.getStatusLine().getStatusCode());
+            Request request = new Request("PUT", "/_xpack/security/user/elastic/_password");
+            request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
+            request.setOptions(options);
+            restClient.performRequest(request);
         }
 
-        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
-            String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
-            HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
-            BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
-            String route = "/_xpack/security/user/" + username + "/_password";
-            Response response = restClient.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
-            assertEquals(response.getStatusLine().getReasonPhrase(), 200, response.getStatusLine().getStatusCode());
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
+        RequestOptions options = optionsBuilder.build();
+        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME)) {
+            Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");
+            request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
+            request.setOptions(options);
+            restClient.performRequest(request);
         }
         logger.info("setting up reserved passwords finished");
     }

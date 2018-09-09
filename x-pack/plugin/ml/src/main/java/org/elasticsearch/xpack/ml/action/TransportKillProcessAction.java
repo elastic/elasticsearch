@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -59,7 +57,7 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     protected void doExecute(Task task, KillProcessAction.Request request, ActionListener<KillProcessAction.Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(request.getJobId(), tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
         if (jobTask == null || jobTask.getExecutorNode() == null) {
             logger.debug("[{}] Cannot kill the process because job is not open", request.getJobId());
             listener.onResponse(new KillProcessAction.Response(false));
@@ -70,12 +68,6 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
         if (executorNode == null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot kill process for job {} as" +
                     "executor node {} cannot be found", request.getJobId(), jobTask.getExecutorNode()));
-            return;
-        }
-
-        Version nodeVersion = executorNode.getVersion();
-        if (nodeVersion.before(Version.V_5_5_0)) {
-            listener.onFailure(new ElasticsearchException("Cannot kill the process on node with version " + nodeVersion));
             return;
         }
 

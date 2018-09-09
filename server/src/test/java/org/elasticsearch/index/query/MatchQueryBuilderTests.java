@@ -30,7 +30,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -61,11 +60,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = STRING_ALIAS_FIELD_NAME; //randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME,
-            //INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        if (fieldName.equals(DATE_FIELD_NAME)) {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        }
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
+                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -279,7 +275,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchQueryBuilder query = new MatchQueryBuilder(INT_FIELD_NAME, 42);
         query.fuzziness(randomFuzziness(INT_FIELD_NAME));
         QueryShardContext context = createShardContext();
@@ -300,7 +295,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testExactOnUnsupportedField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
@@ -352,7 +346,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
         matchQueryBuilder.analyzer("simple");
@@ -371,11 +364,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
-        assumeTrue("test runs only when the index version is on or after V_5_0_0_alpha1",
-            context.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1));
-
         {
             // field boost is applied on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
@@ -395,7 +384,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testLenientPhraseQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         MatchQuery b = new MatchQuery(context);
         b.setLenient(true);

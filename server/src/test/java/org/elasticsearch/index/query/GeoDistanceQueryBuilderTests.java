@@ -122,7 +122,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
      */
     @Override
     public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }
 
@@ -148,7 +147,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12mi\",\n" +
@@ -162,7 +160,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12mi\",\n" +
@@ -173,7 +170,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12mi\",\n" +
@@ -184,7 +180,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12mi\",\n" +
@@ -195,7 +190,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":12,\n" +
@@ -210,7 +204,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12\",\n" +
@@ -225,7 +218,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery7() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "  \"geo_distance\":{\n" +
                 "      \"distance\":\"19.312128\",\n" +
@@ -239,7 +231,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery8() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":19.312128,\n" +
@@ -253,7 +244,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery9() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"19.312128\",\n" +
@@ -268,7 +258,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery10() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":19.312128,\n" +
@@ -283,7 +272,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery11() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"19.312128km\",\n" +
@@ -297,7 +285,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testParsingAndToQuery12() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_distance\":{\n" +
                 "        \"distance\":\"12mi\",\n" +
@@ -312,7 +299,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         // TODO: what can we check?
     }
@@ -334,12 +320,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
-    }
-
-    @Override
-    public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
     }
 
     public void testIgnoreUnmapped() throws IOException {

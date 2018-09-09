@@ -72,7 +72,6 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    @SuppressWarnings("unchecked")
     public RequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }

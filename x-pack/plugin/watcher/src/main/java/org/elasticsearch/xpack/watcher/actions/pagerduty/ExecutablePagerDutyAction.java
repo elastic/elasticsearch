@@ -47,7 +47,7 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
             return new PagerDutyAction.Result.Simulated(event);
         }
 
-        SentEvent sentEvent = account.send(event, payload);
+        SentEvent sentEvent = account.send(event, payload, ctx.id().watchId());
         return new PagerDutyAction.Result.Executed(account.getName(), sentEvent);
     }
 

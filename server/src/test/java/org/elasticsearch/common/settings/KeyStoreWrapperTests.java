@@ -99,6 +99,15 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
     }
 
+    public void testDecryptKeyStoreWithWrongPassword() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(env.configFile(), new char[0]);
+        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        final SecurityException exception = expectThrows(SecurityException.class,
+            () -> loadedkeystore.decrypt(new char[]{'i', 'n', 'v', 'a', 'l', 'i', 'd'}));
+        assertThat(exception.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+    }
+
     public void testCannotReadStringFromClosedKeystore() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));

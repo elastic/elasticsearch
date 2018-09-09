@@ -141,10 +141,8 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testIndexWildcard() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         QueryShardContext context = createShardContext();
-        String index = context.getFullyQualifiedIndexName();
+        String index = context.getFullyQualifiedIndex().getName();
 
         Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));

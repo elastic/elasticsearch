@@ -20,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.hamcrest.MatcherAssert;
 import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;

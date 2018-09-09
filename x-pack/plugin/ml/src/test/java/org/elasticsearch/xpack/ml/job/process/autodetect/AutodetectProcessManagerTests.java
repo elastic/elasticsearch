@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -101,7 +101,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private Environment environment;
     private AnalysisRegistry analysisRegistry;
     private JobManager jobManager;
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
     private NormalizerFactory normalizerFactory;
@@ -119,7 +119,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         jobManager = mock(JobManager.class);
-        jobProvider = mock(JobProvider.class);
+        jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
         when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
@@ -132,7 +132,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             Consumer<AutodetectParams> handler = (Consumer<AutodetectParams>) invocationOnMock.getArguments()[1];
             handler.accept(buildAutodetectParams());
             return null;
-        }).when(jobProvider).getAutodetectParams(any(), any(), any());
+        }).when(jobResultsProvider).getAutodetectParams(any(), any(), any());
     }
 
     public void testMaxOpenJobsSetting_givenDefault() {
@@ -227,7 +227,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(environment, settings.build(), client, threadPool,
-                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor));
         doReturn(executorService).when(manager).createAutodetectExecutorService(any());
 
@@ -582,7 +582,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(environment, Settings.EMPTY,
-                client, threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                client, threadPool, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
 
         JobTask jobTask = mock(JobTask.class);
@@ -655,7 +655,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return new AutodetectProcessManager(environment, Settings.EMPTY, client, threadPool, jobManager,
-                jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
     }
 
@@ -680,7 +680,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(environment, Settings.EMPTY,
-                client, threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister,
+                client, threadPool, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
                 autodetectProcessFactory, normalizerFactory,
                 new NamedXContentRegistry(Collections.emptyList()), auditor);
         manager = spy(manager);

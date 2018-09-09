@@ -275,7 +275,6 @@ public class SocketChannelContextTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testCloseClosesChannelBuffer() throws IOException {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);

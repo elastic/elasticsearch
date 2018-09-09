@@ -1,7 +1,7 @@
 [[painless-update-context]]
 === Update context
 
-Use a Painless script in an {es_version}/docs-update.html[update] operation to
+Use a Painless script in an {ref}/docs-update.html[update] operation to
 add, modify, or delete fields within a single document.
 
 *Variables*
@@ -12,16 +12,16 @@ add, modify, or delete fields within a single document.
 `ctx['_op']` (`String`)::
         The name of the operation.
 
-{es_version}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
+{ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
         The value used to select a shard for document storage.
 
-{es_version}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
+{ref}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
         The name of the index.
 
-{es_version}/mapping-type-field.html[`ctx['_type']`] (`String`, read-only)::
+{ref}/mapping-type-field.html[`ctx['_type']`] (`String`, read-only)::
         The type of document within an index.
 
-{es_version}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+{ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
         The unique document id.
 
 `ctx['_version']` (`int`, read-only)::
@@ -30,7 +30,7 @@ add, modify, or delete fields within a single document.
 `ctx['_now']` (`long`, read-only)::
         The current timestamp in milliseconds.
 
-{es_version}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
+{ref}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
         Contains extracted JSON in a `Map` and `List` structure for the fields
         existing in a stored document.
 
@@ -41,7 +41,7 @@ add, modify, or delete fields within a single document.
         specify no operation or `delete` to delete the current document from
         the index.
 
-{es_version}/mapping-source-field.html[`ctx['_source']`]::
+{ref}/mapping-source-field.html[`ctx['_source']`]::
         Modify the values in the `Map/List` structure to add, modify, or delete
         the fields of a document.
 

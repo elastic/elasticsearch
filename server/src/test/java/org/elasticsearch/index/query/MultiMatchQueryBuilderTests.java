@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -65,9 +66,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
                 MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME);
-        if (fieldName.equals(DATE_FIELD_NAME)) {
-            assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
-        }
 
         final Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
@@ -173,7 +171,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryBoost() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("test");
         multiMatchQueryBuilder.field(STRING_FIELD_NAME, 5f);
@@ -191,7 +188,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test1 test2").field(STRING_FIELD_NAME).useDisMax(false).toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) query;
@@ -201,7 +197,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleFieldsDisableDismax() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(false).toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
@@ -212,7 +207,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(true).toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
@@ -225,7 +219,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryFieldsWildcard() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field("mapped_str*").useDisMax(false).toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
@@ -237,7 +230,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToQueryFieldMissing() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
         assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
     }
@@ -307,7 +299,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder(6.075210893508043E-4);
         multiMatchQueryBuilder.field(DOUBLE_FIELD_NAME);
@@ -317,7 +308,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(42).field(INT_FIELD_NAME).field(BOOLEAN_FIELD_NAME);
         query.fuzziness(randomFuzziness(INT_FIELD_NAME));
         QueryShardContext context = createShardContext();
@@ -336,8 +326,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testToFuzzyQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("text").field(STRING_FIELD_NAME);
         qb.fuzziness(Fuzziness.TWO);
         qb.prefixLength(2);
@@ -351,7 +339,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testDefaultField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
         // should pass because we set lenient to true when default field is `*`
@@ -392,6 +379,69 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
             ), 0.0f
         );
+        assertEquals(expected, query);
+    }
+
+    public void testWithStopWords() throws Exception {
+        Query query = new MultiMatchQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        Query expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new MultiMatchQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "quick")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "fox")), BooleanClause.Occur.SHOULD)
+                    .build()
+            ), 0f);
+        assertEquals(expected, query);
+
+        query = new MultiMatchQueryBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new MultiMatchQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new MultiMatchQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f), BooleanClause.Occur.SHOULD)
+            .build();
         assertEquals(expected, query);
     }
 

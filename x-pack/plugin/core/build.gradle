@@ -20,14 +20,12 @@ esplugin {
 }
 
 dependencyLicenses {
-  mapping from: /bc.*/, to: 'bouncycastle'
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
-    compile project(':x-pack:protocol')
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
     compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
@@ -38,9 +36,11 @@ dependencies {
 
     // security deps
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+    compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
+        // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
+        exclude group: "org.elasticsearch", module: "elasticsearch-core"
+    }
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -116,6 +116,7 @@ task testJar(type: Jar) {
     appendix 'test'
     from sourceSets.test.output
 }
+
 artifacts {
     // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
     archives jar

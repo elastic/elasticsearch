@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -257,7 +258,7 @@ public class DatafeedManager extends AbstractComponent {
     }
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-        return MlMetadata.getJobState(getJobId(datafeedTask), tasks);
+        return MlTasks.getJobState(getJobId(datafeedTask), tasks);
     }
 
     private TimeValue computeNextDelay(long next) {
@@ -385,7 +386,7 @@ public class DatafeedManager extends AbstractComponent {
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            JobState jobState = MlMetadata.getJobState(getJobId(), tasks);
+            JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
                 return;

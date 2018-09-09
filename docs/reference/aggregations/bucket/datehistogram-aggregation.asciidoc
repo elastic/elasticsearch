@@ -425,6 +425,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+// TEST[warning:The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true to use the java time api for date field doc values]
 
 Response:
 

@@ -22,14 +22,14 @@ package org.elasticsearch.common.settings;
 /**
  * Represents the logic to upgrade a setting.
  *
- * @param <T>
+ * @param <T> the type of the underlying setting
  */
 public interface SettingUpgrader<T> {
 
     /**
      * The setting upgraded by this upgrader.
      *
-     * @return
+     * @return the setting
      */
     Setting<T> getSetting();
 

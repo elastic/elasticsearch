@@ -110,12 +110,12 @@ import java.util.function.Predicate;
 public final class ClusterSettings extends AbstractScopedSettings {
     public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
         super(nodeSettings, settingsSet, Collections.emptyList(), Property.NodeScope);
-        addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
     public ClusterSettings(
             final Settings nodeSettings, final Set<Setting<?>> settingsSet, final List<SettingUpgrader<?>> settingUpgraders) {
         super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
+        addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {

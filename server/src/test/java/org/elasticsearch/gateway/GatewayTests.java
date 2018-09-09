@@ -54,7 +54,7 @@ public class GatewayTests extends ESTestCase {
         final Set<Setting<?>> settingsSet =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        Stream.of(oldSetting, newSetting)).collect(Collectors.toSet()))
+                        Stream.of(oldSetting, newSetting)).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(
                 Settings.EMPTY,
                 settingsSet,

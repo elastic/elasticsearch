@@ -775,20 +775,29 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return null;
     }
 
+    /**
+     * Upgrade all settings eligible for upgrade in the specified settings instance.
+     *
+     * @param settings the settings instance that might contain settings to be upgraded
+     * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
+     */
     public Settings upgradeSettings(final Settings settings) {
         final Settings.Builder builder = Settings.builder();
-        boolean changed = false;
+        boolean changed = false; // track if any settings were upgraded
         for (final String key : settings.keySet()) {
             final Setting<?> setting = getRaw(key);
             final Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader = settingUpgraders.get(setting);
             if (upgrader == null) {
+                // the setting does not have an upgrader, copy the setting
                 builder.copy(key, settings);
             } else {
+                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
                 changed = true;
                 final Map.Entry<String, String> upgrade = upgrader.apply(new Entry(key, settings));
                 builder.put(upgrade.getKey(), upgrade.getValue());
             }
         }
+        // we only return a new instance of there was an upgrade
         return changed ? builder.build() : settings;
     }
 

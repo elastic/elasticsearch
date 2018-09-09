@@ -797,7 +797,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 builder.put(upgrade.getKey(), upgrade.getValue());
             }
         }
-        // we only return a new instance of there was an upgrade
+        // we only return a new instance if there was an upgrade
         return changed ? builder.build() : settings;
     }
 

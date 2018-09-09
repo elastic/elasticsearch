@@ -29,6 +29,7 @@ import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.EmptyResponse;
 
 import java.io.IOException;
+
 import static java.util.Collections.emptySet;
 
 /**

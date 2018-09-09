@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Response for a request which simply returns an empty object if successful.
+ * Response for a request which simply returns an empty object.
  */
 public final class EmptyResponse {
 

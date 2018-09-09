@@ -88,8 +88,8 @@ public class TestShardRouting {
             case UNASSIGNED:
             case INITIALIZING:
                 if (primary) {
-                    return ESTestCase.randomFrom(RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
-                        RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE);
+                    return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                        RecoverySource.ExistingStoreRecoverySource.INSTANCE);
                 } else {
                     return RecoverySource.PeerRecoverySource.INSTANCE;
                 }
@@ -130,8 +130,8 @@ public class TestShardRouting {
     }
 
     public static RecoverySource randomRecoverySource() {
-        return ESTestCase.randomFrom(RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE,
+        return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new RecoverySource.SnapshotRecoverySource(

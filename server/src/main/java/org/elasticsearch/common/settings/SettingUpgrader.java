@@ -19,12 +19,34 @@
 
 package org.elasticsearch.common.settings;
 
+/**
+ * Represents the logic to upgrade a setting.
+ *
+ * @param <T>
+ */
 public interface SettingUpgrader<T> {
 
+    /**
+     * The setting upgraded by this upgrader.
+     *
+     * @return
+     */
     Setting<T> getSetting();
 
+    /**
+     * The logic to upgrade the setting key, for example by mapping the old setting key to the new setting key.
+     *
+     * @param key the setting key to upgrade
+     * @return the upgraded setting key
+     */
     String getKey(String key);
 
+    /**
+     * The logic to upgrade the setting value.
+     *
+     * @param value the setting value to upgrade
+     * @return the upgraded setting value
+     */
     default String getValue(final String value) {
         return value;
     }

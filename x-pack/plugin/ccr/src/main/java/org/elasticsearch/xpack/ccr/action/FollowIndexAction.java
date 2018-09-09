@@ -382,7 +382,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     leaderIndexMetadata -> {
                         try {
                             start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);

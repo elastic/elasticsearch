@@ -270,7 +270,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     leaderIndexMetaData -> createFollowerIndex(leaderIndexMetaData, request, listener));
         }
 

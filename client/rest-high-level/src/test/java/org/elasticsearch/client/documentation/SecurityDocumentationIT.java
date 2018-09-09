@@ -24,16 +24,22 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.User;
 import org.elasticsearch.client.security.EmptyResponse;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -169,6 +175,53 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::disable-user-execute-async
             client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
+    public void testAuthenticate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            //tag::authenticate-execute
+            AuthenticateResponse response = client.security().authenticate(RequestOptions.DEFAULT);
+            //end::authenticate-execute
+
+            //tag::authenticate-response
+            User user = response.getUser(); // <1>
+            //end::authenticate-response
+
+            assertThat(user.principal(), is("test_user"));
+            assertThat(user.roles(), equalTo(new String[] {"superuser"}));
+            assertThat(user.fullName(), nullValue());
+            assertThat(user.email(), nullValue());
+            assertThat(user.metadata().isEmpty(), is(true));
+            assertThat(user.enabled(), is(true));
+        }
+
+        {
+            // tag::authenticate-execute-listener
+            ActionListener<AuthenticateResponse> listener = new ActionListener<AuthenticateResponse>() {
+                @Override
+                public void onResponse(AuthenticateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::authenticate-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::authenticate-execute-async
+            client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::authenticate-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

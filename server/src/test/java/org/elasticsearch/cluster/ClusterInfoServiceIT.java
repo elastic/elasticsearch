@@ -113,6 +113,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
             // manual collection or upon cluster forming.
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
@@ -121,8 +122,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestPlugin.class,
-            MockTransportService.TestPlugin.class);
+        return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
@@ -172,7 +172,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
+    public void testClusterInfoServiceInformationClearOnError() {
         internalCluster().startNodes(2,
             // manually control publishing
             Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());
@@ -185,7 +185,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotNull("failed to collect info", info);
         assertThat("some usages are populated", info.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
-
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
 

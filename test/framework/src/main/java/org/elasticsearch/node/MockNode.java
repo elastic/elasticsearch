@@ -67,6 +67,7 @@ import java.util.function.Function;
 public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final Runnable onTransportServiceStarted;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
         this(settings, classpathPlugins, true);
@@ -76,26 +77,30 @@ public class MockNode extends Node {
             final Settings settings,
             final Collection<Class<? extends Plugin>> classpathPlugins,
             final boolean forbidPrivateIndexSettings) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, () -> {});
     }
 
     public MockNode(
             final Settings settings,
             final Collection<Class<? extends Plugin>> classpathPlugins,
             final Path configPath,
-            final boolean forbidPrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings,
+            final Runnable onTransportServiceStarted) {
         this(
                 InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath),
                 classpathPlugins,
-                forbidPrivateIndexSettings);
+                forbidPrivateIndexSettings,
+                onTransportServiceStarted);
     }
 
     private MockNode(
             final Environment environment,
             final Collection<Class<? extends Plugin>> classpathPlugins,
-            final boolean forbidPrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings,
+            final Runnable onTransportServiceStarted) {
         super(environment, classpathPlugins, forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
+        this.onTransportServiceStarted = onTransportServiceStarted;
     }
 
     /**
@@ -178,5 +183,10 @@ public class MockNode extends Node {
     @Override
     protected void registerDerivedNodeNameWithLogger(String nodeName) {
         // Nothing to do because test uses the thread name
+    }
+
+    @Override
+    protected void onTransportServiceStarted() {
+        onTransportServiceStarted.run();
     }
 }

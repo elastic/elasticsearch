@@ -296,30 +296,37 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return ImmutableOpenMap.of();
         }
 
-        List<String> includeAliases = new ArrayList<>();
-        List<String> excludeAliases = new ArrayList<>();
-        boolean wildcardSeen = false;
-        for (final String alias : aliases) {
-            if (Regex.isSimpleMatchPattern(alias)) {
-                wildcardSeen = true;
-            }
-            if (wildcardSeen && alias.charAt(0) == '-') {
-                excludeAliases.add(alias.substring(1));
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
             } else {
-                includeAliases.add(alias);
+                patterns[i] = alias;
+                include[i] = true;
             }
         }
-        String[] included = includeAliases.toArray(Strings.EMPTY_ARRAY);
-        String[] excluded = excludeAliases.toArray(Strings.EMPTY_ARRAY);
-        boolean matchAllAliases = matchAllAliases(included);
+        boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if ((matchAllAliases || Regex.simpleMatch(included, value.alias()))
-                    && Regex.simpleMatch(excluded, value.alias()) == false) {
+                boolean matched = matchAllAliases;
+                String alias = value.alias();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            matched = Regex.simpleMatch(patterns[i], alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
                     filteredValues.add(value);
                 }
             }
@@ -331,15 +338,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return mapBuilder.build();
-    }
-
-    private static boolean matchAllAliases(final String[] aliases) {
-        for (String alias : aliases) {
-            if (alias.equals(ALL)) {
-                return true;
-            }
-        }
-        return aliases.length == 0;
     }
 
     /**

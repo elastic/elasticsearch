@@ -22,7 +22,11 @@ leaderClusterTestRunner {
 
 task writeJavaPolicy {
     doLast {
-        final File javaPolicy = file("${buildDir}/tmp/java.policy")
+        final File tmp = file("${buildDir}/tmp")
+        if (tmp.exists() == false && tmp.mkdirs() == false) {
+            throw new GradleException("failed to create temporary directory [${tmp}]")
+        }
+        final File javaPolicy = file("${tmp}/java.policy")
         javaPolicy.write(
                 [
                         "grant {",

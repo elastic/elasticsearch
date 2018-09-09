@@ -250,7 +250,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
             Consumer<Map<Integer, String>> handler = historyUUID -> {
                 createFollowerIndex(leaderIndexMetadata, historyUUID, request, listener);
             };
-            ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndex, listener, handler);
+            ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndex, listener::onFailure, handler);
         }
 
         private void createFollowerIndexAndFollowRemoteIndex(
@@ -262,7 +262,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
         }
 

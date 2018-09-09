@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Encapsulates licensing checking for CCR.
@@ -69,25 +70,97 @@ public final class CcrLicenseChecker {
     }
 
     /**
-     * Fetches the leader index metadata and history UUIDs for leader index shards from the remote cluster. Before doing this,
-     * the remote cluster is checked for license compatibility with CCR. If the remote cluster is not licensed for CCR,
-     * the {@link ActionListener#onFailure(Exception)} method of the specified listener is invoked. Otherwise,
-     * the specified consumer is invoked with the leader index metadata fetched from the
-     * remote cluster.
+     * Fetches the leader index metadata and history UUIDs for leader index shards from the remote cluster.
+     * Before fetching the index metadata, the remote cluster is checked for license compatibility with CCR.
+     * If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked. Otherwise,
+     * the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
      *
-     * @param client                                    the client
-     * @param clusterAlias                              the remote cluster alias
-     * @param leaderIndex                               the name of the leader index
-     * @param listener                                  the listener
-     * @param historyUUIDAndLeaderIndexMetadataConsumer the leader index history uuid and the leader index metadata consumer
-     * @param <T>                                       the type of response the listener is waiting for
+     * @param client                      the client
+     * @param clusterAlias                the remote cluster alias
+     * @param leaderIndex                 the name of the leader index
+     * @param onFailure                   the failure consumer
+     * @param consumer                    the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
+     * @param <T>                         the type of response the listener is waiting for
      */
     public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
             final String clusterAlias,
             final String leaderIndex,
-            final ActionListener<T> listener,
-            final BiConsumer<Map<Integer, String>, IndexMetaData> historyUUIDAndLeaderIndexMetadataConsumer) {
+            final Consumer<Exception> onFailure,
+            final BiConsumer<Map<Integer, String>, IndexMetaData> consumer) {
+
+        final ClusterStateRequest request = new ClusterStateRequest();
+        request.clear();
+        request.metaData(true);
+        request.indices(leaderIndex);
+        checkRemoteClusterLicenseAndFetchClusterState(
+                client,
+                clusterAlias,
+                request,
+                onFailure,
+                leaderClusterState -> {
+                    final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
+                    fetchLeaderHistoryUUIDs(leaderClient, leaderIndex, onFailure, historyUUIDs -> {
+                        IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                        consumer.accept(historyUUIDs, leaderIndexMetaData);
+                    });
+                },
+                licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
+                e -> indexMetadataUnknownRemoteLicense(leaderIndex, clusterAlias, e));
+    }
+
+    /**
+     * Fetches the leader cluster state from the remote cluster by the specified cluster state request. Before fetching the cluster state,
+     * the remote cluster is checked for license compliance with CCR. If the remote cluster is not licensed for CCR,
+     * the {@code onFailure} consumer is invoked. Otherwise, the specified consumer is invoked with the leader cluster state fetched from
+     * the remote cluster.
+     *
+     * @param client                     the client
+     * @param clusterAlias               the remote cluster alias
+     * @param request                    the cluster state request
+     * @param onFailure                  the failure consumer
+     * @param leaderClusterStateConsumer the leader cluster state consumer
+     * @param <T>                        the type of response the listener is waiting for
+     */
+    public <T> void checkRemoteClusterLicenseAndFetchClusterState(
+            final Client client,
+            final String clusterAlias,
+            final ClusterStateRequest request,
+            final Consumer<Exception> onFailure,
+            final Consumer<ClusterState> leaderClusterStateConsumer) {
+        checkRemoteClusterLicenseAndFetchClusterState(
+                client,
+                clusterAlias,
+                request,
+                onFailure,
+                leaderClusterStateConsumer,
+                CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
+                e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+    }
+
+    /**
+     * Fetches the leader cluster state from the remote cluster by the specified cluster state request. Before fetching the cluster state,
+     * the remote cluster is checked for license compliance with CCR. If the remote cluster is not licensed for CCR,
+     * the {@code onFailure} consumer is invoked. Otherwise, the specified consumer is invoked with the leader cluster state fetched from
+     * the remote cluster.
+     *
+     * @param client                     the client
+     * @param clusterAlias               the remote cluster alias
+     * @param request                    the cluster state request
+     * @param onFailure                  the failure consumer
+     * @param leaderClusterStateConsumer the leader cluster state consumer
+     * @param nonCompliantLicense        the supplier for when the license state of the remote cluster is non-compliant
+     * @param unknownLicense             the supplier for when the license state of the remote cluster is unknown due to failure
+     * @param <T>                        the type of response the listener is waiting for
+     */
+    private <T> void checkRemoteClusterLicenseAndFetchClusterState(
+            final Client client,
+            final String clusterAlias,
+            final ClusterStateRequest request,
+            final Consumer<Exception> onFailure,
+            final Consumer<ClusterState> leaderClusterStateConsumer,
+            final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
+            final Function<Exception, ElasticsearchStatusException> unknownLicense) {
         // we have to check the license on the remote cluster
         new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
                 Collections.singletonList(clusterAlias),
@@ -96,31 +169,19 @@ public final class CcrLicenseChecker {
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
-                            final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
-                            final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-                            clusterStateRequest.clear();
-                            clusterStateRequest.metaData(true);
-                            clusterStateRequest.indices(leaderIndex);
-                            final ActionListener<ClusterStateResponse> clusterStateListener = ActionListener.wrap(
-                                    r -> {
-                                        final ClusterState remoteClusterState = r.getState();
-                                        final IndexMetaData leaderIndexMetadata =
-                                                remoteClusterState.getMetaData().index(leaderIndex);
-                                        fetchLeaderHistoryUUIDs(remoteClient, leaderIndex, listener, historyUUIDs -> {
-                                            historyUUIDAndLeaderIndexMetadataConsumer.accept(historyUUIDs, leaderIndexMetadata);
-                                        });
-                                    },
-                                    listener::onFailure);
+                            final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
+                            final ActionListener<ClusterStateResponse> clusterStateListener =
+                                    ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
-                            remoteClient.admin().cluster().state(clusterStateRequest, clusterStateListener);
+                            leaderClient.admin().cluster().state(request, clusterStateListener);
                         } else {
-                            listener.onFailure(incompatibleRemoteLicense(leaderIndex, licenseCheck));
+                            onFailure.accept(nonCompliantLicense.apply(licenseCheck));
                         }
                     }
 
                     @Override
                     public void onFailure(final Exception e) {
-                        listener.onFailure(unknownRemoteLicense(leaderIndex, clusterAlias, e));
+                        onFailure.accept(unknownLicense.apply(e));
                     }
 
                 });
@@ -131,7 +192,7 @@ public final class CcrLicenseChecker {
      *
      * @param leaderClient                              the leader client
      * @param leaderIndex                               the name of the leader index
-     * @param listener                                  the listener
+     * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
      * @param <T>                                       the type of response the listener is waiting for
      */
@@ -140,7 +201,7 @@ public final class CcrLicenseChecker {
     public <T> void fetchLeaderHistoryUUIDs(
         final Client leaderClient,
         final String leaderIndex,
-        final ActionListener<T> listener,
+        final Consumer<Exception> onFailure,
         final Consumer<Map<Integer, String>> historyUUIDConsumer) {
 
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
@@ -158,10 +219,10 @@ public final class CcrLicenseChecker {
         };
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.indices(leaderIndex);
-        leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, listener::onFailure));
+        leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
-    private static ElasticsearchStatusException incompatibleRemoteLicense(
+    private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(
             final String leaderIndex, final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
         final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
         final String message = String.format(
@@ -177,7 +238,21 @@ public final class CcrLicenseChecker {
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
-    private static ElasticsearchStatusException unknownRemoteLicense(
+    private static ElasticsearchStatusException clusterStateNonCompliantRemoteLicense(
+            final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
+                clusterAlias,
+                RemoteClusterLicenseChecker.buildErrorMessage(
+                        "ccr",
+                        licenseCheck.remoteClusterLicenseInfo(),
+                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static ElasticsearchStatusException indexMetadataUnknownRemoteLicense(
             final String leaderIndex, final String clusterAlias, final Exception cause) {
         final String message = String.format(
                 Locale.ROOT,
@@ -185,6 +260,13 @@ public final class CcrLicenseChecker {
                 clusterAlias,
                 leaderIndex,
                 clusterAlias);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
+    }
+
+    private static ElasticsearchStatusException clusterStateUnknownRemoteLicense(final String clusterAlias, final Exception cause) {
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote cluster state as the license state of the remote cluster [%s] could not be determined", clusterAlias);
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
     }
 

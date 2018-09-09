@@ -354,7 +354,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
             // following an index in local cluster, so use local cluster state to fetch leader index metadata
             final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-            ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, request.getLeaderIndex(), listener, historyUUIDs -> {
+            ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, request.getLeaderIndex(), listener::onFailure, historyUUIDs -> {
                 try {
                     start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
                 } catch (final IOException e) {
@@ -374,7 +374,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     (leaderHistoryUUID, leaderIndexMetadata) -> {
                         try {
                             start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);

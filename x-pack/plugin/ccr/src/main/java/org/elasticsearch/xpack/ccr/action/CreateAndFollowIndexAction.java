@@ -266,7 +266,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                 final String clusterAlias,
                 final String leaderIndex,
                 final ActionListener<Response> listener) {
-            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                     client,
                     clusterAlias,
                     leaderIndex,

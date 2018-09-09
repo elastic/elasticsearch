@@ -68,9 +68,10 @@ public final class CcrLicenseChecker {
     }
 
     /**
-     * Fetches the leader index metadata from the remote cluster. Before fetching the index metadata, the remote cluster is checked for
-     * license compatibility with CCR. If the remote cluster is not licensed for CCR, the {@link ActionListener#onFailure(Exception)} method
-     * of the specified listener is invoked. Otherwise, the specified consumer is invoked with the leader index metadata fetched from the
+     * Fetches the leader index metadata and history UUIDs for leader index shards from the remote cluster. Before doing this,
+     * the remote cluster is checked for license compatibility with CCR. If the remote cluster is not licensed for CCR,
+     * the {@link ActionListener#onFailure(Exception)} method of the specified listener is invoked. Otherwise,
+     * the specified consumer is invoked with the leader index metadata fetched from the
      * remote cluster.
      *
      * @param client                                    the client
@@ -80,7 +81,7 @@ public final class CcrLicenseChecker {
      * @param historyUUIDAndLeaderIndexMetadataConsumer the leader index history uuid and the leader index metadata consumer
      * @param <T>                                       the type of response the listener is waiting for
      */
-    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
             final String clusterAlias,
             final String leaderIndex,

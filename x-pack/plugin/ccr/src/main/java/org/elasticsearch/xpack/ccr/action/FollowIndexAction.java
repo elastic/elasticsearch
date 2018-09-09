@@ -372,7 +372,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
                 final ActionListener<AcknowledgedResponse> listener) {
             final ClusterState state = clusterService.state();
             final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+            ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                     client,
                     clusterAlias,
                     leaderIndex,

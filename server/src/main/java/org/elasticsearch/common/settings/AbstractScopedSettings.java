@@ -70,10 +70,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
         this.settingUpgraders =
                 Collections.unmodifiableMap(
-                settingUpgraders.stream()
-                .collect(Collectors.toMap(
-                        SettingUpgrader::getSetting,
-                        u -> e -> new AbstractMap.SimpleEntry<>(u.getKey(e.getKey()), u.getValue(e.getValue())))));
+                        settingUpgraders
+                                .stream()
+                                .collect(
+                                        Collectors.toMap(
+                                                SettingUpgrader::getSetting,
+                                                u -> e -> new AbstractMap.SimpleEntry<>(u.getKey(e.getKey()), u.getValue(e.getValue())))));
 
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();

@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -884,6 +885,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withLocal(getIndexTemplatesRequest.local());
         params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withTimeout(putStoredScriptRequest.timeout());
+        params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
+        if (Strings.hasText(putStoredScriptRequest.context())) {
+            params.putParam("context", putStoredScriptRequest.context());
+        }
+        request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Response;
@@ -37,7 +38,8 @@ import java.util.Map;
 /**
  * Tests that wait for refresh is fired if the index is closed.
  */
-public class WaitForRefreshAndCloseTests extends ESRestTestCase {
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33533")
+public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
         try {

@@ -65,10 +65,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -112,7 +108,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -136,11 +131,9 @@ import org.elasticsearch.test.RandomObjects;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1811,83 +1804,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(resizeRequest, request.getEntity());
     }
 
-    public void testPutPipeline() throws IOException {
-        String pipelineId = "some_pipeline_id";
-        PutPipelineRequest request = new PutPipelineRequest(
-            "some_pipeline_id",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request expectedRequest = RequestConverters.putPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testGetPipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
-        setRandomMasterTimeout(request, expectedParams);
-        Request expectedRequest = RequestConverters.getPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testDeletePipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        Request expectedRequest = RequestConverters.deletePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testSimulatePipeline() throws IOException {
-        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
-        boolean verbose = randomBoolean();
-        String json = "{\"pipeline\":{" +
-            "\"description\":\"_description\"," +
-            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
-            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        request.setId(pipelineId);
-        request.setVerbose(verbose);
-        Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("verbose", Boolean.toString(verbose));
-
-        Request expectedRequest = RequestConverters.simulatePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        if (pipelineId != null && !pipelineId.isEmpty())
-            endpoint.add(pipelineId);
-        endpoint.add("_simulate");
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-        assertToXContentBody(request, expectedRequest.getEntity());
-    }
-
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -2257,37 +2173,6 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
-    }
-
-    public void testXPackInfo() {
-        XPackInfoRequest infoRequest = new XPackInfoRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        infoRequest.setVerbose(randomBoolean());
-        if (false == infoRequest.isVerbose()) {
-            expectedParams.put("human", "false");
-        }
-        int option = between(0, 2);
-        switch (option) {
-        case 0:
-            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
-            break;
-        case 1:
-            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
-            expectedParams.put("categories", "features");
-            break;
-        case 2:
-            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
-            expectedParams.put("categories", "build,features");
-            break;
-        default:
-            throw new IllegalArgumentException("invalid option [" + option + "]");
-        }
-
-        Request request = RequestConverters.xPackInfo(infoRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack", request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(expectedParams, request.getParameters());
     }
 
     public void testXPackPutWatch() throws Exception {

@@ -29,11 +29,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
+/**
+ * An authenticated user
+ */
 public class User {
 
     static final ParseField USERNAME = new ParseField("username");
@@ -45,10 +48,11 @@ public class User {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<User, Void> PARSER = new ConstructingObjectParser<>("client_security_user",
-            a -> new User((String) a[0], (String[]) a[1], (String) a[2], (String) a[3], (Map<String, Object>) a[4], (Boolean) a[5]));
+            a -> new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (String) a[2], (String) a[3],
+                    (Map<String, Object>) a[4], (Boolean) a[5]));
     static {
         PARSER.declareString(constructorArg(), USERNAME);
-        PARSER.declareStringArray(fromList(String.class, optionalConstructorArg()), ROLES);
+        PARSER.declareStringArray(optionalConstructorArg(), ROLES);
         PARSER.declareStringOrNull(optionalConstructorArg(), FULL_NAME);
         PARSER.declareStringOrNull(optionalConstructorArg(), EMAIL);
         PARSER.<Map<String, Object>>declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), METADATA);

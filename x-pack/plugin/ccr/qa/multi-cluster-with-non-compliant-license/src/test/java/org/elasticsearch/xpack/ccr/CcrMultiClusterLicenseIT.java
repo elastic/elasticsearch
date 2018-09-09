@@ -48,7 +48,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
 
     public void testAutoFollow() throws Exception {
         if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("PUT", "/_ccr/_auto_follow/leader_cluster");
+            final Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
             request.setJsonEntity("{\"leader_index_patterns\":[\"*\"]}");
             client().performRequest(request);
 

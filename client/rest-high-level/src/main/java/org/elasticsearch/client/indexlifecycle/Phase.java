@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public class Phase implements ToXContentObject {
 
-    static final ParseField AFTER_FIELD = new ParseField("after");
+    static final ParseField MINIMUM_AGE = new ParseField("minimum_age");
     static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
@@ -49,7 +49,7 @@ public class Phase implements ToXContentObject {
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MINIMUM_AGE.getPreferredName()), MINIMUM_AGE, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
                 throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
@@ -62,12 +62,12 @@ public class Phase implements ToXContentObject {
 
     private final String name;
     private final Map<String, LifecycleAction> actions;
-    private final TimeValue after;
+    private final TimeValue minimumAge;
 
     /**
      * @param name
      *            the name of this {@link Phase}.
-     * @param after
+     * @param minimumAge
      *            the age of the index when the index should move to this
      *            {@link Phase}.
      * @param actions
@@ -75,12 +75,12 @@ public class Phase implements ToXContentObject {
      *            during this {@link Phase}. The keys in this map are the associated
      *            action names.
      */
-    public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
+    public Phase(String name, TimeValue minimumAge, Map<String, LifecycleAction> actions) {
         this.name = name;
-        if (after == null) {
-            this.after = TimeValue.ZERO;
+        if (minimumAge == null) {
+            this.minimumAge = TimeValue.ZERO;
         } else {
-            this.after = after;
+            this.minimumAge = minimumAge;
         }
         this.actions = actions;
     }
@@ -89,8 +89,8 @@ public class Phase implements ToXContentObject {
      * @return the age of the index when the index should move to this
      *         {@link Phase}.
      */
-    public TimeValue getAfter() {
-        return after;
+    public TimeValue getMinimumAge() {
+        return minimumAge;
     }
 
     /**
@@ -111,7 +111,7 @@ public class Phase implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
+        builder.field(MINIMUM_AGE.getPreferredName(), minimumAge.getStringRep());
         builder.field(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;
@@ -119,7 +119,7 @@ public class Phase implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, after, actions);
+        return Objects.hash(name, minimumAge, actions);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class Phase implements ToXContentObject {
         }
         Phase other = (Phase) obj;
         return Objects.equals(name, other.name) &&
-            Objects.equals(after, other.after) &&
+            Objects.equals(minimumAge, other.minimumAge) &&
             Objects.equals(actions, other.actions);
     }
 

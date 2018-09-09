@@ -39,7 +39,7 @@ when the index size reaches 25GB. The old index is subsequently deleted after
 
 NOTE: Once an index rolls over, {ilm} uses the timestamp of the rollover
 operation rather than the index creation time to evaluate when to move the
-index to the next phase. For indices that have rolled over, the `after`
+index to the next phase. For indices that have rolled over, the `minimum_age`
 criteria specified for a phase is relative to the rollover time for indices. In
 this example, that means the index will be deleted 30 days after rollover, not
 30 days from when the index was created.
@@ -58,7 +58,7 @@ PUT /_ilm/my_policy
         }
       },
       "delete": {
-        "after": "30d",
+        "minimum_age": "30d",
         "actions": {
           "delete": {}
         }

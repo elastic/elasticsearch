@@ -13,7 +13,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -21,7 +21,7 @@ setup:
                    }
                  },
                  "hot": {
-                   "after": "1000s",
+                   "minimum_age": "1000s",
                    "actions": { }
                  }
                }

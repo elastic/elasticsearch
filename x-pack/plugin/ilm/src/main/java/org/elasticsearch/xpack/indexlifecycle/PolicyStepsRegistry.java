@@ -274,7 +274,7 @@ public class PolicyStepsRegistry {
                 // We don't have that phase registered, proceed right through it
                 return TimeValue.ZERO;
             } else {
-                return retrievedPhase.getAfter();
+                return retrievedPhase.getMinimumAge();
             }
         }
     }

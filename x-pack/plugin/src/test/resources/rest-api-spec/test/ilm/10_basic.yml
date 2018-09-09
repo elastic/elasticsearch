@@ -25,7 +25,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "minimum_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -33,7 +33,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "minimum_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -48,8 +48,8 @@ setup:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
-  - match: { my_timeseries_lifecycle.policy.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.policy.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "30s" }
 
   - do:
       acknowledge: true
@@ -72,7 +72,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "minimum_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -80,7 +80,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "minimum_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -95,8 +95,8 @@ setup:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
-  - match: { my_timeseries_lifecycle.policy.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.policy.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "30s" }
 
 
   - do:
@@ -122,7 +122,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "300s",
+                   "minimum_age": "300s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -130,7 +130,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "600s",
+                   "minimum_age": "600s",
                    "actions": {
                      "delete": {}
                    }
@@ -145,8 +145,8 @@ setup:
         lifecycle: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 2 }
   - is_true: my_timeseries_lifecycle.modified_date
-  - match: { my_timeseries_lifecycle.policy.phases.warm.after: "300s" }
-  - match: { my_timeseries_lifecycle.policy.phases.delete.after: "600s" }
+  - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "300s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "600s" }
 
   - do:
       acknowledge: true
@@ -178,7 +178,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "minimum_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -186,7 +186,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "minimum_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -199,8 +199,8 @@ setup:
       acknowledge: true
       ilm.get_lifecycle:
         lifecycle: "my_timeseries_lifecycle"
-  - match: { my_timeseries_lifecycle.policy.phases.warm.after: "10s" }
-  - match: { my_timeseries_lifecycle.policy.phases.delete.after: "30s" }
+  - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "30s" }
 
   - do:
       indices.create:

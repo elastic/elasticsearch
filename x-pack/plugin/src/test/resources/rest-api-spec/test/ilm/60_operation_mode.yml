@@ -19,7 +19,7 @@ setup:
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "minimum_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -27,7 +27,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "minimum_age": "30s",
                    "actions": {
                      "delete": {}
                    }

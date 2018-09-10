@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -117,7 +118,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
         assertThat(globalCheckPoint, equalTo(2L));
 
-        ShardChangesAction.Request request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
+        String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
+        ShardChangesAction.Request request =  new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
         request.setFromSeqNo(0L);
         request.setMaxOperationCount(3);
         ShardChangesAction.Response response = client().execute(ShardChangesAction.INSTANCE, request).get();
@@ -142,7 +144,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
         assertThat(globalCheckPoint, equalTo(5L));
 
-        request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
+        request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId(), historyUUID);
         request.setFromSeqNo(3L);
         request.setMaxOperationCount(3);
         response = client().execute(ShardChangesAction.INSTANCE, request).get();

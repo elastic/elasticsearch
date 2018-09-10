@@ -156,7 +156,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         assert from >= testRun.finalExpectedGlobalCheckpoint;
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
-                        handler.accept(new ShardChangesAction.Response(0L,globalCheckpoint, maxSeqNo, "uuid", new Translog.Operation[0]));
+                        handler.accept(new ShardChangesAction.Response(0L,globalCheckpoint, maxSeqNo, new Translog.Operation[0]));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -230,7 +230,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
-                        "uuid",
                         ops.toArray(EMPTY))
                     )
                 );
@@ -253,7 +252,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             mappingVersion,
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
-                            "uuid",
                             EMPTY
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
@@ -270,7 +268,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         mappingVersion,
                         localLeaderGCP,
                         localLeaderGCP,
-                        "uuid",
                         ops.toArray(EMPTY)
                     );
                     item.add(new TestResponse(null, mappingVersion, response));

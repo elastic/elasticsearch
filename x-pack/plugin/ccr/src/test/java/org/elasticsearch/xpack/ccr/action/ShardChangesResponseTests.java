@@ -24,7 +24,6 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
             mappingVersion,
             leaderGlobalCheckpoint,
             leaderMaxSeqNo,
-            randomAlphaOfLength(4),
             operations
         );
     }

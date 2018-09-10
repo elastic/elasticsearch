@@ -169,7 +169,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 4), 10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
+            leaderGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()
         );
 
@@ -220,13 +220,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         try {
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
-                                maxOperationCount, params.getMaxBatchSizeInBytes());
+                                maxOperationCount, params.getRecordedLeaderIndexHistoryUUID(), params.getMaxBatchSizeInBytes());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
                                 1L,
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),
-                                "uuid",
                                 ops
                             );
                             handler.accept(response);

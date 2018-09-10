@@ -57,11 +57,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private long fromSeqNo;
         private int maxOperationCount;
         private ShardId shardId;
+        private String expectedHistoryUUID;
         private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
 
-        public Request(ShardId shardId) {
+        public Request(ShardId shardId, String expectedHistoryUUID) {
             super(shardId.getIndexName());
             this.shardId = shardId;
+            this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
         Request() {
@@ -95,6 +97,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
         }
 
+        public String getExpectedHistoryUUID() {
+            return expectedHistoryUUID;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -118,6 +124,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             fromSeqNo = in.readVLong();
             maxOperationCount = in.readVInt();
             shardId = ShardId.readShardId(in);
+            expectedHistoryUUID = in.readString();
             maxOperationSizeInBytes = in.readVLong();
         }
 
@@ -127,6 +134,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeVLong(fromSeqNo);
             out.writeVInt(maxOperationCount);
             shardId.writeTo(out);
+            out.writeString(expectedHistoryUUID);
             out.writeVLong(maxOperationSizeInBytes);
         }
 
@@ -139,12 +147,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return fromSeqNo == request.fromSeqNo &&
                     maxOperationCount == request.maxOperationCount &&
                     Objects.equals(shardId, request.shardId) &&
+                    Objects.equals(expectedHistoryUUID, request.expectedHistoryUUID) &&
                     maxOperationSizeInBytes == request.maxOperationSizeInBytes;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fromSeqNo, maxOperationCount, shardId, maxOperationSizeInBytes);
+            return Objects.hash(fromSeqNo, maxOperationCount, shardId, expectedHistoryUUID, maxOperationSizeInBytes);
         }
 
         @Override
@@ -153,6 +162,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     "fromSeqNo=" + fromSeqNo +
                     ", maxOperationCount=" + maxOperationCount +
                     ", shardId=" + shardId +
+                    ", expectedHistoryUUID=" + expectedHistoryUUID +
                     ", maxOperationSizeInBytes=" + maxOperationSizeInBytes +
                     '}';
         }
@@ -179,16 +189,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return maxSeqNo;
         }
 
-        private String historyUUID;
-
-        public String getHistoryUUID() {
-            return historyUUID;
-        }
-
-        public void setHistoryUUID(String historyUUID) {
-            this.historyUUID = historyUUID;
-        }
-
         private Translog.Operation[] operations;
 
         public Translog.Operation[] getOperations() {
@@ -202,13 +202,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final long mappingVersion,
             final long globalCheckpoint,
             final long maxSeqNo,
-            final String historyUUID,
             final Translog.Operation[] operations) {
 
             this.mappingVersion = mappingVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
-            this.historyUUID = historyUUID;
             this.operations = operations;
         }
 
@@ -218,7 +216,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             mappingVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
-            historyUUID = in.readString();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
@@ -228,7 +225,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeVLong(mappingVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
-            out.writeString(historyUUID);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -240,13 +236,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return mappingVersion == that.mappingVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
-                    Objects.equals(historyUUID, that.historyUUID) &&
                     Arrays.equals(operations, that.operations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, historyUUID, Arrays.hashCode(operations));
+            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, Arrays.hashCode(operations));
         }
     }
 
@@ -273,15 +268,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats =  indexShard.seqNoStats();
             final long mappingVersion = clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
-            final String historyUUID = indexShard.getHistoryUUID();
 
             final Translog.Operation[] operations = getOperations(
                     indexShard,
                     seqNoStats.getGlobalCheckpoint(),
                     request.fromSeqNo,
                     request.maxOperationCount,
+                    request.expectedHistoryUUID,
                     request.maxOperationSizeInBytes);
-            return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), historyUUID, operations);
+            return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), operations);
         }
 
         @Override
@@ -313,10 +308,19 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
      * Also if the sum of collected operations' size is above the specified maxOperationSizeInBytes then this method
      * stops collecting more operations and returns what has been collected so far.
      */
-    static Translog.Operation[] getOperations(IndexShard indexShard, long globalCheckpoint, long fromSeqNo, int maxOperationCount,
+    static Translog.Operation[] getOperations(IndexShard indexShard,
+                                              long globalCheckpoint,
+                                              long fromSeqNo,
+                                              int maxOperationCount,
+                                              String expectedHistoryUUID,
                                               long maxOperationSizeInBytes) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
+        }
+        final String historyUUID = indexShard.getHistoryUUID();
+        if (historyUUID.equals(expectedHistoryUUID) == false) {
+            throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID + "], actual [" +
+                expectedHistoryUUID + "]");
         }
         if (fromSeqNo > indexShard.getGlobalCheckpoint()) {
             return EMPTY_OPERATIONS_ARRAY;

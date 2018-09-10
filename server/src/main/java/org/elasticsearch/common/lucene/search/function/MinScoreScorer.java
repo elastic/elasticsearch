@@ -33,7 +33,6 @@ final class MinScoreScorer extends Scorer {
     private final Scorer in;
     private final float minScore;
 
-    private int curDoc = -1;
     private float curScore;
 
     MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
@@ -52,13 +51,7 @@ final class MinScoreScorer extends Scorer {
     }
 
     @Override
-    public float score() throws IOException {
-        // when minScore is set, scores might be requested twice: once
-        // to verify the match, and once by the collector
-        if (curDoc != in.docID()) {
-            curDoc = in.docID();
-            curScore = in.score();
-        }
+    public float score() {
         return curScore;
     }
 
@@ -90,7 +83,8 @@ final class MinScoreScorer extends Scorer {
                 if (inTwoPhase != null && inTwoPhase.matches() == false) {
                     return false;
                 }
-                return in.score() >= minScore;
+                curScore = in.score();
+                return curScore >= minScore;
             }
 
             @Override

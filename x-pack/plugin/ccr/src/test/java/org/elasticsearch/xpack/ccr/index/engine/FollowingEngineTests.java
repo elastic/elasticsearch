@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -261,14 +260,8 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private static Store createStore(
-            final ShardId shardId, final IndexSettings indexSettings, final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+            final ShardId shardId, final IndexSettings indexSettings, final Directory directory) {
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {

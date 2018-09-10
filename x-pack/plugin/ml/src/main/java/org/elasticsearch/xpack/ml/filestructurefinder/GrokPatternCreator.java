@@ -445,7 +445,7 @@ public final class GrokPatternCreator {
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
                                       Collection<String> epilogues, Map<String, Object> mappings, Map<String, FieldStats> fieldStats) {
-            String sampleValue = null;
+            Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
                 // If the pattern doesn't match then captures will be null
@@ -453,21 +453,23 @@ public final class GrokPatternCreator {
                     throw new IllegalStateException("[%{" + grokPatternName + "}] does not match snippet [" + snippet + "]");
                 }
                 prefaces.add(captures.getOrDefault(PREFACE, "").toString());
-                if (sampleValue == null) {
-                    sampleValue = captures.get(VALUE).toString();
-                }
+                values.add(captures.getOrDefault(VALUE, "").toString());
                 epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
                 Map<String, String> fullMappingType = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType);
                 if ("date".equals(mappingType)) {
-                    TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(sampleValue);
+                    assert values.isEmpty() == false;
+                    TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(values.iterator().next());
                     if (timestampMatch != null) {
                         fullMappingType = timestampMatch.getEsDateMappingTypeWithFormat();
                     }
                 }
                 mappings.put(adjustedFieldName, fullMappingType);
+            }
+            if (fieldStats != null) {
+                fieldStats.put(adjustedFieldName, FileStructureUtils.calculateFieldStats(values));
             }
             return "%{" + grokPatternName + ":" + adjustedFieldName + "}";
         }

@@ -43,7 +43,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
@@ -66,6 +65,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -784,7 +784,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();

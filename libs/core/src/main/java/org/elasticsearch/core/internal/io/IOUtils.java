@@ -278,4 +278,16 @@ public final class IOUtils {
         }
     }
 
+    /**
+     * An IO operation with a single input.
+     * @see java.util.function.Consumer
+     */
+    @FunctionalInterface
+    public interface IOConsumer<T> {
+        /**
+         * Performs this operation on the given argument.
+         */
+        void accept(T input) throws IOException;
+    }
+
 }

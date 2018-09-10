@@ -34,7 +34,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -121,15 +120,5 @@ public class TestTranslog {
      */
     public static long getCurrentTerm(Translog translog) {
         return translog.getCurrent().getPrimaryTerm();
-    }
-
-    /** Drains all operations from the given translog snapshot */
-    public static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
-        final List<Translog.Operation> actualOps = new ArrayList<>();
-        Translog.Operation op;
-        while ((op = snapshot.next()) != null) {
-            actualOps.add(op);
-        }
-        return actualOps;
     }
 }

@@ -49,7 +49,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
-import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -75,7 +74,6 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
@@ -521,9 +519,11 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
-                List<Translog.Operation> operations = TestTranslog.drainAll(snapshot);
-                assertThat(op2, isIn(operations));
+            try (Translog.Snapshot snapshot = replica3.getHistoryOperations("test", 0)) {
+                assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
+                final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
+                expectedOps.add(op2);
+                assertThat(snapshot, containsOperationsInAnyOrder(expectedOps));
                 assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
             }
             shards.assertAllEqual(initDocs + 1);

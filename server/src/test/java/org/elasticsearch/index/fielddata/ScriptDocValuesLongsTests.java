@@ -21,6 +21,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.security.AccessControlContext;
@@ -34,9 +36,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
+
 
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
@@ -47,18 +50,15 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
-        Longs longs = wrap(values, deprecationMessage -> {fail("unexpected deprecation: " + deprecationMessage);});
+        Set<String> warnings = new HashSet<>();
+        Longs longs = wrap(values, (key, deprecationMessage) -> {
+            warnings.add(deprecationMessage);
+        });
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            if (values[d].length > 0) {
-                assertEquals(values[d][0], longs.getValue());
-            } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
-            }
+            assertEquals(values[d].length > 0 ? values[d][0] : 0, longs.getValue());
             assertEquals(values[d].length, longs.size());
             assertEquals(values[d].length, longs.getValues().size());
             for (int i = 0; i < values[d].length; i++) {
@@ -84,7 +84,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }
         Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, deprecationMessage -> {
+        Longs longs = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
@@ -94,14 +94,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            if (dates[d].length > 0) {
-                assertEquals(dates[d][0], longs.getDate());
-            } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> longs.getDate());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
-            }
-
+            assertEquals(dates[d].length > 0 ? dates[d][0] : new DateTime(0, DateTimeZone.UTC), longs.getDate());
             assertEquals(values[d].length, longs.getDates().size());
             for (int i = 0; i < values[d].length; i++) {
                 assertEquals(dates[d][i], longs.getDates().get(i));
@@ -135,12 +128,15 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             }
         }, noPermissionsAcc);
 
-        assertThat(warnings, containsInAnyOrder(
+        // using "hasItems" here instead of "containsInAnyOrder",
+        // because values are randomly initialized, sometimes some of docs will not have any values
+        // and warnings in this case will contain another deprecation warning on missing values
+        assertThat(warnings, hasItems(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
                 "getDates on numeric fields is deprecated. Use a date field to get dates."));
     }
 
-    private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {
+    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;

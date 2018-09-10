@@ -31,10 +31,13 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
             super.test();
 
             // We should have got here if and only if the only ML endpoints in the test were GETs
+            // or the find_file_structure API, which is also available to the machine_learning_user
+            // role
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
                 if (section instanceof DoSection) {
                     if (((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.") &&
-                            ((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false) {
+                            ((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false &&
+                            ((DoSection) section).getApiCallSection().getApi().equals("xpack.ml.find_file_structure") == false) {
                         fail("should have failed because of missing role");
                     }
                 }

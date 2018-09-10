@@ -212,7 +212,7 @@ setup:
   - do:
       catch: bad_request
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is being used by at least one index [my_timeseries_index]" }
 

@@ -52,7 +52,7 @@ import java.util.Objects;
 public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Response> {
 
     public static final CreateAndFollowIndexAction INSTANCE = new CreateAndFollowIndexAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/create_and_follow_index";
+    public static final String NAME = "indices:admin/xpack/ccr/create_and_follow_index";
 
     private CreateAndFollowIndexAction() {
         super(NAME);

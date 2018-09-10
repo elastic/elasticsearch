@@ -76,6 +76,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
+        List<String> noFormatFields = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
@@ -84,10 +85,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 final DocValueFormat format;
                 if (fieldAndFormat.format == null) {
-                    DEPRECATION_LOGGER.deprecated("Doc-value field [" + fieldAndFormat.field + "] is not using a format. The output will " +
-                            "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass " +
-                            "[format={}] with the doc value field in order to opt in for the future behaviour and ease the migration to " +
-                            "7.0.", DocValueFieldsContext.USE_DEFAULT_FORMAT);
+                    noFormatFields.add(fieldAndFormat.field);
                     format = null;
                 } else {
                     String formatDesc = fieldAndFormat.format;
@@ -157,6 +155,13 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     }
                 }
             }
+        }
+
+        if (noFormatFields.isEmpty() == false) {
+            DEPRECATION_LOGGER.deprecated("There are doc-value field which are not using a format. The output will "
+                    + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
+                    + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
+                    + "7.0: [{}]", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);
         }
     }
 }

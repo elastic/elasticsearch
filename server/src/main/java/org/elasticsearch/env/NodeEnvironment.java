@@ -20,6 +20,7 @@
 package org.elasticsearch.env;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +55,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,6 +78,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -86,9 +86,6 @@ import static java.util.Collections.unmodifiableSet;
  * A component that holds all data paths for a single node.
  */
 public final class NodeEnvironment  implements Closeable {
-
-    private final Logger logger;
-
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -142,6 +139,7 @@ public final class NodeEnvironment  implements Closeable {
 
     }
 
+    private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
     private final NodePath[] nodePaths;
     private final Path sharedDataPath;
     private final Lock[] locks;
@@ -223,15 +221,21 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-
+    /**
+     * Setup the environment.
+     * @param settings settings from elasticsearch.yml
+     * @param nodeIdConsumer called as soon as the node id is available to the
+     *      node name in log messages if it wasn't loaded from
+     *      elasticsearch.yml
+     */
+    public NodeEnvironment(Settings settings, Environment environment, Consumer<String> nodeIdConsumer) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+            nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
         // trace logger to debug issues before the default node name is derived from the node id
@@ -283,8 +287,7 @@ public final class NodeEnvironment  implements Closeable {
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
-            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
-
+            nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);

@@ -206,7 +206,7 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
             } catch (IOException e) {
-                releaseAndNullLocks(locks);
+                close();
                 throw e;
             }
         }
@@ -217,7 +217,12 @@ public final class NodeEnvironment  implements Closeable {
 
         @Override
         public void close() {
-            releaseAndNullLocks(locks);
+            for (int i = 0; i < locks.length; i++) {
+                if (locks[i] != null) {
+                    IOUtils.closeWhileHandlingException(locks[i]);
+                }
+                locks[i] = null;
+            }
         }
     }
 
@@ -246,10 +251,10 @@ public final class NodeEnvironment  implements Closeable {
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
 
-            final AtomicReference<IOException> onCreateDirectoriesException = new AtomicReference();
+            final AtomicReference<IOException> onCreateDirectoriesException = new AtomicReference<>();
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 try {
-                    final NodeLock lock = new NodeLock(possibleLockId, logger, environment,
+                    nodeLock = new NodeLock(possibleLockId, logger, environment,
                         dir -> {
                             try {
                                 Files.createDirectories(dir);
@@ -258,7 +263,6 @@ public final class NodeEnvironment  implements Closeable {
                                 throw e;
                             }
                         });
-                    nodeLock = lock;
                     break;
                 } catch (LockObtainFailedException e) {
                     // ignore any LockObtainFailedException
@@ -297,9 +301,9 @@ public final class NodeEnvironment  implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
             success = true;
-        }  finally {
+        } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(nodeLock);
+                close();
             }
         }
     }
@@ -313,15 +317,6 @@ public final class NodeEnvironment  implements Closeable {
      */
     public static Path resolveNodePath(final Path path, final int nodeLockId) {
         return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));
-    }
-
-    private static void releaseAndNullLocks(Lock[] locks) {
-        for (int i = 0; i < locks.length; i++) {
-            if (locks[i] != null) {
-                IOUtils.closeWhileHandlingException(locks[i]);
-            }
-            locks[i] = null;
-        }
     }
 
     private void maybeLogPathDetails() throws IOException {

@@ -1,5 +1,8 @@
 [[breaking-changes-7.0]]
 == Breaking changes in 7.0
+++++
+<titleabbrev>7.0</titleabbrev>
+++++
 
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 7.0.

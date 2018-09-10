@@ -6,7 +6,7 @@
 // TEMPLATE
 
 // [[release-notes-n.n.n]]
-// == {es} n.n.n
+// == {es} version n.n.n
 
 //[float]
 [[breaking-n.n.n]]
@@ -33,6 +33,36 @@
 //[float]
 //=== Known Issues
 ////
+
+[[release-notes-6.4.1]]
+== {es} version 6.4.1
+
+coming[6.4.1]
+
+//[float]
+//[[breaking-n.n.n]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
 
 [[release-notes-6.4.0]]
 == {es} version 6.4.0

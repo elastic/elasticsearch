@@ -182,6 +182,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -962,6 +963,8 @@ public class IndexShardTests extends IndexShardTestCase {
         Set<String> docsBelowGlobalCheckpoint = getShardDocUIDs(indexShard).stream()
             .filter(id -> Long.parseLong(id) <= Math.max(globalCheckpointOnReplica, globalCheckpoint)).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(1);
+        final boolean shouldRollback = Math.max(globalCheckpoint, globalCheckpointOnReplica) < indexShard.seqNoStats().getMaxSeqNo();
+        final Engine beforeRollbackEngine = indexShard.getEngine();
         indexShard.acquireReplicaOperationPermit(
                 indexShard.pendingPrimaryTerm + 1,
                 globalCheckpoint,
@@ -980,13 +983,17 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.SAME, "");
 
         latch.await();
-        if (globalCheckpointOnReplica == SequenceNumbers.UNASSIGNED_SEQ_NO
-                && globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (globalCheckpointOnReplica == SequenceNumbers.UNASSIGNED_SEQ_NO && globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         } else {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
         }
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
+        if (shouldRollback) {
+            assertThat(indexShard.getEngine(), not(sameInstance(beforeRollbackEngine)));
+        } else {
+            assertThat(indexShard.getEngine(), sameInstance(beforeRollbackEngine));
+        }
         // ensure that after the local checkpoint throw back and indexing again, the local checkpoint advances
         final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) result.localCheckpoint));
@@ -1873,7 +1880,8 @@ public class IndexShardTests extends IndexShardTestCase {
             SourceToParse.source(indexName, "_doc", "doc-1", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
-        // Here we try to simulate the primary fail-over without rollback which is no longer the case.
+        // Here we try to increase term (i.e. a new primary is promoted) without rolling back a replica so we can keep stale operations
+        // in the index commit; then verify that a recovery from store (started with the safe commit) will remove all stale operations.
         shard.pendingPrimaryTerm++;
         shard.operationPrimaryTerm++;
         shard.getEngine().rollTranslogGeneration();

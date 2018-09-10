@@ -1164,8 +1164,8 @@ public abstract class Engine implements Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isRemote() {
-                return this == PRIMARY || this == REPLICA || this == PEER_RECOVERY;
+            boolean isFromTranslog() {
+                return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
 

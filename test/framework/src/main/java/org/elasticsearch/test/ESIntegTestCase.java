@@ -125,6 +125,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -2396,9 +2397,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
                     IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNode.getName())
                         .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
-                    final Set<String> docsOnPrimary;
+                    final List<DocIdSeqNoAndTerm> docsOnPrimary;
                     try {
-                        docsOnPrimary = IndexShardTestCase.getShardDocUIDs(primaryShard);
+                        docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
                     } catch (AlreadyClosedException ex) {
                         continue;
                     }
@@ -2409,9 +2410,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
                         IndexShard replicaShard = internalCluster().getInstance(IndicesService.class, replicaNode.getName())
                             .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
-                        final Set<String> docsOnReplica;
+                        final List<DocIdSeqNoAndTerm> docsOnReplica;
                         try {
-                            docsOnReplica = IndexShardTestCase.getShardDocUIDs(replicaShard);
+                            docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
                         } catch (AlreadyClosedException ex) {
                             continue;
                         }

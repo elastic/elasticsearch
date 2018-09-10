@@ -834,7 +834,7 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
-                if (index.origin().isRemote()) {
+                if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
@@ -1174,7 +1174,7 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
-            if (delete.origin().isRemote()) {
+            if (delete.origin().isFromTranslog() == false) {
                 final Translog.Location location;
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
@@ -1412,7 +1412,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin().isRemote()) {
+            if (noOp.origin().isFromTranslog() == false) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);
             }

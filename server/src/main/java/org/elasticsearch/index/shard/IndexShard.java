@@ -1272,6 +1272,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    /**
+     * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
+     * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
+     */
     int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin,
                             Runnable onOperationRecovered) throws IOException {
         int opsRecovered = 0;
@@ -1290,6 +1294,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     default:
                         throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
                 }
+
                 opsRecovered++;
                 onOperationRecovered.run();
             } catch (Exception e) {
@@ -1343,23 +1348,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+
+        final EngineConfig config = newEngineConfig();
+
+        // we disable deletes since we allow for operations to be executed against the shard while recovering
+        // but we need to make sure we don't loose deletes until we are done recovering
+        config.setEnableGcDeletes(false);
         // we have to set it before we open an engine and recover from the translog because
         // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
         // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        trimUnsafeCommits();
 
-        final EngineConfig config = newEngineConfig();
-        // we disable deletes since we allow for operations to be executed against the shard while recovering
-        // but we need to make sure we don't loose deletes until we are done recovering
-        config.setEnableGcDeletes(false);
-        synchronized (mutex) {
-            assert currentEngineReference.get() == null : "engine is initialized already";
-            currentEngineReference.set(createNewEngine(config));
-        }
-        assert assertSequenceNumbersInCommit();
+        createNewEngine(config);
+        verifyNotClosed();
+        // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+        // we still give sync'd flush a chance to run:
+        active.set(true);
+        assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    }
+
+    private void trimUnsafeCommits() throws IOException {
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        assertMaxUnsafeAutoIdInCommit();
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -2159,19 +2176,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Engine createNewEngine(EngineConfig config) throws IOException {
-        assert Thread.holdsLock(mutex);
-        verifyNotClosed();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
-        assertMaxUnsafeAutoIdInCommit();
-        final Engine engine = engineFactory.newReadWriteEngine(config);
-        onNewEngine(engine);
-        engine.onSettingsChanged();
-        active.set(true);
+    private Engine createNewEngine(EngineConfig config) {
+        synchronized (mutex) {
+            verifyNotClosed();
+            assert this.currentEngineReference.get() == null;
+            Engine engine = newEngine(config);
+            onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
+            // inside the callback are not visible. This one enforces happens-before
+            this.currentEngineReference.set(engine);
+        }
+
+        // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which
+        // settings changes could possibly have happened, so here we forcefully push any config changes to the new engine:
+        Engine engine = getEngineOrNull();
+
+        // engine could perhaps be null if we were e.g. concurrently closed:
+        if (engine != null) {
+            engine.onSettingsChanged();
+        }
         return engine;
+    }
+
+    protected Engine newEngine(EngineConfig config) {
+        return engineFactory.newReadWriteEngine(config);
     }
 
     private static void persistMetadata(
@@ -2673,16 +2700,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
         sync(); // persist the global checkpoint to disk
         final long globalCheckpoint = getGlobalCheckpoint();
-        final long maxSeqNo = seqNoStats().getMaxSeqNo();
-        logger.info("resetting replica engine from max_seq_no [{}] to global checkpoint [{}]", maxSeqNo, globalCheckpoint);
-        final Engine resettingEngine;
+        final Engine newEngine;
         synchronized (mutex) {
+            verifyNotClosed();
             IOUtils.close(currentEngineReference.getAndSet(null));
-            resettingEngine = createNewEngine(newEngineConfig());
-            currentEngineReference.set(resettingEngine);
+            trimUnsafeCommits();
+            newEngine = createNewEngine(newEngineConfig());
+            active.set(true);
         }
-        final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) ->
-            runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {});
-        resettingEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
+        final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
+            engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                // TODO: add a dedicate recovery stats for the reset translog
+            });
+        newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 }

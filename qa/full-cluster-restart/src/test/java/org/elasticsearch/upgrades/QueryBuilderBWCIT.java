@@ -71,7 +71,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */
-public class QueryBuilderBWCIT extends ESRestTestCase {
+public class QueryBuilderBWCIT extends FullClusterRestartIT {
 
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
 
@@ -145,32 +145,9 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
         CANDIDATES.add(new Object[]{"{\"query\": {" + querySource + "}}", expectedQb});
     }
 
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
     public void testQueryBuilderBWC() throws Exception {
         String index = "queries";
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
             {
@@ -230,7 +207,7 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
                     try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
-                        input.setVersion(oldClusterVersion);
+                        input.setVersion(getOldClusterVersion());
                         QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                         assert in.read() == -1;
                         assertEquals(expectedQueryBuilder, queryBuilder);

@@ -149,6 +149,6 @@ public class Literal extends NamedExpression {
             name = foldable instanceof NamedExpression ? ((NamedExpression) foldable).name() : String.valueOf(fold);
         }
 
-        return new Literal(foldable.location(), name, foldable.fold(), foldable.dataType());
+        return new Literal(foldable.location(), name, fold, foldable.dataType());
     }
 }

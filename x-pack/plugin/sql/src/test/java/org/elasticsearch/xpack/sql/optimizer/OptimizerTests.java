@@ -85,12 +85,12 @@ public class OptimizerTests extends ESTestCase {
 
     private static final Expression DUMMY_EXPRESSION = new DummyBooleanExpression(EMPTY, 0);
 
-    private static Literal ONE = L(1);
-    private static Literal TWO = L(2);
-    private static Literal THREE = L(3);
-    private static Literal FOUR = L(4);
-    private static Literal FIVE = L(5);
-    private static Literal SIX = L(6);
+    private static final Literal ONE = L(1);
+    private static final Literal TWO = L(2);
+    private static final Literal THREE = L(3);
+    private static final Literal FOUR = L(4);
+    private static final Literal FIVE = L(5);
+    private static final Literal SIX = L(6);
 
 
     public static class DummyBooleanExpression extends Expression {
@@ -316,12 +316,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static Object foldFunction(Function f) {
-        return unwrapAlias(new ConstantFolding().rule(f));
-    }
-
-    private static Object unwrapAlias(Expression e) {
-        Literal l = (Literal) e;
-        return l.value();
+        return ((Literal) new ConstantFolding().rule(f)).value();
     }
 
     //

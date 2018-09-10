@@ -13,21 +13,21 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 /**
- * {@link Expression}s that can be materlized to the user, representing the result
- * columns. Typically are converted into constants, functions or Elasticsearch order-bys,
+ * {@link Expression}s that can be materialized and represent the result columns sent to the clien.
+ * Typically are converted into constants, functions or Elasticsearch order-bys,
  * aggregations, or queries. They can also be extracted from the result of a search.
  *
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
  *
- * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} both foo and
- * {@code 10 + 1} are named expressions, the first due to the user, the second due to being a function.
- * However since {@code 10 + 1}is used for filtering it doesn't appear appear in the result set
+ * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} both {@code foo} and
+ * {@code 10 + 1} are named expressions, the first due to the SELECT, the second due to being a function.
+ * However since {@code 10 + 1} is used for filtering it doesn't appear appear in the result set
  * (derived table) and as such it is never translated to an attribute.
  * "foo" on the other hand is since it's a column in the result set.
  *
- * Another example {@code SELECT foo FROM ... WHERE bar > 10 +1} "foo" gets
+ * Another example {@code SELECT foo FROM ... WHERE bar > 10 +1} {@code foo} gets
  * converted into an Attribute, bar does not. That's because {@code bar} is used for
  * filtering alone but it's not part of the projection meaning the user doesn't
  * need it in the derived table.

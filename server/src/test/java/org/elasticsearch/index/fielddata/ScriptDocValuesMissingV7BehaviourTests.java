@@ -19,60 +19,48 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.test.ESTestCase;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
+public class ScriptDocValuesMissingV7BehaviourTests extends ESTestCase {
 
-public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
-
-    public void testZeroForMissingValueLong() throws IOException {
+    public void testExceptionForMissingValueLong() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Set<String> warnings = new HashSet<>();
-        Longs longs = wrap(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
+        Longs longs = wrap(values);
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
-            assertEquals(0, longs.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
-        assertThat(warnings, contains(equalTo(
-            "returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-            "to make behaviour compatible with future major versions!")));
     }
 
-    public void testEpochForMissingValueDate() throws IOException {
+    public void testExceptionForMissingValueDate() throws IOException {
         final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Set<String> warnings = new HashSet<>();
-        Dates dates = wrapDates(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
+        Dates dates = wrapDates(values);
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            assertEquals(EPOCH, dates.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
-        assertThat(warnings, contains(equalTo(
-            "returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-            "to make behaviour compatible with future major versions!")));
     }
 
     public void testFalseForMissingValueBoolean() throws IOException {
@@ -80,34 +68,27 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Set<String> warnings = new HashSet<>();
-        Booleans bools = wrapBooleans(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
+        Booleans bools = wrapBooleans(values);
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             bools.setNextDocId(d);
-            assertEquals(false, bools.getValue());
+            Exception e = expectThrows(IllegalStateException.class, () -> bools.getValue());
+            assertEquals("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
         }
-        assertThat(warnings, contains(equalTo(
-            "returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-            "to make behaviour compatible with future major versions!")));
     }
 
     public void testNullForMissingValueGeo() throws IOException{
-        Set<String> warnings = new HashSet<>();
         final MultiGeoPointValues values = wrap(new GeoPoint[0]);
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(
-            values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
+        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
         script.setNextDocId(0);
-        assertEquals(null, script.getValue());
-        assertThat(warnings, contains(equalTo(
-            "returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-            "to make behaviour compatible with future major versions!")));
+        Exception e = expectThrows(IllegalStateException.class, () -> script.getValue());
+        assertEquals("A document doesn't have a value for a field! " +
+            "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
     }
 
 
-    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
+    private Longs wrap(long[][] values) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -125,10 +106,10 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        }, deprecationCallback);
+        });
     }
 
-    private Booleans wrapBooleans(long[][] values, BiConsumer<String, String> deprecationCallback) {
+    private Booleans wrapBooleans(long[][] values) {
         return new Booleans(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -146,10 +127,10 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        }, deprecationCallback);
+        });
     }
 
-    private Dates wrapDates(long[][] values, BiConsumer<String, String> deprecationCallback) {
+    private Dates wrapDates(long[][] values) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -167,7 +148,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        }, deprecationCallback);
+        });
     }
 
 

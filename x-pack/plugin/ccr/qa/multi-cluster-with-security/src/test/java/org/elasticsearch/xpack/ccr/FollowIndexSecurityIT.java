@@ -148,9 +148,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             ensureYellow(allowedIndex);
             verifyDocuments(adminClient(), allowedIndex, 5);
         });
-        // TODO: The disallowed index should not get created, but it does today. We should fix this.:
-        assertThat(indexExists(adminClient(), disallowedIndex), is(true));
-        verifyDocuments(adminClient(), disallowedIndex, 0);
+        assertThat(indexExists(adminClient(), disallowedIndex), is(false));
     }
 
     private int countCcrNodeTasks() throws IOException {

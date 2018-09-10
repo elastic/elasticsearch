@@ -127,6 +127,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 }
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = shard.mapperService().hasNested() ? Queries::newNestedFilter : null;
+            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             store.incRef();

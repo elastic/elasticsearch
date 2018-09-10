@@ -456,9 +456,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
-            shard.close("test", false);
         } finally {
-            IOUtils.close(shard.store());
+            IOUtils.close(() -> shard.close("test", false), shard.store());
         }
     }
 

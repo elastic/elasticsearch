@@ -163,7 +163,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -1273,17 +1272,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    // package-private for testing
-    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
-        translogRecoveryStats.totalOperations(snapshot.totalOperations());
-        translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
-        return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
-            translogRecoveryStats::incrementRecoveredOperations);
-    }
-
-    private int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin,
-                                    Runnable onPerOperationRecovered) throws IOException {
+    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin,
+                            Runnable onOperationRecovered) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
@@ -1301,7 +1291,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
                 }
                 opsRecovered++;
-                onPerOperationRecovered.run();
+                onOperationRecovered.run();
             } catch (Exception e) {
                 if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
@@ -1319,8 +1309,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
+        final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
+        final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
+            translogRecoveryStats.totalOperations(snapshot.totalOperations());
+            translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
+            return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                translogRecoveryStats::incrementRecoveredOperations);
+        };
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog(this::runTranslogRecovery, Long.MAX_VALUE);
+        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
     /**

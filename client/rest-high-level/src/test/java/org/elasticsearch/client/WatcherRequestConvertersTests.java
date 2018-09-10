@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherRequestConvertersTests extends ESTestCase {
 
-    public void testXPackPutWatch() throws Exception {
+    public void testPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
         putWatchRequest.setId(watchId);
@@ -65,7 +65,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
-    public void testXPackDeleteWatch() {
+    public void testDeleteWatch() {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
         deleteWatchRequest.setId(watchId);

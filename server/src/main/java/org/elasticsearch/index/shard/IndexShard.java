@@ -93,12 +93,14 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -297,6 +299,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
+        if ("fix".equals(checkIndexOnStartup)) {
+            deprecationLogger.deprecated("Setting [index.shard.check_on_startup] is set to deprecated value [fix], "
+                + "which has no effect and will not be accepted in future");
+        }
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
@@ -379,6 +385,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getPendingPrimaryTerm() {
         return this.pendingPrimaryTerm;
+    }
+
+    /** Returns the primary term that is currently being used to assign to operations */
+    public long getOperationPrimaryTerm() {
+        return this.operationPrimaryTerm;
     }
 
     /**
@@ -1336,7 +1347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog(Long.MAX_VALUE);
+        getEngine().recoverFromTranslog(this::runTranslogRecovery, Long.MAX_VALUE);
     }
 
     /**
@@ -1354,7 +1365,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
-        if (Booleans.isTrue(checkIndexOnStartup)) {
+        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -1655,25 +1666,48 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquires a lock on the translog files, preventing them from being trimmed.
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireTranslogRetentionLock() {
-        return getEngine().acquireTranslogRetentionLock();
+    public Closeable acquireRetentionLockForPeerRecovery() {
+        return getEngine().acquireRetentionLockForPeerRecovery();
     }
 
     /**
-     * Creates a new translog snapshot for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getEngine().newTranslogSnapshotFromMinSeqNo(minSeqNo);
+    public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().estimateNumberOfHistoryOperations(source, mapperService, startingSeqNo);
     }
 
     /**
-     * Returns the estimated number of operations in translog whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since the provided starting seqno (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getEngine().estimateTranslogOperationsFromMinSeq(minSeqNo);
+    public Translog.Snapshot getHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().readHistoryOperations(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Checks if we have a completed history of operations since the given starting seqno (inclusive).
+     * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLockForPeerRecovery()}
+     */
+    public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
+     * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
+     *
+     * @param source            the source of the request
+     * @param fromSeqNo         the from seq_no (inclusive) to read
+     * @param toSeqNo           the to seq_no (inclusive) to read
+     * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
+     *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
+     *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
+     */
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return getEngine().newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -1958,6 +1992,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (store.tryIncRef()) {
             try {
                 doCheckIndex();
+            } catch (IOException e) {
+                store.markStoreCorrupted(e);
+                throw e;
             } finally {
                 store.decRef();
             }
@@ -2001,18 +2038,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return;
                 }
                 logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
-                if ("fix".equals(checkIndexOnStartup)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("fixing index, writing new segments file ...");
-                    }
-                    store.exorciseIndex(status);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
-                    }
-                } else {
-                    // only throw a failure if we are not going to fix the index
-                    throw new IllegalStateException("index check failure but can't fix it");
-                }
+                throw new IOException("index check failure");
             }
         }
 
@@ -2244,7 +2270,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, () -> operationPrimaryTerm);
+            indexSort, circuitBreakerService, replicationTracker, () -> operationPrimaryTerm, tombstoneDocSupplier());
     }
 
     /**
@@ -2617,5 +2643,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
+    }
+
+    private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
+        final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
+        final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
+        return new EngineConfig.TombstoneDocSupplier() {
+            @Override
+            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+                return docMapper(type).getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
+            }
+            @Override
+            public ParsedDocument newNoopTombstoneDoc(String reason) {
+                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), reason);
+            }
+        };
     }
 }

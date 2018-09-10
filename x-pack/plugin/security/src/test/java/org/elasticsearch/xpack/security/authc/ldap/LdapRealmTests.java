@@ -87,7 +87,8 @@ public class LdapRealmTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         LdapRealm ldap = new LdapRealm(LdapRealmSettings.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService),
                 threadPool);
@@ -111,7 +112,8 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         LdapRealm ldap =
@@ -136,7 +138,8 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         ldapFactory = spy(ldapFactory);
@@ -161,7 +164,8 @@ public class LdapRealmTests extends LdapTestCase {
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
@@ -194,7 +198,8 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.getKey(), -1)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         ldapFactory = spy(ldapFactory);
@@ -279,7 +284,8 @@ public class LdapRealmTests extends LdapTestCase {
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> LdapRealm.sessionFactory(config, null, threadPool, LdapRealmSettings.LDAP_TYPE));
         assertThat(e.getMessage(),
@@ -295,7 +301,8 @@ public class LdapRealmTests extends LdapTestCase {
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> LdapRealm.sessionFactory(config, null, threadPool, LdapRealmSettings.LDAP_TYPE));
         assertThat(e.getMessage(),
@@ -312,7 +319,8 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/authc/support/role_mapping.yml"))
                 .build();
-        RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         LdapRealm ldap = new LdapRealm(LdapRealmSettings.LDAP_TYPE, config, ldapFactory,
@@ -339,7 +347,8 @@ public class LdapRealmTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(new String[] { url.toString() }, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
-        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings, defaultGlobalSettings,
+                TestEnvironment.newEnvironment(defaultGlobalSettings), new ThreadContext(defaultGlobalSettings));
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);
         LdapRealm ldap = new LdapRealm(LdapRealmSettings.LDAP_TYPE, config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService),
                 threadPool);

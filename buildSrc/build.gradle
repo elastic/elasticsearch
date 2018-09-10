@@ -17,6 +17,7 @@
  * under the License.
  */
 import java.nio.file.Files
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -166,7 +167,6 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

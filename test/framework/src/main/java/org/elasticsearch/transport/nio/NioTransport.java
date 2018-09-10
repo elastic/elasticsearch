@@ -28,7 +28,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -87,9 +86,9 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, TimeValue connectTimeout, ActionListener<Void> connectListener)
-        throws IOException {
-        TcpNioSocketChannel channel = nioGroup.openChannel(node.getAddress().address(), clientChannelFactory);
+    protected TcpNioSocketChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
+        TcpNioSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
         channel.addConnectListener(connectListener);
         return channel;
     }

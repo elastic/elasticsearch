@@ -60,7 +60,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -118,7 +118,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -175,7 +175,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("search.remote.connect", false).build(), null, null) {
+            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
 
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,

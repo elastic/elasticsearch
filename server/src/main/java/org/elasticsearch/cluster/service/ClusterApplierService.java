@@ -259,13 +259,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Remove the given listener for on/off local master events
-     */
-    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        localNodeMasterListeners.remove(listener);
-    }
-
-    /**
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
      *
@@ -350,13 +343,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 throw e;
             }
         }
-    }
-
-    /** asserts that the current thread is the cluster state update thread */
-    public static boolean assertClusterStateUpdateThread() {
-        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) :
-            "not called from the cluster state update thread";
-        return true;
     }
 
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
@@ -610,13 +596,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             listeners.add(listener);
         }
 
-        private void remove(LocalNodeMasterListener listener) {
-            listeners.remove(listener);
-        }
-
-        private void clear() {
-            listeners.clear();
-        }
     }
 
     private static class OnMasterRunnable implements Runnable {

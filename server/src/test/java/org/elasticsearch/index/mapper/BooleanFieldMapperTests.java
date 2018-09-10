@@ -56,9 +56,15 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+
     private IndexService indexService;
     private DocumentMapperParser parser;
     private DocumentMapperParser preEs6Parser;
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
 
     @Before
     public void setup() {
@@ -273,4 +279,5 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
+
 }

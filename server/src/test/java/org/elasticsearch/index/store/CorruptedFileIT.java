@@ -121,8 +121,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
-            InternalSettingsPlugin.class);  // uses index.version.created
+        return Arrays.asList(
+                MockTransportService.TestPlugin.class,
+                MockIndexEventListener.TestPlugin.class,
+                MockFSIndexStore.TestPlugin.class,
+                InternalSettingsPlugin.class);
     }
 
     /**

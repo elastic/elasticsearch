@@ -74,6 +74,11 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         return false;
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return legacy() == false;
+    }
+
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
         Map<String, Object> source = new HashMap<>();
         for (int i = 0; i < fields.length; i += 2) {

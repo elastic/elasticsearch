@@ -36,6 +36,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 
 import java.net.InetAddress;
 import java.security.AccessController;
@@ -66,14 +67,18 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final DatabaseReader dbReader;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
+    private final GeoIpCache cache;
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing) {
+
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing,
+                   GeoIpCache cache) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.dbReader = dbReader;
         this.properties = properties;
         this.ignoreMissing = ignoreMissing;
+        this.cache = cache;
     }
 
     boolean isIgnoreMissing() {
@@ -145,15 +150,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () -> {
-            try {
-                return dbReader.city(ipAddress);
-            } catch (AddressNotFoundException e) {
-                throw new AddressNotFoundRuntimeException(e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
+            cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
+                try {
+                    return dbReader.city(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
 
         Country country = response.getCountry();
         City city = response.getCity();
@@ -183,6 +189,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
+                    }
+                    break;
+                case REGION_ISO_CODE:
+                    // ISO 3166-2 code for country subdivisions.
+                    // See iso.org/iso-3166-country-codes.html
+                    String countryIso = country.getIsoCode();
+                    String subdivisionIso = subdivision.getIsoCode();
+                    if (countryIso != null && subdivisionIso != null) {
+                        String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        geoData.put("region_iso_code", regionIsoCode);
                     }
                     break;
                 case REGION_NAME:
@@ -220,15 +236,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () -> {
-            try {
-                return dbReader.country(ipAddress);
-            } catch (AddressNotFoundException e) {
-                throw new AddressNotFoundRuntimeException(e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
+            cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
+                try {
+                    return dbReader.country(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
 
         Country country = response.getCountry();
         Continent continent = response.getContinent();
@@ -264,15 +281,16 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
-        AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () -> {
-            try {
-                return dbReader.asn(ipAddress);
-            } catch (AddressNotFoundException e) {
-                throw new AddressNotFoundRuntimeException(e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
+            cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
+                try {
+                    return dbReader.asn(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
 
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
@@ -300,8 +318,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
-            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
-            Property.CITY_NAME, Property.LOCATION
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
+            Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
         );
         static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE
@@ -311,9 +329,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
         );
 
         private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
+        private final GeoIpCache cache;
 
-        public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders) {
+        public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders, GeoIpCache cache) {
             this.databaseReaders = databaseReaders;
+            this.cache = cache;
         }
 
         @Override
@@ -357,14 +377,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
 
-            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties, ignoreMissing);
+            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties, ignoreMissing, cache);
         }
     }
 
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
     // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
     // it with an unchecked exception.
-    private static final class AddressNotFoundRuntimeException extends RuntimeException {
+    //package private for testing
+    static final class AddressNotFoundRuntimeException extends RuntimeException {
 
         AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);
@@ -377,6 +398,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_NAME,
+        REGION_ISO_CODE,
         REGION_NAME,
         CITY_NAME,
         TIMEZONE,
@@ -386,7 +408,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
             Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
-            Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE, Property.LOCATION
+            Property.REGION_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE,
+            Property.LOCATION
         );
         static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
             Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE

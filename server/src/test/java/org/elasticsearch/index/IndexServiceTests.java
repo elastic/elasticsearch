@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -289,7 +290,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1))
             .get();
         IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> assertThat(shard.estimateTranslogOperationsFromMinSeq(0L), equalTo(0)));
+        assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
     }
 
     public void testIllegalFsyncInterval() {
@@ -300,7 +301,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             createIndex("test", settings);
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [0ms] for setting [index.translog.sync_interval] must be >= 100ms", ex.getMessage());
+            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
         }
     }
 }

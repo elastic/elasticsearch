@@ -525,7 +525,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.getPipelineExecutionService().executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
+        ingestService.executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
             logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
                 indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
             bulkRequestModifier.markCurrentItemAsFailed(exception);
@@ -549,7 +549,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         });
     }
 
-    static final class BulkRequestModifier implements Iterator<DocWriteRequest> {
+    static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
@@ -584,7 +584,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 
                 int slot = 0;
-                List<DocWriteRequest> requests = bulkRequest.requests();
+                List<DocWriteRequest<?>> requests = bulkRequest.requests();
                 originalSlots = new int[requests.size()]; // oversize, but that's ok
                 for (int i = 0; i < requests.size(); i++) {
                     DocWriteRequest request = requests.get(i);

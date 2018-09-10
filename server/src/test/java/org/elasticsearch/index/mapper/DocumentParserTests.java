@@ -27,19 +27,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -53,11 +50,6 @@ import static org.hamcrest.Matchers.not;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
 
     public void testFieldDisabled() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
@@ -180,91 +172,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 e.getMessage());
     }
 
-    public void testNestedHaveIdAndTypeFields() throws Exception {
-        DocumentMapperParser mapperParser1 = createIndex("index1", Settings.builder()
-            .put("index.version.created", Version.V_5_6_0) // allows for multiple types
-            .build()
-        ).mapperService().documentMapperParser();
-        DocumentMapperParser mapperParser2 = createIndex("index2").mapperService().documentMapperParser();
-
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
-        {
-            mapping.startObject("foo");
-            mapping.field("type", "nested");
-            {
-                mapping.startObject("properties");
-                {
-
-                    mapping.startObject("bar");
-                    mapping.field("type", "keyword");
-                    mapping.endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        {
-            mapping.startObject("baz");
-            mapping.field("type", "keyword");
-            mapping.endObject();
-        }
-        mapping.endObject().endObject().endObject();
-        DocumentMapper mapper1 = mapperParser1.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        DocumentMapper mapper2 = mapperParser2.parse("type", new CompressedXContent(Strings.toString(mapping)));
-
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
-        {
-            doc.startArray("foo");
-            {
-                doc.startObject();
-                doc.field("bar", "value1");
-                doc.endObject();
-            }
-            doc.endArray();
-            doc.field("baz", "value2");
-        }
-        doc.endObject();
-
-        // Verify in the case where multiple types are allowed that the _uid field is added to nested documents:
-        ParsedDocument result = mapper1.parse(SourceToParse.source("index1", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
-        assertEquals(2, result.docs().size());
-        // Nested document:
-        assertNull(result.docs().get(0).getField(IdFieldMapper.NAME));
-        assertNotNull(result.docs().get(0).getField(UidFieldMapper.NAME));
-        assertEquals("type#1", result.docs().get(0).getField(UidFieldMapper.NAME).stringValue());
-        assertEquals(UidFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(UidFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
-        assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
-        // Root document:
-        assertNull(result.docs().get(1).getField(IdFieldMapper.NAME));
-        assertNotNull(result.docs().get(1).getField(UidFieldMapper.NAME));
-        assertEquals("type#1", result.docs().get(1).getField(UidFieldMapper.NAME).stringValue());
-        assertEquals(UidFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(UidFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
-        assertEquals("type", result.docs().get(1).getField(TypeFieldMapper.NAME).stringValue());
-        assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
-
-        // Verify in the case where only a single type is allowed that the _id field is added to nested documents:
-        result = mapper2.parse(SourceToParse.source("index2", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
-        assertEquals(2, result.docs().size());
-        // Nested document:
-        assertNull(result.docs().get(0).getField(UidFieldMapper.NAME));
-        assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
-        assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
-        assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
-        // Root document:
-        assertNull(result.docs().get(1).getField(UidFieldMapper.NAME));
-        assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
-        assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
-        assertNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
-        assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
-    }
-
     public void testPropagateDynamicWithExistingMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -338,15 +245,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        ParseContext context = new ParseContext.InternalParseContext(
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+        IndexMetaData build = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+        ParseContext context = new ParseContext.InternalParseContext(settings,
             mapperService.documentMapperParser(), mapperService.documentMapper("type"), null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
         }
         Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
-        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         return (ObjectMapper)builder.build(builderContext);
     }
 

@@ -63,7 +63,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -108,7 +107,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
+            recoverySettings.getChunkSize().bytesAsInt());
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -174,7 +173,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
         final RecoverySourceHandler handler =
-            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, Settings.EMPTY);
+            new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes);
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -281,7 +280,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
+                recoverySettings.getChunkSize().bytesAsInt()) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -340,7 +339,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
-            recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
+                recoverySettings.getChunkSize().bytesAsInt()) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -405,17 +404,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            mock(RecoveryTargetHandler.class),
-            request,
-            recoverySettings.getChunkSize().bytesAsInt(),
-            Settings.EMPTY) {
-
-
-            @Override
-            boolean isTranslogReadyForSequenceNumberBasedRecovery() throws IOException {
-                return randomBoolean();
-            }
+                shard,
+                mock(RecoveryTargetHandler.class),
+                request,
+                recoverySettings.getChunkSize().bytesAsInt()) {
 
             @Override
             public void phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
@@ -468,18 +460,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         return newStore(path, true);
     }
     private Store newStore(Path path, boolean checkIndex) throws IOException {
-        DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-
-            @Override
-            public Directory newDirectory() throws IOException {
-                BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
-                if (checkIndex == false) {
-                    baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
-                }
-                return baseDirectoryWrapper;
-            }
-        };
-        return new Store(shardId,  INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        BaseDirectoryWrapper baseDirectoryWrapper = RecoverySourceHandlerTests.newFSDirectory(path);
+        if (checkIndex == false) {
+            baseDirectoryWrapper.setCheckIndexOnClose(false); // don't run checkindex we might corrupt the index in these tests
+        }
+        return new Store(shardId,  INDEX_SETTINGS, baseDirectoryWrapper, new DummyShardLock(shardId));
     }
 
 

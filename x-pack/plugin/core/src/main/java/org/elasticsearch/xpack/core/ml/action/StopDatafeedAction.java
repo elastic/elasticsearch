@@ -79,14 +79,13 @@ public class StopDatafeedAction
         }
 
         private String datafeedId;
-        private String[] resolvedStartedDatafeedIds;
+        private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
         private boolean allowNoDatafeeds = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
-            this.resolvedStartedDatafeedIds = new String[] { datafeedId };
         }
 
         public Request() {

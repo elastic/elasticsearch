@@ -40,8 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -51,8 +51,13 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ParentFieldLoadingIT extends ESIntegTestCase {
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.merge.enabled
+        return Collections.singletonList(InternalSettingsPlugin.class); // uses index.merge.enabled
     }
 
     private final Settings indexSettings = Settings.builder()

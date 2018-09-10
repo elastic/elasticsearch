@@ -63,7 +63,8 @@ public final class IndexSettings {
             }
             return Collections.singletonList(defaultField);
         };
-        DEFAULT_FIELD_SETTING = Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
+        DEFAULT_FIELD_SETTING =
+                Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, Function.identity(), defValue, Property.Dynamic, Property.IndexScope);
     }
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);
@@ -243,6 +244,21 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+
+    /**
+     * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
+     */
+    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
+        Setting.boolSetting("index.soft_deletes.enabled", false, Property.IndexScope, Property.Final);
+
+    /**
+     * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
+     * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
+     * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
+     **/
+    public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
+        Setting.longSetting("index.soft_deletes.retention.operations", 0, 0, Property.IndexScope, Property.Dynamic);
+
     /**
      * The maximum number of refresh listeners allows on this shard.
      */
@@ -309,6 +325,8 @@ public final class IndexSettings {
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+    private final boolean softDeleteEnabled;
+    private volatile long softDeleteRetentionOperations;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -403,8 +421,8 @@ public final class IndexSettings {
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
-        version = Version.indexCreated(settings);
-        logger = Loggers.getLogger(getClass(), settings, index);
+        version = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings);
+        logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
@@ -423,6 +441,8 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
+        softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -447,6 +467,7 @@ public final class IndexSettings {
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING, mergePolicyConfig::setDeletesPctAllowed);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING, mergePolicyConfig::setFloorSegmentSetting);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING, mergePolicyConfig::setMaxMergesAtOnce);
@@ -482,6 +503,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -849,5 +871,23 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    /**
+     * Returns <code>true</code> if soft-delete is enabled.
+     */
+    public boolean isSoftDeleteEnabled() {
+        return softDeleteEnabled;
+    }
+
+    private void setSoftDeleteRetentionOperations(long ops) {
+        this.softDeleteRetentionOperations = ops;
+    }
+
+    /**
+     * Returns the number of extra operations (i.e. soft-deleted documents) to be kept for recoveries and history purpose.
+     */
+    public long getSoftDeleteRetentionOperations() {
+        return this.softDeleteRetentionOperations;
     }
 }

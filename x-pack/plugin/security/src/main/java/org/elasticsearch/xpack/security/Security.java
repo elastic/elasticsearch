@@ -123,9 +123,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
-import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
-import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -145,6 +142,9 @@ import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -183,8 +183,8 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
@@ -261,9 +261,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
             Setting.listSetting(SecurityField.setting("audit.outputs"),
-                    s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                            Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-                    Function.identity(), Property.NodeScope);
+                    Function.identity(),
+                    s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
+                            ? Collections.emptyList()
+                            : Collections.singletonList(LoggingAuditTrail.NAME),
+                    Property.NodeScope);
 
     public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
             Property.NodeScope, Property.Dynamic, Property.Deprecated);
@@ -462,7 +464,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
-        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool, anonymousUser, tokenService));
+        authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
+                anonymousUser, tokenService));
         components.add(authcService.get());
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
@@ -688,8 +691,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                         // based on index statistics, which is probably safer...
                                         null,
                                         () -> {
-                                            throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
-
+                                            throw new IllegalArgumentException(
+                                                "permission filters are not allowed to use the current timestamp");
                                         }, null),
                                 indexService.cache().bitsetFilterCache(),
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
@@ -698,7 +701,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                  *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
                  *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
                  *  unauthorized users. */
-                module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
+                module.forceQueryCacheProvider(
+                        (settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState()));
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
@@ -758,7 +762,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
             return emptyList();
@@ -855,8 +860,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         Map<String, Settings> realmsSettings = settings.getGroups(SecurityField.setting("authc.realms"), true);
         final boolean hasNativeRealm = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) ||
                 realmsSettings.isEmpty() ||
-                realmsSettings.entrySet().stream()
-                        .anyMatch((e) -> NativeRealmSettings.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
+                realmsSettings.entrySet().stream().anyMatch(e ->
+                        NativeRealmSettings.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
         if (hasNativeRealm) {
             if (settings.get("tribe.on_conflict", "").startsWith("prefer_") == false) {
                 throw new IllegalArgumentException("use of security on tribe nodes requires setting [tribe.on_conflict] to specify the " +
@@ -904,13 +909,20 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover
             indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusDays(1), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(1), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(2), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(3), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(4), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(5), IndexNameResolver.Rollover.DAILY));
-            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(6), IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusDays(1),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(1),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(2),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(3),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(4),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(5),
+                    IndexNameResolver.Rollover.DAILY));
+            indices.add(IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now.plusMonths(6),
+                    IndexNameResolver.Rollover.DAILY));
 
             for (String index : indices) {
                 boolean matched = false;
@@ -976,8 +988,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService, bigArrays,
-                namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+        return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool, networkService,
+                bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
     }
 
     @Override
@@ -1057,7 +1069,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl indicesAccessControl = threadContext.get()
+                        .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;

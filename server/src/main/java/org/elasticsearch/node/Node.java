@@ -45,9 +45,11 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -73,6 +75,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -182,7 +185,7 @@ import static java.util.stream.Collectors.toList;
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
-public class Node implements Closeable {
+public abstract class Node implements Closeable {
 
 
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
@@ -221,17 +224,6 @@ public class Node implements Closeable {
         }
     }, Setting.Property.NodeScope);
 
-    /**
-     * Adds a default node name to the given setting, if it doesn't already exist
-     * @return the given setting if node name is already set, or a new copy with a default node name set.
-     */
-    public static final Settings addNodeNameIfNeeded(Settings settings, final String nodeId) {
-        if (NODE_NAME_SETTING.exists(settings)) {
-            return settings;
-        }
-        return Settings.builder().put(settings).put(NODE_NAME_SETTING.getKey(), nodeId.substring(0, 7)).build();
-    }
-
     private static final String CLIENT_TYPE = "node";
 
     private final Lifecycle lifecycle = new Lifecycle();
@@ -262,10 +254,19 @@ public class Node implements Closeable {
     }
 
     public Node(Environment environment) {
-        this(environment, Collections.emptyList());
+        this(environment, Collections.emptyList(), true);
     }
 
-    protected Node(final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
+    /**
+     * Constructs a node
+     *
+     * @param environment                the environment for this node
+     * @param classpathPlugins           the plugins to be loaded from the classpath
+     * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
+     *                                   test framework for tests that rely on being able to set private settings
+     */
+    protected Node(
+            final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
         logger = Loggers.getLogger(Node.class);
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
@@ -274,23 +275,33 @@ public class Node implements Closeable {
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
-            // create the node environment as soon as possible, to recover the node id and enable logging
+            /*
+             * Create the node environment as soon as possible so we can
+             * recover the node id which we might have to use to derive the
+             * node name. And it is important to get *that* as soon as possible
+             * so that log lines can contain it.
+             */
+            boolean nodeNameExplicitlyDefined = NODE_NAME_SETTING.exists(tmpSettings);
             try {
-                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+                Consumer<String> nodeIdConsumer = nodeNameExplicitlyDefined ?
+                        nodeId -> {} : nodeId -> registerDerivedNodeNameWithLogger(nodeIdToNodeName(nodeId));
+                nodeEnvironment = new NodeEnvironment(tmpSettings, environment, nodeIdConsumer);
                 resourcesToClose.add(nodeEnvironment);
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to create node environment", ex);
             }
-            final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-            final String nodeId = nodeEnvironment.nodeId();
-            tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
-            // this must be captured after the node name is possibly added to the settings
-            final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
-            if (hadPredefinedNodeName == false) {
-                logger.info("node name derived from node ID [{}]; set [{}] to override", nodeId, NODE_NAME_SETTING.getKey());
+            if (nodeNameExplicitlyDefined) {
+                logger.info("node name [{}], node ID [{}]",
+                        NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId());
             } else {
-                logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
+                tmpSettings = Settings.builder()
+                        .put(tmpSettings)
+                        .put(NODE_NAME_SETTING.getKey(), nodeIdToNodeName(nodeEnvironment.nodeId()))
+                        .build();
+                logger.info("node name derived from node ID [{}]; set [{}] to override",
+                        nodeEnvironment.nodeId(), NODE_NAME_SETTING.getKey());
             }
+
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -344,7 +355,15 @@ public class Node implements Closeable {
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
-            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+
+            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .map(Plugin::getSettingUpgraders)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toSet());
+
+            final SettingsModule settingsModule =
+                    new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(
@@ -355,7 +374,7 @@ public class Node implements Closeable {
                ClusterModule.getClusterStateCustomSuppliers(clusterPlugins));
             clusterService.addStateApplier(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
+            final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final DiskThresholdMonitor listener = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client);
@@ -427,6 +446,19 @@ public class Node implements Closeable {
                             threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
                             scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreFactories);
 
+            final AliasValidator aliasValidator = new AliasValidator(settings);
+
+            final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    clusterModule.getAllocationService(),
+                    aliasValidator,
+                    environment,
+                    settingsModule.getIndexScopedSettings(),
+                    threadPool,
+                    xContentRegistry,
+                    forbidPrivateIndexSettings);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -528,6 +560,8 @@ public class Node implements Closeable {
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
+                    b.bind(AliasValidator.class).toInstance(aliasValidator);
+                    b.bind(MetaDataCreateIndexService.class).toInstance(metaDataCreateIndexService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings,
@@ -996,6 +1030,18 @@ public class Node implements Closeable {
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listeners) {
         return new InternalClusterInfoService(settings, clusterService, threadPool, client, listeners);
+    }
+
+    /**
+     * If the node name was derived from the node id this is called with the
+     * node name as soon as it is available so that we can register the
+     * node name with the logger. If the node name defined in elasticsearch.yml
+     * this is never called.
+     */
+    protected abstract void registerDerivedNodeNameWithLogger(String nodeName);
+
+    private String nodeIdToNodeName(String nodeId) {
+        return nodeId.substring(0, 7);
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

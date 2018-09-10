@@ -14,21 +14,23 @@
     - match:  { nodes.$master.ingest.processors.2.type: convert }
     - match:  { nodes.$master.ingest.processors.3.type: date }
     - match:  { nodes.$master.ingest.processors.4.type: date_index_name }
-    - match:  { nodes.$master.ingest.processors.5.type: dot_expander }
-    - match:  { nodes.$master.ingest.processors.6.type: fail }
-    - match:  { nodes.$master.ingest.processors.7.type: foreach }
-    - match:  { nodes.$master.ingest.processors.8.type: grok }
-    - match:  { nodes.$master.ingest.processors.9.type: gsub }
-    - match:  { nodes.$master.ingest.processors.10.type: join }
-    - match:  { nodes.$master.ingest.processors.11.type: json }
-    - match:  { nodes.$master.ingest.processors.12.type: kv }
-    - match:  { nodes.$master.ingest.processors.13.type: lowercase }
-    - match:  { nodes.$master.ingest.processors.14.type: remove }
-    - match:  { nodes.$master.ingest.processors.15.type: rename }
-    - match:  { nodes.$master.ingest.processors.16.type: script }
-    - match:  { nodes.$master.ingest.processors.17.type: set }
-    - match:  { nodes.$master.ingest.processors.18.type: sort }
-    - match:  { nodes.$master.ingest.processors.19.type: split }
-    - match:  { nodes.$master.ingest.processors.20.type: trim }
-    - match:  { nodes.$master.ingest.processors.21.type: uppercase }
+    - match:  { nodes.$master.ingest.processors.5.type: dissect }
+    - match:  { nodes.$master.ingest.processors.6.type: dot_expander }
+    - match:  { nodes.$master.ingest.processors.7.type: fail }
+    - match:  { nodes.$master.ingest.processors.8.type: foreach }
+    - match:  { nodes.$master.ingest.processors.9.type: grok }
+    - match:  { nodes.$master.ingest.processors.10.type: gsub }
+    - match:  { nodes.$master.ingest.processors.11.type: join }
+    - match:  { nodes.$master.ingest.processors.12.type: json }
+    - match:  { nodes.$master.ingest.processors.13.type: kv }
+    - match:  { nodes.$master.ingest.processors.14.type: lowercase }
+    - match:  { nodes.$master.ingest.processors.15.type: pipeline }
+    - match:  { nodes.$master.ingest.processors.16.type: remove }
+    - match:  { nodes.$master.ingest.processors.17.type: rename }
+    - match:  { nodes.$master.ingest.processors.18.type: script }
+    - match:  { nodes.$master.ingest.processors.19.type: set }
+    - match:  { nodes.$master.ingest.processors.20.type: sort }
+    - match:  { nodes.$master.ingest.processors.21.type: split }
+    - match:  { nodes.$master.ingest.processors.22.type: trim }
+    - match:  { nodes.$master.ingest.processors.23.type: uppercase }
 

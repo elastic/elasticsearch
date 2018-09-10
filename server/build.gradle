@@ -58,13 +58,13 @@ if (!isEclipse && !isIdea) {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
-  
-  /* Enable this when forbiddenapis was updated to 2.6.
-   * See: https://github.com/elastic/elasticsearch/issues/29292
+
   forbiddenApisJava9 {
-    targetCompatibility = 9
+    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9
+      javaHome = project.java9Home
+    }
   }
-  */
 
   jar {
     metaInf {

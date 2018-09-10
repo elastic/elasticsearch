@@ -1,10 +1,11 @@
 [[analysis-standard-tokenfilter]]
 === Standard Token Filter
 
+deprecated[6.5.0, This filter is deprecated and will be removed in the next
+major version.]
+
 A token filter of type `standard` that normalizes tokens extracted with
-the
-<<analysis-standard-tokenizer,Standard
-Tokenizer>>.
+the <<analysis-standard-tokenizer,Standard Tokenizer>>.
 
 [TIP]
 ==================================================

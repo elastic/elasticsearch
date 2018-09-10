@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -65,6 +66,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -211,6 +216,7 @@ public class RestHighLevelClient implements Closeable {
     private final LicenseClient licenseClient = new LicenseClient(this);
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
+    private final SecurityClient securityClient = new SecurityClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -323,7 +329,7 @@ public class RestHighLevelClient implements Closeable {
      * Watcher APIs on elastic.co</a> for more information.
      */
     public WatcherClient watcher() { return watcherClient; }
-    
+
     /**
      * Provides methods for accessing the Elastic Licensed Graph explore API that
      * is shipped with the default distribution of Elasticsearch. All of
@@ -332,7 +338,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
      * Graph API on elastic.co</a> for more information.
      */
-    public GraphClient graph() { return graphClient; }    
+    public GraphClient graph() { return graphClient; }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -368,6 +374,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public MachineLearningClient machineLearning() {
         return machineLearningClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Security APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
+     * Security APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Security API calls
+     */
+    public SecurityClient security() {
+        return securityClient;
     }
 
     /**
@@ -413,6 +433,91 @@ public class RestHighLevelClient implements Closeable {
     @Deprecated
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Executes a reindex request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes a reindex request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
+     * @param reindexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void reindexAsync(ReindexRequest reindexRequest, RequestOptions options, ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::reindex, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
+    }
+
+    /**
+     * Executes a update by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param updateByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            updateByQueryRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes an update by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
+     *     Update By Query API on elastic.co</a>
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void updateByQueryAsync(UpdateByQueryRequest reindexRequest, RequestOptions options,
+                                   ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::updateByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
+    }
+
+    /**
+     * Executes a delete by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param deleteByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes a delete by query request.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *     Delete By Query API on elastic.co</a>
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void deleteByQueryAsync(DeleteByQueryRequest reindexRequest, RequestOptions options,
+                                         ActionListener<BulkByScrollResponse> listener) {
+        performRequestAsyncAndParseEntity(
+            reindexRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, listener, emptySet()
+        );
     }
 
     /**
@@ -1251,6 +1356,35 @@ public class RestHighLevelClient implements Closeable {
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
                                   ActionListener<AcknowledgedResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
+                                             RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                               ActionListener<AcknowledgedResponse> listener) {
+        performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

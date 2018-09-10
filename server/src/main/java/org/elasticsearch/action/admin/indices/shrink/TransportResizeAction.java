@@ -180,7 +180,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .masterNodeTimeout(targetIndex.masterNodeTimeout())
                 .settings(targetIndex.settings())
                 .aliases(targetIndex.aliases())
-                .customs(targetIndex.customs())
                 .waitForActiveShards(targetIndex.waitForActiveShards())
                 .recoverFrom(metaData.getIndex())
                 .resizeType(resizeRequest.getResizeType())

@@ -28,11 +28,11 @@ import java.util.Map;
 public class BindingsTests extends ScriptTestCase {
 
     public void testBasicBinding() {
-        assertEquals(15, exec("testAddWithState(4, 5, 6)"));
+        assertEquals(15, exec("testAddWithState(4, 5, 6, 0.0)"));
     }
 
     public void testRepeatedBinding() {
-        String script = "testAddWithState(4, 5, params.test)";
+        String script = "testAddWithState(4, 5, params.test, 0.0)";
         Map<String, Object> params = new HashMap<>();
         ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
         ExecutableScript executableScript = factory.newInstance(params);
@@ -48,7 +48,7 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public void testBoundBinding() {
-        String script = "testAddWithState(4, params.bound, params.test)";
+        String script = "testAddWithState(4, params.bound, params.test, 0.0)";
         Map<String, Object> params = new HashMap<>();
         ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, Collections.emptyMap());
         ExecutableScript executableScript = factory.newInstance(params);

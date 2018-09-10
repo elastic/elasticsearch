@@ -144,7 +144,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
             if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
-                        new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                        new RemoteClusterLicenseChecker(client, XPackLicenseState::isMachineLearningAllowedForOperationMode);
                 remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                         RemoteClusterLicenseChecker.remoteClusterAliases(datafeed.getIndices()),
                         ActionListener.wrap(

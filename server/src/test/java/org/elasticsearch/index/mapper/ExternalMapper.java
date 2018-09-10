@@ -168,7 +168,7 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
         binMapper.parse(context.createExternalValueContext(bytes));
 
@@ -190,7 +190,6 @@ public class ExternalMapper extends FieldMapper {
         stringMapper.parse(context);
 
         multiFields.parse(this, context);
-        return null;
     }
 
     @Override

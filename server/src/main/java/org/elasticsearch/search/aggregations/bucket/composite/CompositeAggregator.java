@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -93,7 +94,7 @@ final class CompositeAggregator extends BucketsAggregator {
     @Override
     protected void doPreCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = BucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(collectors);
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 

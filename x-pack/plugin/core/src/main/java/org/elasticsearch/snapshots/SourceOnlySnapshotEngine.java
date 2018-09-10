@@ -251,13 +251,10 @@ public final class SourceOnlySnapshotEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
-    }
+    public void refresh(String source) throws EngineException {}
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {
-
-    }
+    public void writeIndexingBuffer() throws EngineException {}
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -266,17 +263,21 @@ public final class SourceOnlySnapshotEngine extends Engine {
 
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        throw new UnsupportedOperationException();
+        CommitId commitId = new CommitId(lastCommittedSegmentInfos.getId());
+        if (commitId.equals(expectedCommitId)) {
+            return SyncedFlushResult.SUCCESS;
+        }
+        return SyncedFlushResult.COMMIT_MISMATCH;
     }
 
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        throw new UnsupportedOperationException();
+        return new CommitId(lastCommittedSegmentInfos.getId());
     }
 
     @Override
     public CommitId flush() throws EngineException {
-        throw new UnsupportedOperationException();
+        return flush(false, false);
     }
 
     @Override

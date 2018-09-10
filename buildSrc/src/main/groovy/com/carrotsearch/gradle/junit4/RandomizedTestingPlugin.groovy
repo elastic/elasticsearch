@@ -23,8 +23,8 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         // Check the task graph to confirm tasks were indeed replaced
         // https://github.com/elastic/elasticsearch/issues/31324
         project.rootProject.getGradle().getTaskGraph().whenReady {
-            Task test = project.task("test")
-            if ((test instanceof RandomizedTestingTask) == false) {
+            Task test = project.getTasks().findByName("test")
+            if (test != null && (test instanceof RandomizedTestingTask) == false) {
                 throw new IllegalStateException("Test task was not replaced in project ${project.path}. Found ${test.getClass()}")
             }
         }

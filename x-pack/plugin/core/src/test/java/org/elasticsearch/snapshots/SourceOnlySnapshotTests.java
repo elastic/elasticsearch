@@ -17,6 +17,7 @@ import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -41,8 +42,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
     public void testSourceOnlyRandom() throws IOException {
         try (Directory dir = newDirectory(); Directory targetDir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setIndexDeletionPolicy
-                (deletionPolicy))) {
+            IndexWriterConfig indexWriterConfig = newIndexWriterConfig().setIndexDeletionPolicy
+                (deletionPolicy).setSoftDeletesField(random().nextBoolean() ? null : Lucene.SOFT_DELETES_FIELD);
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, indexWriterConfig, false)) {
                 final String softDeletesField = writer.w.getConfig().getSoftDeletesField();
                 // we either use the soft deletes directly or manually delete them to test the additional delete functionality
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
@@ -148,14 +150,13 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             doc.add(new StoredField("src", "the quick brown fox"));
             writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
             writer.commit();
-            IndexCommit snapshot = deletionPolicy.snapshot();
             Directory targetDir = newDirectory();
+            IndexCommit snapshot = deletionPolicy.snapshot();
             SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
             snapshoter.syncSnapshot(snapshot);
 
-
-            StandardDirectoryReader  reader = (StandardDirectoryReader) DirectoryReader.open(snapshot);
-            try(DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+            StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(snapshot);
+            try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
                 assertEquals(snapReader.maxDoc(), 3);
                 assertEquals(snapReader.numDocs(), 2);
                 for (int i = 0; i < 3; i++) {
@@ -163,7 +164,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 }
                 IndexSearcher searcher = new IndexSearcher(snapReader);
                 TopDocs id = searcher.search(new TermQuery(new Term("id", "1")), 10);
-                assertEquals(0, id.totalHits);
+                assertEquals(0, id.totalHits.value);
             }
 
             snapshoter = new SourceOnlySnapshot(targetDir);

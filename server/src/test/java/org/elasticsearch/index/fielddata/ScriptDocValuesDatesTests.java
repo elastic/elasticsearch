@@ -36,10 +36,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
 
@@ -74,7 +74,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         }
 
         Set<String> warnings = new HashSet<>();
-        Dates dates = wrap(values, deprecationMessage -> {
+        Dates dates = wrap(values, (key, deprecationMessage) -> {
             warnings.add(deprecationMessage);
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
@@ -91,29 +91,26 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            if (expectedDates[d].length > 0) {
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
-                assertEquals(expectedDates[d][0] , dateValue);
-                Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
-                assertEquals(expectedDates[d][0] , bwcDateValue);
-                AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
-            } else {
-                Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
-                assertEquals("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
-            }
+            Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
+            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dateValue);
+            Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
+            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), bwcDateValue);
+
+            AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
             assertEquals(values[d].length, dates.size());
             for (int i = 0; i < values[d].length; i++) {
                 final int ndx = i;
-                Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
-                assertEquals(expectedDates[d][i], dateValue);
+                Object dateValueI = AccessController.doPrivileged((PrivilegedAction<Object>) () -> dates.get(ndx), noPermissionsAcc);
+                assertEquals(expectedDates[d][i], dateValueI);
             }
         }
-
-        assertThat(warnings, containsInAnyOrder(expectedWarnings));
+        // using "hasItems" here instead of "containsInAnyOrder",
+        // because values are randomly initialized, sometimes some of docs will not have any values
+        // and warnings in this case will contain another deprecation warning on missing values
+        assertThat(warnings, hasItems(expectedWarnings));
     }
 
-    private Dates wrap(long[][] values, Consumer<String> deprecationHandler, boolean useJavaTime) {
+    private Dates wrap(long[][] values, BiConsumer<String, String> deprecationHandler, boolean useJavaTime) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;

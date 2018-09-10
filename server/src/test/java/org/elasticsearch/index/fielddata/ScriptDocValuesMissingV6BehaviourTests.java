@@ -19,52 +19,41 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.geo.GeoPoint;;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.BiConsumer;
 
-import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
-
-    public void testScriptMissingValuesWarning(){
-        new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
-            @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
-            }
-        }));
-        assertWarnings("Script: returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.scripting.exception_for_missing_value=true' " +
-            "to make behaviour compatible with future major versions.");
-    }
 
     public void testZeroForMissingValueLong() throws IOException {
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Longs longs = wrap(values);
+        Set<String> warnings = new HashSet<>();
+        Longs longs = wrap(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
             assertEquals(0, longs.getValue());
         }
+        assertThat(warnings, contains(equalTo(
+            "returning default values for missing document values is deprecated. " +
+            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+            "to make behaviour compatible with future major versions!")));
     }
 
     public void testEpochForMissingValueDate() throws IOException {
@@ -73,12 +62,17 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Dates dates = wrapDates(values);
+        Set<String> warnings = new HashSet<>();
+        Dates dates = wrapDates(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
             assertEquals(EPOCH, dates.getValue());
         }
+        assertThat(warnings, contains(equalTo(
+            "returning default values for missing document values is deprecated. " +
+            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+            "to make behaviour compatible with future major versions!")));
     }
 
     public void testFalseForMissingValueBoolean() throws IOException {
@@ -86,23 +80,34 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];
         }
-        Booleans bools = wrapBooleans(values);
+        Set<String> warnings = new HashSet<>();
+        Booleans bools = wrapBooleans(values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             bools.setNextDocId(d);
             assertEquals(false, bools.getValue());
         }
+        assertThat(warnings, contains(equalTo(
+            "returning default values for missing document values is deprecated. " +
+            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+            "to make behaviour compatible with future major versions!")));
     }
 
     public void testNullForMissingValueGeo() throws IOException{
+        Set<String> warnings = new HashSet<>();
         final MultiGeoPointValues values = wrap(new GeoPoint[0]);
-        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
+        final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(
+            values, (key, deprecationMessage) -> { warnings.add(deprecationMessage); });
         script.setNextDocId(0);
         assertEquals(null, script.getValue());
+        assertThat(warnings, contains(equalTo(
+            "returning default values for missing document values is deprecated. " +
+            "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+            "to make behaviour compatible with future major versions!")));
     }
 
 
-    private Longs wrap(long[][] values) {
+    private Longs wrap(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -120,10 +125,10 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationCallback);
     }
 
-    private Booleans wrapBooleans(long[][] values) {
+    private Booleans wrapBooleans(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Booleans(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -141,10 +146,10 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationCallback);
     }
 
-    private Dates wrapDates(long[][] values) {
+    private Dates wrapDates(long[][] values, BiConsumer<String, String> deprecationCallback) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -162,7 +167,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationCallback);
     }
 
 

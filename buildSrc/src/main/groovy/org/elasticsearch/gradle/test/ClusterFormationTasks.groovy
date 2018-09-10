@@ -332,7 +332,13 @@ class ClusterFormationTasks {
         } else {
           esConfig['script.max_compilations_per_minute'] = 2048
         }
-        esConfig.putAll(node.config.settings)
+        for (Map.Entry<String, Object> setting : node.config.settings) {
+            if (setting.value == null) {
+                esConfig.remove(setting.key)
+            } else {
+                esConfig.put(setting.key, setting.value)
+            }
+        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {

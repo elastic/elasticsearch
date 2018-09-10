@@ -141,18 +141,10 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(mapping.containsKey("_doc"));
         String nested = useNested ?
             ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
-        if (requireRouting) {
-            assertEquals("{\"_doc\":{\"enabled\":false," +
-                "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
-                "\"properties\":{\"field1\":{\"type\":\"text\"," +
-                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}," +
-                "\"_routing\":{\"required\":true}}}", mapping.get("_doc").source().string());
-        } else {
-            assertEquals("{\"_doc\":{\"enabled\":false," +
-                "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
-                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
-                mapping.get("_doc").source().string());
-        }
+        assertEquals("{\"_doc\":{\"enabled\":false," +
+            "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
+            "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
+            mapping.get("_doc").source().string());
     }
 
     private void assertHits(String index, int numDocsExpected) {

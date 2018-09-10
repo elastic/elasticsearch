@@ -97,14 +97,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         IndexMetaData.Builder builder = IndexMetaData.builder(snapshotIndexMetaData);
         while (iterator.hasNext()) {
             ObjectObjectCursor<String, MappingMetaData> next = iterator.next();
-            MappingMetaData.Routing routing = next.value.routing();
-            final String mapping;
-            if (routing.required()) { // we have to respect the routing to be on the safe side so we pass this one on.
-                mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + ", " +
-                    "\"_routing\" : { \"required\" : true } } }";
-            } else {
-                mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
-            }
+            // we don't need to obey any routing here stuff is read-only anyway and get is disabled
+            final String mapping = "{ \"" + next.key + "\": { \"enabled\": false, \"_meta\": " + next.value.source().string() + " } }";
             builder.putMapping(next.key, mapping);
         }
         builder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings())

@@ -38,8 +38,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor.wrapClient;
-
 /**
  * A component that runs only on the elected master node and follows leader indices automatically
  * if they match with a auto follow pattern that is defined in {@link AutoFollowMetadata}.
@@ -110,15 +108,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 request.metaData(true);
 
                 if ("_local_".equals(leaderClusterAlias)) {
-                    Client client = wrapClient(AutoFollowCoordinator.this.client, headers);
+                    Client client = CcrLicenseChecker.wrapClient(AutoFollowCoordinator.this.client, headers);
                     client.admin().cluster().state(
                             request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
                 } else {
-                    Client leaderClient = client.getRemoteClusterClient(leaderClusterAlias);
-                    leaderClient = wrapClient(leaderClient, headers);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
-                            leaderClient,
+                            client,
+                            headers,
                             leaderClusterAlias,
                             request,
                             e -> handler.accept(null, e),
@@ -132,7 +129,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                Client followerClient = wrapClient(client, headers);
+                Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
                 CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
                 followerClient.execute(
                     CreateAndFollowIndexAction.INSTANCE,

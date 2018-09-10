@@ -5,25 +5,19 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -47,8 +41,8 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
@@ -175,33 +169,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 errorHandler.accept(new IllegalArgumentException("Cannot find shard stats for shard " + shardId));
             }
         }, errorHandler));
-    }
-
-    static Client wrapClient(Client client, Map<String, String> headers) {
-        if (headers.isEmpty()) {
-            return client;
-        } else {
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            Map<String, String> filteredHeaders = headers.entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            return new FilterClient(client) {
-                @Override
-                protected <Request extends ActionRequest, Response extends ActionResponse>
-                void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                    }
-                }
-            };
-        }
-    }
-
-    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.copyHeaders(headers.entrySet());
-        return storedContext;
     }
 
 }

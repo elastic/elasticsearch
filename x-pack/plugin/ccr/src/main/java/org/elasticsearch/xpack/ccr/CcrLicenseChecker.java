@@ -7,23 +7,33 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates licensing checking for CCR.
@@ -82,6 +92,7 @@ public final class CcrLicenseChecker {
         request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
+                Collections.emptyMap(),
                 clusterAlias,
                 request,
                 onFailure,
@@ -105,12 +116,14 @@ public final class CcrLicenseChecker {
      */
     public <T> void checkRemoteClusterLicenseAndFetchClusterState(
             final Client client,
+            final Map<String, String> headers,
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
             final Consumer<ClusterState> leaderClusterStateConsumer) {
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
+                headers,
                 clusterAlias,
                 request,
                 onFailure,
@@ -136,6 +149,7 @@ public final class CcrLicenseChecker {
      */
     private <T> void checkRemoteClusterLicenseAndFetchClusterState(
             final Client client,
+            final Map<String, String> headers,
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
@@ -150,7 +164,7 @@ public final class CcrLicenseChecker {
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
-                            final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
+                            final Client leaderClient = wrapClient(client.getRemoteClusterClient(clusterAlias), headers);
                             final ActionListener<ClusterStateResponse> clusterStateListener =
                                     ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
@@ -166,6 +180,33 @@ public final class CcrLicenseChecker {
                     }
 
                 });
+    }
+
+    public static Client wrapClient(Client client, Map<String, String> headers) {
+        if (headers.isEmpty()) {
+            return client;
+        } else {
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            Map<String, String> filteredHeaders = headers.entrySet().stream()
+                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return new FilterClient(client) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse>
+                void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
+                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                    }
+                }
+            };
+        }
+    }
+
+    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
+        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        threadContext.copyHeaders(headers.entrySet());
+        return storedContext;
     }
 
     private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(

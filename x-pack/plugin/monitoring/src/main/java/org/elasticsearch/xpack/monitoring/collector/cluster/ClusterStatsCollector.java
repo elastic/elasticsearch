@@ -87,7 +87,7 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // This collector can always collect data on the master node
-        return isElectedMaster;
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
     }
 
     @Override

@@ -192,11 +192,10 @@ public final class CcrLicenseChecker {
      * @param leaderIndexMetaData                       the leader index metadata
      * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
-     * @param <T>                                       the type of response the listener is waiting for
      */
     // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
     // in case of following a local or a remote cluster.
-    public <T> void fetchLeaderHistoryUUIDs(
+    public void fetchLeaderHistoryUUIDs(
         final Client leaderClient,
         final IndexMetaData leaderIndexMetaData,
         final Consumer<Exception> onFailure,

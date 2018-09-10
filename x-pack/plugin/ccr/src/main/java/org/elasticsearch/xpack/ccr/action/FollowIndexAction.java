@@ -418,7 +418,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             for (int i = 0; i < numShards; i++) {
                 final int shardId = i;
                 String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-                String[] recordedLeaderShardHistoryUUIDs = convert(followIndexMetadata);
+                String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndexMetadata);
                 String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
@@ -540,7 +540,7 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             throw new IllegalArgumentException("follow index [" + request.followerIndex + "] does not exist");
         }
 
-        String[] recordedHistoryUUIDs = convert(followIndex);
+        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndex);
         assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;
         for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
@@ -603,9 +603,9 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
         return settings.build();
     }
 
-    private static String[] convert(IndexMetaData followIndexMetadata) {
+    private static String[] extractIndexShardHistoryUUIDs(IndexMetaData followIndexMetadata) {
         String historyUUIDs = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
-            .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARDS_HISTORY_UUIDS);
+            .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         return historyUUIDs.split(",");
     }
 

@@ -68,7 +68,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */
-public class QueryBuilderBWCIT extends FullClusterRestartIT {
+public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
 
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
 

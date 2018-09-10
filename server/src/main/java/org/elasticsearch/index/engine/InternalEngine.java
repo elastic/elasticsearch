@@ -151,7 +151,7 @@ public class InternalEngine extends Engine {
     private final boolean softDeleteEnabled;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
-    
+
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
 
     @Nullable
@@ -1431,8 +1431,6 @@ public class InternalEngine extends Engine {
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = getLocalCheckpoint();
 
-        // this will also cause version map ram to be freed hence we always account for it.
-        final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (store.tryIncRef()) {

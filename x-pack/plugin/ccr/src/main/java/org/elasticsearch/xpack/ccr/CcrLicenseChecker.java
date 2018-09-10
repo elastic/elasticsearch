@@ -28,9 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -87,7 +85,7 @@ public final class CcrLicenseChecker {
             final String clusterAlias,
             final String leaderIndex,
             final Consumer<Exception> onFailure,
-            final BiConsumer<Map<Integer, String>, IndexMetaData> consumer) {
+            final BiConsumer<String[], IndexMetaData> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
@@ -99,9 +97,9 @@ public final class CcrLicenseChecker {
                 request,
                 onFailure,
                 leaderClusterState -> {
+                    IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
-                    fetchLeaderHistoryUUIDs(leaderClient, leaderIndex, onFailure, historyUUIDs -> {
-                        IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                    fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
                         consumer.accept(historyUUIDs, leaderIndexMetaData);
                     });
                 },
@@ -191,7 +189,7 @@ public final class CcrLicenseChecker {
      * Fetches the history UUIDs for leader index on per shard basis using the specified leaderClient.
      *
      * @param leaderClient                              the leader client
-     * @param leaderIndex                               the name of the leader index
+     * @param leaderIndexMetaData                       the leader index metadata
      * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
      * @param <T>                                       the type of response the listener is waiting for
@@ -200,20 +198,20 @@ public final class CcrLicenseChecker {
     // in case of following a local or a remote cluster.
     public <T> void fetchLeaderHistoryUUIDs(
         final Client leaderClient,
-        final String leaderIndex,
+        final IndexMetaData leaderIndexMetaData,
         final Consumer<Exception> onFailure,
-        final Consumer<Map<Integer, String>> historyUUIDConsumer) {
+        final Consumer<String[]> historyUUIDConsumer) {
 
+        String leaderIndex = leaderIndexMetaData.getIndex().getName();
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
-            Map<Integer, String> historyUUIDs = new HashMap<>();
+            String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
                     CommitStats commitStats = shardStats.getCommitStats();
                     String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                     ShardId shardId = shardStats.getShardRouting().shardId();
-                    Object previousValue = historyUUIDs.put(shardId.id(), historyUUID);
-                    assert previousValue == null;
+                    historyUUIDs[shardId.id()] = historyUUID;
                 }
             }
             historyUUIDConsumer.accept(historyUUIDs);

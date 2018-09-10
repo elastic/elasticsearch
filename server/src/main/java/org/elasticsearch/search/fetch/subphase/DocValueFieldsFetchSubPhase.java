@@ -81,7 +81,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         List<String> noFormatFields = context.docValueFieldsContext().fields().stream().filter(f -> f.format == null).map(f -> f.field)
                 .collect(Collectors.toList());
         if (noFormatFields.isEmpty() == false) {
-            DEPRECATION_LOGGER.deprecated("There are doc-value field which are not using a format. The output will "
+            DEPRECATION_LOGGER.deprecated("There are doc-value fields which are not using a format. The output will "
                     + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
                     + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
                     + "7.0: {}", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);

@@ -17,23 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.unconfigurednodename;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
 
+import java.io.IOException;
+import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
-public class StandardTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    public StandardTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
-    }
-
+public class NodeNameInLogsIT extends NodeNameInLogsIntegTestCase {
     @Override
-    public TokenStream create(TokenStream tokenStream) {
-        return new StandardFilter(tokenStream);
+    protected BufferedReader openReader(Path logFile) throws IOException {
+        return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
+            try {
+                return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }

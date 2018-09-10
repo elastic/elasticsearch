@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -33,6 +34,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
+import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -43,12 +45,15 @@ import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -169,6 +174,21 @@ public class MLRequestConvertersTests extends ESTestCase {
                 requestEntityToString(request));
     }
 
+    public void testForecastJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        ForecastJobRequest forecastJobRequest = new ForecastJobRequest(jobId);
+
+        forecastJobRequest.setDuration(TimeValue.timeValueHours(10));
+        forecastJobRequest.setExpiresIn(TimeValue.timeValueHours(12));
+        Request request = MLRequestConverters.forecastJob(forecastJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_forecast", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            ForecastJobRequest parsedRequest = ForecastJobRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(forecastJobRequest));
+        }
+    }
+
     public void testUpdateJob() throws Exception {
         String jobId = randomAlphaOfLength(10);
         JobUpdate updates = JobUpdateTests.createRandom(jobId);
@@ -236,6 +256,34 @@ public class MLRequestConvertersTests extends ESTestCase {
             GetRecordsRequest parsedRequest = GetRecordsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getRecordsRequest));
         }
+    }
+
+    public void testPostData() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        PostDataRequest.JsonBuilder jsonBuilder = new PostDataRequest.JsonBuilder();
+        Map<String, Object> obj = new HashMap<>();
+        obj.put("foo", "bar");
+        jsonBuilder.addDoc(obj);
+
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, jsonBuilder);
+        Request request = MLRequestConverters.postData(postDataRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_data", request.getEndpoint());
+        assertEquals("{\"foo\":\"bar\"}", requestEntityToString(request));
+        assertEquals(postDataRequest.getXContentType().mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_END.getPreferredName()));
+        assertFalse(request.getParameters().containsKey(PostDataRequest.RESET_START.getPreferredName()));
+
+        PostDataRequest postDataRequest2 = new PostDataRequest(jobId, XContentType.SMILE, new byte[0]);
+        postDataRequest2.setResetStart("2018-08-08T00:00:00Z");
+        postDataRequest2.setResetEnd("2018-09-08T00:00:00Z");
+
+        request = MLRequestConverters.postData(postDataRequest2);
+
+        assertEquals(postDataRequest2.getXContentType().mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals("2018-09-08T00:00:00Z", request.getParameters().get(PostDataRequest.RESET_END.getPreferredName()));
+        assertEquals("2018-08-08T00:00:00Z", request.getParameters().get(PostDataRequest.RESET_START.getPreferredName()));
     }
 
     public void testGetInfluencers() throws IOException {

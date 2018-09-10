@@ -340,21 +340,21 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
 
         @Override
         protected void doExecute(final  Request request, final ActionListener<AcknowledgedResponse> listener) {
-            if (ccrLicenseChecker.isCcrAllowed()) {
-                final String[] indices = new String[]{request.leaderIndex};
-                final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-                if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    followLocalIndex(request, listener);
-                } else {
-                    assert remoteClusterIndices.size() == 1;
-                    final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-                    assert entry.getValue().size() == 1;
-                    final String clusterAlias = entry.getKey();
-                    final String leaderIndex = entry.getValue().get(0);
-                    followRemoteIndex(request, clusterAlias, leaderIndex, listener);
-                }
-            } else {
+            if (ccrLicenseChecker.isCcrAllowed() == false) {
                 listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+                return;
+            }
+            final String[] indices = new String[]{request.leaderIndex};
+            final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+            if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                followLocalIndex(request, listener);
+            } else {
+                assert remoteClusterIndices.size() == 1;
+                final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
+                assert entry.getValue().size() == 1;
+                final String clusterAlias = entry.getKey();
+                final String leaderIndex = entry.getValue().get(0);
+                followRemoteIndex(request, clusterAlias, leaderIndex, listener);
             }
         }
 
@@ -382,7 +382,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     leaderIndexMetadata -> {
                         try {
                             start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);

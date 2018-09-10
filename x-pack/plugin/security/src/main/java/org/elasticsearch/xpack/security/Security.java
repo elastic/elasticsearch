@@ -261,9 +261,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
             Setting.listSetting(SecurityField.setting("audit.outputs"),
-                    s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                            Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-                    Function.identity(), Property.NodeScope);
+                    Function.identity(),
+                    s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
+                            ? Collections.emptyList()
+                            : Collections.singletonList(LoggingAuditTrail.NAME),
+                    Property.NodeScope);
 
     public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
             Property.NodeScope, Property.Dynamic, Property.Deprecated);

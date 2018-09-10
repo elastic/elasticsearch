@@ -63,7 +63,8 @@ public final class IndexSettings {
             }
             return Collections.singletonList(defaultField);
         };
-        DEFAULT_FIELD_SETTING = Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, defValue, Function.identity(), Property.IndexScope, Property.Dynamic);
+        DEFAULT_FIELD_SETTING =
+                Setting.listSetting(DEFAULT_FIELD_SETTING_KEY, Function.identity(), defValue, Property.Dynamic, Property.IndexScope);
     }
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING =
         Setting.boolSetting("index.query_string.lenient", false, Property.IndexScope);

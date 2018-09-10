@@ -85,7 +85,12 @@ public class TribePlugin extends Plugin implements DiscoveryPlugin, ClusterPlugi
     }
 
     protected Function<Settings, Node> nodeBuilder(Path configPath) {
-        return settings -> new Node(new Environment(settings, configPath));
+        return settings -> new Node(new Environment(settings, configPath)) {
+            @Override
+            protected void registerDerivedNodeNameWithLogger(String nodeName) {
+                // don't register the node name because we've done it in the main node
+            }
+        };
     }
 
     @Override

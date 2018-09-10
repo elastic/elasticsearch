@@ -108,12 +108,10 @@ public class StoreTests extends ESTestCase {
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
 
-    public void testRefCount() throws IOException {
+    public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         IndexSettings indexSettings = INDEX_SETTINGS;
-
-        Store store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, indexSettings, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         int incs = randomIntBetween(1, 100);
         for (int i = 0; i < incs; i++) {
             if (randomBoolean()) {
@@ -310,8 +308,7 @@ public class StoreTests extends ESTestCase {
 
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
@@ -361,7 +358,7 @@ public class StoreTests extends ESTestCase {
         assertConsistent(store, metadata);
 
         TestUtil.checkIndex(store.directory());
-        assertDeleteContent(store, directoryService);
+        assertDeleteContent(store, store.directory());
         IOUtils.close(store);
     }
 
@@ -469,32 +466,11 @@ public class StoreTests extends ESTestCase {
 
     }
 
-    public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
+    public void assertDeleteContent(Store store, Directory dir) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
         assertThat(store.stats().sizeInBytes(), equalTo(0L));
-        assertThat(service.newDirectory().listAll().length, equalTo(0));
-    }
-
-    private static final class LuceneManagedDirectoryService extends DirectoryService {
-        private final Directory dir;
-        private final Random random;
-
-        LuceneManagedDirectoryService(Random random) {
-            this(random, true);
-        }
-
-        LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
-            super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
-            dir = StoreTests.newDirectory(random);
-            this.random = random;
-        }
-
-        @Override
-        public Directory newDirectory() throws IOException {
-            return dir;
-        }
-
+        assertThat(dir.listAll().length, equalTo(0));
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
@@ -525,8 +501,7 @@ public class StoreTests extends ESTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
-            DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+            Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -540,7 +515,7 @@ public class StoreTests extends ESTestCase {
             writer.commit();
             writer.close();
             first = store.getMetadata(null);
-            assertDeleteContent(store, directoryService);
+            assertDeleteContent(store, store.directory());
             store.close();
         }
         long time = new Date().getTime();
@@ -555,8 +530,7 @@ public class StoreTests extends ESTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
-            DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+            store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -653,8 +627,7 @@ public class StoreTests extends ESTestCase {
 
     public void testCleanupFromSnapshot() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         // this time random codec....
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         // we keep all commits and that allows us clean based on multiple snapshots
@@ -741,11 +714,10 @@ public class StoreTests extends ESTestCase {
 
     public void testOnCloseCallback() throws IOException {
         final ShardId shardId = new ShardId(new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"), randomIntBetween(0, 100));
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, lock, theLock -> {
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), lock, theLock -> {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
@@ -762,11 +734,10 @@ public class StoreTests extends ESTestCase {
 
     public void testStoreStats() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0)).build();
-        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService,
+        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), StoreTests.newDirectory(random()),
             new DummyShardLock(shardId));
         long initialStoreSize = 0;
         for (String extraFiles : store.directory().listAll()) {
@@ -857,8 +828,7 @@ public class StoreTests extends ESTestCase {
 
     public void testUserDataRead() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         config.setIndexDeletionPolicy(deletionPolicy);
@@ -881,7 +851,7 @@ public class StoreTests extends ESTestCase {
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
         assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_GENERATION_KEY), equalTo(translogId));
         TestUtil.checkIndex(store.directory());
-        assertDeleteContent(store, directoryService);
+        assertDeleteContent(store, store.directory());
         IOUtils.close(store);
     }
 
@@ -907,8 +877,7 @@ public class StoreTests extends ESTestCase {
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
 
         int numDocs = 1 + random().nextInt(10);
@@ -959,15 +928,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
         assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
-
-        DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-
-            @Override
-            public Directory newDirectory() throws IOException {
-                return dir;
-            }
-        };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
         assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         store.close();
@@ -976,14 +937,7 @@ public class StoreTests extends ESTestCase {
     public void testDeserializeCorruptionException() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
-        DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-
-            @Override
-            public Directory newDirectory() throws IOException {
-                return dir;
-            }
-        };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         CorruptIndexException ex = new CorruptIndexException("foo", "bar");
         store.markStoreCorrupted(ex);
         try {
@@ -1012,14 +966,7 @@ public class StoreTests extends ESTestCase {
     public void testCanReadOldCorruptionMarker() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
-        DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-
-            @Override
-            public Directory newDirectory() throws IOException {
-                return dir;
-            }
-        };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
 
         CorruptIndexException exception = new CorruptIndexException("foo", "bar");
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
@@ -1079,8 +1026,7 @@ public class StoreTests extends ESTestCase {
 
     public void testEnsureIndexHas6xCommitTags() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
             store.createEmpty();
             // remove the history uuid, seqno markers
             try (IndexWriter writer = openWriter(store)) {
@@ -1145,8 +1091,7 @@ public class StoreTests extends ESTestCase {
 
     public void testHistoryUUIDCanBeForced() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
             store.createEmpty();
 

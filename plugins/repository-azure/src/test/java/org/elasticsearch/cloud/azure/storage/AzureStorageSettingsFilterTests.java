@@ -34,6 +34,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 
 /**
@@ -52,7 +53,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
 
     public void testSettingsFiltering() throws IOException {
         AzureRepositoryPlugin p = new AzureRepositoryPlugin(settings);
-        SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter());
+        SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter(), emptySet());
         SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
 
         // Test using direct filtering

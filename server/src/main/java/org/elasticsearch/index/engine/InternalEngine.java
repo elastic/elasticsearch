@@ -735,7 +735,7 @@ public class InternalEngine extends Engine {
                         : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
-                case LOCAL_RESETTING:
+                case LOCAL_RESET:
                     assert index.isRetry();
                     return true; // allow to optimize in order to update the max safe time stamp
                 default:
@@ -834,7 +834,7 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
-                if (index.origin().isLocal() == false) {
+                if (index.origin().isRemote()) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
@@ -1174,7 +1174,7 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
-            if (delete.origin().isLocal() == false) {
+            if (delete.origin().isRemote()) {
                 final Translog.Location location;
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
@@ -1412,7 +1412,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin().isLocal() == false) {
+            if (noOp.origin().isRemote()) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);
             }

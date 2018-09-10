@@ -1282,11 +1282,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogRecoveryStats::incrementRecoveredOperations);
     }
 
-    private int runTranslogRecoveryAfterResetting(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        // TODO: record resetting stats
-        return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_RESETTING, () -> {});
-    }
-
     private int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin,
                                     Runnable onPerOperationRecovered) throws IOException {
         int opsRecovered = 0;
@@ -1466,7 +1461,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
             } else {
-                assert origin == Engine.Operation.Origin.REPLICA || origin == Engine.Operation.Origin.LOCAL_RESETTING;
+                assert origin == Engine.Operation.Origin.REPLICA || origin == Engine.Operation.Origin.LOCAL_RESET;
                 assert assertReplicationTarget();
             }
             if (writeAllowedStates.contains(state) == false) {
@@ -2305,19 +2300,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         bumpPrimaryTerm(opPrimaryTerm, () -> {
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                 final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                                final long localCheckpoint;
-                                if (currentGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
-                                    localCheckpoint = NO_OPS_PERFORMED;
-                                } else {
-                                    localCheckpoint = currentGlobalCheckpoint;
-                                }
-                                logger.info("detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                    opPrimaryTerm, getLocalCheckpoint(), localCheckpoint);
-                                final Engine engine = getEngine();
-                                if (localCheckpoint < engine.getSeqNoStats(localCheckpoint).getMaxSeqNo()) {
+                                final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                                logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
+                                             opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
+                                if (currentGlobalCheckpoint < maxSeqNo) {
                                     resetEngineToGlobalCheckpoint();
                                 } else {
-                                    engine.rollTranslogGeneration();
+                                    getEngine().rollTranslogGeneration();
                                 }
                         });
                     }
@@ -2695,6 +2684,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             resettingEngine = createNewEngine(newEngineConfig());
             currentEngineReference.set(resettingEngine);
         }
-        resettingEngine.recoverFromTranslog(this::runTranslogRecoveryAfterResetting, globalCheckpoint);
+        final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) ->
+            runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {});
+        resettingEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 }

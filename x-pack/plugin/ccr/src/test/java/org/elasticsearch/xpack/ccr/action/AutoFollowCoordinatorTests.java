@@ -66,14 +66,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, nullValue());
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, currentState) {
+        AutoFollower autoFollower = new AutoFollower(handler, currentState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(Client followerClient,
+            void createAndFollow(Map<String, String> headers,
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
@@ -83,7 +85,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
                 AutoFollowMetadata result = resultCs.metaData().custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
@@ -116,14 +119,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
 
             @Override
-            void createAndFollow(Client followerClient,
+            void createAndFollow(Map<String, String> headers,
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
@@ -131,7 +136,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };
@@ -167,14 +173,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(Client followerClient,
+            void createAndFollow(Map<String, String> headers,
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
@@ -220,14 +228,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(Client followerClient,
+            void createAndFollow(Map<String, String> headers,
                                  FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
@@ -237,7 +247,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };

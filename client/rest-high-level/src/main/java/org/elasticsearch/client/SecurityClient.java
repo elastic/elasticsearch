@@ -20,8 +20,11 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.EmptyResponse;
 
 import java.io.IOException;
 
@@ -65,5 +68,61 @@ public final class SecurityClient {
     public void putUserAsync(PutUserRequest request, RequestOptions options, ActionListener<PutUserResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putUser, options,
             PutUserResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Enable a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to enable
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the enable user call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public EmptyResponse enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::enableUser, options,
+            EmptyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Enable a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to enable
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void enableUserAsync(EnableUserRequest request, RequestOptions options,
+                                    ActionListener<EmptyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
+            EmptyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Disable a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to disable
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the enable user call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public EmptyResponse disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::disableUser, options,
+            EmptyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Disable a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
+     * the docs</a> for more.
+     * @param request the request with the user to disable
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void disableUserAsync(DisableUserRequest request, RequestOptions options,
+                                ActionListener<EmptyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
+            EmptyResponse::fromXContent, listener, emptySet());
     }
 }

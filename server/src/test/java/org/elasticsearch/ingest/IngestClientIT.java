@@ -60,7 +60,6 @@ public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // TODO: Remove this method once gets in: https://github.com/elastic/elasticsearch/issues/16019
         if (nodeOrdinal % 2 == 0) {
             return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
         }

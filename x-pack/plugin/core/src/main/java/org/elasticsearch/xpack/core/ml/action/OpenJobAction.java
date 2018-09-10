@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -239,8 +240,14 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
     public interface JobTaskMatcher {
 
         static boolean match(Task task, String expectedJobId) {
-            String expectedDescription = "job-" + expectedJobId;
-            return task instanceof JobTaskMatcher && expectedDescription.equals(task.getDescription());
+            if (task instanceof JobTaskMatcher) {
+                if (MetaData.ALL.equals(expectedJobId)) {
+                    return true;
+                }
+                String expectedDescription = "job-" + expectedJobId;
+                return expectedDescription.equals(task.getDescription());
+            }
+            return false;
         }
     }
 

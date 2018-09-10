@@ -1577,11 +1577,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public CommitId flush() throws EngineException {
-        return flush(false, false);
-    }
-
-    @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         final byte[] newCommitId;

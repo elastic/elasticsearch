@@ -35,6 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GatewayTests extends ESTestCase {
@@ -76,7 +77,7 @@ public class GatewayTests extends ESTestCase {
                     }
 
                 }));
-        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
+        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null, emptyMap());
         final Gateway gateway = new Gateway(Settings.EMPTY, clusterService, null, null);
         final MetaData.Builder builder = MetaData.builder();
         final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();

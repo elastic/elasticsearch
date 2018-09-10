@@ -20,10 +20,8 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,7 +46,6 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

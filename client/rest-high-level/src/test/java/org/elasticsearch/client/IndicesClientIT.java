@@ -86,6 +86,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -1267,13 +1268,21 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 
-    public void testValidateQuery() throws IOException{
+    public void testValidateQueryWithNullQuery() throws IOException {
+        testValidateQuery(null);
+    }
+
+    public void testValidateQueryWithEmptyQuery() throws IOException {
+        testValidateQuery(new SimpleQueryStringBuilder(""));
+    }
+
+    public void testValidateQueryWithBlankQuery() throws IOException {
+        testValidateQuery(new SimpleQueryStringBuilder(" "));
+    }
+
+    private void testValidateQuery(QueryBuilder builder) throws IOException {
         String index = "some_index";
         createIndex(index, Settings.EMPTY);
-        QueryBuilder builder = QueryBuilders
-            .boolQuery()
-            .must(QueryBuilders.queryStringQuery("*:*"))
-            .filter(QueryBuilders.termQuery("user", "kimchy"));
         ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
         request.explain(randomBoolean());
         ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,

@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * A request to validate a specific query.
@@ -41,7 +42,9 @@ import java.util.Arrays;
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
-    private QueryBuilder query = new MatchAllQueryBuilder();
+    private final MatchAllQueryBuilder defaultQuery = new MatchAllQueryBuilder();
+
+    private QueryBuilder query = defaultQuery;
 
     private boolean explain;
     private boolean rewrite;
@@ -81,7 +84,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     }
 
     public ValidateQueryRequest query(QueryBuilder query) {
-        this.query = query;
+        this.query = Optional.ofNullable(query).orElse(defaultQuery);
         return this;
     }
 

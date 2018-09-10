@@ -251,7 +251,7 @@ public final class Settings implements ToXContentFragment {
      */
     public String get(String setting, String defaultValue, boolean isList) {
         Object value = settings.get(setting);
-        if(value != null) {
+        if (value != null) {
             if (value instanceof List) {
                 if (isList == false) {
                     throw new IllegalArgumentException(

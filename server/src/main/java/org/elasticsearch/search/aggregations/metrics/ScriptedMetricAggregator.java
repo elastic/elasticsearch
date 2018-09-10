@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -70,7 +70,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         final ScriptedMetricAggContexts.MapScript leafMapScript = mapScript.newInstance(ctx);
         return new LeafBucketCollectorBase(sub, leafMapScript) {
             @Override
-            public void setScorer(Scorer scorer) throws IOException {
+            public void setScorer(Scorable scorer) throws IOException {
                 leafMapScript.setScorer(scorer);
             }
 

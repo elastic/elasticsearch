@@ -19,7 +19,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -50,7 +50,7 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     private final LeafSearchLookup leafLookup;
 
     /** A scorer that will return the score for the current document when the script is run. */
-    private Scorer scorer;
+    private Scorable scorer;
 
     public SearchScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.params = params;
@@ -83,7 +83,7 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         this.scorer = scorer;
     }
 

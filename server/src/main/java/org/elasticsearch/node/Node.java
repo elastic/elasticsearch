@@ -73,6 +73,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -151,6 +152,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.SNIHostName;
+
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -360,7 +362,15 @@ public abstract class Node implements Closeable {
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
-            final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+
+            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .map(Plugin::getSettingUpgraders)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toSet());
+
+            final SettingsModule settingsModule =
+                    new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(

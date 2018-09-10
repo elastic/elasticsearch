@@ -74,7 +74,8 @@ OK
 Wrote new segments file "segments_c"
 Marking index with the new history uuid : 0pIBd9VTSOeMfzYT6p0AsA
 Changing allocation id V8QXk-QXSZinZMT-NvEq4w to tjm9Ve6uTBewVFAlfUMWjA
-You should run follow command to apply allocation id changes:
+
+You should run the following command to allocate this shard:
 
 POST /_cluster/reroute
 {
@@ -90,7 +91,7 @@ POST /_cluster/reroute
   ]
 }
 
-You should admin data loss changing parameter `accept_data_loss` to `true`.
+You must accept the possibility of data loss changing parameter `accept_data_loss` to `true`.
 
 Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag from /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
 

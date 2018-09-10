@@ -39,11 +39,13 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -127,7 +129,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected Tuple<ShardPath, NodeEnvironment.NodeLock> getShardPath(OptionSet options, Environment environment) throws IOException {
+    protected void findAndProcessShardPath(OptionSet options, Environment environment, CheckedConsumer<ShardPath, IOException> consumer)
+    throws IOException {
         final Settings settings = environment.settings();
 
         final String indexName;
@@ -181,43 +184,46 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
                     + "], is Elasticsearch still running ?");
             }
-            final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
-            for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                if (Files.exists(nodePath.indicesPath)) {
-                    // have to scan all index uuid folders to resolve from index name
-                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                        for (Path file : stream) {
-                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+            try (Releasable nLock = nodeLock) {
+                final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
+                for (NodeEnvironment.NodePath nodePath : nodePaths) {
+                    if (Files.exists(nodePath.indicesPath)) {
+                        // have to scan all index uuid folders to resolve from index name
+                        try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                            for (Path file : stream) {
+                                if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                                    continue;
+                                }
+
                                 final IndexMetaData indexMetaData =
                                     IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
-                                if (indexMetaData != null) {
-                                    final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                                    final Index index = indexMetaData.getIndex();
-                                    if (indexName.equals(index.getName())) {
-                                        final ShardId shId = new ShardId(index, shardId);
+                                if (indexMetaData == null) {
+                                    continue;
+                                }
+                                final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                                final Index index = indexMetaData.getIndex();
+                                if (indexName.equals(index.getName()) == false) {
+                                    continue;
+                                }
+                                final ShardId shId = new ShardId(index, shardId);
 
-                                        final Path shardPathLocation = nodePath.resolve(shId);
-                                        ShardPath shardPath = null;
-                                        if (Files.exists(shardPathLocation)) {
-                                            shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
-                                                new Path[]{shardPathLocation},
-                                                possibleLockId, nodePath.path);
-                                        }
-                                        if (shardPath != null) {
-                                            return Tuple.tuple(shardPath, nodeLock);
-                                        }
-                                        throw new ElasticsearchException("Unable to resolve shard path for index ["
-                                            + indexName + "] and shard id [" + shardId + "]");
-                                    }
+                                final Path shardPathLocation = nodePath.resolve(shId);
+                                if (Files.exists(shardPathLocation) == false) {
+                                    continue;
+                                }
+                                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                                        new Path[]{shardPathLocation}, possibleLockId, nodePath.path);
+                                if (shardPath != null) {
+                                    consumer.accept(shardPath);
+                                    return;
                                 }
                             }
                         }
                     }
                 }
             }
-            nodeLock.close();
         }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "]");
+        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + shardId + "]");
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
@@ -290,11 +296,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     public void execute(Terminal terminal, OptionSet options, Environment environment) throws Exception {
         warnAboutESShouldBeStopped(terminal);
 
-        final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple = getShardPath(options, environment);
-
-        // Hold the node lock open for the duration of the tool running
-        try (NodeEnvironment.NodeLock nodeLock = shardLockTuple.v2()) {
-            final ShardPath shardPath = shardLockTuple.v1();
+        findAndProcessShardPath(options, environment, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
             final Path nodePath = getNodePath(shardPath);
@@ -417,7 +419,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     dropCorruptMarkerFiles(terminal, indexPath, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
             }
-        }
+        });
     }
 
     private Directory getDirectory(Path indexPath) {
@@ -483,7 +485,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         ShardStateMetaData.FORMAT.write(newShardStateMetaData, shardStatePath);
 
-        terminal.println("You should run follow command to apply allocation id changes: ");
+        terminal.println("");
+        terminal.println("You should run the following command to allocate this shard:");
 
         printRerouteCommand(shardPath, terminal, true);
     }
@@ -513,7 +516,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         terminal.println("POST /_cluster/reroute'\n"
             + Strings.toString(commands, true, true) + "'");
         terminal.println("");
-        terminal.println("You should admin data loss changing parameter `accept_data_loss` to `true`.");
+        terminal.println("You must accept the possibility of data loss changing parameter `accept_data_loss` to `true`.");
         terminal.println("");
     }
 

@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -340,16 +339,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // `--index index_name --shard-id 0` has to be resolved to indexPath
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
-        final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple = command.getShardPath(options, environment);
-        try (NodeEnvironment.NodeLock nodeLock = shardLockTuple.v2()) {
-            assertThat(shardLockTuple.v1().resolveIndex(), equalTo(indexPath));
-        }
+
+        command.findAndProcessShardPath(options, environment,
+            shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
 
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-        final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple2 = command.getShardPath(options2, environment);
-        try (NodeEnvironment.NodeLock nodeLock = shardLockTuple2.v2()) {
-            assertThat(shardLockTuple2.v1().resolveIndex(), equalTo(indexPath));
-        }
+        command.findAndProcessShardPath(options2, environment,
+            shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 
     private IndexShard reopenIndexShard(boolean corrupted) throws IOException {

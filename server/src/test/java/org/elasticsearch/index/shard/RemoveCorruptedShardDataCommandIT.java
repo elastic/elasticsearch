@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -594,10 +593,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            final Tuple<ShardPath, NodeEnvironment.NodeLock> shardLockTuple = command.getShardPath(options, environment);
-            try (NodeEnvironment.NodeLock nodeLock = shardLockTuple.v2()) {
-                assertThat(shardLockTuple.v1().resolveIndex(), equalTo(indexPath));
-            }
+            command.findAndProcessShardPath(options, environment,
+                shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }
 

@@ -156,6 +156,7 @@ final class StoreRecovery {
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
 
         IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
@@ -397,6 +398,9 @@ final class StoreRecovery {
                     indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
+                if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
+                    store.bootstrapNewHistory();
+                }
                 // since we recover from local, just fill the files and size
                 try {
                     final RecoveryState.Index index = recoveryState.getIndex();

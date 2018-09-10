@@ -99,7 +99,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, lookup, leafContext);
         }
-    
+
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
@@ -139,10 +139,9 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(),
-                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("freq=1.0"));
-            assertThat(hit.getExplanation().toString(), containsString("termFreq=1.0"));
+            assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
+            assertThat(hit.getExplanation().toString(), containsString("1 = n"));
+            assertThat(hit.getExplanation().toString(), containsString("1 = N"));
             assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }

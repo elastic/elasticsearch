@@ -25,10 +25,13 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
-    public static LocalH2 H2 = new LocalH2((c) -> c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'"));
+    public static LocalH2 H2 = new LocalH2((c) -> {
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp_with_nulls.sql'");
+    });
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
-    public static List<Object[]> readScriptSpec() throws Exception { 
+    public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
         tests.addAll(readScriptSpec("/select.sql-spec", parser));
@@ -39,13 +42,27 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
         tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
         tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
+        tests.addAll(readScriptSpec("/agg_nulls.sql-spec", parser));
         return tests;
     }
 
     private static class SqlSpecParser implements Parser {
+        private final StringBuilder query = new StringBuilder();
+
         @Override
         public Object parse(String line) {
-            return line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
+            // not initialized
+            String q = null;
+            if (line.endsWith(";")) {
+                query.append(line.substring(0, line.length() - 1));
+                q = query.toString();
+                query.setLength(0);
+            } else {
+                query.append(line);
+                query.append("\r\n");
+            }
+
+            return q;
         }
     }
 

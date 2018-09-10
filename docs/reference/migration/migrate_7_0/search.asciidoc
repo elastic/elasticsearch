@@ -54,6 +54,13 @@ Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
 
+==== Scroll queries cannot use `rescore`  anymore
+Including a rescore clause on a query that creates a scroll (`scroll=1m`) has
+been deprecated in 6.5 and will now return a `400 - Bad request`.  Allowing
+rescore on scroll queries would break the scroll sort.  In the 6.x line, the
+rescore clause was silently ignored (for scroll queries), and it was allowed in
+the 5.x line.
+
 ==== Term Suggesters supported distance algorithms
 
 The following string distance algorithms were given additional names in 6.2 and

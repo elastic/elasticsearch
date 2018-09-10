@@ -22,8 +22,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -33,30 +31,11 @@ import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggContexts {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(ScriptedMetricAggContexts.class));
-
-    // Public for access from tests
-    public static final String AGG_PARAM_DEPRECATION_WARNING =
-        "params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. " +
-        "Use -Des.aggregations.enable_scripted_metric_agg_param=false to disable.";
-
-    public static boolean deprecatedAggParamEnabled() {
-        boolean enabled = Boolean.parseBoolean(
-            System.getProperty("es.aggregations.enable_scripted_metric_agg_param", "true"));
-
-        if (enabled) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("enable_scripted_metric_agg_param", AGG_PARAM_DEPRECATION_WARNING);
-        }
-
-        return enabled;
-    }
-
     private abstract static class ParamsAndStateBase {
         private final Map<String, Object> params;
-        private final Object state;
+        private final Map<String, Object> state;
 
-        ParamsAndStateBase(Map<String, Object> params, Object state) {
+        ParamsAndStateBase(Map<String, Object> params, Map<String, Object> state) {
             this.params = params;
             this.state = state;
         }
@@ -71,14 +50,14 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class InitScript extends ParamsAndStateBase {
-        public InitScript(Map<String, Object> params, Object state) {
+        public InitScript(Map<String, Object> params, Map<String, Object> state) {
             super(params, state);
         }
 
         public abstract void execute();
 
         public interface Factory {
-            InitScript newInstance(Map<String, Object> params, Object state);
+            InitScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
         public static String[] PARAMETERS = {};
@@ -89,7 +68,7 @@ public class ScriptedMetricAggContexts {
         private final LeafSearchLookup leafLookup;
         private Scorer scorer;
 
-        public MapScript(Map<String, Object> params, Object state, SearchLookup lookup, LeafReaderContext leafContext) {
+        public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, state);
 
             this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
@@ -131,7 +110,7 @@ public class ScriptedMetricAggContexts {
         }
 
         public interface Factory {
-            LeafFactory newFactory(Map<String, Object> params, Object state, SearchLookup lookup);
+            LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup);
         }
 
         public static String[] PARAMETERS = new String[] {};
@@ -139,14 +118,14 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class CombineScript extends ParamsAndStateBase {
-        public CombineScript(Map<String, Object> params, Object state) {
+        public CombineScript(Map<String, Object> params, Map<String, Object> state) {
             super(params, state);
         }
 
         public abstract Object execute();
 
         public interface Factory {
-            CombineScript newInstance(Map<String, Object> params, Object state);
+            CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
         public static String[] PARAMETERS = {};

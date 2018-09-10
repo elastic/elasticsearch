@@ -51,6 +51,7 @@ public class ScriptModule {
             BucketAggregationSelectorScript.CONTEXT,
             SignificantTermsHeuristicScoreScript.CONTEXT,
             IngestScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
@@ -69,8 +70,8 @@ public class ScriptModule {
         Map<String, ScriptEngine> engines = new HashMap<>();
         Map<String, ScriptContext<?>> contexts = new HashMap<>(CORE_CONTEXTS);
         for (ScriptPlugin plugin : scriptPlugins) {
-            for (ScriptContext context : plugin.getContexts()) {
-                ScriptContext oldContext = contexts.put(context.name, context);
+            for (ScriptContext<?> context : plugin.getContexts()) {
+                ScriptContext<?> oldContext = contexts.put(context.name, context);
                 if (oldContext != null) {
                     throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
                 }

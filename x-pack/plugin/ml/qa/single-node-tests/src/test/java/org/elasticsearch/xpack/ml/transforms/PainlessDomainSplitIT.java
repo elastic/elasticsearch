@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.transforms;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -185,9 +183,10 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        client().performRequest("PUT", "painless/test/1", Collections.emptyMap(),
-                new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON));
-        client().performRequest("POST", "painless/_refresh");
+        Request createDoc = new Request("PUT", "/painless/test/1");
+        createDoc.setJsonEntity("{\"test\": \"test\"}");
+        createDoc.addParameter("refresh", "true");
+        client().performRequest(createDoc);
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
 
@@ -198,7 +197,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
-            StringEntity body = new StringEntity("{\n" +
+            Request searchRequest = new Request("GET", "/painless/test/_search");
+            searchRequest.setJsonEntity(
+                    "{\n" +
                     "    \"query\" : {\n" +
                     "        \"match_all\": {}\n" +
                     "    },\n" +
@@ -212,10 +213,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}", ContentType.APPLICATION_JSON);
-
-            Response response = client().performRequest("GET", "painless/test/_search", Collections.emptyMap(), body);
-            String responseBody = EntityUtils.toString(response.getEntity());
+                    "}");
+            String responseBody = EntityUtils.toString(client().performRequest(searchRequest).getEntity());
             Matcher m = pattern.matcher(responseBody);
 
             String actualSubDomain = "";
@@ -242,24 +241,23 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32966")
     public void testHRDSplit() throws Exception {
-
         // Create job
-        String job = "{\n" +
-                "      \"description\":\"Domain splitting\",\n" +
-                "      \"analysis_config\" : {\n" +
-                "          \"bucket_span\":\"3600s\",\n" +
-                "          \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
-                "      },\n" +
-                "      \"data_description\" : {\n" +
-                "          \"field_delimiter\":\",\",\n" +
-                "          \"time_field\":\"time\"\n" +
-                "          \n" +
-                "      }\n" +
-                "  }";
-
-        client().performRequest("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job", Collections.emptyMap(),
-                new StringEntity(job, ContentType.APPLICATION_JSON));
-        client().performRequest("POST", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/_open");
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job");
+        createJobRequest.setJsonEntity(
+                "{\n" +
+                "    \"description\":\"Domain splitting\",\n" +
+                "    \"analysis_config\" : {\n" +
+                "        \"bucket_span\":\"3600s\",\n" +
+                "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
+                "    },\n" +
+                "    \"data_description\" : {\n" +
+                "        \"field_delimiter\":\",\",\n" +
+                "        \"time_field\":\"time\"\n" +
+                "        \n" +
+                "    }\n" +
+                "}");
+        client().performRequest(createJobRequest);
+        client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
@@ -284,44 +282,43 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             if (i == 64) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    client().performRequest("PUT", "painless/test/" + time.toDateTimeISO() + "_" + j,
-                            Collections.emptyMap(),
-                            new StringEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO()
-                                    + "\"}", ContentType.APPLICATION_JSON));
+                    Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO() + "_" + j);
+                    createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO() + "\"}");
+                    client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                client().performRequest("PUT", "painless/test/" + time.toDateTimeISO(),
-                        Collections.emptyMap(),
-                        new StringEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO()
-                                + "\"}", ContentType.APPLICATION_JSON));
+                Request createDocRequest = new Request("PUT", "/painless/test/" + time.toDateTimeISO());
+                createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO() + "\"}");
+                client().performRequest(createDocRequest);
             }
         }
 
-        client().performRequest("POST", "painless/_refresh");
+        client().performRequest(new Request("POST", "/painless/_refresh"));
 
         // Create and start datafeed
-        String body = "{\n" +
-                "         \"job_id\":\"hrd-split-job\",\n" +
-                "         \"indexes\":[\"painless\"],\n" +
-                "         \"types\":[\"test\"],\n" +
-                "         \"script_fields\": {\n" +
-                "            \"domain_split\": {\n" +
-                "               \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +
-                "            }\n" +
-                "         }\n" +
-                "      }";
+        Request createFeedRequest = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed");
+        createFeedRequest.setJsonEntity(
+                "{\n" +
+                "   \"job_id\":\"hrd-split-job\",\n" +
+                "   \"indexes\":[\"painless\"],\n" +
+                "   \"types\":[\"test\"],\n" +
+                "   \"script_fields\": {\n" +
+                "      \"domain_split\": {\n" +
+                "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +
+                "      }\n" +
+                "   }\n" +
+                "}");
 
-        client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed", Collections.emptyMap(),
-                new StringEntity(body, ContentType.APPLICATION_JSON));
-        client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
+        client().performRequest(createFeedRequest);
+        client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start"));
 
         boolean passed = awaitBusy(() -> {
             try {
-                client().performRequest("POST", "/_refresh");
+                client().performRequest(new Request("POST", "/_refresh"));
 
-                Response response = client().performRequest("GET",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records");
+                Response response = client().performRequest(new Request("GET",
+                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
                 String responseBody = EntityUtils.toString(response.getEntity());
 
                 if (responseBody.contains("\"count\":2")) {

@@ -264,7 +264,10 @@ public class TypeParsers {
     }
 
     public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
-        return Joda.forPattern(node.toString());
+        if (node instanceof String) {
+            return Joda.forPattern((String) node);
+        }
+        throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }
 
     public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {

@@ -10,7 +10,7 @@ GET /_remote/info
 ----------------------------------
 // CONSOLE
 
-This command returns returns connection and endpoint information keyed by
+This command returns connection and endpoint information keyed by
 the configured remote cluster alias.
 
 [float]

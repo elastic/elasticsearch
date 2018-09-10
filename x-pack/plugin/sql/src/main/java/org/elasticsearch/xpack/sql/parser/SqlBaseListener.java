@@ -510,6 +510,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitPredicate(SqlBaseParser.PredicateContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#likePattern}.
+   * @param ctx the parse tree
+   */
+  void enterLikePattern(SqlBaseParser.LikePatternContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#likePattern}.
+   * @param ctx the parse tree
+   */
+  void exitLikePattern(SqlBaseParser.LikePatternContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#pattern}.
    * @param ctx the parse tree
    */

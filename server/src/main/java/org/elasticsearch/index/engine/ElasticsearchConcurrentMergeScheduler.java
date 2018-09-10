@@ -71,7 +71,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
-        this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId);
         refreshConfig();
     }
 

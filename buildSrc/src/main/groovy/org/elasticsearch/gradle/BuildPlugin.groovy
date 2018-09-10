@@ -38,7 +38,6 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
-import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
@@ -57,6 +56,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -212,6 +212,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
+            project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -225,6 +226,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
+        project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
     private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
@@ -537,15 +539,15 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }
             // build poms with assemble (if the assemble task exists)
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
+            if (assemble && assemble.enabled) {
                 assemble.dependsOn(generatePOMTask)
             }
         }
@@ -601,7 +603,6 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
-                    options.forkOptions.memoryMaximumSize = "512m"
                 }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
@@ -739,6 +740,7 @@ class BuildPlugin implements Plugin<Project> {
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name
+                        rename { 'NOTICE.txt' }
                     }
                 }
             }
@@ -803,8 +805,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // TODO: remove this deprecation compatibility setting for 7.0
-            systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
             systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
             if (project.ext.inFipsJvm) {
                 systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"

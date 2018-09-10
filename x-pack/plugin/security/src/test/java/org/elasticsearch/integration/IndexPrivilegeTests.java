@@ -13,11 +13,8 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.is;
 
@@ -143,11 +140,12 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Before
     public void insertBaseDocumentsAsAdmin() throws Exception {
         // indices: a,b,c,abc
-        Map<String, String> params = singletonMap("refresh", "true");
-        assertAccessIsAllowed("admin", "PUT", "/a/foo/1", jsonDoc, params);
-        assertAccessIsAllowed("admin", "PUT", "/b/foo/1", jsonDoc, params);
-        assertAccessIsAllowed("admin", "PUT", "/c/foo/1", jsonDoc, params);
-        assertAccessIsAllowed("admin", "PUT", "/abc/foo/1", jsonDoc, params);
+        for (String index : new String[] {"a", "b", "c", "abc"}) {
+            Request request = new Request("PUT", "/" + index + "/foo/1");
+            request.setJsonEntity(jsonDoc);
+            request.addParameter("refresh", "true");
+            assertAccessIsAllowed("admin", request);
+        }
     }
 
     private static String randomIndex() {
@@ -402,8 +400,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {
-        Map<String, String> refreshParams = Collections.emptyMap();//singletonMap("refresh", "true");
-
         switch (action) {
             case "all" :
                 if (userIsAllowed) {
@@ -438,7 +434,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_open");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
-                    assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc, refreshParams);
+                    assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc);
                     assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
@@ -535,8 +531,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
             case "delete" :
                 String jsonDoc = "{ \"name\" : \"docToDelete\"}";
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc, refreshParams);
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc, refreshParams);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc);
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/docToDelete");
                 } else {

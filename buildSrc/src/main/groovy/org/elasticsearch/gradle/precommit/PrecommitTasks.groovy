@@ -31,6 +31,11 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
+        project.configurations.create("forbiddenApisCliJar")
+        project.dependencies {
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+        }
+
         List<Task> precommitTasks = [
             configureCheckstyle(project),
             configureForbiddenApisCli(project),
@@ -38,8 +43,8 @@ class PrecommitTasks {
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class),
-            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+            configureJarHell(project),
+            configureThirdPartyAudit(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -75,32 +80,33 @@ class PrecommitTasks {
         return project.tasks.create(precommitOptions)
     }
 
-    private static Task configureForbiddenApisCli(Project project) {
-        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
-        project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
-        }
-        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
+    private static Task configureJarHell(Project project) {
+        Task task = project.tasks.create('jarHell', JarHellTask.class)
+        task.classpath = project.sourceSets.test.runtimeClasspath
+        return task
+    }
 
-        project.sourceSets.forEach { sourceSet ->
+    private static Task configureThirdPartyAudit(Project project) {
+        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        thirdPartyAuditTask.configure {
+            dependsOn(buildResources)
+            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            javaHome = project.runtimeJavaHome
+            targetCompatibility = project.runtimeJavaVersion
+        }
+        return thirdPartyAuditTask
+    }
+
+    private static Task configureForbiddenApisCli(Project project) {
+        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
+        project.sourceSets.all { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
                     dependsOn(buildResources)
-                    execAction = { spec ->
-                        spec.classpath = project.files(
-                                project.configurations.forbiddenApisCliJar,
-                                sourceSet.compileClasspath,
-                                sourceSet.runtimeClasspath
-                        )
-                        spec.executable = "${project.runtimeJavaHome}/bin/java"
-                    }
-                    inputs.files(
-                            forbiddenApisConfiguration,
-                            sourceSet.compileClasspath,
-                            sourceSet.runtimeClasspath
-                    )
-
+                    it.sourceSet = sourceSet
+                    javaHome = project.runtimeJavaHome
                     targetCompatibility = project.compilerJavaVersion
                     bundledSignatures = [
                        "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

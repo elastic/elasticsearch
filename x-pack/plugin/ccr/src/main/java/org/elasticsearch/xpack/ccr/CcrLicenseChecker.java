@@ -1,0 +1,219 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.ccr;
+
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackPlugin;
+
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+/**
+ * Encapsulates licensing checking for CCR.
+ */
+public final class CcrLicenseChecker {
+
+    private final BooleanSupplier isCcrAllowed;
+
+    /**
+     * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
+     */
+    CcrLicenseChecker() {
+        this(XPackPlugin.getSharedLicenseState()::isCcrAllowed);
+    }
+
+    /**
+     * Constructs a CCR license checker with the specified boolean supplier.
+     *
+     * @param isCcrAllowed a boolean supplier that should return true if CCR is allowed and false otherwise
+     */
+    CcrLicenseChecker(final BooleanSupplier isCcrAllowed) {
+        this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed);
+    }
+
+    /**
+     * Returns whether or not CCR is allowed.
+     *
+     * @return true if CCR is allowed, otherwise false
+     */
+    public boolean isCcrAllowed() {
+        return isCcrAllowed.getAsBoolean();
+    }
+
+    /**
+     * Fetches the leader index metadata from the remote cluster. Before fetching the index metadata, the remote cluster is checked for
+     * license compatibility with CCR. If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked.
+     * Otherwise, the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
+     *
+     * @param client                      the client
+     * @param clusterAlias                the remote cluster alias
+     * @param leaderIndex                 the name of the leader index
+     * @param onFailure                   the failure consumer
+     * @param leaderIndexMetadataConsumer the leader index metadata consumer
+     * @param <T>                         the type of response the listener is waiting for
+     */
+    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+            final Client client,
+            final String clusterAlias,
+            final String leaderIndex,
+            final Consumer<Exception> onFailure,
+            final Consumer<IndexMetaData> leaderIndexMetadataConsumer) {
+
+        final ClusterStateRequest request = new ClusterStateRequest();
+        request.clear();
+        request.metaData(true);
+        request.indices(leaderIndex);
+        checkRemoteClusterLicenseAndFetchClusterState(
+                client,
+                clusterAlias,
+                request,
+                onFailure,
+                leaderClusterState -> leaderIndexMetadataConsumer.accept(leaderClusterState.getMetaData().index(leaderIndex)),
+                licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
+                e -> indexMetadataUnknownRemoteLicense(leaderIndex, clusterAlias, e));
+    }
+
+    /**
+     * Fetches the leader cluster state from the remote cluster by the specified cluster state request. Before fetching the cluster state,
+     * the remote cluster is checked for license compliance with CCR. If the remote cluster is not licensed for CCR,
+     * the {@code onFailure} consumer is invoked. Otherwise, the specified consumer is invoked with the leader cluster state fetched from
+     * the remote cluster.
+     *
+     * @param client                     the client
+     * @param clusterAlias               the remote cluster alias
+     * @param request                    the cluster state request
+     * @param onFailure                  the failure consumer
+     * @param leaderClusterStateConsumer the leader cluster state consumer
+     * @param <T>                        the type of response the listener is waiting for
+     */
+    public <T> void checkRemoteClusterLicenseAndFetchClusterState(
+            final Client client,
+            final String clusterAlias,
+            final ClusterStateRequest request,
+            final Consumer<Exception> onFailure,
+            final Consumer<ClusterState> leaderClusterStateConsumer) {
+        checkRemoteClusterLicenseAndFetchClusterState(
+                client,
+                clusterAlias,
+                request,
+                onFailure,
+                leaderClusterStateConsumer,
+                CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
+                e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+    }
+
+    /**
+     * Fetches the leader cluster state from the remote cluster by the specified cluster state request. Before fetching the cluster state,
+     * the remote cluster is checked for license compliance with CCR. If the remote cluster is not licensed for CCR,
+     * the {@code onFailure} consumer is invoked. Otherwise, the specified consumer is invoked with the leader cluster state fetched from
+     * the remote cluster.
+     *
+     * @param client                     the client
+     * @param clusterAlias               the remote cluster alias
+     * @param request                    the cluster state request
+     * @param onFailure                  the failure consumer
+     * @param leaderClusterStateConsumer the leader cluster state consumer
+     * @param nonCompliantLicense        the supplier for when the license state of the remote cluster is non-compliant
+     * @param unknownLicense             the supplier for when the license state of the remote cluster is unknown due to failure
+     * @param <T>                        the type of response the listener is waiting for
+     */
+    private <T> void checkRemoteClusterLicenseAndFetchClusterState(
+            final Client client,
+            final String clusterAlias,
+            final ClusterStateRequest request,
+            final Consumer<Exception> onFailure,
+            final Consumer<ClusterState> leaderClusterStateConsumer,
+            final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
+            final Function<Exception, ElasticsearchStatusException> unknownLicense) {
+        // we have to check the license on the remote cluster
+        new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
+                Collections.singletonList(clusterAlias),
+                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+
+                    @Override
+                    public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+                        if (licenseCheck.isSuccess()) {
+                            final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
+                            final ActionListener<ClusterStateResponse> clusterStateListener =
+                                    ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
+                            // following an index in remote cluster, so use remote client to fetch leader index metadata
+                            leaderClient.admin().cluster().state(request, clusterStateListener);
+                        } else {
+                            onFailure.accept(nonCompliantLicense.apply(licenseCheck));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        onFailure.accept(unknownLicense.apply(e));
+                    }
+
+                });
+    }
+
+    private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(
+            final String leaderIndex, final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote index [%s:%s] metadata as the remote cluster [%s] is not licensed for [ccr]; %s",
+                clusterAlias,
+                leaderIndex,
+                clusterAlias,
+                RemoteClusterLicenseChecker.buildErrorMessage(
+                        "ccr",
+                        licenseCheck.remoteClusterLicenseInfo(),
+                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static ElasticsearchStatusException clusterStateNonCompliantRemoteLicense(
+            final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
+                clusterAlias,
+                RemoteClusterLicenseChecker.buildErrorMessage(
+                        "ccr",
+                        licenseCheck.remoteClusterLicenseInfo(),
+                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    private static ElasticsearchStatusException indexMetadataUnknownRemoteLicense(
+            final String leaderIndex, final String clusterAlias, final Exception cause) {
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote index [%s:%s] metadata as the license state of the remote cluster [%s] could not be determined",
+                clusterAlias,
+                leaderIndex,
+                clusterAlias);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
+    }
+
+    private static ElasticsearchStatusException clusterStateUnknownRemoteLicense(final String clusterAlias, final Exception cause) {
+        final String message = String.format(
+                Locale.ROOT,
+                "can not fetch remote cluster state as the license state of the remote cluster [%s] could not be determined", clusterAlias);
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
+    }
+
+}

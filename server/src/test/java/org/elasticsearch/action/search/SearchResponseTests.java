@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -180,7 +181,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem();
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());

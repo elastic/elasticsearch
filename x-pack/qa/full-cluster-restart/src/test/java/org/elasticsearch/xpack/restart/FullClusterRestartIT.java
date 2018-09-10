@@ -325,7 +325,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32773")
     public void testRollupIDSchemeAfterRestart() throws Exception {
         assumeTrue("Rollup can be tested with 6.3.0 and onwards", oldClusterVersion.onOrAfter(Version.V_6_3_0));
         assumeTrue("Rollup ID scheme changed in 6.4", oldClusterVersion.before(Version.V_6_4_0));
@@ -392,6 +391,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/2");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
             client().performRequest(indexRequest);
+
+            assertRollUpJob("rollup-id-test");
 
             // stop the rollup job to force a state save, which will upgrade the ID
             final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");

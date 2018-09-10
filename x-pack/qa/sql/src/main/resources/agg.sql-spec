@@ -87,9 +87,7 @@ SELECT (emp_no % 3) + 1 AS e, (languages % 3) + 1 AS l FROM test_emp GROUP BY e,
 
 // COUNT
 aggCountImplicit
-// tag::countStar
 SELECT COUNT(*) AS count FROM test_emp;
-// end::countStar
 aggCountImplicitWithCast
 SELECT CAST(COUNT(*) AS INT) c FROM "test_emp";
 aggCountImplicitWithConstant
@@ -105,9 +103,7 @@ SELECT gender g, CAST(COUNT(*) AS INT) c FROM "test_emp" WHERE emp_no < 10020 GR
 aggCountWithAlias
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g ORDER BY gender;
 countDistinct
-// tag::countDistinct
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
-// end::countDistinct
 
 aggCountAliasAndWhereClauseMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
@@ -237,9 +233,7 @@ SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING
 
 // MAX
 aggMaxImplicit
-// tag::max
 SELECT MAX(salary) AS max FROM test_emp;
-// end::max
 aggMaxImplicitWithCast
 SELECT CAST(MAX(emp_no) AS SMALLINT) c FROM "test_emp";
 aggMax
@@ -310,9 +304,7 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY gender OR
 aggAvgWithCastToDouble
 SELECT gender g, CAST(AVG(emp_no) AS DOUBLE) a FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvg
-// tag::avg
 SELECT AVG(salary) AS avg FROM test_emp;
-// end::avg
 aggAvgWithCastAndCount
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a, COUNT(1) c FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgWithCastAndCountWithFilter
@@ -395,3 +387,11 @@ aggMultiWithHavingOnCount
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING c > 40 ORDER BY gender;
 aggMultiGroupByMultiWithHavingOnCount
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING c > 40 ORDER BY gender, languages;
+
+// repetion of same aggs to check whether the generated query contains duplicates or not
+aggRepeatFunctionAcrossFields
+SELECT MIN(emp_no) AS a, 1 + MIN(emp_no) AS b, ABS(MIN(emp_no)) AS c FROM test_emp;
+aggRepeatFunctionBetweenSelectAndHaving
+SELECT gender, COUNT(DISTINCT languages) AS c FROM test_emp GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
+
+

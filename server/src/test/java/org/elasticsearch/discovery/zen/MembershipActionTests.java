@@ -28,9 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.incompatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
@@ -103,7 +100,7 @@ public class MembershipActionTests extends ESTestCase {
         }
 
         if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
-            Version oldMajor = randomFrom(allVersions().stream().filter(v -> v.major < 6).collect(Collectors.toList()));
+            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> MembershipAction.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

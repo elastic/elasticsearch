@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.exten
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -49,8 +49,7 @@ public class InternalExtendedStatsBucket extends InternalExtendedStats implement
     }
 
     @Override
-    public org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats doReduce(
-            List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalExtendedStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 }

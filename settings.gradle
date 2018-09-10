@@ -78,7 +78,12 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
-boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+List startTasks = gradle.startParameter.taskNames
+boolean isEclipse =
+    System.getProperty("eclipse.launcher") != null ||    // Detects gradle launched from the Eclipse IDE
+    System.getProperty("eclipse.application") != null || // Detects gradle launched from the Eclipse compiler server
+    startTasks.contains("eclipse") ||                    // Detects gradle launched from the command line to do Eclipse stuff
+    startTasks.contains("cleanEclipse");
 if (isEclipse) {
   // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
   // for server-src and server-tests

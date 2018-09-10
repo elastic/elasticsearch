@@ -135,6 +135,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchInputHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -158,6 +159,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29893")
     public void testSearchInputWithInsufficientPrivileges() throws Exception {
         String indexName = "index_not_allowed_to_read";
         try (XContentBuilder builder = jsonBuilder()) {
@@ -184,6 +186,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(conditionMet, is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testSearchTransformHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -213,6 +216,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(value, is("15"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33291")
     public void testSearchTransformInsufficientPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -240,6 +244,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30777")
     public void testIndexActionHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -264,6 +269,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         assertThat(spam, is("eggs"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33320")
     public void testIndexActionInsufficientPrivileges() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

@@ -175,5 +175,8 @@ public class MockNode extends Node {
         }
     }
 
+    @Override
+    protected void registerDerivedNodeNameWithLogger(String nodeName) {
+        // Nothing to do because test uses the thread name
+    }
 }
-

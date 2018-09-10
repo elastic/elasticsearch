@@ -1521,6 +1521,16 @@ public class InternalEngineTests extends EngineTestCase {
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
+            // If the global checkpoint equals to the local checkpoint, the next force-merge will be a noop
+            // because all deleted documents are expunged in the previous force-merge already. We need to flush
+            // a new segment to make merge happen so that we can verify that all _recovery_source are pruned.
+            if (globalCheckpoint.get() == engine.getLocalCheckpoint() && liveDocs.isEmpty() == false) {
+                String deleteId = randomFrom(liveDocs);
+                engine.delete(new Engine.Delete("test", deleteId, newUid(deleteId), primaryTerm.get()));
+                liveDocsWithSource.remove(deleteId);
+                liveDocs.remove(deleteId);
+                engine.flush();
+            }
             globalCheckpoint.set(engine.getLocalCheckpoint());
             engine.syncTranslog();
             engine.forceMerge(true, 1, false, false, false);

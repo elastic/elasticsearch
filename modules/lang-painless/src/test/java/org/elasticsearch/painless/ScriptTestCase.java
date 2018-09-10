@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
@@ -89,7 +90,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorable scorer, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);

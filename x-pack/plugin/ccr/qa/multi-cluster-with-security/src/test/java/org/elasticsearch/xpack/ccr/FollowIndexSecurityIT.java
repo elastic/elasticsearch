@@ -122,7 +122,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         String allowedIndex = "logs-eu-20190101";
         String disallowedIndex = "logs-us-20190101";
 
-        Request request = new Request("PUT", "/_ccr/_auto_follow/leader_cluster");
+        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
         request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
         assertOK(client().performRequest(request));
 

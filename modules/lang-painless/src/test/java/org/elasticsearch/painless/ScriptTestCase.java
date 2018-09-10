@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;

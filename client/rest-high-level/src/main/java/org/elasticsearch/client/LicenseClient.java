@@ -33,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
+import org.elasticsearch.protocol.xpack.license.PostStartBasicRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -119,6 +121,28 @@ public final class LicenseClient {
     public void deleteLicenseAsync(DeleteLicenseRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::deleteLicense, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public PostStartBasicResponse postStartBasic(PostStartBasicRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::postStartBasic, options,
+            PostStartBasicResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously initiates an indefinite basic license.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void postStartBasicAsync(PostStartBasicRequest request, RequestOptions options,
+                                    ActionListener<PostStartBasicResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::postStartBasic, options,
+            PostStartBasicResponse::fromXContent, listener, emptySet());
     }
 
     /**

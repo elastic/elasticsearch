@@ -31,6 +31,8 @@ import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PostStartBasicRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -213,6 +215,51 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(currentLicense, containsString("trial"));
             assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
             assertThat(currentLicense, endsWith("}"));
+        }
+    }
+
+    public void testPostStartBasic() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::post-start-basic-execute
+            PostStartBasicRequest request = new PostStartBasicRequest();
+
+            PostStartBasicResponse response = client.license().postStartBasic(request, RequestOptions.DEFAULT);
+            //end::post-start-basic-execute
+
+            //tag::post-start-basic-response
+            boolean acknowledged = response.isAcknowledged(); // <1>
+            String acknowledgeMessage = response.acknowledgeMessage(); // <2>
+            Map<String, String[]> acknowledgeMessages = response.acknowledgeMessages(); // <3>
+            String errorMessage = response.status().getErrorMessage(); // <4>
+            //end::post-start-basic-response
+        }
+        {
+            PostStartBasicRequest request = new PostStartBasicRequest();
+            // tag::post-start-basic-listener
+            ActionListener<PostStartBasicResponse> listener = new ActionListener<PostStartBasicResponse>() {
+                @Override
+                public void onResponse(PostStartBasicResponse indexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::post-start-basic-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::post-start-basic-execute-async
+            client.license().postStartBasicAsync(
+                request, RequestOptions.DEFAULT, listener); // <1>
+            // end::post-start-basic-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 }

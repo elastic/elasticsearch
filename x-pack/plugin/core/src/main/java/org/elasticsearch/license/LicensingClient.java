@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class LicensingClient {

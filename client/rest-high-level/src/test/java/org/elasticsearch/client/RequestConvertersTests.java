@@ -31,6 +31,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -108,8 +109,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -128,7 +127,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -159,7 +157,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestConvertersTests extends ESTestCase {
@@ -1991,6 +1988,42 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
+    public void testPutScript() throws Exception {
+        PutStoredScriptRequest putStoredScriptRequest = new PutStoredScriptRequest();
+
+        String id = randomAlphaOfLengthBetween(5, 10);
+        putStoredScriptRequest.id(id);
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            builder.startObject("script")
+                .field("lang", "painless")
+                .field("source", "Math.log(_score * 2) + params.multiplier")
+                .endObject();
+            builder.endObject();
+
+            putStoredScriptRequest.content(BytesReference.bytes(builder), xContentType);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(putStoredScriptRequest, expectedParams);
+        setRandomTimeout(putStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        if (randomBoolean()) {
+            String context = randomAlphaOfLengthBetween(5, 10);
+            putStoredScriptRequest.context(context);
+            expectedParams.put("context", context);
+        }
+
+        Request request = RequestConverters.putScript(putStoredScriptRequest);
+
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + id));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertNotNull(request.getEntity());
+        assertToXContentBody(putStoredScriptRequest, request.getEntity());
+    }
+
     public void testAnalyzeRequest() throws Exception {
         AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
             .text("Here is some text")
@@ -2173,46 +2206,6 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
-    }
-
-    public void testXPackPutWatch() throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest();
-        String watchId = randomAlphaOfLength(10);
-        putWatchRequest.setId(watchId);
-        String body = randomAlphaOfLength(20);
-        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
-
-        Map<String, String> expectedParams = new HashMap<>();
-        if (randomBoolean()) {
-            putWatchRequest.setActive(false);
-            expectedParams.put("active", "false");
-        }
-
-        if (randomBoolean()) {
-            long version = randomLongBetween(10, 100);
-            putWatchRequest.setVersion(version);
-            expectedParams.put("version", String.valueOf(version));
-        }
-
-        Request request = RequestConverters.xPackWatcherPutWatch(putWatchRequest);
-        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        request.getEntity().writeTo(bos);
-        assertThat(bos.toString("UTF-8"), is(body));
-    }
-
-    public void testXPackDeleteWatch() {
-        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
-        String watchId = randomAlphaOfLength(10);
-        deleteWatchRequest.setId(watchId);
-
-        Request request = RequestConverters.xPackWatcherDeleteWatch(deleteWatchRequest);
-        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
-        assertThat(request.getEntity(), nullValue());
     }
 
     /**

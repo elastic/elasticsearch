@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
 
@@ -100,11 +102,17 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             Exception e = expectThrows(ResponseException.class,
                 () -> createAndFollowIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
+            assertThat(e.getMessage(),
+                containsString("action [indices:admin/xpack/ccr/create_and_follow_index] is unauthorized for user [test_ccr]"));
+            // Verify that the follow index has not been created and no node tasks are running
+            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
             e = expectThrows(ResponseException.class,
                 () -> followIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
+            assertThat(e.getMessage(), containsString("follow index [" + unallowedIndex + "] does not exist"));
+            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }
     }
 
@@ -188,6 +196,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         final Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
         assertOK(adminClient().performRequest(request));
+    }
+
+    private static boolean indexExists(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("HEAD", "/" + index));
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
 }

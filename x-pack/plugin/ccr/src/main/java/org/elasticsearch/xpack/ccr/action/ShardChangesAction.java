@@ -322,12 +322,13 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID + "], actual [" +
                 expectedHistoryUUID + "]");
         }
-        if (fromSeqNo > indexShard.getGlobalCheckpoint()) {
+        if (fromSeqNo > globalCheckpoint) {
             return EMPTY_OPERATIONS_ARRAY;
         }
         int seenBytes = 0;
         // - 1 is needed, because toSeqNo is inclusive
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
+        assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
         try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
             Translog.Operation op;

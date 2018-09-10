@@ -70,12 +70,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
     }
 
     private void doAutoFollow() {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
-            // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-            LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
-            threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
-            return;
-        }
         if (localNodeMaster == false) {
             return;
         }
@@ -87,6 +81,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         if (autoFollowMetadata.getPatterns().isEmpty()) {
+            threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
+            return;
+        }
+
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
+            // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+            LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
             return;
         }

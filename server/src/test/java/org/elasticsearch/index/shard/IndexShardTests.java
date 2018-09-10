@@ -1200,7 +1200,8 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardStatsWithFailures() throws IOException {
         allowShardFailures();
         final ShardId shardId = new ShardId("index", "_na_", 0);
-        final ShardRouting shardRouting = newShardRouting(shardId, "node", true, RecoverySource.EmptyStoreRecoverySource.INSTANCE, ShardRoutingState.INITIALIZING);
+        final ShardRouting shardRouting =
+            newShardRouting(shardId, "node", true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
 
 

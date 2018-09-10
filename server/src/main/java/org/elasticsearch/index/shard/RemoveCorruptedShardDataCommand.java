@@ -33,6 +33,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
@@ -80,6 +81,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     public RemoveCorruptedShardDataCommand() {
         this(false);
@@ -99,8 +101,10 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             .withRequiredArg()
             .ofType(Integer.class);
 
+        namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
+
         removeCorruptedLuceneSegmentsAction = translogOnly ? null : new RemoveCorruptedLuceneSegmentsAction();
-        truncateTranslogAction = new TruncateTranslogAction();
+        truncateTranslogAction = new TruncateTranslogAction(namedXContentRegistry);
     }
 
     @Override
@@ -141,7 +145,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             }
 
             final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardParent);
+                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
 
             final String shardIdFileName = path.getFileName().toString();
             final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
@@ -185,7 +189,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                         for (Path file : stream) {
                             if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
                                 final IndexMetaData indexMetaData =
-                                    IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, file);
+                                    IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
                                 if (indexMetaData != null) {
                                     final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
                                     final Index index = indexMetaData.getIndex();
@@ -463,7 +467,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     protected void newAllocationId(Environment environment, ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
         final ShardStateMetaData shardStateMetaData =
-            ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardStatePath);
+            ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
 
         if (shardStateMetaData == null) {
             throw new ElasticsearchException("No shard state meta data at " + shardStatePath);
@@ -486,12 +490,12 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
     private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
         final IndexMetaData indexMetaData =
-            IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 shardPath.getDataPath().getParent());
 
         final Path nodePath = getNodePath(shardPath);
         final NodeMetaData nodeMetaData =
-            NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, nodePath);
+            NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodePath);
 
         if (nodeMetaData == null) {
             throw new ElasticsearchException("No node meta data at " + nodePath);

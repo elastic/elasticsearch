@@ -180,7 +180,7 @@ public final class NodeEnvironment  implements Closeable {
         private final Lock[] locks;
         private final NodePath[] nodePaths;
 
-        public NodeLock(final int nodeId, final Logger startupTraceLogger,
+        public NodeLock(final int nodeId, final Logger logger,
                         final Environment environment,
                         final CheckedConsumer<Path, IOException> consumer) throws IOException {
             this.nodeId = nodeId;
@@ -194,11 +194,11 @@ public final class NodeEnvironment  implements Closeable {
                     consumer.accept(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         nodePaths[dirIndex] = new NodePath(dir);
                     } catch (IOException e) {
-                        startupTraceLogger.trace(() -> new ParameterizedMessage(
+                        logger.trace(() -> new ParameterizedMessage(
                             "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         // release all the ones that were obtained up until now
                         throw (e instanceof LockObtainFailedException ? e
@@ -238,8 +238,6 @@ public final class NodeEnvironment  implements Closeable {
             nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
-        // trace logger to debug issues before the default node name is derived from the node id
-        Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
         boolean success = false;
         NodeLock nodeLock = null;
 
@@ -251,7 +249,7 @@ public final class NodeEnvironment  implements Closeable {
             final AtomicReference<IOException> onCreateDirectoriesException = new AtomicReference();
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 try {
-                    final NodeLock lock = new NodeLock(possibleLockId, startupTraceLogger, environment,
+                    final NodeLock lock = new NodeLock(possibleLockId, logger, environment,
                         dir -> {
                             try {
                                 Files.createDirectories(dir);
@@ -286,7 +284,7 @@ public final class NodeEnvironment  implements Closeable {
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
             this.nodeLockId = nodeLock.nodeId;
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
+            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
             nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             if (logger.isDebugEnabled()) {

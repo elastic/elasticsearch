@@ -44,8 +44,6 @@ public class RemoveCorruptedLuceneSegmentsAction {
 
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
-
-            checker.setCrossCheckTermVectors(false);
             checker.setChecksumsOnly(true);
             checker.setInfoStream(printStream, verbose);
 
@@ -74,7 +72,6 @@ public class RemoveCorruptedLuceneSegmentsAction {
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
 
-            checker.setCrossCheckTermVectors(false);
             checker.setChecksumsOnly(true);
             checker.setInfoStream(printStream, verbose);
 

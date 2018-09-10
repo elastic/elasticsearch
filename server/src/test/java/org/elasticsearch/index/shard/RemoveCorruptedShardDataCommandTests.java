@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.apache.lucene.store.BaseDirectoryWrapper;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
@@ -42,7 +41,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -82,7 +80,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         shardId = new ShardId("index0", "_na_", 0);
         final String nodeId = randomAlphaOfLength(10);
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
-            RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
         dataDir = createTempDir();
 
@@ -357,7 +355,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private IndexShard reopenIndexShard(boolean corrupted) throws IOException {
         // open shard with the same location
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
-            RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
         );
 
         final IndexMetaData metaData = IndexMetaData.builder(indexMetaData)
@@ -370,16 +368,10 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             corrupted == false ? null :
                 indexSettings -> {
                     final ShardId shardId = shardPath.getShardId();
-                    final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-                        @Override
-                        public Directory newDirectory() throws IOException {
-                            final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
-                            // index is corrupted - don't even try to check index on close - it fails
-                            baseDirectoryWrapper.setCheckIndexOnClose(false);
-                            return baseDirectoryWrapper;
-                        }
-                    };
-            return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+                    final BaseDirectoryWrapper baseDirectoryWrapper = newFSDirectory(shardPath.resolveIndex());
+                    // index is corrupted - don't even try to check index on close - it fails
+                    baseDirectoryWrapper.setCheckIndexOnClose(false);
+                    return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
         return newShard(shardRouting, shardPath, metaData, storeProvider, null,
@@ -411,7 +403,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private void writeIndexState() throws IOException {
         // create _state of IndexMetaData
-        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
+        try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment, nId -> {})) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
             IndexMetaData.FORMAT.write(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));

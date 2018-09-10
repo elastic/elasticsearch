@@ -56,6 +56,11 @@ import java.util.TreeSet;
 public class TruncateTranslogAction {
 
     protected static final Logger logger = Loggers.getLogger(TruncateTranslogAction.class);
+    private final NamedXContentRegistry namedXContentRegistry;
+
+    public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
+        this.namedXContentRegistry = namedXContentRegistry;
+    }
 
     public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
                                                                                      Directory indexDirectory) throws IOException {
@@ -166,7 +171,7 @@ public class TruncateTranslogAction {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
             final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath.getDataPath().getParent());
+                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardPath.getDataPath().getParent());
             final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);

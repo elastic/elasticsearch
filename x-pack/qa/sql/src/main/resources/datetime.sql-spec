@@ -75,15 +75,14 @@ SELECT DAY_OF_MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s 
 monthNameWithGroupBy
 SELECT MONTHNAME("hire_date") AS month, COUNT(*) AS count FROM "test_emp" GROUP BY MONTHNAME("hire_date"), MONTH("hire_date") ORDER BY MONTH("hire_date");
 
-dayNameWithHaving
-SELECT DAYNAME("hire_date") FROM "test_emp" GROUP BY DAYNAME("hire_date") HAVING MAX("emp_no") > ASCII(DAYNAME("hire_date"));
-
 monthNameWithDoubleGroupByAndOrderBy
 SELECT MONTHNAME("hire_date") AS month, COUNT(*) AS count FROM "test_emp" GROUP BY MONTHNAME("hire_date"), MONTH("hire_date") ORDER BY MONTHNAME("hire_date") DESC;
 
 // AwaitsFix https://github.com/elastic/elasticsearch/issues/33519
 // monthNameWithGroupByOrderByAndHaving
 // SELECT CAST(MAX("salary") AS DOUBLE) max_salary, MONTHNAME("hire_date") month_name FROM "test_emp" GROUP BY MONTHNAME("hire_date") HAVING MAX("salary") > 50000 ORDER BY MONTHNAME(hire_date);
+// dayNameWithHaving
+// SELECT DAYNAME("hire_date") FROM "test_emp" GROUP BY DAYNAME("hire_date") HAVING MAX("emp_no") > ASCII(DAYNAME("hire_date"));
 
 dayNameWithDoubleGroupByAndOrderBy
 SELECT COUNT(*) c, DAYNAME(hire_date) day_name, DAY(hire_date) day FROM test_emp WHERE MONTHNAME(hire_date) = 'August' GROUP BY DAYNAME(hire_date), DAY(hire_date) ORDER BY DAYNAME(hire_date), DAY(hire_date);

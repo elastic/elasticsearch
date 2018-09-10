@@ -199,7 +199,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
     }
 
-    class PerSegmentCollects extends Scorer {
+    class PerSegmentCollects extends Scorable {
         private LeafReaderContext readerContext;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
@@ -211,7 +211,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             // call to this constructor with a null scorer so we can't call
             // scorer.getWeight() and pass the Weight to our base class.
             // However, passing null seems to have no adverse effects here...
-            super(null);
             this.readerContext = readerContext;
             for (int i = 0; i < perBucketSamples.size(); i++) {
                 PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
@@ -267,11 +266,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             return currentDocId;
         }
 
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
-        }
-
         public void collect(int docId, long parentBucket) throws IOException {
             perBucketSamples = bigArrays.grow(perBucketSamples, parentBucket + 1);
             PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
@@ -283,10 +277,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             maxDocId = Math.max(maxDocId, docId);
         }
 
-        @Override
-        public float getMaxScore(int upTo) throws IOException {
-            return Float.MAX_VALUE;
-        }
     }
 
     public int getDocCount(long parentBucket) {

@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -676,6 +677,13 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
+            zonedDateTime.getZone().getId();
+            o.writeString(zonedDateTime.getZone().getId());
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        });
+        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
+            o.writeByte((byte) 24);
+            final ZonedDateTime zonedDateTime = ((JodaCompatibleZonedDateTime) v).getZonedDateTime();
             zonedDateTime.getZone().getId();
             o.writeString(zonedDateTime.getZone().getId());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());

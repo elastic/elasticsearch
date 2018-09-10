@@ -68,6 +68,11 @@ public class JodaCompatibleZonedDateTime {
         this.dt = ZonedDateTime.ofInstant(instant, zone);
     }
 
+    // access the underlying ZonedDateTime
+    public ZonedDateTime getZonedDateTime() {
+        return dt;
+    }
+
     public int getDayOfMonth() {
         return dt.getDayOfMonth();
     }

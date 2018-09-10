@@ -46,6 +46,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Query sub phase which pulls data from doc values
@@ -76,7 +77,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
-        List<String> noFormatFields = new ArrayList<>();
+
+        List<String> noFormatFields = context.docValueFieldsContext().fields().stream().filter(f -> f.format == null).map(f -> f.field)
+                .collect(Collectors.toList());
+        if (noFormatFields.isEmpty() == false) {
+            DEPRECATION_LOGGER.deprecated("There are doc-value field which are not using a format. The output will "
+                    + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
+                    + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
+                    + "7.0: {}", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);
+        }
 
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
@@ -85,7 +94,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 final IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 final DocValueFormat format;
                 if (fieldAndFormat.format == null) {
-                    noFormatFields.add(fieldAndFormat.field);
                     format = null;
                 } else {
                     String formatDesc = fieldAndFormat.format;
@@ -155,13 +163,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     }
                 }
             }
-        }
-
-        if (noFormatFields.isEmpty() == false) {
-            DEPRECATION_LOGGER.deprecated("There are doc-value field which are not using a format. The output will "
-                    + "change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass "
-                    + "[format={}] with a doc value field in order to opt in for the future behaviour and ease the migration to "
-                    + "7.0: {}", DocValueFieldsContext.USE_DEFAULT_FORMAT, noFormatFields);
         }
     }
 }

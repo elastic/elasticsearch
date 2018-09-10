@@ -82,7 +82,8 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
                 reader = wrapReader(DirectoryReader.open(directory), config.getShardId());
                 this.indexCommit = reader.getIndexCommit();
-                this.searcherManager = new SearcherManager(reader, new SearcherFactory());
+                this.searcherManager = new SearcherManager(reader,
+                    new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {

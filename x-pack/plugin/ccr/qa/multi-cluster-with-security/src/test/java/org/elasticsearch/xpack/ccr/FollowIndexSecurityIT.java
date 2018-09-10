@@ -149,6 +149,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             verifyDocuments(adminClient(), allowedIndex, 5);
         });
         assertThat(indexExists(adminClient(), disallowedIndex), is(false));
+
+        // Cleanup by deleting auto follow pattern and unfollowing:
+        request = new Request("DELETE", "/_ccr/auto_follow/leader_cluster");
+        assertOK(client().performRequest(request));
+        unfollowIndex(allowedIndex);
     }
 
     private int countCcrNodeTasks() throws IOException {
@@ -258,6 +263,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     private static boolean indexExists(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    private static void unfollowIndex(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
 }

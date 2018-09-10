@@ -318,8 +318,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     /**
      * Collects all the certificates that are normally trusted by the node ( contained in testnode.jks )
-     *
-     * @return
      */
     List<String> getNodeTrustedCertificates() {
         Path testnodeCert =

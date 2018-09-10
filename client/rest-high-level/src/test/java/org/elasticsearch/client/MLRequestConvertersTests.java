@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -171,6 +172,21 @@ public class MLRequestConvertersTests extends ESTestCase {
                 "{\"job_id\":\"" + jobId + "\",\"calc_interim\":true,\"start\":\"105\"," +
                         "\"end\":\"200\",\"advance_time\":\"100\",\"skip_time\":\"1000\"}",
                 requestEntityToString(request));
+    }
+
+    public void testForecastJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        ForecastJobRequest forecastJobRequest = new ForecastJobRequest(jobId);
+
+        forecastJobRequest.setDuration(TimeValue.timeValueHours(10));
+        forecastJobRequest.setExpiresIn(TimeValue.timeValueHours(12));
+        Request request = MLRequestConverters.forecastJob(forecastJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_forecast", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            ForecastJobRequest parsedRequest = ForecastJobRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(forecastJobRequest));
+        }
     }
 
     public void testUpdateJob() throws Exception {

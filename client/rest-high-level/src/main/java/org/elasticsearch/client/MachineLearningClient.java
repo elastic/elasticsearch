@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -361,6 +363,28 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Creates a forecast of an existing, opened Machine Learning Job
+     *
+     * This predicts the future behavior of a time series by using its historical behavior.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-forecast.html">Forecast ML Job Documentation</a>
+     * </p>
+     * @param request ForecastJobRequest with forecasting options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing forecast acknowledgement and new forecast's ID
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public ForecastJobResponse forecastJob(ForecastJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::forecastJob,
+            options,
+            ForecastJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
      * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
      *
      * @param request the {@link UpdateJobRequest} object enclosing the desired updates
@@ -373,6 +397,28 @@ public final class MachineLearningClient {
             MLRequestConverters::updateJob,
             options,
             PutJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a forecast of an existing, opened Machine Learning Job asynchronously
+     *
+     * This predicts the future behavior of a time series by using its historical behavior.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-forecast.html">Forecast ML Job Documentation</a>
+     * </p>
+     * @param request ForecastJobRequest with forecasting options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void forecastJobAsync(ForecastJobRequest request, RequestOptions options, ActionListener<ForecastJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::forecastJob,
+            options,
+            ForecastJobResponse::fromXContent,
+            listener,
             Collections.emptySet());
     }
 

@@ -249,7 +249,7 @@ public final class Settings implements ToXContentFragment {
      * Returns the setting value associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
-    public String get(String setting, String defaultValue, boolean isList) {
+    String get(String setting, String defaultValue, boolean isList) {
         Object value = settings.get(setting);
         if (value != null) {
             if (value instanceof List) {

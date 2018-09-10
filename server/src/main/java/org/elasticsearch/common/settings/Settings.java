@@ -245,9 +245,28 @@ public final class Settings implements ToXContentFragment {
         return retVal == null ? defaultValue : retVal;
     }
 
-    Class<?> getRawType(String setting) {
+    /**
+     * Returns the setting value associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    public String get(String setting, String defaultValue, boolean isList) {
         Object value = settings.get(setting);
-        return value == null ? null : value.getClass();
+        if(value != null) {
+            if (value instanceof List) {
+                if (isList == false) {
+                    throw new IllegalArgumentException(
+                        "Found list type value for setting [" + setting + "] but but did not expect a list for it."
+                    );
+                }
+            } else if (isList) {
+                throw new IllegalArgumentException(
+                    "Expected list type value for setting [" + setting + "] but found [" + value.getClass() + ']'
+                );
+            }
+            return toString(value);
+        } else {
+            return defaultValue;
+        }
     }
 
     /**

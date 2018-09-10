@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import java.util.Collection;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -346,6 +345,11 @@ public class Setting<T> implements ToXContentObject {
         return false;
     }
 
+
+    boolean isListSetting() {
+        return false;
+    }
+
     boolean hasComplexMatcher() {
         return isGroupSetting();
     }
@@ -399,16 +403,6 @@ public class Setting<T> implements ToXContentObject {
         try {
             T parsed = parser.apply(value);
             if (validate) {
-                if (parsed instanceof String) {
-                    Class<?> rawValueClass = settings.getRawType(getKey());
-                    if (rawValueClass != null
-                        && (Map.class.isAssignableFrom(rawValueClass) || Collection.class.isAssignableFrom(rawValueClass))
-                    ) {
-                        throw new IllegalArgumentException(
-                            "Failed to parse [" + value + "] for string setting [" + getKey() + "] because it is not scalar."
-                        );
-                    }
-                }
                 final Iterator<Setting<T>> it = validator.settings();
                 final Map<Setting<T>, T> map;
                 if (it.hasNext()) {
@@ -464,7 +458,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
-        return settings.get(getKey(), defaultValue.apply(settings));
+        return settings.get(getKey(), defaultValue.apply(settings), isListSetting());
     }
 
     /** Logs a deprecation warning if the setting is deprecated and used. */
@@ -1315,6 +1309,11 @@ public class Setting<T> implements ToXContentObject {
                     builder.putList(getKey(), asList);
                 }
             }
+        }
+
+        @Override
+        boolean isListSetting() {
+            return true;
         }
 
     }

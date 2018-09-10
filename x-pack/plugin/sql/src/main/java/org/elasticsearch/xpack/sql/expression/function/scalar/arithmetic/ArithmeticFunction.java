@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryNumericFunction;
@@ -65,7 +66,7 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
     public String name() {
         StringBuilder sb = new StringBuilder();
         sb.append("(");
-        sb.append(left());
+        sb.append(Expressions.name(left()));
         if (!(left() instanceof Literal)) {
             sb.insert(1, "(");
             sb.append(")");
@@ -74,7 +75,7 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
         sb.append(operation);
         sb.append(" ");
         int pos = sb.length();
-        sb.append(right());
+        sb.append(Expressions.name(right()));
         if (!(right() instanceof Literal)) {
             sb.insert(pos, "(");
             sb.append(")");
@@ -86,9 +87,5 @@ public abstract class ArithmeticFunction extends BinaryNumericFunction {
     @Override
     public String toString() {
         return name() + "#" + functionId();
-    }
-
-    protected boolean useParanthesis() {
-        return !(left() instanceof Literal) || !(right() instanceof Literal);
     }
 }

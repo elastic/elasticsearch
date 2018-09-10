@@ -113,18 +113,18 @@ public final class CsvTestUtils {
     }
 
     private static Tuple<String, String> extractColumnTypesFromHeader(String header) {
-        String[] columnTypes = Strings.delimitedListToStringArray(header, "|", " \t");
+        String[] columnTypes = Strings.tokenizeToStringArray(header, "|");
         StringBuilder types = new StringBuilder();
         StringBuilder columns = new StringBuilder();
         for (String column : columnTypes) {
-            String[] nameType = Strings.delimitedListToStringArray(column, ":");
+            String[] nameType = Strings.delimitedListToStringArray(column.trim(), ":");
             assertThat("If at least one column has a type associated with it, all columns should have types", nameType, arrayWithSize(2));
             if (types.length() > 0) {
                 types.append(",");
                 columns.append("|");
             }
-            columns.append(nameType[0]);
-            types.append(resolveColumnType(nameType[1]));
+            columns.append(nameType[0].trim());
+            types.append(resolveColumnType(nameType[1].trim()));
         }
         return new Tuple<>(columns.toString(), types.toString());
     }

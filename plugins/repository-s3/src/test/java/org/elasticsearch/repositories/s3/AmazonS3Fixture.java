@@ -473,7 +473,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     /**
-     * Retrieves the object name from all derives paths named {pathX} where 0 <= X < 10.
+     * Retrieves the object name from all derives paths named {pathX} where X is between 0 and 9 inclusive.
      *
      * This is the counterpart of {@link #objectsPaths(String)}
      */

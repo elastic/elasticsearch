@@ -66,11 +66,9 @@ F                    | 10099.1936           | 10098.021            | 26.35135135
 M                    | 10095.6112           | 10090.846            | 23.41269841269841
 ;
 
-// Simple sum used in documentation
 sum
-// tag::sum
 SELECT SUM(salary) FROM test_emp;
-// end::sum
+
   SUM(salary)
 ---------------
 4824855

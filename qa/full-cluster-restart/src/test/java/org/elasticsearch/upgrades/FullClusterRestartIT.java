@@ -79,26 +79,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
     public void testSearch() throws Exception {
         int count;
         if (isRunningAgainstOldCluster()) {

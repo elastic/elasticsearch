@@ -64,10 +64,23 @@ coming[6.4.1]
 //[float]
 //=== Known Issues
 
+
 [[release-notes-6.4.0]]
 == {es} version 6.4.0
 
-coming[6.4.0]
+[float]
+=== Known issues
+
+{es} 6.4.0 fails to start when PEM encoded private key files that have been exported from `PKCS#12`
+keystores are in use. These files can be identified by the existence of lines that start with either
+`Bag Attributes` or `Key Attributes` in the beginning of the key file.
+
+These keys can be converted to a supported format using one of the following methods:
+
+* Remove the extra lines from the beginning of the file so that the file starts with the line that starts
+  with `-----BEGIN`
+* Use openssl to convert it, i.e: `openssl pkcs8 -in old_format.key -topk8 -nocrypt -out new_format.key`
+  assuming the key was not password protected.
 
 Also see <<breaking-changes-6.4>>.
 
@@ -752,4 +765,3 @@ Network::
 
 Search::
 * Upgrade to Lucene 7.4.0. {pull}31529[#31529]
-

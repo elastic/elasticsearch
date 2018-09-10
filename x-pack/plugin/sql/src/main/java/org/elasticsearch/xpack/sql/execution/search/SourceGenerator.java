@@ -34,6 +34,7 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 public abstract class SourceGenerator {
 
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
+    private static final String MISSING_LAST = "_last";
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
         QueryBuilder finalQuery = null;
@@ -110,9 +111,15 @@ public abstract class SourceGenerator {
                     FieldAttribute fa = (FieldAttribute) attr;
                     fa = fa.isInexact() ? fa.exactAttribute() : fa;
 
-                    sortBuilder = fieldSort(fa.name());
+                    sortBuilder = fieldSort(fa.name())
+                            .missing(MISSING_LAST)
+                            .unmappedType(fa.dataType().esType);
+                    
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name())
+                                .missing(MISSING_LAST)
+                                .unmappedType(fa.dataType().esType);
+
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
 

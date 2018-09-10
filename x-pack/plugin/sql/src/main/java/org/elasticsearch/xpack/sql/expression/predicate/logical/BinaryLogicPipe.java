@@ -3,46 +3,39 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.function.scalar.math;
+package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
 
-/**
- * Math operation pipe requiring two arguments.
- */
-public class BinaryMathPipe extends BinaryPipe {
+public class BinaryLogicPipe extends BinaryPipe {
 
-    private final BinaryMathOperation operation;
+    private final BinaryLogicOperation operation;
 
-    public BinaryMathPipe(Location location, Expression expression, Pipe left, Pipe right, BinaryMathOperation operation) {
+    public BinaryLogicPipe(Location location, Expression expression, Pipe left, Pipe right, BinaryLogicOperation operation) {
         super(location, expression, left, right);
         this.operation = operation;
     }
 
     @Override
-    protected NodeInfo<BinaryMathPipe> info() {
-        return NodeInfo.create(this, BinaryMathPipe::new, expression(), left(), right(), operation);
-    }
-
-    public BinaryMathOperation operation() {
-        return operation;
+    protected NodeInfo<BinaryLogicPipe> info() {
+        return NodeInfo.create(this, BinaryLogicPipe::new, expression(), left(), right(), operation);
     }
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new BinaryMathPipe(location(), expression(), left, right, operation);
+        return new BinaryLogicPipe(location(), expression(), left, right, operation);
     }
 
     @Override
-    public BinaryMathProcessor asProcessor() {
-        return new BinaryMathProcessor(left().asProcessor(), right().asProcessor(), operation);
+    public BinaryLogicProcessor asProcessor() {
+        return new BinaryLogicProcessor(left().asProcessor(), right().asProcessor(), operation);
     }
 
     @Override
@@ -53,7 +46,7 @@ public class BinaryMathPipe extends BinaryPipe {
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
-            BinaryMathPipe other = (BinaryMathPipe) obj;
+            BinaryLogicPipe other = (BinaryLogicPipe) obj;
             return Objects.equals(operation, other.operation);
         }
         return false;

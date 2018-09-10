@@ -47,12 +47,17 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
     }
 
+    public static Integer dateTimeChrono(ZonedDateTime millis, String tzId, String chronoName) {
+        ZonedDateTime time = millis.withZoneSameInstant(ZoneId.of(tzId));
+        return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
+    }
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value.millis, {}, {})");
+        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value, {}, {})");
         params.variable(field.name())
               .variable(timeZone().getID())
               .variable(chronoField().name());

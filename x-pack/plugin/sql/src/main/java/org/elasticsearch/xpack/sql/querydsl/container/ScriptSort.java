@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 
 import java.util.Objects;
 
@@ -15,7 +16,8 @@ public class ScriptSort extends Sort {
 
     public ScriptSort(ScriptTemplate script, Direction direction) {
         super(direction);
-        this.script = script;
+        //
+        this.script = Scripts.nullSafeSort(script);
     }
 
     public ScriptTemplate script() {

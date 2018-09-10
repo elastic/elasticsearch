@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -90,15 +91,17 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testSortFieldSpecified() {
+        FieldSortBuilder sortField = fieldSort("test").missing("_last").unmappedType("keyword");
+        
         QueryContainer container = new QueryContainer()
                 .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.ASC));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(fieldSort("test").order(SortOrder.ASC)), sourceBuilder.sorts());
+        assertEquals(singletonList(sortField.order(SortOrder.ASC)), sourceBuilder.sorts());
 
         container = new QueryContainer()
                 .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.DESC));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(singletonList(fieldSort("test").order(SortOrder.DESC)), sourceBuilder.sorts());
+        assertEquals(singletonList(sortField.order(SortOrder.DESC)), sourceBuilder.sorts());
     }
 
     public void testNoSort() {

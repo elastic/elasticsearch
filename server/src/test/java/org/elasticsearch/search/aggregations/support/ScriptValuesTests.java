@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -59,7 +59,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public void setScorer(Scorer scorer) {
+        public void setScorer(Scorable scorer) {
         }
 
         @Override

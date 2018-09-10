@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -121,36 +122,36 @@ import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedMax;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedMin;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
+import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
+import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedMax;
+import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
+import org.elasticsearch.search.aggregations.metrics.ParsedStats;
+import org.elasticsearch.search.aggregations.metrics.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedStats;
-import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.ParsedSum;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedTopHits;
-import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
@@ -1059,6 +1060,35 @@ public class RestHighLevelClient implements Closeable {
     public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
                                   ActionListener<AcknowledgedResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+            AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
+                                             RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously puts an stored script using the Scripting API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
+     * on elastic.co</a>
+     * @param putStoredScriptRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                               ActionListener<AcknowledgedResponse> listener) {
+        performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

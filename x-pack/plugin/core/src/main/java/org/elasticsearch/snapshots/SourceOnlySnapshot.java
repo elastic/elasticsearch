@@ -192,7 +192,8 @@ public class SourceOnlySnapshot {
         boolean exists = existingSegments.containsKey(segmentId);
         if (exists == false) {
             SegmentInfo newSegmentInfo = new SegmentInfo(si.dir, si.getVersion(), si.getMinVersion(), si.name, si.maxDoc(), false,
-                si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), si.getIndexSort()); // TODO should we drop the sort?
+                si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), null);
+            // we drop the sort on purpose since the field we sorted on doesn't exist in the target index anymore.
             newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1);
             List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
             for (FieldInfo fieldInfo : fieldInfos) {

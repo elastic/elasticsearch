@@ -19,10 +19,12 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -92,6 +94,11 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
                             assertEquals(snapReader.document(i).get("_source"), reader.document(i).get("_source"));
+                        }
+                        for (LeafReaderContext ctx : snapReader.leaves()) {
+                            if (ctx.reader() instanceof SegmentReader) {
+                                assertNull(((SegmentReader) ctx.reader()).getSegmentInfo().info.getIndexSort());
+                            }
                         }
                     }
                 } finally {

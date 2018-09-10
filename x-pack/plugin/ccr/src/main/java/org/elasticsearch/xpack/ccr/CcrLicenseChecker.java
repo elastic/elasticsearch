@@ -109,6 +109,7 @@ public final class CcrLicenseChecker {
      *
      * @param client                     the client
      * @param clusterAlias               the remote cluster alias
+     * @param headers                    the headers to use for leader client
      * @param request                    the cluster state request
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer
@@ -140,6 +141,7 @@ public final class CcrLicenseChecker {
      *
      * @param client                     the client
      * @param clusterAlias               the remote cluster alias
+     * @param headers                    the headers to use for leader client
      * @param request                    the cluster state request
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer

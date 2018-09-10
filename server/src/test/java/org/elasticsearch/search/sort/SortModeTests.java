@@ -32,12 +32,14 @@ public class SortModeTests extends ESTestCase {
         assertEquals(2, SortMode.SUM.ordinal());
         assertEquals(3, SortMode.AVG.ordinal());
         assertEquals(4, SortMode.MEDIAN.ordinal());
+        assertEquals(5, SortMode.FIRST.ordinal());
 
         assertEquals("min", SortMode.MIN.toString());
         assertEquals("max", SortMode.MAX.toString());
         assertEquals("sum", SortMode.SUM.toString());
         assertEquals("avg", SortMode.AVG.toString());
         assertEquals("median", SortMode.MEDIAN.toString());
+        assertEquals("first", SortMode.FIRST.toString());
 
         for (SortMode mode : SortMode.values()) {
             assertEquals(mode, SortMode.fromString(mode.toString()));

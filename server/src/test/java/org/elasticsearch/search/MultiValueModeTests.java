@@ -196,6 +196,8 @@ public class MultiValueModeTests extends ESTestCase {
                             }
                             expected = values.nextValue();
                         }
+                    } else if (mode == MultiValueMode.FIRST) {
+                        expected = values.nextValue();
                     }
                 }
 
@@ -212,7 +214,7 @@ public class MultiValueModeTests extends ESTestCase {
 
     private void verifySortedNumeric(Supplier<SortedNumericDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG, MultiValueMode.FIRST}) {
                 SortedNumericDocValues values = supplier.get();
                 final NumericDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
@@ -230,6 +232,10 @@ public class MultiValueModeTests extends ESTestCase {
                     int numValues = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (mode == MultiValueMode.FIRST) {
+                                expected = values.nextValue();
+                            }
+
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
                                     expected += values.nextValue();
@@ -371,6 +377,8 @@ public class MultiValueModeTests extends ESTestCase {
                             }
                             expected = values.nextValue();
                         }
+                    } else if (mode == MultiValueMode.FIRST) {
+                        expected = values.nextValue();
                     }
                 }
 
@@ -387,7 +395,7 @@ public class MultiValueModeTests extends ESTestCase {
 
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (long missingValue : new long[] { 0, randomLong() }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG}) {
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.SUM, MultiValueMode.AVG, MultiValueMode.FIRST}) {
                 SortedNumericDoubleValues values = supplier.get();
                 final NumericDoubleValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
@@ -405,6 +413,10 @@ public class MultiValueModeTests extends ESTestCase {
                     int numValues = 0;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (mode == MultiValueMode.FIRST) {
+                                expected = values.nextValue();
+                            }
+
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (mode == MultiValueMode.SUM || mode == MultiValueMode.AVG) {
                                     expected += values.nextValue();
@@ -506,7 +518,7 @@ public class MultiValueModeTests extends ESTestCase {
 
     private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.FIRST}) {
                 SortedBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(values, missingValue);
                 for (int i = 0; i < maxDoc; ++i) {
@@ -550,7 +562,7 @@ public class MultiValueModeTests extends ESTestCase {
 
     private void verifySortedBinary(Supplier<SortedBinaryDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
         for (BytesRef missingValue : new BytesRef[] { new BytesRef(), new BytesRef(randomAlphaOfLengthBetween(8, 8)) }) {
-            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
+            for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.FIRST}) {
                 SortedBinaryDocValues values = supplier.get();
                 final BinaryDocValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxDoc);
                 int prevRoot = -1;
@@ -562,6 +574,11 @@ public class MultiValueModeTests extends ESTestCase {
                     BytesRef expected = null;
                     for (int child = innerDocs.nextSetBit(prevRoot + 1); child != -1 && child < root; child = innerDocs.nextSetBit(child + 1)) {
                         if (values.advanceExact(child)) {
+                            if (mode == MultiValueMode.FIRST) {
+                                expected = BytesRef.deepCopyOf(values.nextValue());
+                                break;
+                            }
+
                             for (int j = 0; j < values.docValueCount(); ++j) {
                                 if (expected == null) {
                                     expected = BytesRef.deepCopyOf(values.nextValue());
@@ -680,7 +697,7 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc) throws IOException {
-        for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
+        for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.FIRST}) {
             SortedSetDocValues values = supplier.get();
             final SortedDocValues selected = mode.select(values);
             for (int i = 0; i < maxDoc; ++i) {
@@ -699,6 +716,8 @@ public class MultiValueModeTests extends ESTestCase {
                                 expected = Math.min(expected, (int) ord);
                             } else if (mode == MultiValueMode.MAX) {
                                 expected = Math.max(expected, (int) ord);
+                            } else if (mode == MultiValueMode.FIRST) {
+                                expected = selected.ordValue();
                             }
                         }
                     }
@@ -716,7 +735,7 @@ public class MultiValueModeTests extends ESTestCase {
     }
 
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc, FixedBitSet rootDocs, FixedBitSet innerDocs) throws IOException {
-        for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX}) {
+        for (MultiValueMode mode : new MultiValueMode[] {MultiValueMode.MIN, MultiValueMode.MAX, MultiValueMode.FIRST}) {
             SortedSetDocValues values = supplier.get();
             final SortedDocValues selected = mode.select(values, rootDocs, new BitSetIterator(innerDocs, 0L));
             int prevRoot = -1;
@@ -737,6 +756,8 @@ public class MultiValueModeTests extends ESTestCase {
                                     expected = Math.min(expected, (int) ord);
                                 } else if (mode == MultiValueMode.MAX) {
                                     expected = Math.max(expected, (int) ord);
+                                } else if (mode == MultiValueMode.FIRST) {
+                                    expected = selected.ordValue();
                                 }
                             }
                         }
@@ -793,6 +814,13 @@ public class MultiValueModeTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(4));
             }
         }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            MultiValueMode.FIRST.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(in.readVInt(), equalTo(5));
+            }
+        }
     }
 
     public void testReadFrom() throws Exception {
@@ -830,6 +858,13 @@ public class MultiValueModeTests extends ESTestCase {
                 assertThat(MultiValueMode.readMultiValueModeFrom(in), equalTo(MultiValueMode.MAX));
             }
         }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(5);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(MultiValueMode.readMultiValueModeFrom(in), equalTo(MultiValueMode.FIRST));
+            }
+        }
     }
 
     public void testFromString() {
@@ -838,5 +873,6 @@ public class MultiValueModeTests extends ESTestCase {
         assertThat(MultiValueMode.fromString("median"), equalTo(MultiValueMode.MEDIAN));
         assertThat(MultiValueMode.fromString("min"), equalTo(MultiValueMode.MIN));
         assertThat(MultiValueMode.fromString("max"), equalTo(MultiValueMode.MAX));
+        assertThat(MultiValueMode.fromString("first"), equalTo(MultiValueMode.FIRST));
     }
 }

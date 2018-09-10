@@ -48,7 +48,6 @@ import java.util.Locale;
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  */
 public enum MultiValueMode implements Writeable {
-
     /**
      * Pick the sum of all the values.
      */
@@ -389,6 +388,81 @@ public enum MultiValueMode implements Writeable {
             }
             return ord;
         }
+    },
+
+    /**
+     * Pick the first of all the values
+     */
+    FIRST {
+        @Override
+        protected long pick(SortedNumericDocValues values) throws IOException {
+            return values.nextValue();
+        }
+
+        @Override
+        protected long pick(SortedNumericDocValues values, long missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            long value = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    value = values.nextValue();
+                    hasValue = true;
+                }
+            }
+            return hasValue ? value : missingValue;
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values) throws IOException {
+            return values.nextValue();
+        }
+
+        @Override
+        protected double pick(SortedNumericDoubleValues values, double missingValue, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            boolean hasValue = false;
+            double value = 0;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    value = values.nextValue();
+                    hasValue = true;
+                }
+            }
+            return hasValue ? value : missingValue;
+        }
+
+        @Override
+        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+            return values.nextValue();
+        }
+
+        @Override
+        protected BytesRef pick(BinaryDocValues values, BytesRefBuilder builder, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            BytesRefBuilder value = null;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    final BytesRef innerValue = values.binaryValue();
+                    builder.copyBytes(innerValue);
+                    value = builder;
+                }
+            }
+            return value == null ? null : value.get();
+        }
+
+        @Override
+        protected int pick(SortedSetDocValues values) throws IOException {
+            return Math.toIntExact(values.nextOrd());
+        }
+
+        @Override
+        protected int pick(SortedDocValues values, DocIdSetIterator docItr, int startDoc, int endDoc) throws IOException {
+            int ord = -1;
+            for (int doc = startDoc; doc < endDoc; doc = docItr.nextDoc()) {
+                if (values.advanceExact(doc)) {
+                    ord = values.ordValue();
+                }
+            }
+            return ord;
+        }
     };
 
     /**
@@ -409,7 +483,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX, FIRST
      */
     public NumericDocValues select(final SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
@@ -453,7 +527,7 @@ public enum MultiValueMode implements Writeable {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MIN, MAX
+     * Allowed Modes: SUM, AVG, MIN, MAX, FIRST
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
@@ -511,7 +585,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
+     * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX, FIRST
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values) {
         final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
@@ -550,7 +624,7 @@ public enum MultiValueMode implements Writeable {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
-     * Allowed Modes: SUM, AVG, MIN, MAX
+     * Allowed Modes: SUM, AVG, MIN, MAX, FIRST
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
@@ -600,7 +674,7 @@ public enum MultiValueMode implements Writeable {
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
-     * Allowed Modes: MIN, MAX
+     * Allowed Modes: MIN, MAX, FIRST
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
@@ -658,7 +732,7 @@ public enum MultiValueMode implements Writeable {
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
      *
-     * Allowed Modes: MIN, MAX
+     * Allowed Modes: MIN, MAX, FIRST
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
@@ -714,7 +788,7 @@ public enum MultiValueMode implements Writeable {
      * Return a {@link SortedDocValues} instance that can be used to sort documents
      * with this mode and the provided values.
      *
-     * Allowed Modes: MIN, MAX
+     * Allowed Modes: MIN, MAX, FIRST
      */
     public SortedDocValues select(final SortedSetDocValues values) {
         if (values.getValueCount() >= Integer.MAX_VALUE) {
@@ -774,7 +848,7 @@ public enum MultiValueMode implements Writeable {
      *
      * For every root document, the values of its inner documents will be aggregated.
      *
-     * Allowed Modes: MIN, MAX
+     * Allowed Modes: MIN, MAX, FIRST
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs

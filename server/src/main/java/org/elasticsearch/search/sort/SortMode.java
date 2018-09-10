@@ -36,6 +36,7 @@ import java.util.Objects;
  * <li>sum - Use the sum of all values as sort value. Only applicable for number based array fields.</li>
  * <li>avg - Use the average of all values as sort value. Only applicable for number based array fields.</li>
  * <li>median - Use the median of all values as sort value. Only applicable for number based array fields.</li>
+ * <li>first - Pick the first value.</li>
  * </ul>
  */
 public enum SortMode implements Writeable {
@@ -48,7 +49,9 @@ public enum SortMode implements Writeable {
     /** Use the average of all values as sort value. Only applicable for number based array fields. **/
     AVG,
     /** Use the median of all values as sort value. Only applicable for number based array fields. **/
-    MEDIAN;
+    MEDIAN,
+    /** Pick the first value **/
+    FIRST;
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
@@ -62,6 +65,8 @@ public enum SortMode implements Writeable {
     public static SortMode fromString(final String str) {
         Objects.requireNonNull(str, "input string is null");
         switch (str.toLowerCase(Locale.ROOT)) {
+            case ("first"):
+                return FIRST;
             case ("min"):
                 return MIN;
             case ("max"):

@@ -72,7 +72,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Change the password of a user in the native realm synchronously.
+     * Change the password of a user of a native realm or built-in user synchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
      * the docs</a> for more.
      *
@@ -87,7 +87,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Change the password of a user in the native realm asynchronously.
+     * Change the password of a user of a native realm or built-in user asynchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
      * the docs</a> for more.
      *
@@ -95,10 +95,9 @@ public final class SecurityClient {
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void changePasswordAsync(ChangePasswordRequest request, RequestOptions options, ActionListener<EmptyResponse>
-        listener) {
+    public void changePasswordAsync(ChangePasswordRequest request, RequestOptions options,
+                                    ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::changePassword, options,
             EmptyResponse::fromXContent, listener, emptySet());
-
     }
 }

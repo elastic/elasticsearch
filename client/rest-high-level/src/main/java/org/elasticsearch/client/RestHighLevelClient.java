@@ -460,7 +460,7 @@ public class RestHighLevelClient implements Closeable {
      * Asynchronously executes an update by query request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
      *     Update By Query API on elastic.co</a>
-     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public final void updateByQueryAsync(UpdateByQueryRequest reindexRequest, RequestOptions options,
@@ -475,7 +475,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
      *     Delete By Query API on elastic.co</a>
      * @param deleteByQueryRequest the request
-     * @param options              the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */

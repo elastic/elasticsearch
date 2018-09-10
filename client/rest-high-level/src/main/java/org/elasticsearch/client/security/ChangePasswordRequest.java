@@ -31,6 +31,9 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Request object to change the password of a user of a native realm or a built-in user.
+ */
 public final class ChangePasswordRequest implements Validatable, Closeable, ToXContentObject {
 
     private final String username;
@@ -42,7 +45,6 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
         this.password = Objects.requireNonNull(password, "password is required");
         this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
     }
-
 
     public String getUsername() {
         return username;
@@ -57,22 +59,6 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
     }
 
     @Override
-    public boolean equals(Object o){
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ChangePasswordRequest that = (ChangePasswordRequest) o;
-        return Objects.equals(username, that.username) &&
-            Arrays.equals(password, that.password) &&
-            refreshPolicy == that.refreshPolicy;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(username, refreshPolicy);
-        result = 31 * result + Arrays.hashCode(password);
-        return result;
-    }
-    @Override
     public void close() throws IOException {
         if (password != null) {
             Arrays.fill(password, '\u0000');
@@ -85,15 +71,9 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
         if (null != username){
             builder.field("username", username);
         }
-        if (password != null) {
-            byte[] charBytes = CharArrays.toUtf8Bytes(password);
-            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
-        }
-        return builder.endObject();
-    }
+        byte[] charBytes = CharArrays.toUtf8Bytes(password);
+        builder.field("password").utf8Value(charBytes, 0, charBytes.length);
 
-    @Override
-    public Optional<ValidationException> validate() {
-        return Optional.empty();
+        return builder.endObject();
     }
 }

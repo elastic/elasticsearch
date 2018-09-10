@@ -36,7 +36,8 @@ public class FeatureIndexBuilderJobPersistentTasksExecutor extends PersistentTas
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable FeatureIndexBuilderJob params, PersistentTaskState state) {
         FeatureIndexBuilderJobTask buildTask = (FeatureIndexBuilderJobTask) task;
-        SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(FeatureIndexBuilderJobTask.SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
+        SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
+                FeatureIndexBuilderJobTask.SCHEDULE_NAME + "_" + params.getConfig().getId(), next());
 
         // Note that while the task is added to the scheduler here, the internal state
         // will prevent

@@ -68,9 +68,6 @@ public final class ChangePasswordRequest implements Validatable, Closeable, ToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (null != username){
-            builder.field("username", username);
-        }
         byte[] charBytes = CharArrays.toUtf8Bytes(password);
         builder.field("password").utf8Value(charBytes, 0, charBytes.length);
 

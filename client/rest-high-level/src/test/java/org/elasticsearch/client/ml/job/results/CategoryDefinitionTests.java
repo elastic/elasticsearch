@@ -25,7 +25,7 @@ import java.util.Arrays;
 
 public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
         categoryDefinition.setTerms(randomAlphaOfLength(10));

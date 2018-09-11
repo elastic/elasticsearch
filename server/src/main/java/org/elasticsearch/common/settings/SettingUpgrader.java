@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.settings;
 
+import java.util.List;
+
 /**
  * Represents the logic to upgrade a setting.
  *
@@ -48,6 +50,10 @@ public interface SettingUpgrader<T> {
      * @return the upgraded setting value
      */
     default String getValue(final String value) {
+        return value;
+    }
+
+    default List<String> getListValue(final List<String> value) {
         return value;
     }
 

@@ -13,7 +13,7 @@ The `prepareExecute` method which created a request builder has been
 removed from the client api. Instead, construct a builder for the
 appropriate request directly.
 
-=== Some Aggregation classes have moved packages
+==== Some Aggregation classes have moved packages
 
 * All classes present in `org.elasticsearch.search.aggregations.metrics.*` packages
 were moved to a single `org.elasticsearch.search.aggregations.metrics` package.

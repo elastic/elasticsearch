@@ -189,9 +189,11 @@ include::tasks/cancel_tasks.asciidoc[]
 The Java High Level REST Client supports the following Scripts APIs:
 
 * <<java-rest-high-get-stored-script>>
+* <<java-rest-high-put-stored-script>>
 * <<java-rest-high-delete-stored-script>>
 
 include::script/get_script.asciidoc[]
+include::script/put_script.asciidoc[]
 include::script/delete_script.asciidoc[]
 
 == Licensing APIs
@@ -224,6 +226,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-get-records>>
 * <<java-rest-high-x-pack-ml-post-data>>
 * <<java-rest-high-x-pack-ml-get-influencers>>
+* <<java-rest-high-x-pack-ml-get-categories>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -239,6 +242,7 @@ include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
 include::ml/post-data.asciidoc[]
 include::ml/get-influencers.asciidoc[]
+include::ml/get-categories.asciidoc[]
 
 == Migration APIs
 

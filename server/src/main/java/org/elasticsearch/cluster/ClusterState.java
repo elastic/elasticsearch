@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -465,9 +466,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex().getName());
+                final String indexName = indexMetaData.getIndex().getName();
+                builder.startObject(indexName);
 
-                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
+                IndexMetaData.State indexState = indexMetaData.getState();
+                builder.field("state", indexState.toString().toLowerCase(Locale.ENGLISH));
+
+                if (indexState == IndexMetaData.State.OPEN) {
+                    final IndexRoutingTable indexRoutingTable = routingTable().index(indexName);
+                    final ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
+                    builder.field("status", indexHealth.getStatus().name().toLowerCase(Locale.ENGLISH));
+                }
 
                 builder.startObject("settings");
                 Settings settings = indexMetaData.getSettings();

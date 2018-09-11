@@ -13,7 +13,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 /**
- * {@link Expression}s that can be materialized and represent the result columns sent to the clien.
+ * {@link Expression}s that can be materialized and represent the result columns sent to the client.
  * Typically are converted into constants, functions or Elasticsearch order-bys,
  * aggregations, or queries. They can also be extracted from the result of a search.
  *

@@ -132,7 +132,7 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
                 .setPersistentSettings(
                         Settings.builder()
                             .put("search.remote.foo.skip_unavailable", skipUnavailable)
-                            .put("search.remote.foo.seeds", "localhost:9200")
+                            .putList("search.remote.foo.seeds", Collections.singletonList("localhost:9200"))
                             .put("search.remote.foo.proxy", "localhost:9200")
                             .build())
                 .get();

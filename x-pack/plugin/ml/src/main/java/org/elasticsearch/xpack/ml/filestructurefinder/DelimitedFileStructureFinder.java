@@ -49,10 +49,12 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows);
         boolean isHeaderInFile = headerInfo.v1();
         String[] header = headerInfo.v2();
-        String[] headerWithNamedBlanks = new String[header.length];
+        // The column names are the header names but with blanks named column1, column2, etc.
+        String[] columnNames = new String[header.length];
         for (int i = 0; i < header.length; ++i) {
-            String rawHeader = header[i].isEmpty() ? "column" + (i + 1) : header[i];
-            headerWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
+            assert header[i] != null;
+            String rawHeader = trimFields ? header[i].trim() : header[i];
+            columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader;
         }
 
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
@@ -63,7 +65,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
             Map<String, String> sampleRecord = new LinkedHashMap<>();
-            Util.filterListToMap(sampleRecord, headerWithNamedBlanks,
+            Util.filterListToMap(sampleRecord, columnNames,
                 trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
             sampleMessages.add(
@@ -82,7 +84,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isHeaderInFile)
             .setDelimiter(delimiter)
-            .setInputFields(Arrays.stream(headerWithNamedBlanks).collect(Collectors.toList()));
+            .setColumnNames(Arrays.stream(columnNames).collect(Collectors.toList()));
 
         if (trimFields) {
             structureBuilder.setShouldTrimFields(true);
@@ -225,7 +227,9 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             // SuperCSV will put nulls in the header if any columns don't have names, but empty strings are better for us
             return new Tuple<>(true, firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new));
         } else {
-            return new Tuple<>(false, IntStream.rangeClosed(1, firstRow.size()).mapToObj(num -> "column" + num).toArray(String[]::new));
+            String[] dummyHeader = new String[firstRow.size()];
+            Arrays.fill(dummyHeader, "");
+            return new Tuple<>(false, dummyHeader);
         }
     }
 

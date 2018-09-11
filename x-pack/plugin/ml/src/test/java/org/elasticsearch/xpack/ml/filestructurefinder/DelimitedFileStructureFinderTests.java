@@ -45,7 +45,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("time", "message"), structure.getInputFields());
+        assertEquals(Arrays.asList("time", "message"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
@@ -76,7 +76,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("message", "time", "count"), structure.getInputFields());
+        assertEquals(Arrays.asList("message", "time", "count"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getTimestampFormats());
@@ -114,7 +114,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
             "RatecodeID", "store_and_fwd_flag", "PULocationID", "DOLocationID", "payment_type", "fare_amount", "extra", "mta_tax",
-            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount", "column18", "column19"), structure.getInputFields());
+            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount", "column18", "column19"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getTimestampFormats());
@@ -152,7 +152,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getShouldTrimFields());
         assertEquals(Arrays.asList("VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime", "passenger_count", "trip_distance",
             "RatecodeID", "store_and_fwd_flag", "PULocationID", "DOLocationID", "payment_type", "fare_amount", "extra", "mta_tax",
-            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount"), structure.getInputFields());
+            "tip_amount", "tolls_amount", "improvement_surcharge", "total_amount"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getTimestampFormats());
@@ -183,7 +183,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("pos_id", "trip_id", "latitude", "longitude", "altitude", "timestamp"), structure.getInputFields());
+        assertEquals(Arrays.asList("pos_id", "trip_id", "latitude", "longitude", "altitude", "timestamp"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss.SSSSSS"), structure.getTimestampFormats());
@@ -213,7 +213,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             DelimitedFileStructureFinder.readRows(withoutHeader, CsvPreference.EXCEL_PREFERENCE).v1());
 
         assertFalse(header.v1());
-        assertThat(header.v2(), arrayContaining("column1", "column2", "column3", "column4"));
+        assertThat(header.v2(), arrayContaining("", "", "", ""));
     }
 
     public void testLevenshteinDistance() {

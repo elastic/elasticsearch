@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Para
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 /*
- * Base class for the two "naming" date/time functions: month_name and day_name
+ * Base class for "naming" date/time functions like month_name and day_name
  */
 abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 

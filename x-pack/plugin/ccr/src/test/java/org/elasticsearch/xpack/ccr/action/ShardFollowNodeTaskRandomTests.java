@@ -15,6 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -52,7 +54,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
         task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
-            ShardFollowNodeTask.Status status = task.getStatus();
+            ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             final long numberOfFailedFetches =
@@ -65,7 +67,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         task.markAsCompleted();
         assertBusy(() -> {
-            ShardFollowNodeTask.Status status = task.getStatus();
+            ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.numberOfConcurrentReads(), equalTo(0));
             assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         });
@@ -75,7 +77,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         AtomicBoolean stopped = new AtomicBoolean(false);
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0), testRun.maxOperationCount, concurrency,
-            ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES, concurrency, 10240,
+            FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES, concurrency, 10240,
             TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10), Collections.emptyMap());
 
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());

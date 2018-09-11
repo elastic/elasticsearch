@@ -40,19 +40,21 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.ccr.rest.RestFollowIndexAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -148,9 +151,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 // stats action
                 new ActionHandler<>(CcrStatsAction.INSTANCE, TransportCcrStatsAction.class),
                 // follow actions
-                new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, CreateAndFollowIndexAction.TransportAction.class),
-                new ActionHandler<>(FollowIndexAction.INSTANCE, FollowIndexAction.TransportAction.class),
-                new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class),
+                new ActionHandler<>(CreateAndFollowIndexAction.INSTANCE, TransportCreateAndFollowIndexAction.class),
+                new ActionHandler<>(FollowIndexAction.INSTANCE, TransportFollowIndexAction.class),
+                new ActionHandler<>(UnfollowIndexAction.INSTANCE, TransportUnfollowIndexAction.class),
                 // auto-follow actions
                 new ActionHandler<>(DeleteAutoFollowPatternAction.INSTANCE, TransportDeleteAutoFollowPatternAction.class),
                 new ActionHandler<>(PutAutoFollowPatternAction.INSTANCE, TransportPutAutoFollowPatternAction.class));
@@ -179,8 +182,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::new),
 
                 // Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTask.Status.STATUS_PARSER_NAME,
-                        ShardFollowNodeTask.Status::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTaskStatus.STATUS_PARSER_NAME,
+                        ShardFollowNodeTaskStatus::new)
         );
     }
 
@@ -192,9 +195,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                 // Task statuses
                 new NamedXContentRegistry.Entry(
-                        ShardFollowNodeTask.Status.class,
-                        new ParseField(ShardFollowNodeTask.Status.STATUS_PARSER_NAME),
-                        ShardFollowNodeTask.Status::fromXContent));
+                        ShardFollowNodeTaskStatus.class,
+                        new ParseField(ShardFollowNodeTaskStatus.STATUS_PARSER_NAME),
+                        ShardFollowNodeTaskStatus::fromXContent));
     }
 
     /**

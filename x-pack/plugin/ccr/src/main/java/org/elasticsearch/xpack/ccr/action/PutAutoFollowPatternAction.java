@@ -58,7 +58,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             PARSER.declareInt(Request::setMaxWriteBufferSize, AutoFollowPattern.MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(Request::setRetryTimeout,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.RETRY_TIMEOUT.getPreferredName()),
-                ShardFollowTask.RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+                ShardFollowTask.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(Request::setIdleShardRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
                 ShardFollowTask.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -237,7 +237,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     builder.field(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
                 }
                 if (retryTimeout != null) {
-                    builder.field(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+                    builder.field(ShardFollowTask.MAX_RETRY_DELAY.getPreferredName(), retryTimeout.getStringRep());
                 }
                 if (idleShardRetryDelay != null) {
                     builder.field(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());

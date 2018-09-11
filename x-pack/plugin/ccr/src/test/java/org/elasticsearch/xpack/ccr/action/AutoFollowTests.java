@@ -163,7 +163,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
                 assertThat(shardFollowTask.getMaxBatchSizeInBytes(), equalTo(request.getMaxOperationSizeInBytes()));
             }
             if (request.getRetryTimeout() != null) {
-                assertThat(shardFollowTask.getRetryTimeout(), equalTo(request.getRetryTimeout()));
+                assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getRetryTimeout()));
             }
             if (request.getIdleShardRetryDelay() != null) {
                 assertThat(shardFollowTask.getIdleShardRetryDelay(), equalTo(request.getIdleShardRetryDelay()));

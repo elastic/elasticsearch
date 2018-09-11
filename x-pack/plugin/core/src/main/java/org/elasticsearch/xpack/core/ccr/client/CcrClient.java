@@ -64,7 +64,7 @@ public class CcrClient {
         client.execute(UnfollowIndexAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<UnfollowIndexAction.Request> unfollow(final UnfollowIndexAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowIndexAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(UnfollowIndexAction.INSTANCE, request, listener);
         return listener;

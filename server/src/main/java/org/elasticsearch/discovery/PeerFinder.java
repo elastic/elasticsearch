@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -65,6 +66,7 @@ public abstract class PeerFinder extends AbstractComponent {
     private final TransportService transportService;
     private final TransportAddressConnector transportAddressConnector;
     private final ConfiguredHostsResolver configuredHostsResolver;
+    private final LongConsumer updateMaxTermSeen;
 
     private volatile long currentTerm;
     private boolean active;
@@ -72,13 +74,14 @@ public abstract class PeerFinder extends AbstractComponent {
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
 
-    public PeerFinder(Settings settings, TransportService transportService,
-               TransportAddressConnector transportAddressConnector, ConfiguredHostsResolver configuredHostsResolver) {
+    public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
+                      ConfiguredHostsResolver configuredHostsResolver, LongConsumer updateMaxTermSeen) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
+        this.updateMaxTermSeen = updateMaxTermSeen;
 
         transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
             PeersRequest::new,

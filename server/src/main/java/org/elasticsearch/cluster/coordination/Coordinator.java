@@ -46,6 +46,8 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 public class Coordinator extends AbstractLifecycleComponent {
@@ -68,6 +70,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private Releasable electionScheduler;
     @Nullable
     private Releasable prevotingRound;
+    private AtomicLong maxTermSeen = new AtomicLong();
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -115,12 +118,20 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
     }
 
+    private void updateMaxTermSeen(final long term) {
+        maxTermSeen.updateAndGet(oldMaxTerm -> Math.max(oldMaxTerm, term));
+        // TODO if we are leader here, and there is no publication in flight, then we should bump our term
+        // (if we are leader and there _is_ a publication in flight then doing so would cancel the publication, so don't do that, but
+        // do check for this after the publication completes)
+    }
+
     private void startElection() {
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
-                final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), getCurrentTerm());
+                final StartJoinRequest startJoinRequest
+                    = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
                 handleStartJoinRequestUnderLock(startJoinRequest); // getFoundPeers() doesn't return the local node
                 getFoundNodes().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
             }
@@ -356,7 +367,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         CoordinatorPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                               ConfiguredHostsResolver configuredHostsResolver) {
-            super(settings, transportService, transportAddressConnector, configuredHostsResolver);
+            super(settings, transportService, transportAddressConnector, configuredHostsResolver, Coordinator.this::updateMaxTermSeen);
         }
 
         @Override

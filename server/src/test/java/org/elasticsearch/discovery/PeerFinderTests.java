@@ -146,7 +146,8 @@ public class PeerFinderTests extends ESTestCase {
         OptionalLong discoveredMasterTerm = OptionalLong.empty();
 
         TestPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector) {
-            super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts);
+            super(settings, transportService, transportAddressConnector, PeerFinderTests.this::resolveConfiguredHosts, l -> {});
+            // TODO test that the max term seen is updated
         }
 
         @Override

@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
@@ -59,39 +57,21 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.cluster.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
-    public void testCanProposeValueAfterStabilisation() {
+    public void testCanStabilise() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
-        cluster.runRandomly();
         cluster.stabilise();
-        final Cluster.ClusterNode leader = cluster.getAnyLeader();
-        final long stabilisedVersion = leader.coordinator.getLastCommittedState().get().getVersion();
-
-        final long finalValue = randomLong();
-        logger.info("--> proposing final value [{}] to [{}]", finalValue, leader.getId());
-        leader.submitValue(finalValue);
-        cluster.stabilise();
-
-        for (final Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
-            final String legislatorId = clusterNode.getId();
-            final ClusterState committedState = clusterNode.coordinator.getLastCommittedState().get();
-            assertThat(legislatorId + " is at the next version", committedState.getVersion(), equalTo(stabilisedVersion + 1));
-            assertThat(legislatorId + " has the right value", value(committedState), is(finalValue));
-        }
     }
 
-    static String nodeIdFromIndex(int nodeIndex) {
+    private static String nodeIdFromIndex(int nodeIndex) {
         return "node" + nodeIndex;
     }
 
@@ -120,15 +100,34 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
-        void runRandomly() {
-
-        }
-
         void stabilise() {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
             while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + DEFAULT_STABILISATION_TIME) {
                 deterministicTaskQueue.runAllRunnableTasks(random());
+
+                if (deterministicTaskQueue.hasDeferredTasks() == false) {
+                    break; // TODO when fault detection is enabled this should be removed, as there should _always_ be deferred tasks
+                }
+
                 deterministicTaskQueue.advanceTime();
+            }
+
+            assertUniqueLeaderAndExpectedModes();
+        }
+
+        private void assertUniqueLeaderAndExpectedModes() {
+            final ClusterNode leader = getAnyLeader();
+            final long leaderTerm = leader.coordinator.getCurrentTerm();
+
+            for (final ClusterNode clusterNode : clusterNodes) {
+                if (clusterNode == leader) {
+                    continue;
+                }
+
+                final String nodeId = clusterNode.getId();
+                assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
+                assertTrue("leader should have received a vote from " + nodeId,
+                    leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
             }
         }
 
@@ -151,8 +150,8 @@ public class CoordinatorTests extends ESTestCase {
                 super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
                 this.nodeIndex = nodeIndex;
                 localNode = createDiscoveryNode();
-                persistedState = new InMemoryPersistedState(0L,
-                    clusterState(0L, 0L, localNode, initialConfiguration, initialConfiguration, 0L));
+                persistedState = new InMemoryPersistedState(1L,
+                    clusterState(1L, 1L, localNode, initialConfiguration, initialConfiguration, 0L));
                 setUp();
             }
 
@@ -260,20 +259,6 @@ public class CoordinatorTests extends ESTestCase {
 
             String getId() {
                 return localNode.getId();
-            }
-
-            void submitValue(final long value) {
-                masterService.submitStateUpdateTask("submitValue(" + value + ")", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(final ClusterState currentState) {
-                        return setValue(currentState, value);
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.debug(new ParameterizedMessage("submitValue({}) failed", value), e);
-                    }
-                });
             }
 
             public DiscoveryNode getLocalNode() {

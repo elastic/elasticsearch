@@ -406,6 +406,10 @@ public class CoordinationState extends AbstractComponent {
         assert publishVotes.isEmpty() || electionWon();
     }
 
+    public boolean containsJoinVote(DiscoveryNode node) {
+        return joinVotes.containsVoteFor(node);
+    }
+
     /**
      * Pluggable persistence layer for {@link CoordinationState}.
      *

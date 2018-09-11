@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 public class Coordinator extends AbstractLifecycleComponent {
@@ -133,7 +132,7 @@ public class Coordinator extends AbstractLifecycleComponent {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
                 handleStartJoinRequestUnderLock(startJoinRequest); // getFoundPeers() doesn't return the local node
-                getFoundNodes().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
+                peerFinder.getFoundPeers().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
             }
         }
     }
@@ -348,15 +347,9 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
     }
 
-    public Optional<ClusterState> getLastCommittedState() {
-        return null; // TODO
-    }
-
-    private List<DiscoveryNode> getFoundNodes() {
-        final List<DiscoveryNode> peers = new ArrayList<>();
-        peers.add(getLocalNode());
-        peerFinder.getFoundPeers().forEach(peers::add);
-        return peers;
+    // for tests
+    boolean hasJoinVoteFrom(DiscoveryNode localNode) {
+        return coordinationState.get().containsJoinVote(localNode);
     }
 
     public enum Mode {
@@ -394,7 +387,10 @@ public class Coordinator extends AbstractLifecycleComponent {
                                         if (prevotingRound != null) {
                                             prevotingRound.close();
                                         }
-                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundNodes());
+                                        final List<DiscoveryNode> nodes = new ArrayList<>();
+                                        nodes.add(getLocalNode());
+                                        peerFinder.getFoundPeers().forEach(nodes::add);
+                                        prevotingRound = preVoteCollector.start(lastAcceptedState, nodes);
                                     }
                                 }
                             });

@@ -37,8 +37,11 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -203,6 +206,20 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             JobUpdate.Builder parsedRequest = JobUpdate.PARSER.apply(parser, null);
             assertThat(parsedRequest.build(), equalTo(updates));
+        }
+    }
+
+    public void testPutDatafeed() throws IOException {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandom();
+        PutDatafeedRequest putDatafeedRequest = new PutDatafeedRequest(datafeed);
+
+        Request request = MLRequestConverters.putDatafeed(putDatafeedRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/datafeeds/" + datafeed.getId()));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DatafeedConfig parsedDatafeed = DatafeedConfig.PARSER.apply(parser, null).build();
+            assertThat(parsedDatafeed, equalTo(datafeed));
         }
     }
 

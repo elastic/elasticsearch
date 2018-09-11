@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -52,8 +53,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -278,9 +282,13 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
         ensureGreen();
 
+        final Set<String> unicastHostsFileLines = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest())
+            .get().getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).collect(Collectors.toSet());
+
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
+        Files.write(conf.resolve(UNICAST_HOSTS_FILE), unicastHostsFileLines);
         Settings nodeSettings = Settings.builder()
             .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
@@ -291,7 +299,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
             .build();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
             MockHttpTransport.TestPlugin.class);

@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class FieldStats implements ToXContentObject {
+public class FieldStats implements ToXContentObject, Writeable {
 
     static final ParseField COUNT = new ParseField("count");
     static final ParseField CARDINALITY = new ParseField("cardinality");
@@ -62,6 +65,27 @@ public class FieldStats implements ToXContentObject {
         this.meanValue = meanValue;
         this.medianValue = medianValue;
         this.topHits = (topHits == null) ? Collections.emptyList() : Collections.unmodifiableList(topHits);
+    }
+
+    public FieldStats(StreamInput in) throws IOException {
+        count = in.readVLong();
+        cardinality = in.readVInt();
+        minValue = in.readOptionalDouble();
+        maxValue = in.readOptionalDouble();
+        meanValue = in.readOptionalDouble();
+        medianValue = in.readOptionalDouble();
+        topHits = in.readList(StreamInput::readMap);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(count);
+        out.writeVInt(cardinality);
+        out.writeOptionalDouble(minValue);
+        out.writeOptionalDouble(maxValue);
+        out.writeOptionalDouble(meanValue);
+        out.writeOptionalDouble(medianValue);
+        out.writeCollection(topHits, StreamOutput::writeMap);
     }
 
     public long getCount() {

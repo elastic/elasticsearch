@@ -19,11 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
@@ -89,7 +88,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         // Deferring collector
         return new LeafBucketCollector() {
             @Override
-            public void setScorer(Scorer scorer) throws IOException {
+            public void setScorer(Scorable scorer) throws IOException {
                 perSegCollector.setScorer(scorer);
             }
 
@@ -156,7 +155,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private long parentBucket;
         private int matchedDocs;
 
-        PerParentBucketSamples(long parentBucket, Scorer scorer, LeafReaderContext readerContext) {
+        PerParentBucketSamples(long parentBucket, Scorable scorer, LeafReaderContext readerContext) {
             try {
                 this.parentBucket = parentBucket;
                 tdc = createTopDocsCollector(shardSize);
@@ -185,7 +184,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             currentLeafCollector.collect(doc);
         }
 
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
             currentLeafCollector.setScorer(scorer);
         }
 
@@ -198,19 +197,18 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
     }
 
-    class PerSegmentCollects extends Scorer {
+    class PerSegmentCollects extends Scorable {
         private LeafReaderContext readerContext;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;
-        private Scorer currentScorer;
+        private Scorable currentScorer;
 
         PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
             // The publisher behaviour for Reader/Scorer listeners triggers a
             // call to this constructor with a null scorer so we can't call
             // scorer.getWeight() and pass the Weight to our base class.
             // However, passing null seems to have no adverse effects here...
-            super(null);
             this.readerContext = readerContext;
             for (int i = 0; i < perBucketSamples.size(); i++) {
                 PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
@@ -221,7 +219,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             }
         }
 
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
             this.currentScorer = scorer;
             for (int i = 0; i < perBucketSamples.size(); i++) {
                 PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
@@ -266,11 +264,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             return currentDocId;
         }
 
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
-        }
-
         public void collect(int docId, long parentBucket) throws IOException {
             perBucketSamples = bigArrays.grow(perBucketSamples, parentBucket + 1);
             PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
@@ -282,10 +275,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             maxDocId = Math.max(maxDocId, docId);
         }
 
-        @Override
-        public float getMaxScore(int upTo) throws IOException {
-            return Float.MAX_VALUE;
-        }
     }
 
     public int getDocCount(long parentBucket) {

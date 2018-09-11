@@ -65,11 +65,11 @@ public class TransportCcrStatsAction extends TransportTasksAction<
             final Task task,
             final CcrStatsAction.TasksRequest request,
             final ActionListener<CcrStatsAction.TasksResponse> listener) {
-        if (ccrLicenseChecker.isCcrAllowed()) {
-            super.doExecute(task, request, listener);
-        } else {
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+            return;
         }
+        super.doExecute(task, request, listener);
     }
 
     @Override

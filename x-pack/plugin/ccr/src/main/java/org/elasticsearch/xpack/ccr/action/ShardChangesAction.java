@@ -319,8 +319,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
         final String historyUUID = indexShard.getHistoryUUID();
         if (historyUUID.equals(expectedHistoryUUID) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + historyUUID + "], actual [" +
-                expectedHistoryUUID + "]");
+            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
+                historyUUID + "]");
         }
         if (fromSeqNo > globalCheckpoint) {
             return EMPTY_OPERATIONS_ARRAY;

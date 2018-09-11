@@ -14,7 +14,10 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -25,6 +28,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -38,11 +42,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -129,6 +137,43 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    public void testChangeHistoryUUID() throws Exception {
+        try (ReplicationGroup leaderGroup = createGroup(0);
+             ReplicationGroup followerGroup = createFollowGroup(0)) {
+            leaderGroup.startAll();
+            int docCount = leaderGroup.appendDocs(randomInt(64));
+            leaderGroup.assertAllEqual(docCount);
+            followerGroup.startAll();
+            ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+            final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
+            final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
+            shardFollowTask.start(
+                leaderSeqNoStats.getGlobalCheckpoint(),
+                leaderSeqNoStats.getMaxSeqNo(),
+                followerSeqNoStats.getGlobalCheckpoint(),
+                followerSeqNoStats.getMaxSeqNo());
+            leaderGroup.syncGlobalCheckpoint();
+            leaderGroup.assertAllEqual(docCount);
+            Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
+            assertBusy(() -> {
+                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leaderGroup.getPrimary().getGlobalCheckpoint()));
+                followerGroup.assertAllEqual(indexedDocIds.size());
+            });
+
+            String oldHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
+            leaderGroup.reinitPrimaryShard();
+            leaderGroup.getPrimary().store().bootstrapNewHistory();
+            recoverShardFromStore(leaderGroup.getPrimary());
+            String newHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
+
+            assertBusy(() -> {
+                assertThat(shardFollowTask.isStopped(), is(true));
+                assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
+                    "], actual [" + newHistoryUUID + "]"));
+            });
+        }
+    }
+
     @Override
     protected ReplicationGroup createGroup(int replicas, Settings settings) throws IOException {
         Settings newSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -167,7 +212,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 8),
             Long.MAX_VALUE,
             between(1, 4), 10240,
-            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueMillis(100),
             TimeValue.timeValueMillis(10),
             leaderGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()
@@ -175,6 +220,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
         AtomicBoolean stopped = new AtomicBoolean(false);
+        AtomicReference<Exception> failureHolder = new AtomicReference<>();
         LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
@@ -252,9 +298,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             public void markAsFailed(Exception e) {
+                failureHolder.set(e);
                 stopped.set(true);
             }
 
+            @Override
+            public Exception getFailure() {
+                return failureHolder.get();
+            }
         };
     }
 

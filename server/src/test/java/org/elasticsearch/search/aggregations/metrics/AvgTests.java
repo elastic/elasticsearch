@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-
 public class AvgTests extends AbstractNumericMetricTestCase<AvgAggregationBuilder> {
 
     @Override

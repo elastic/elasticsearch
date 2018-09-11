@@ -631,7 +631,7 @@ public final class LogConfigWriter {
         filebeatToLogstashConfig = String.format(Locale.ROOT, DELIMITED_FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions(structure.getMultilineStartPattern(), structure.getExcludeLinesPattern(), structure.getCharset()),
             makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
-        String logstashColumns = structure.getInputFields().stream()
+        String logstashColumns = structure.getColumnNames().stream()
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String delimiterIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
         String logstashColumnConversions = makeColumnConversions(structure.getMappings());

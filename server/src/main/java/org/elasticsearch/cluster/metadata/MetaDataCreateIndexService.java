@@ -735,11 +735,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         } else {
             final Predicate<String> sourceSettingsPredicate =
-                    (s) -> (
-                            s.startsWith("index.similarity.")
-                                    || s.startsWith("index.analysis.")
-                                    || s.startsWith("index.sort.")
-                                    || s.equals("index.mapping.single_type"))
+                    (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") || s.startsWith("index.sort.") ||
+                            s.equals("index.mapping.single_type") || s.equals("index.soft_deletes.enabled"))
                             && indexSettingsBuilder.keys().contains(s) == false;
             builder.put(sourceMetaData.getSettings().filter(sourceSettingsPredicate));
         }

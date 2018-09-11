@@ -209,6 +209,7 @@ shared file system repository.
 
 [float]
 [role="xpack"]
+[testenv="basic"]
 ===== Source Only Repository
 
 The `_source`-only repository adds support for creating minimal snapshots of an index using any other
@@ -250,6 +251,8 @@ PUT _snapshot/my_src_only_repository
 }
 -----------------------------------
 // CONSOLE
+// TEST[continued]
+
 <1> Specifies the delegate repository type to use as a backend.
 
 [float]

@@ -91,7 +91,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     private void startElection() {
-
+        throw new AssertionError("TODO startElection");
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -297,7 +297,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            electionScheduler = electionSchedulerFactory.startElectionScheduler(TimeValue.ZERO, () -> {
+                            final TimeValue gracePeriod = TimeValue.ZERO; // TODO variable grace period
+                            electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, () -> {
                                 synchronized (mutex) {
                                     if (mode == Mode.CANDIDATE) {
                                         if (prevotingRound != null) {

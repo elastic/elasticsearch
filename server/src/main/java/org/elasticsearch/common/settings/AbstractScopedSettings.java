@@ -27,7 +27,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,7 +53,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Map<Setting<?>, Function<Map.Entry<String, String>, Map.Entry<String, String>>> settingUpgraders;
+    private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
@@ -70,12 +69,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
         this.settingUpgraders =
                 Collections.unmodifiableMap(
-                        settingUpgraders
-                                .stream()
-                                .collect(
-                                        Collectors.toMap(
-                                                SettingUpgrader::getSetting,
-                                                u -> e -> new AbstractMap.SimpleEntry<>(u.getKey(e.getKey()), u.getValue(e.getValue())))));
+                        settingUpgraders.stream().collect(Collectors.toMap(SettingUpgrader::getSetting, Function.identity())));
+
 
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
@@ -786,15 +781,24 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false; // track if any settings were upgraded
         for (final String key : settings.keySet()) {
             final Setting<?> setting = getRaw(key);
-            final Function<Map.Entry<String, String>, Map.Entry<String, String>> upgrader = settingUpgraders.get(setting);
+            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
             if (upgrader == null) {
                 // the setting does not have an upgrader, copy the setting
                 builder.copy(key, settings);
             } else {
                 // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
                 changed = true;
-                final Map.Entry<String, String> upgrade = upgrader.apply(new Entry(key, settings));
-                builder.put(upgrade.getKey(), upgrade.getValue());
+                if (setting.isListSetting()) {
+                    final List<String> value = settings.getAsList(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final List<String> upgradedValue = upgrader.getListValue(value);
+                    builder.putList(upgradedKey, upgradedValue);
+                } else {
+                    final String value = settings.get(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final String upgradedValue = upgrader.getValue(value);
+                    builder.put(upgradedKey, upgradedValue);
+                }
             }
         }
         // we only return a new instance if there was an upgrade

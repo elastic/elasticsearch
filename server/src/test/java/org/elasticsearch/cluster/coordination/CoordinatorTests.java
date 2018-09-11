@@ -240,12 +240,17 @@ public class CoordinatorTests extends ESTestCase {
                             for (final ClusterNode clusterNode : clusterNodes) {
                                 if (clusterNode.getLocalNode().getAddress().equals(transportAddress)) {
                                     deterministicTaskQueue.scheduleNow(() -> listener.onResponse(clusterNode.getLocalNode()));
-                                    break;
+                                    return;
                                 }
                             }
                             deterministicTaskQueue.scheduleNow(() ->
                                 listener.onFailure(new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes)));
                         };
+                    }
+
+                    @Override
+                    protected void connectToNode(DiscoveryNode node) {
+                        // do nothing, we are simulating connections between nodes.
                     }
                 };
 

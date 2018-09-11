@@ -196,7 +196,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
         logger.trace("handleJoin: as {}, handling {}", mode, joinRequest);
-        transportService.connectToNode(joinRequest.getSourceNode());
+        connectToNode(joinRequest.getSourceNode());
 
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
@@ -228,6 +228,10 @@ public class Coordinator extends AbstractLifecycleComponent {
                 becomeLeader("handleJoin");
             }
         }
+    }
+
+    protected void connectToNode(DiscoveryNode node) {
+        transportService.connectToNode(node);
     }
 
     void becomeCandidate(String method) {

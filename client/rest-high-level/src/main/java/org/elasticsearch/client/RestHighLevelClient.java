@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -185,6 +186,8 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1165,6 +1168,7 @@ public class RestHighLevelClient implements Closeable {
         Response response;
         try {
             response = client.performRequest(req);
+            throwIfWarnings(response);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -1184,6 +1188,41 @@ public class RestHighLevelClient implements Closeable {
             return responseConverter.apply(response);
         } catch(Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
+        }
+    }
+    
+    private static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
+            "299 " + // warn code
+                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
+                    // quoted RFC 1123 date format
+                    "\"" + // opening quote
+                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+                    "\\d{2} " + // 2-digit day
+                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+                    "\\d{4} " + // 4-digit year
+                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+                    "GMT" + // GMT
+                    "\""); // closing quote
+
+
+    private void throwIfWarnings(Response response) {
+        if (response != null && response.getHeaders() != null) {
+            List<String> warnings = new ArrayList<>();
+            for (Header header : response.getHeaders()) {
+                if (header.getName().equals("Warning")) {
+                    String warning = header.getValue();
+                    final Matcher matcher = WARNING_HEADER_PATTERN.matcher(warning);
+                    if (matcher.matches()) {
+                        warnings.add(matcher.group(1));
+                        continue;
+                    }
+                    warnings.add(warning);
+                }
+            }
+            if (warnings.isEmpty() == false) {
+                throw new ElasticsearchException("Warnings returned in the response: " + String.join(";\n", warnings));
+            }
         }
     }
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
@@ -107,7 +107,7 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
     }
 }

@@ -19,9 +19,14 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 
@@ -36,7 +41,7 @@ public class MinScoreScorerTests extends LuceneTestCase {
         return new DocIdSetIterator() {
 
             int i = -1;
-            
+
             @Override
             public int nextDoc() throws IOException {
                 if (i + 1 == docs.length) {
@@ -45,17 +50,17 @@ public class MinScoreScorerTests extends LuceneTestCase {
                     return docs[++i];
                 }
             }
-            
+
             @Override
             public int docID() {
                 return i < 0 ? -1 : i == docs.length ? NO_MORE_DOCS : docs[i];
             }
-            
+
             @Override
             public long cost() {
                 return docs.length;
             }
-            
+
             @Override
             public int advance(int target) throws IOException {
                 return slowAdvance(target);
@@ -63,9 +68,36 @@ public class MinScoreScorerTests extends LuceneTestCase {
         };
     }
 
+    private static Weight fakeWeight() {
+        return new Weight(new MatchAllDocsQuery()) {
+            @Override
+            public void extractTerms(Set<Term> terms) {
+
+            }
+
+            @Override
+            public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                return null;
+            }
+
+            @Override
+            public Scorer scorer(LeafReaderContext context) throws IOException {
+                return null;
+            }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return false;
+            }
+        };
+    }
+
     private static Scorer scorer(int maxDoc, final int[] docs, final float[] scores, final boolean twoPhase) {
         final DocIdSetIterator iterator = twoPhase ? DocIdSetIterator.all(maxDoc) : iterator(docs);
-        return new Scorer(null) {
+        return new Scorer(fakeWeight()) {
+
+            int lastScoredDoc = -1;
+
             public DocIdSetIterator iterator() {
                 if (twoPhase) {
                     return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
@@ -77,12 +109,12 @@ public class MinScoreScorerTests extends LuceneTestCase {
             public TwoPhaseIterator twoPhaseIterator() {
                 if (twoPhase) {
                     return new TwoPhaseIterator(iterator) {
-                        
+
                         @Override
                         public boolean matches() throws IOException {
                             return Arrays.binarySearch(docs, iterator.docID()) >= 0;
                         }
-                        
+
                         @Override
                         public float matchCost() {
                             return 10;
@@ -100,6 +132,8 @@ public class MinScoreScorerTests extends LuceneTestCase {
 
             @Override
             public float score() throws IOException {
+                assertNotEquals("score() called twice on doc " + docID(), lastScoredDoc, docID());
+                lastScoredDoc = docID();
                 final int idx = Arrays.binarySearch(docs, docID());
                 return scores[idx];
             }
@@ -130,7 +164,7 @@ public class MinScoreScorerTests extends LuceneTestCase {
         }
         Scorer scorer = scorer(maxDoc, docs, scores, twoPhase);
         final float minScore = random().nextFloat();
-        Scorer minScoreScorer = new MinScoreScorer(null, scorer, minScore);
+        Scorer minScoreScorer = new MinScoreScorer(fakeWeight(), scorer, minScore);
         int doc = -1;
         while (doc != DocIdSetIterator.NO_MORE_DOCS) {
             final int target;
@@ -152,7 +186,7 @@ public class MinScoreScorerTests extends LuceneTestCase {
                 assertEquals(DocIdSetIterator.NO_MORE_DOCS, doc);
             } else {
                 assertEquals(docs[idx], doc);
-                assertEquals(scores[idx], scorer.score(), 0f);
+                assertEquals(scores[idx], minScoreScorer.score(), 0f);
             }
         }
     }

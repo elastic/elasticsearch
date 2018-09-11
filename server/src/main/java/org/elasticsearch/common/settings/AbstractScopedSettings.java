@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -52,14 +53,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
+    private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
+    protected AbstractScopedSettings(
+            final Settings settings,
+            final Set<Setting<?>> settingsSet,
+            final Set<SettingUpgrader<?>> settingUpgraders,
+            final Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
+
+        this.settingUpgraders =
+                Collections.unmodifiableMap(
+                        settingUpgraders.stream().collect(Collectors.toMap(SettingUpgrader::getSetting, Function.identity())));
+
+
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
@@ -97,6 +109,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
+        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -758,6 +771,41 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Upgrade all settings eligible for upgrade in the specified settings instance.
+     *
+     * @param settings the settings instance that might contain settings to be upgraded
+     * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
+     */
+    public Settings upgradeSettings(final Settings settings) {
+        final Settings.Builder builder = Settings.builder();
+        boolean changed = false; // track if any settings were upgraded
+        for (final String key : settings.keySet()) {
+            final Setting<?> setting = getRaw(key);
+            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
+            if (upgrader == null) {
+                // the setting does not have an upgrader, copy the setting
+                builder.copy(key, settings);
+            } else {
+                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
+                changed = true;
+                if (setting.isListSetting()) {
+                    final List<String> value = settings.getAsList(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final List<String> upgradedValue = upgrader.getListValue(value);
+                    builder.putList(upgradedKey, upgradedValue);
+                } else {
+                    final String value = settings.get(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final String upgradedValue = upgrader.getValue(value);
+                    builder.put(upgradedKey, upgradedValue);
+                }
+            }
+        }
+        // we only return a new instance if there was an upgrade
+        return changed ? builder.build() : settings;
+    }
+
+    /**
      * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
      * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
      * and remains in the settings object. This can be used to detect invalid settings via APIs.
@@ -847,4 +895,5 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public boolean isPrivateSetting(String key) {
         return false;
     }
+
 }

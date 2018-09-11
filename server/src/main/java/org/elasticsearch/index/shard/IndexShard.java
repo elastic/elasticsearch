@@ -1372,6 +1372,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void trimUnsafeCommits() throws IOException {
+        assert currentEngineReference.get() == null : "engine is running";
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);

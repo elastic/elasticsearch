@@ -78,8 +78,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         // Unexpected history UUID:
         Exception e = expectThrows(IllegalStateException.class, () -> ShardChangesAction.getOperations(indexShard,
             indexShard.getGlobalCheckpoint(), 0, 10, "different-history-uuid", Long.MAX_VALUE));
-        assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [" + indexShard.getHistoryUUID() +
-            "], actual [different-history-uuid]"));
+        assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [different-history-uuid], actual [" +
+                indexShard.getHistoryUUID() + "]"));
     }
 
     public void testGetOperationsWhenShardNotStarted() throws Exception {

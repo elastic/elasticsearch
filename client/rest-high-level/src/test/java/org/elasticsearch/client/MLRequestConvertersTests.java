@@ -26,7 +26,9 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
+import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -173,6 +175,21 @@ public class MLRequestConvertersTests extends ESTestCase {
                 requestEntityToString(request));
     }
 
+    public void testForecastJob() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        ForecastJobRequest forecastJobRequest = new ForecastJobRequest(jobId);
+
+        forecastJobRequest.setDuration(TimeValue.timeValueHours(10));
+        forecastJobRequest.setExpiresIn(TimeValue.timeValueHours(12));
+        Request request = MLRequestConverters.forecastJob(forecastJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_forecast", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            ForecastJobRequest parsedRequest = ForecastJobRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(forecastJobRequest));
+        }
+    }
+
     public void testUpdateJob() throws Exception {
         String jobId = randomAlphaOfLength(10);
         JobUpdate updates = JobUpdateTests.createRandom(jobId);
@@ -201,6 +218,21 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetBucketsRequest parsedRequest = GetBucketsRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getBucketsRequest));
+        }
+    }
+
+    public void testGetCategories() throws IOException {
+        String jobId = randomAlphaOfLength(10);
+        GetCategoriesRequest getCategoriesRequest = new GetCategoriesRequest(jobId);
+        getCategoriesRequest.setPageParams(new PageParams(100, 300));
+
+
+        Request request = MLRequestConverters.getCategories(getCategoriesRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/results/categories", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            GetCategoriesRequest parsedRequest = GetCategoriesRequest.PARSER.apply(parser, null);
+            assertThat(parsedRequest, equalTo(getCategoriesRequest));
         }
     }
 

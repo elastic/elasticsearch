@@ -18,20 +18,51 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
+import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.cluster.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
     public void testCanProposeValueAfterStabilisation() {
@@ -44,7 +75,7 @@ public class CoordinatorTests extends ESTestCase {
         final long finalValue = randomLong();
         logger.info("--> proposing final value [{}] to [{}]", finalValue, leader.getId());
         leader.submitValue(finalValue);
-        cluster.stabilise(Cluster.DEFAULT_DELAY_VARIABILITY, 0L);
+        cluster.stabilise();
 
         for (final Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
             final String legislatorId = clusterNode.getId();
@@ -54,22 +85,32 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
+    static String nodeIdFromIndex(int nodeIndex) {
+        return "node" + nodeIndex;
+    }
+
     class Cluster {
 
-        static final long DEFAULT_DELAY_VARIABILITY = 100L;
+        static final long DEFAULT_STABILISATION_TIME = 60000L;
 
         final List<ClusterNode> clusterNodes;
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build());
+        private final VotingConfiguration initialConfiguration;
 
         Cluster(int initialNodeCount) {
             logger.info("--> creating cluster of {} nodes", initialNodeCount);
+
+            Set<String> initialNodeIds = new HashSet<>(initialNodeCount);
+            for (int i = 0; i < initialNodeCount; i++) {
+                initialNodeIds.add(nodeIdFromIndex(i));
+            }
+            initialConfiguration = new VotingConfiguration(initialNodeIds);
+
             clusterNodes = new ArrayList<>(initialNodeCount);
             for (int i = 0; i < initialNodeCount; i++) {
                 final ClusterNode clusterNode = new ClusterNode(i);
                 clusterNodes.add(clusterNode);
-            }
-
-            for (final ClusterNode clusterNode : clusterNodes) {
-                clusterNode.initialise();
             }
         }
 
@@ -78,11 +119,11 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         void stabilise() {
-
-        }
-
-        void stabilise(long delayVariability, long stabilisationTime) {
-
+            final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
+            while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + DEFAULT_STABILISATION_TIME) {
+                deterministicTaskQueue.runAllRunnableTasks(random());
+                deterministicTaskQueue.advanceTime();
+            }
         }
 
         ClusterNode getAnyLeader() {
@@ -91,21 +132,87 @@ public class CoordinatorTests extends ESTestCase {
             return randomFrom(allLeaders);
         }
 
-        class ClusterNode {
-
-            Coordinator coordinator;
+        class ClusterNode extends AbstractComponent {
+            private final int nodeIndex;
+            private Coordinator coordinator;
             private DiscoveryNode localNode;
+            private final PersistedState persistedState;
+            private MasterService masterService;
 
             ClusterNode(int nodeIndex) {
+                super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
+                this.nodeIndex = nodeIndex;
+                localNode = createDiscoveryNode();
+                persistedState = new InMemoryPersistedState(0L,
+                    clusterState(0L, 0L, localNode, initialConfiguration, initialConfiguration, 0L));
+                setUp();
+            }
 
+            private DiscoveryNode createDiscoveryNode() {
+                final TransportAddress transportAddress = buildNewFakeTransportAddress();
+                // Generate the ephemeral ID deterministically, for repeatable tests. This means we have to pass everything else into the
+                // constructor explicitly too.
+                return new DiscoveryNode("", "node" + nodeIndex, UUIDs.randomBase64UUID(random()),
+                    transportAddress.address().getHostString(),
+                    transportAddress.getAddress(), transportAddress, Collections.emptyMap(),
+                    EnumSet.allOf(Role.class), Version.CURRENT);
+            }
+
+            private void setUp() {
+
+                final CapturingTransport capturingTransport = new CapturingTransport() {
+                    @Override
+                    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                        super.onSendRequest(requestId, action, request, node);
+                        // TODO schedule the delivery of this request to its destination
+                    }
+                };
+
+                masterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
+                AtomicReference<ClusterState> currentState = new AtomicReference<>(getPersistedState().getLastAcceptedState());
+                masterService.setClusterStateSupplier(currentState::get);
+                masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+                    currentState.set(event.state());
+                    publishListener.onResponse(null);
+                });
+                masterService.start();
+
+                final TransportService transportService = capturingTransport.createCapturingTransportService(
+                    settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
+                coordinator = new Coordinator(settings,
+                    transportService,
+                    ESAllocationTestCase.createAllocationService(Settings.EMPTY),
+                    masterService,
+                    this::getPersistedState,
+                    Cluster.this::provideUnicastHosts);
+
+                coordinator.start();
+                coordinator.startInitialJoin();
+            }
+
+            private PersistedState getPersistedState() {
+                return persistedState;
             }
 
             String getId() {
                 return localNode.getId();
             }
 
-            void submitValue(long value) {
+            void submitValue(final long value) {
+                masterService.submitStateUpdateTask("submitValue(" + value + ")", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(final ClusterState currentState) {
+                        return setValue(currentState, value);
+                    }
 
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.debug(new ParameterizedMessage("submitValue({}) failed", value), e);
+                    }
+                });
             }
 
             public DiscoveryNode getLocalNode() {
@@ -115,9 +222,12 @@ public class CoordinatorTests extends ESTestCase {
             boolean isLeader() {
                 return coordinator.getMode() == Coordinator.Mode.LEADER;
             }
+        }
 
-            void initialise() {
-            }
+        private List<TransportAddress> provideUnicastHosts(HostsResolver hostsResolver) {
+            final List<TransportAddress> unicastHosts = new ArrayList<>(clusterNodes.size());
+            clusterNodes.forEach(n -> unicastHosts.add(n.getLocalNode().getAddress()));
+            return unmodifiableList(unicastHosts);
         }
     }
 }

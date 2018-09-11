@@ -351,7 +351,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newFactory());
+        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 
     @Override

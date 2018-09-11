@@ -208,6 +208,7 @@ URL repositories with `file:` URLs can only point to locations registered in the
 shared file system repository.
 
 [float]
+[role="xpack"]
 ===== Source Only Repository
 
 The `_source`-only repository adds support for creating minimal snapshots of an index using any other

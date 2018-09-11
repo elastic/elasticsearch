@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -202,6 +204,33 @@ public class MLRequestConvertersTests extends ESTestCase {
             JobUpdate.Builder parsedRequest = JobUpdate.PARSER.apply(parser, null);
             assertThat(parsedRequest.build(), equalTo(updates));
         }
+    }
+
+    public void testDeleteForecast() throws Exception {
+        String jobId = randomAlphaOfLength(10);
+        DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest(jobId);
+
+        Request request = MLRequestConverters.deleteForecast(deleteForecastRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + "/_forecast", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("timeout"));
+        assertFalse(request.getParameters().containsKey("allow_no_forecasts"));
+
+        deleteForecastRequest.setForecastIds(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        deleteForecastRequest.timeout("10s");
+        deleteForecastRequest.setAllowNoForecasts(true);
+
+        request = MLRequestConverters.deleteForecast(deleteForecastRequest);
+        assertEquals(
+            "/_xpack/ml/anomaly_detectors/" +
+                jobId +
+                "/_forecast/" +
+                Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()),
+            request.getEndpoint());
+        assertEquals("10s",
+            request.getParameters().get(DeleteForecastRequest.TIMEOUT.getPreferredName()));
+        assertEquals(Boolean.toString(true),
+            request.getParameters().get(DeleteForecastRequest.ALLOW_NO_FORECASTS.getPreferredName()));
     }
 
     public void testGetBuckets() throws IOException {

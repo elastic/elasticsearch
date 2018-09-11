@@ -21,8 +21,11 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
@@ -31,6 +34,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -639,8 +643,85 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+    
+    public void testDeleteForecast() throws Exception {
+        RestHighLevelClient client = highLevelClient();
 
+        Job job = MachineLearningIT.buildJob("deleting-forecast-for-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
 
+        PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
+        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse = client.machineLearning().
+            forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
+        String forecastId = forecastJobResponse.getForecastId();
+
+        GetRequest request = new GetRequest(".ml-anomalies-" + job.getId());
+        request.id(job.getId() + "_model_forecast_request_stats_" + forecastId);
+        assertBusy(() -> {
+            GetResponse getResponse = highLevelClient().get(request, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertTrue(getResponse.getSourceAsString().contains("finished"));
+        }, 30, TimeUnit.SECONDS);
+
+        {
+            //tag::x-pack-ml-delete-forecast-request
+            DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest("deleting-forecast-for-job"); //<1>
+            //end::x-pack-ml-delete-forecast-request
+
+            //tag::x-pack-ml-delete-forecast-request-options
+            deleteForecastRequest.setForecastIds(forecastId); //<1>
+            deleteForecastRequest.timeout("30s"); //<2>
+            deleteForecastRequest.setAllowNoForecasts(true); //<3>
+            //end::x-pack-ml-delete-forecast-request-options
+
+            //tag::x-pack-ml-delete-forecast-execute
+            AcknowledgedResponse deleteForecastResponse = client.machineLearning().deleteForecast(deleteForecastRequest,
+                RequestOptions.DEFAULT);
+            //end::x-pack-ml-delete-forecast-execute
+
+            //tag::x-pack-ml-delete-forecast-response
+            boolean isAcknowledged = deleteForecastResponse.isAcknowledged(); //<1>
+            //end::x-pack-ml-delete-forecast-response
+        }
+        {
+            //tag::x-pack-ml-delete-forecast-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse DeleteForecastResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-delete-forecast-listener
+            DeleteForecastRequest deleteForecastRequest = DeleteForecastRequest.deleteAllForecasts(job.getId());
+            deleteForecastRequest.setAllowNoForecasts(true);
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-delete-forecast-execute-async
+            client.machineLearning().deleteForecastAsync(deleteForecastRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-delete-forecast-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetJobStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

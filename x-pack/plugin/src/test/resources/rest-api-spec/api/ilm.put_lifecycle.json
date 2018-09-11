@@ -3,12 +3,12 @@
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ilm/{lifecycle}",
-      "paths": ["/_ilm/{lifecycle}"],
+      "path": "/_ilm/{policy}",
+      "paths": ["/_ilm/{policy}"],
       "parts": {
-        "lifecycle": {
+        "policy": {
           "type" : "string",
-          "description" : "The name of the index lifecycle"
+          "description" : "The name of the index lifecycle policy"
         }
       },
       "params": {

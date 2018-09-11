@@ -51,17 +51,19 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     @BeforeClass
     public static void ensureSupportedLocale() throws Exception {
         Logger logger = Loggers.getLogger(RestrictedTrustManagerTests.class);
-        if (isThaiLocale() && inFipsJvm()) {
+        if (isUnusableLocale()) {
             // See: https://github.com/elastic/elasticsearch/issues/33081
-            logger.warn("Attempting to run RestrictedTrustManagerTests tests on a Thai locale in a FIPS JVM. Certificate expiration " +
+            logger.warn("Attempting to run RestrictedTrustManagerTests tests in an unusable locale in a FIPS JVM. Certificate expiration " +
                 "validation will fail, switching to English");
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
     }
 
-    private static boolean isThaiLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("th").getLanguage());
+    private static boolean isUnusableLocale() {
+        return inFipsJvm() && (Locale.getDefault().toLanguageTag().equals("th-TH")
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
     }
 
     @AfterClass

@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -630,8 +631,13 @@ public final class InternalTestCluster extends TestCluster {
                 finalSettings.build(),
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
-                forbidPrivateIndexSettings,
-                onTransportServiceStarted);
+                forbidPrivateIndexSettings);
+        node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStart() {
+                onTransportServiceStarted.run();
+            }
+        });
         try {
             IOUtils.close(secureSettings);
         } catch (IOException e) {
@@ -954,7 +960,13 @@ public final class InternalTestCluster extends TestCluster {
                     " is not configured after restart of [" + name + "]");
             }
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, null, true, onTransportServiceStarted);
+            node = new MockNode(finalSettings, plugins);
+            node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
+                @Override
+                public void afterStart() {
+                    onTransportServiceStarted.run();
+                }
+            });
             markNodeDataDirsAsNotEligableForWipe(node);
         }
 

@@ -75,8 +75,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
-                EngineFactory engineFactory = SourceOnlySnapshotEngine::new;
-                return Optional.of(engineFactory);
+                return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
             }
             return Optional.empty();
         }
@@ -141,10 +140,18 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertTrue(mapping.containsKey("_doc"));
         String nested = useNested ?
             ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
-        assertEquals("{\"_doc\":{\"enabled\":false," +
-            "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
-            "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
-            mapping.get("_doc").source().string());
+        if (requireRouting) {
+            assertEquals("{\"_doc\":{\"enabled\":false," +
+                "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
+                "\"properties\":{\"field1\":{\"type\":\"text\"," +
+                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested +
+                "}}}}}", mapping.get("_doc").source().string());
+        } else {
+            assertEquals("{\"_doc\":{\"enabled\":false," +
+                "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
+                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
+                mapping.get("_doc").source().string());
+        }
     }
 
     private void assertHits(String index, int numDocsExpected) {

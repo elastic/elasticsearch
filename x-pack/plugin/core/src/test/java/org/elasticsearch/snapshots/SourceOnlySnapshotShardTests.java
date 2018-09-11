@@ -60,7 +60,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10), true,
-            ShardRoutingState.INITIALIZING, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+            ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -195,7 +195,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             new RecoverySource.SnapshotRecoverySource(new Snapshot("src_only", snapshotId), Version.CURRENT, indexId.getId()));
         IndexMetaData metaData = runAsSnapshot(threadPool, () -> repository.getSnapshotIndexMetaData(snapshotId, indexId));
-        IndexShard restoredShard = newShard(shardRouting, metaData, null, (c) -> new SourceOnlySnapshotEngine(c), () -> {});
+        IndexShard restoredShard = newShard(shardRouting, metaData, null, SourceOnlySnapshotRepository.getEngineFactory(), () -> {});
         restoredShard.mapperService().merge(shard.indexSettings().getIndexMetaData(), MapperService.MergeReason.MAPPING_RECOVERY);
         DiscoveryNode discoveryNode = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
@@ -236,7 +236,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public IndexShard reindex(DirectoryReader reader, MappingMetaData mapping) throws IOException {
         ShardRouting targetShardRouting = TestShardRouting.newShardRouting(new ShardId("target", "_na_", 0), randomAlphaOfLength(10), true,
-            ShardRoutingState.INITIALIZING, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+            ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

@@ -1439,9 +1439,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
+        try {
+            Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+            bootstrapNewHistoryWithLocalCheckpoint(maxSeqNo);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Marks an existing lucene index with a new history uuid and sets the given seqNo as the local checkpoint
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     */
+    public void bootstrapNewHistoryWithLocalCheckpoint(long maxSeqNo) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));

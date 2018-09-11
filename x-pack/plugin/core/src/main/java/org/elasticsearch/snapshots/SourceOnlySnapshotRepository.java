@@ -8,25 +8,36 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -34,7 +45,10 @@ import org.elasticsearch.repositories.Repository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -147,6 +161,19 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         }
     }
 
+    @Override
+    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        super.restoreShard(shard, snapshotId, version, indexId, snapshotShardId, recoveryState);
+        Store store = shard.store();
+        try {
+            // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
+            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            store.bootstrapNewHistoryWithLocalCheckpoint(segmentInfos.totalMaxDoc());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static EngineFactory getEngineFactory() {
         return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
             reader -> {
@@ -155,6 +182,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }) {
+            @Override
+            public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
+                throw new UnsupportedOperationException("_source only shards don't support _get calls");
+            }
+        };
     }
 }

@@ -95,6 +95,8 @@ public abstract class PeerFinder extends AbstractComponent {
             leader = Optional.empty();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
         }
+
+        onFoundPeersUpdated(); // trigger a check for a quorum already
     }
 
     public void deactivate(DiscoveryNode leader) {

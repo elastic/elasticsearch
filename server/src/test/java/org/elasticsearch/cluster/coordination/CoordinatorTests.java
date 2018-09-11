@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
@@ -33,12 +34,17 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -91,7 +97,7 @@ public class CoordinatorTests extends ESTestCase {
 
     class Cluster {
 
-        static final long DEFAULT_STABILISATION_TIME = 60000L;
+        static final long DEFAULT_STABILISATION_TIME = 3000L;
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -138,6 +144,8 @@ public class CoordinatorTests extends ESTestCase {
             private DiscoveryNode localNode;
             private final PersistedState persistedState;
             private MasterService masterService;
+            private TransportService transportService;
+            private CapturingTransport capturingTransport;
 
             ClusterNode(int nodeIndex) {
                 super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
@@ -160,11 +168,53 @@ public class CoordinatorTests extends ESTestCase {
 
             private void setUp() {
 
-                final CapturingTransport capturingTransport = new CapturingTransport() {
+                capturingTransport = new CapturingTransport() {
                     @Override
-                    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-                        super.onSendRequest(requestId, action, request, node);
-                        // TODO schedule the delivery of this request to its destination
+                    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
+                        assert destination.equals(localNode) == false : "non-local message from " + localNode + " to itself";
+                        super.onSendRequest(requestId, action, request, destination);
+
+                        deterministicTaskQueue.scheduleNow(() ->
+                            clusterNodes.stream().filter(d -> d.getLocalNode().equals(destination)).findAny().ifPresent(
+                                destinationNode -> {
+
+                                    final RequestHandlerRegistry requestHandler
+                                        = destinationNode.capturingTransport.getRequestHandler(action);
+
+                                    final TransportChannel transportChannel = new TransportChannel() {
+                                        @Override
+                                        public String getProfileName() {
+                                            return "default";
+                                        }
+
+                                        @Override
+                                        public String getChannelType() {
+                                            return "coordinator-test-channel";
+                                        }
+
+                                        @Override
+                                        public void sendResponse(final TransportResponse response) {
+                                            deterministicTaskQueue.scheduleNow(() -> handleResponse(requestId, response));
+                                        }
+
+                                        @Override
+                                        public void sendResponse(TransportResponse response, TransportResponseOptions options) {
+                                            sendResponse(response);
+                                        }
+
+                                        @Override
+                                        public void sendResponse(Exception exception) {
+                                            deterministicTaskQueue.scheduleNow(() -> handleRemoteError(requestId, exception));
+                                        }
+                                    };
+
+                                    try {
+                                        requestHandler.processMessageReceived(request, transportChannel);
+                                    } catch (Exception e) {
+                                        deterministicTaskQueue.scheduleNow(() -> handleRemoteError(requestId, e));
+                                    }
+                                }
+                            ));
                     }
                 };
 
@@ -177,17 +227,28 @@ public class CoordinatorTests extends ESTestCase {
                 });
                 masterService.start();
 
-                final TransportService transportService = capturingTransport.createCapturingTransportService(
+                transportService = capturingTransport.createCapturingTransportService(
                     settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
                 transportService.start();
                 transportService.acceptIncomingRequests();
 
-                coordinator = new Coordinator(settings,
-                    transportService,
-                    ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-                    masterService,
-                    this::getPersistedState,
-                    Cluster.this::provideUnicastHosts);
+                coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
+                    masterService, this::getPersistedState, Cluster.this::provideUnicastHosts) {
+
+                    @Override
+                    protected TransportAddressConnector getTransportAddressConnector() {
+                        return (transportAddress, listener) -> {
+                            for (final ClusterNode clusterNode : clusterNodes) {
+                                if (clusterNode.getLocalNode().getAddress().equals(transportAddress)) {
+                                    deterministicTaskQueue.scheduleNow(() -> listener.onResponse(clusterNode.getLocalNode()));
+                                    break;
+                                }
+                            }
+                            deterministicTaskQueue.scheduleNow(() ->
+                                listener.onFailure(new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes)));
+                        };
+                    }
+                };
 
                 coordinator.start();
                 coordinator.startInitialJoin();

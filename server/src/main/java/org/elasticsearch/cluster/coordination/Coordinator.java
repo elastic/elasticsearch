@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
+import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +43,8 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -60,6 +63,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private final PeerFinder peerFinder;
     private final PreVoteCollector preVoteCollector;
     private final ElectionSchedulerFactory electionSchedulerFactory;
+    private final UnicastConfiguredHostsResolver configuredHostsResolver;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -84,7 +88,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
-        this.peerFinder = new CoordinatorPeerFinder(settings, transportService, unicastHostsProvider);
+        configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
+        this.peerFinder = new CoordinatorPeerFinder(settings, transportService, getTransportAddressConnector(), configuredHostsResolver);
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.SAME, false, false,
             StartJoinRequest::new,
@@ -92,6 +97,10 @@ public class Coordinator extends AbstractLifecycleComponent {
                 handleStartJoinRequest(request);
                 channel.sendResponse(Empty.INSTANCE);
             });
+    }
+
+    protected TransportAddressConnector getTransportAddressConnector() {
+        return new HandshakingTransportAddressConnector(settings, transportService);
     }
 
     private void closePrevotingAndElectionScheduler() {
@@ -113,7 +122,7 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), getCurrentTerm());
                 handleStartJoinRequestUnderLock(startJoinRequest); // getFoundPeers() doesn't return the local node
-                peerFinder.getFoundPeers().forEach(peer -> sendStartJoinRequest(startJoinRequest, peer));
+                getFoundNodes().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
             }
         }
     }
@@ -284,6 +293,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     protected void doStart() {
         CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
         coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
+        configuredHostsResolver.start();
     }
 
     public void startInitialJoin() {
@@ -294,7 +304,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-
+        configuredHostsResolver.stop();
     }
 
     @Override
@@ -331,15 +341,22 @@ public class Coordinator extends AbstractLifecycleComponent {
         return null; // TODO
     }
 
+    private List<DiscoveryNode> getFoundNodes() {
+        final List<DiscoveryNode> peers = new ArrayList<>();
+        peers.add(getLocalNode());
+        peerFinder.getFoundPeers().forEach(peers::add);
+        return peers;
+    }
+
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
     }
 
     private class CoordinatorPeerFinder extends PeerFinder {
 
-        public CoordinatorPeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider unicastHostsProvider) {
-            super(settings, transportService, new HandshakingTransportAddressConnector(settings, transportService),
-                new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider));
+        CoordinatorPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
+                              ConfiguredHostsResolver configuredHostsResolver) {
+            super(settings, transportService, transportAddressConnector, configuredHostsResolver);
         }
 
         @Override
@@ -353,6 +370,7 @@ public class Coordinator extends AbstractLifecycleComponent {
                 if (mode == Mode.CANDIDATE) {
                     final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
                     getFoundPeers().forEach(expectedVotes::addVote);
+                    expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
                     final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
 
@@ -365,7 +383,7 @@ public class Coordinator extends AbstractLifecycleComponent {
                                         if (prevotingRound != null) {
                                             prevotingRound.close();
                                         }
-                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundPeers());
+                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundNodes());
                                     }
                                 }
                             });

@@ -9,17 +9,17 @@ setup:
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -45,7 +45,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
@@ -54,19 +54,19 @@ setup:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
 ---
 "Test Policy Update":
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -92,7 +92,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
@@ -116,7 +116,7 @@ setup:
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -142,7 +142,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 2 }
   - is_true: my_timeseries_lifecycle.modified_date
   - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "300s" }
@@ -160,19 +160,19 @@ setup:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
 ---
 "Test Undeletable Policy In Use":
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -198,7 +198,7 @@ setup:
   - do:
       acknowledge: true
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
   - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "30s" }
 
@@ -212,7 +212,7 @@ setup:
   - do:
       catch: bad_request
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is being used by at least one index [my_timeseries_index]" }
 
@@ -223,9 +223,9 @@ setup:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"

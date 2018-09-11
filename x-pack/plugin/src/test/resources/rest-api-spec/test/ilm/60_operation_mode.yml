@@ -13,7 +13,7 @@ setup:
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
@@ -59,9 +59,9 @@ setup:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"

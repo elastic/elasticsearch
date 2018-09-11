@@ -65,6 +65,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -101,6 +102,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -108,8 +110,13 @@ import java.util.function.Predicate;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
-    public ClusterSettings(Settings nodeSettings, Set<Setting<?>> settingsSet) {
-        super(nodeSettings, settingsSet, Property.NodeScope);
+    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
+        this(nodeSettings, settingsSet, Collections.emptySet());
+    }
+
+    public ClusterSettings(
+            final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
@@ -266,17 +273,27 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+                    IndexModule.NODE_STORE_ALLOW_MMAPFS,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterService.USER_DEFINED_META_DATA,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
+                    RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                     RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+                    RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
+                    RemoteClusterService.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
+                    RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
+                    RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
                     RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+                    RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -431,4 +448,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_BACK_OFF_TIME_SETTING,
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING
             )));
+
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+
 }

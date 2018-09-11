@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -97,6 +99,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -132,7 +135,7 @@ public abstract class Engine implements Closeable {
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
-                engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
+                engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
 
@@ -567,7 +570,31 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
+        try {
+            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -585,18 +612,32 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
      */
-    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract TranslogStats getTranslogStats();
 
@@ -1623,10 +1664,13 @@ public abstract class Engine implements Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
-     * Performs recovery from the transaction log.
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog() throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1644,4 +1688,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 }

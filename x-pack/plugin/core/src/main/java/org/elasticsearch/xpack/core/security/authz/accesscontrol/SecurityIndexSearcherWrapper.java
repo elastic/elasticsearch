@@ -63,7 +63,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -183,7 +183,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
             indexSearcher.setQueryCache(indexSearcher.getQueryCache());
             indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
+            indexSearcher.setSimilarity(indexSearcher.getSimilarity());
             return indexSearcher;
         }
         return searcher;

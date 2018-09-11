@@ -27,18 +27,14 @@ public class BucketUtilsTests extends ESTestCase {
 
     public void testBadInput() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> BucketUtils.suggestShardSideQueueSize(0, 10));
+                () -> BucketUtils.suggestShardSideQueueSize(0, randomBoolean()));
         assertEquals(e.getMessage(), "size must be positive, got 0");
-
-        e = expectThrows(IllegalArgumentException.class,
-                () -> BucketUtils.suggestShardSideQueueSize(10, 0));
-        assertEquals(e.getMessage(), "number of shards must be positive, got 0");
     }
 
     public void testOptimizesSingleShard() {
         for (int iter = 0; iter < 10; ++iter) {
             final int size = randomIntBetween(1, Integer.MAX_VALUE);
-            assertEquals(size, BucketUtils.suggestShardSideQueueSize( size, 1));
+            assertEquals(size, BucketUtils.suggestShardSideQueueSize( size, true));
         }
     }
 
@@ -46,7 +42,7 @@ public class BucketUtilsTests extends ESTestCase {
         for (int iter = 0; iter < 10; ++iter) {
             final int size = Integer.MAX_VALUE - randomInt(10);
             final int numberOfShards = randomIntBetween(1, 10);
-            final int shardSize = BucketUtils.suggestShardSideQueueSize( size, numberOfShards);
+            final int shardSize = BucketUtils.suggestShardSideQueueSize( size, numberOfShards == 1);
             assertThat(shardSize, greaterThanOrEqualTo(shardSize));
         }
     }
@@ -55,7 +51,7 @@ public class BucketUtilsTests extends ESTestCase {
         for (int iter = 0; iter < 10; ++iter) {
             final int size = randomIntBetween(1, Integer.MAX_VALUE);
             final int numberOfShards = randomIntBetween(1, 10);
-            final int shardSize = BucketUtils.suggestShardSideQueueSize( size, numberOfShards);
+            final int shardSize = BucketUtils.suggestShardSideQueueSize( size, numberOfShards == 1);
             assertThat(shardSize, greaterThanOrEqualTo(size));
         }
     }

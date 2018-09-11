@@ -31,12 +31,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -528,7 +526,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
+                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "lowercase", "my_synonyms")
                 .put("analysis.filter.my_synonyms.type", "synonym")
                 .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
         completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
@@ -806,7 +804,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
@@ -1108,35 +1106,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
-        }
-    }
-
-    // see issue #6399
-    public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = Strings
-                .toString(jsonBuilder()
-                        .startObject()
-                        .startObject(TYPE)
-                        .startObject("properties")
-                        .startObject(FIELD)
-                        .field("type", "completion")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject());
-
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
-        ensureGreen();
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
-            fail("Expected MapperParsingException for null value");
-        } catch (MapperParsingException e) {
-            // make sure that the exception has the name of the field causing the error
-            assertTrue(e.getDetailedMessage().contains(FIELD));
         }
     }
 

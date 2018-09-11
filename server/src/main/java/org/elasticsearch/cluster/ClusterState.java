@@ -318,7 +318,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         final String TAB = "   ";
         for (IndexMetaData indexMetaData : metaData) {
             sb.append(TAB).append(indexMetaData.getIndex());
-            sb.append(": v[").append(indexMetaData.getVersion()).append("]\n");
+            sb.append(": v[").append(indexMetaData.getVersion()).append("], mv[").append(indexMetaData.getMappingVersion()).append("]\n");
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");

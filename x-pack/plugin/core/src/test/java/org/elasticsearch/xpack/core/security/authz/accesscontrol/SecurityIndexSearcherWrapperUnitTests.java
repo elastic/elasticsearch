@@ -76,7 +76,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -232,7 +232,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
-        assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
+        assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
         bitsetFilterCache.close();
     }
 
@@ -270,7 +270,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
-        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")), false);
+        Weight weight = searcher.createWeight(new TermQuery(new Term("field2", "value1")),
+                org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
@@ -545,8 +546,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores, boost));
+        public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+            return new CreateScorerOnceWeight(query.createWeight(searcher, scoreMode, boost));
         }
 
         @Override

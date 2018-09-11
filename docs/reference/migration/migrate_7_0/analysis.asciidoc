@@ -22,3 +22,7 @@ The `delimited_payload_filter` was deprecated and renamed to `delimited_payload`
 Using it in indices created before 7.0 will issue deprecation warnings. Using the old
 name in new indices created in 7.0 will throw an error. Use the new name `delimited_payload`
 instead.
+
+==== `standard` filter has been removed
+
+The `standard` token filter has been removed because it doesn't change anything in the stream.

@@ -27,6 +27,9 @@ https://www.elastic.co/subscriptions and
 your cluster. If you are using a trial license, the default value is `false`.
 For more information, see {ref}/security-settings.html[Security Settings in {es}].
 
+. If you plan to run {es} in a Federal Information Processing Standard (FIPS) 
+140-2 enabled JVM, see <<fips-140-compliance>>. 
+
 . Configure Transport Layer Security (TLS/SSL) for internode-communication.
 +
 --
@@ -52,8 +55,8 @@ help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
-to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
-`logstash_system` users:
+to enter new passwords for the `elastic`, `kibana`, `beats_system`,
+`logstash_system`, and `apm_system` users:
 
 [source,shell]
 --------------------------------------------------
@@ -77,6 +80,7 @@ user API.
 ** <<configuring-native-realm,Configure a native realm>>.
 ** <<configuring-pki-realm,Configure a PKI realm>>.
 ** <<configuring-saml-realm,Configure a SAML realm>>.
+** <<configuring-kerberos-realm,Configure a Kerberos realm>>.
 
 . Set up roles and users to control access to {es}.
 For example, to grant _John Doe_ full access to all indices that match
@@ -142,5 +146,8 @@ include::authentication/configuring-ldap-realm.asciidoc[]
 include::authentication/configuring-native-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
 include::authentication/configuring-saml-realm.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authentication/configuring-kerberos-realm.asciidoc
+include::authentication/configuring-kerberos-realm.asciidoc[]
+include::fips-140-compliance.asciidoc[]
 include::{es-repo-dir}/settings/security-settings.asciidoc[]
 include::{es-repo-dir}/settings/audit-settings.asciidoc[]

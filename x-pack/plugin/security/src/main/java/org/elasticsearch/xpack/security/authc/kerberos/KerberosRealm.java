@@ -13,14 +13,16 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
@@ -63,6 +65,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     private final Path keytabPath;
     private final boolean enableKerberosDebug;
     private final boolean removeRealmName;
+    private DelegatedAuthorizationSupport delegatedRealms;
 
     public KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore, final ThreadPool threadPool) {
         this(config, nativeRoleMappingStore, new KerberosTicketValidator(), threadPool, null);
@@ -100,6 +103,15 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         this.enableKerberosDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
         this.removeRealmName = KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(config.settings());
+        this.delegatedRealms = null;
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     @Override
@@ -133,13 +145,14 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     @Override
     public void authenticate(final AuthenticationToken token, final ActionListener<AuthenticationResult> listener) {
+        assert delegatedRealms != null : "Realm has not been initialized correctly";
         assert token instanceof KerberosAuthenticationToken;
         final KerberosAuthenticationToken kerbAuthnToken = (KerberosAuthenticationToken) token;
         kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, enableKerberosDebug,
                 ActionListener.wrap(userPrincipalNameOutToken -> {
                     if (userPrincipalNameOutToken.v1() != null) {
                         final String username = maybeRemoveRealmName(userPrincipalNameOutToken.v1());
-                        buildUser(username, userPrincipalNameOutToken.v2(), listener);
+                        resolveUser(username, userPrincipalNameOutToken.v2(), listener);
                     } else {
                         /**
                          * This is when security context could not be established may be due to ongoing
@@ -192,33 +205,34 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(final String username, final String outToken, final ActionListener<AuthenticationResult> listener) {
+    private void resolveUser(final String username, final String outToken, final ActionListener<AuthenticationResult> listener) {
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
         if (Strings.hasText(outToken)) {
             threadPool.getThreadContext().addResponseHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
-        final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
-        if (user != null) {
-            /**
-             * TODO: bizybot If authorizing realms configured, resolve user from those
-             * realms and then return.
-             */
-            listener.onResponse(AuthenticationResult.success(user));
+
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(username, listener);
         } else {
-            /**
-             * TODO: bizybot If authorizing realms configured, resolve user from those
-             * realms, cache it and then return.
-             */
-            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), null, this.config);
-            userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-                final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
-                if (userPrincipalNameToUserCache != null) {
-                    userPrincipalNameToUserCache.put(username, computedUser);
-                }
-                listener.onResponse(AuthenticationResult.success(computedUser));
-            }, listener::onFailure));
+            final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
+            if (user != null) {
+                listener.onResponse(AuthenticationResult.success(user));
+            } else {
+                buildUser(username, listener);
+            }
         }
+    }
+
+    private void buildUser(final String username, final ActionListener<AuthenticationResult> listener) {
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), null, this.config);
+        userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+            final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
+            if (userPrincipalNameToUserCache != null) {
+                userPrincipalNameToUserCache.put(username, computedUser);
+            }
+            listener.onResponse(AuthenticationResult.success(computedUser));
+        }, listener::onFailure));
     }
 
     @Override

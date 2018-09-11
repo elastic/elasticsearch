@@ -180,6 +180,13 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    public void testValidateStringSetting() {
+        Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
+        Setting<String> stringSetting = Setting.simpleString("foo.bar", Property.NodeScope);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stringSetting.get(settings));
+        assertEquals("Found list type value for setting [foo.bar] but but did not expect a list for it.", e.getMessage());
+    }
+
     private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
             "foo.bar",
             "foobar",
@@ -462,6 +469,26 @@ public class SettingTests extends ESTestCase {
 
     }
 
+    public void testListSettingsDeprecated() {
+        final Setting<List<String>> deprecatedListSetting =
+                Setting.listSetting(
+                        "foo.deprecated",
+                        Collections.singletonList("foo.deprecated"),
+                        Function.identity(),
+                        Property.Deprecated,
+                        Property.NodeScope);
+        final Setting<List<String>> nonDeprecatedListSetting =
+                Setting.listSetting(
+                        "foo.non_deprecated", Collections.singletonList("foo.non_deprecated"), Function.identity(), Property.NodeScope);
+        final Settings settings = Settings.builder()
+                .put("foo.deprecated", "foo.deprecated1,foo.deprecated2")
+                .put("foo.deprecated", "foo.non_deprecated1,foo.non_deprecated2")
+                .build();
+        deprecatedListSetting.get(settings);
+        nonDeprecatedListSetting.get(settings);
+        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedListSetting});
+    }
+
     public void testListSettings() {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
@@ -735,11 +762,18 @@ public class SettingTests extends ESTestCase {
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [NotCopyableOnResize]")));
     }
 
-    public void testRejectNonIndexScopedIndexInternalSetting() {
+    public void testRejectNonIndexScopedInternalIndexSetting() {
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> Setting.simpleString("foo.bar", Property.InternalIndex));
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [InternalIndex]")));
+    }
+
+    public void testRejectNonIndexScopedPrivateIndexSetting() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Setting.simpleString("foo.bar", Property.PrivateIndex));
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [PrivateIndex]")));
     }
 
     public void testTimeValue() {
@@ -786,7 +820,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
@@ -797,7 +831,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdaterRemoval() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.same", 5555).build();
@@ -812,7 +846,7 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<String> affixSetting =
             Setting.affixKeySetting("prefix.foo.", "suffix", key -> Setting.simpleString(key,Property.NodeScope, Property.Dynamic));
 
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
             Arrays.asList(intSetting, prefixKeySetting, affixSetting));
 
         Settings.Builder currentSettingsBuilder = Settings.builder()
@@ -858,4 +892,30 @@ public class SettingTests extends ESTestCase {
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix", "anything").build()), hasSize(1));
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
     }
+
+    public void testExists() {
+        final Setting<?> fooSetting = Setting.simpleString("foo", Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+    }
+
+    public void testExistsWithFallback() {
+        final int count = randomIntBetween(1, 16);
+        Setting<String> current = Setting.simpleString("fallback0", Property.NodeScope);
+        for (int i = 1; i < count; i++) {
+            final Setting<String> next =
+                    new Setting<>(new Setting.SimpleKey("fallback" + i), current, Function.identity(), Property.NodeScope);
+            current = next;
+        }
+        final Setting<String> fooSetting = new Setting<>(new Setting.SimpleKey("foo"), current, Function.identity(), Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        if (randomBoolean()) {
+            assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+        } else {
+            final String setting = "fallback" + randomIntBetween(0, count - 1);
+            assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
+            assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
+        }
+    }
+
 }

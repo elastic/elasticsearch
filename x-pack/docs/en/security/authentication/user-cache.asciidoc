@@ -12,27 +12,8 @@ object to avoid unnecessarily needing to perform role mapping on each request.
 
 The cached user credentials are hashed in memory. By default, {security} uses a
 salted `sha-256` hash algorithm. You can use a different hashing algorithm by
-setting the `cache_hash_algo` setting to any of the following:
-
-[[cache-hash-algo]]
-.Cache hash algorithms
-|=======================
-| Algorithm           | | | Description
-| `ssha256`           | | | Uses a salted `sha-256` algorithm (default).
-| `md5`               | | | Uses `MD5` algorithm.
-| `sha1`              | | | Uses `SHA1` algorithm.
-| `bcrypt`            | | | Uses `bcrypt` algorithm with salt generated in 1024 rounds.
-| `bcrypt4`           | | | Uses `bcrypt` algorithm with salt generated in 16 rounds.
-| `bcrypt5`           | | | Uses `bcrypt` algorithm with salt generated in 32 rounds.
-| `bcrypt6`           | | | Uses `bcrypt` algorithm with salt generated in 64 rounds.
-| `bcrypt7`           | | | Uses `bcrypt` algorithm with salt generated in 128 rounds.
-| `bcrypt8`           | | | Uses `bcrypt` algorithm with salt generated in 256 rounds.
-| `bcrypt9`           | | | Uses `bcrypt` algorithm with salt generated in 512 rounds.
-| `noop`,`clear_text` | | | Doesn't hash the credentials and keeps it in clear text in
-                            memory. CAUTION: keeping clear text is considered insecure
-                            and can be compromised at the OS level (for example through
-                            memory dumps and using `ptrace`).
-|=======================
+setting the `cache.hash_algo` realm settings. See 
+{ref}/security-settings.html#hashing-settings[User cache and password hash algorithms].
 
 [[cache-eviction-api]]
 ==== Evicting users from the cache

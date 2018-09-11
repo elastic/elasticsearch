@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -56,6 +57,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -268,8 +270,9 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     @Override
     protected void doStop() {
         try {
-            connectionManager.close();
-            transport.stop();
+            IOUtils.close(connectionManager, remoteClusterService, transport::stop);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         } finally {
             // in case the transport is not connected to our local node (thus cleaned on node disconnect)
             // make sure to clean any leftover on going handles
@@ -306,7 +309,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     @Override
     protected void doClose() throws IOException {
-        IOUtils.close(remoteClusterService, transport);
+        transport.close();
     }
 
     /**
@@ -364,14 +367,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return;
         }
+        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node));
+    }
 
-        connectionManager.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
+    public CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
             if (validateConnections && node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
-        });
+        };
+
     }
 
     /**
@@ -562,8 +569,12 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
-
-        asyncSender.sendRequest(connection, action, request, options, handler);
+        try {
+            asyncSender.sendRequest(connection, action, request, options, handler);
+        } catch (NodeNotConnectedException ex) {
+            // the caller might not handle this so we invoke the handler
+            handler.handleException(ex);
+        }
     }
 
     /**

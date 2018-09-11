@@ -32,8 +32,6 @@ import java.util.concurrent.TimeUnit;
 
 public final class InternalSettingsPlugin extends Plugin {
 
-    public static final Setting<Integer> VERSION_CREATED =
-        Setting.intSetting("index.version.created", 0, Property.IndexScope, Property.NodeScope);
     public static final Setting<String> PROVIDED_NAME_SETTING =
         Setting.simpleString("index.provided_name",Property.IndexScope, Property.NodeScope);
     public static final Setting<Boolean> MERGE_ENABLED =
@@ -47,7 +45,6 @@ public final class InternalSettingsPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-                VERSION_CREATED,
                 MERGE_ENABLED,
                 INDEX_CREATION_DATE_SETTING,
                 PROVIDED_NAME_SETTING,

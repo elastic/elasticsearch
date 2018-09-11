@@ -122,7 +122,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -183,7 +183,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder()
-            .put("search.remote.other_cluster.seeds", "localhost:9999")
+            .put("cluster.remote.other_cluster.seeds", "localhost:9999")
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

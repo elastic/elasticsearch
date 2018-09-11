@@ -50,18 +50,18 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (LIKE? pattern)?                                                                        #showTables
-    | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
-    | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
-    | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
+    | SHOW TABLES (tableLike=likePattern | tableIdent=tableIdentifier)?                                   #showTables
+    | SHOW COLUMNS (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)                       #showColumns
+    | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
+    | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SYS CATALOGS                                                                                        #sysCatalogs
-    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)?
-                 (LIKE? tablePattern=pattern)?
+    | SYS TABLES (CATALOG clusterLike=likePattern)?
+                 (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
     | SYS COLUMNS (CATALOG cluster=string)?
-                  (TABLE LIKE? indexPattern=pattern)?
-                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
+                  (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
+                  (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
@@ -189,6 +189,10 @@ predicate
     | IS NOT? kind=NULL
     ;
 
+likePattern
+    : LIKE pattern
+    ;
+    
 pattern
     : value=string patternEscape?
     ;

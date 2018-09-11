@@ -379,10 +379,10 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
                     transportClientNodesService.addTransportAddresses(remoteService.getLocalDiscoNode().getAddress());
                     assertEquals(1, transportClientNodesService.connectedNodes().size());
-                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
+                    assertEquals(1, clientService.connectionManager().size());
 
                     transportClientNodesService.doSample();
-                    assertEquals(1, clientService.connectionManager().connectedNodeCount());
+                    assertEquals(1, clientService.connectionManager().size());
 
                     establishedConnections.clear();
                     handler.blockRequest();

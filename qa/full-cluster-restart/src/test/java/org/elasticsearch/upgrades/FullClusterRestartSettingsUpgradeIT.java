@@ -41,10 +41,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.SEARCH_REMOTE_CLUST
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FullClusterRestartSettingsUpgradeIT extends ESRestTestCase {
-
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     @Override
     protected boolean preserveClusterSettings() {
@@ -52,8 +49,8 @@ public class FullClusterRestartSettingsUpgradeIT extends ESRestTestCase {
     }
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {
-        assumeTrue("settings automatically upgraded since 7.0.0", oldClusterVersion.before(Version.V_7_0_0_alpha1));
-        if (runningAgainstOldCluster) {
+        assumeTrue("settings automatically upgraded since 7.0.0", getOldClusterVersion().before(Version.V_7_0_0_alpha1));
+        if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();

@@ -33,12 +33,7 @@ StopFeatureIndexBuilderJobAction.Response, StopFeatureIndexBuilderJobAction.Resp
         super(settings, StopFeatureIndexBuilderJobAction.NAME, clusterService, transportService, actionFilters,
                 StopFeatureIndexBuilderJobAction.Request::new, StopFeatureIndexBuilderJobAction.Response::new, ThreadPool.Names.SAME);
     }
-/*
-    @Override
-    protected void processTasks(StopFeatureIndexBuilderJobAction.Request request, Consumer<FeatureIndexBuilderJobTask> operation) {
-       //TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
-    }
-*/
+
     @Override
     protected void doExecute(Task task, StopFeatureIndexBuilderJobAction.Request request, ActionListener<StopFeatureIndexBuilderJobAction.Response> listener) {
         super.doExecute(task, request, listener);

@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -203,6 +204,10 @@ public class Coordinator extends AbstractLifecycleComponent {
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
             }
         }
+    }
+
+    public Optional<ClusterState> getLastCommittedState() {
+        return null; // TODO
     }
 
     public enum Mode {

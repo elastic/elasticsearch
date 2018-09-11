@@ -18,8 +18,91 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class CoordinatorTests extends ESTestCase {
 
+    public void testCanProposeValueAfterStabilisation() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+        final Cluster.ClusterNode leader = cluster.getAnyLeader();
+        final long stabilisedVersion = leader.coordinator.getLastCommittedState().get().getVersion();
+
+        final long finalValue = randomLong();
+        logger.info("--> proposing final value [{}] to [{}]", finalValue, leader.getId());
+        leader.submitValue(finalValue);
+        cluster.stabilise(Cluster.DEFAULT_DELAY_VARIABILITY, 0L);
+
+        for (final Cluster.ClusterNode clusterNode : cluster.clusterNodes) {
+            final String legislatorId = clusterNode.getId();
+            final ClusterState committedState = clusterNode.coordinator.getLastCommittedState().get();
+            assertThat(legislatorId + " is at the next version", committedState.getVersion(), equalTo(stabilisedVersion + 1));
+            assertThat(legislatorId + " has the right value", value(committedState), is(finalValue));
+        }
+    }
+
+    class Cluster {
+
+        static final long DEFAULT_DELAY_VARIABILITY = 100L;
+
+        final List<ClusterNode> clusterNodes;
+
+        Cluster(int initialNodeCount) {
+            clusterNodes = new ArrayList<>(initialNodeCount);
+
+        }
+
+        void runRandomly() {
+
+        }
+
+        void stabilise() {
+
+        }
+
+        void stabilise(long delayVariability, long stabilisationTime) {
+
+        }
+
+        ClusterNode getAnyLeader() {
+            List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
+            assertThat(allLeaders, not(empty()));
+            return randomFrom(allLeaders);
+        }
+
+        class ClusterNode {
+
+            Coordinator coordinator;
+            private DiscoveryNode localNode;
+
+            String getId() {
+                return localNode.getId();
+            }
+
+            void submitValue(long value) {
+
+            }
+
+            public DiscoveryNode getLocalNode() {
+                return localNode;
+            }
+
+            boolean isLeader() {
+                return coordinator.getMode() == Coordinator.Mode.LEADER;
+            }
+        }
+    }
 }

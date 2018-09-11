@@ -80,7 +80,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
     }
 
     /*
@@ -94,11 +94,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         // an innerInterval that is quite large, such that targetBuckets * roundings[i].getMaximumInnerInterval()
         // will be larger than the estimate.
         roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, 1000);
+            1000L, "s", 1000);
         roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
-            60 * 1000L, 1, 5, 10, 30);
+            60 * 1000L, "m", 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, 1, 3, 12);
+            60 * 60 * 1000L, "h", 1, 3, 12);
 
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
         // We want to pass a roundingIdx of zero, because in order to reproduce this bug, we need the function
@@ -198,6 +198,14 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                     (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
+
+        DateHistogramInterval expectedInterval;
+        if (reduced.getBuckets().size() == 1) {
+            expectedInterval = reduced.getInterval();
+        } else {
+            expectedInterval = new DateHistogramInterval(innerIntervalToUse+roundingInfo.unitAbbreviation);
+        }
+        assertThat(reduced.getInterval(), equalTo(expectedInterval));
     }
 
     private int getBucketCount(long lowest, long highest, RoundingInfo roundingInfo, long intervalInMillis) {
@@ -252,6 +260,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
     }
 }

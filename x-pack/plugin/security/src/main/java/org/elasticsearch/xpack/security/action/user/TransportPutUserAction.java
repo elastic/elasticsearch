@@ -93,10 +93,6 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                 }
             }
         }
-
-        if (request.password() != null) {
-            validationException = addValidationError("password should never be passed to the transport action", validationException);
-        }
         return validationException;
     }
 }

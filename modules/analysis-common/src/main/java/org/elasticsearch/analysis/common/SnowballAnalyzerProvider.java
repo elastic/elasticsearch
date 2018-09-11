@@ -19,8 +19,8 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +42,7 @@ import static java.util.Collections.unmodifiableMap;
  * Configuration of language is done with the "language" attribute or the analyzer.
  * Also supports additional stopwords via "stopwords" attribute
  * <p>
- * The SnowballAnalyzer comes with a StandardFilter, LowerCaseFilter, StopFilter
+ * The SnowballAnalyzer comes with a LowerCaseFilter, StopFilter
  * and the SnowballFilter.
  *
  *
@@ -52,7 +52,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
 
     static {
         Map<String, CharArraySet> defaultLanguageStopwords = new HashMap<>();
-        defaultLanguageStopwords.put("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        defaultLanguageStopwords.put("English", EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
         defaultLanguageStopwords.put("Dutch", DutchAnalyzer.getDefaultStopSet());
         defaultLanguageStopwords.put("German", GermanAnalyzer.getDefaultStopSet());
         defaultLanguageStopwords.put("German2", GermanAnalyzer.getDefaultStopSet());

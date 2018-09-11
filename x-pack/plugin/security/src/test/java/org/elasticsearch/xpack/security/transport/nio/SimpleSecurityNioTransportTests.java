@@ -208,7 +208,14 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     // TODO: These tests currently rely on plaintext transports
 
     @Override
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
     public void testTcpHandshake() throws IOException, InterruptedException {
+    }
+
+    // TODO: These tests as configured do not currently work with the security transport
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33285")
+    public void testTransportProfilesWithPortAndHost() {
     }
 }

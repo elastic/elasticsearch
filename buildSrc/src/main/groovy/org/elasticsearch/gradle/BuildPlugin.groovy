@@ -56,6 +56,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
@@ -211,7 +212,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
-            project.rootProject.ext.java9Home = findJavaHome("9")
+            project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -538,15 +539,15 @@ class BuildPlugin implements Plugin<Project> {
                     from generatePOMTask.destination
                     into "${project.buildDir}/distributions"
                     rename {
-                        generatePOMTask.ext.pomFileName == null ? 
-                            "${project.archivesBaseName}-${project.version}.pom" : 
-                            generatePOMTask.ext.pomFileName 
+                        generatePOMTask.ext.pomFileName == null ?
+                            "${project.archivesBaseName}-${project.version}.pom" :
+                            generatePOMTask.ext.pomFileName
                     }
                 }
             }
             // build poms with assemble (if the assemble task exists)
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
+            if (assemble && assemble.enabled) {
                 assemble.dependsOn(generatePOMTask)
             }
         }
@@ -739,6 +740,7 @@ class BuildPlugin implements Plugin<Project> {
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name
+                        rename { 'NOTICE.txt' }
                     }
                 }
             }

@@ -209,8 +209,8 @@ public class BulkByScrollTask extends CancellableTask {
     public static class StatusBuilder {
         private Integer sliceId = null;
         private Long total = null;
-        private Long updated = null;
-        private Long created = null;
+        private long updated = 0; // Not present during deleteByQuery
+        private long created = 0; // Not present during updateByQuery
         private Long deleted = null;
         private Integer batches = null;
         private Long versionConflicts = null;
@@ -221,7 +221,7 @@ public class BulkByScrollTask extends CancellableTask {
         private Float requestsPerSecond = null;
         private String reasonCancelled = null;
         private TimeValue throttledUntil = null;
-        private List<StatusOrException> sliceStatuses = emptyList();
+        private List<StatusOrException> sliceStatuses = new ArrayList<>();
 
         public void setSliceId(Integer sliceId) {
             this.sliceId = sliceId;
@@ -295,8 +295,12 @@ public class BulkByScrollTask extends CancellableTask {
 
         public void setSliceStatuses(List<StatusOrException> sliceStatuses) {
             if (sliceStatuses != null) {
-                this.sliceStatuses = sliceStatuses;
+                this.sliceStatuses.addAll(sliceStatuses);
             }
+        }
+
+        public void addToSliceStatuses(StatusOrException statusOrException) {
+            this.sliceStatuses.add(statusOrException);
         }
 
         public Status buildStatus() {
@@ -613,37 +617,20 @@ public class BulkByScrollTask extends CancellableTask {
             Token token = parser.currentToken();
             String fieldName = parser.currentName();
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            Integer sliceId = null;
-            Long total = null;
-            Long updated = null;
-            Long created = null;
-            Long deleted = null;
-            Integer batches = null;
-            Long versionConflicts = null;
-            Long noOps = null;
-            Long bulkRetries = null;
-            Long searchRetries = null;
-            TimeValue throttled = null;
-            Float requestsPerSecond = null;
-            String reasonCancelled = null;
-            TimeValue throttledUntil = null;
-            List<StatusOrException> sliceStatuses = new ArrayList<>();
+            StatusBuilder builder = new StatusBuilder();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     fieldName = parser.currentName();
                 } else if (token == Token.START_OBJECT) {
                     if (fieldName.equals(Status.RETRIES_FIELD)) {
-                        Tuple<Long, Long> retries =
-                            Status.RETRIES_PARSER.parse(parser, null);
-                        bulkRetries = retries.v1();
-                        searchRetries = retries.v2();
+                        builder.setRetries(Status.RETRIES_PARSER.parse(parser, null));
                     } else {
                         parser.skipChildren();
                     }
                 } else if (token == Token.START_ARRAY) {
                     if (fieldName.equals(Status.SLICES_FIELD)) {
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                            sliceStatuses.add(StatusOrException.fromXContent(parser));
+                            builder.addToSliceStatuses(StatusOrException.fromXContent(parser));
                         }
                     } else {
                         parser.skipChildren();
@@ -651,57 +638,47 @@ public class BulkByScrollTask extends CancellableTask {
                 } else { // else if it is a value
                     switch (fieldName) {
                         case Status.SLICE_ID_FIELD:
-                            sliceId = parser.intValue();
+                            builder.setSliceId(parser.intValue());
                             break;
                         case Status.TOTAL_FIELD:
-                            total = parser.longValue();
+                            builder.setTotal(parser.longValue());
                             break;
                         case Status.UPDATED_FIELD:
-                            updated = parser.longValue();
+                            builder.setUpdated(parser.longValue());
                             break;
                         case Status.CREATED_FIELD:
-                            created = parser.longValue();
+                            builder.setCreated(parser.longValue());
                             break;
                         case Status.DELETED_FIELD:
-                            deleted = parser.longValue();
+                            builder.setDeleted(parser.longValue());
                             break;
                         case Status.BATCHES_FIELD:
-                            batches = parser.intValue();
+                            builder.setBatches(parser.intValue());
                             break;
                         case Status.VERSION_CONFLICTS_FIELD:
-                            versionConflicts = parser.longValue();
+                            builder.setVersionConflicts(parser.longValue());
                             break;
                         case Status.NOOPS_FIELD:
-                            noOps = parser.longValue();
+                            builder.setNoops(parser.longValue());
                             break;
                         case Status.THROTTLED_RAW_FIELD:
-                            throttled = new TimeValue(parser.longValue(), TimeUnit.MILLISECONDS);
+                            builder.setThrottled(parser.longValue());
                             break;
                         case Status.REQUESTS_PER_SEC_FIELD:
-                            requestsPerSecond = parser.floatValue();
-                            requestsPerSecond = requestsPerSecond == -1 ? Float.POSITIVE_INFINITY : requestsPerSecond;
+                            builder.setRequestsPerSecond(parser.floatValue());
                             break;
                         case Status.CANCELED_FIELD:
-                            reasonCancelled = parser.text();
+                            builder.setReasonCancelled(parser.text());
                             break;
                         case Status.THROTTLED_UNTIL_RAW_FIELD:
-                            throttledUntil = new TimeValue(parser.longValue(), TimeUnit.MILLISECONDS);
+                            builder.setThrottledUntil(parser.longValue());
                             break;
                         default:
                             break;
                     }
                 }
             }
-            if (sliceStatuses.isEmpty()) {
-                return
-                    new Status(
-                        sliceId, total, updated, created, deleted, batches, versionConflicts, noOps, bulkRetries,
-                        searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
-                    );
-            } else {
-                return new Status(sliceStatuses, reasonCancelled);
-            }
-
+            return builder.buildStatus();
         }
 
         @Override
@@ -838,15 +815,15 @@ public class BulkByScrollTask extends CancellableTask {
             );
         }
 
-        public boolean equalsWithoutSliceStatus(Object o) {
+        public boolean equalsWithoutSliceStatus(Object o, boolean includeUpdated, boolean includeCreated) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status other = (Status) o;
             return
                 Objects.equals(sliceId, other.sliceId) &&
                     total == other.total &&
-                    updated == other.updated &&
-                    created == other.created &&
+                    (!includeUpdated || updated == other.updated) &&
+                    (!includeCreated || created == other.created) &&
                     deleted == other.deleted &&
                     batches == other.batches &&
                     versionConflicts == other.versionConflicts &&
@@ -861,7 +838,7 @@ public class BulkByScrollTask extends CancellableTask {
 
         @Override
         public boolean equals(Object o) {
-            if (equalsWithoutSliceStatus(o)) {
+            if (equalsWithoutSliceStatus(o, true, true)) {
                 return Objects.equals(sliceStatuses, ((Status) o).sliceStatuses);
             } else {
                 return false;

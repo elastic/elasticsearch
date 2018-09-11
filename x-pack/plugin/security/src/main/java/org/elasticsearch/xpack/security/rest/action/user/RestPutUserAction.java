@@ -58,10 +58,13 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                                .field("user", putUserResponse)
-                                .endObject());
+                builder.startObject()
+                    .startObject("user"); // TODO in 7.0 remove wrapping of response in the user object and just return the object
+                putUserResponse.toXContent(builder, request);
+                builder.endObject();
+
+                putUserResponse.toXContent(builder, request);
+                return new BytesRestResponse(RestStatus.OK, builder.endObject());
             }
         });
     }

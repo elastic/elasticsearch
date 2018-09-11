@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -143,10 +144,11 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
-                expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.index(null));
-                expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.delete(null));
-                expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.noOp(null));
-                expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.restoreLocalCheckpointFromTranslog());
+                Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
+                    UnsupportedOperationException.class;
+                expectThrows(expectedException, () -> readOnlyEngine.index(null));
+                expectThrows(expectedException, () -> readOnlyEngine.delete(null));
+                expectThrows(expectedException, () -> readOnlyEngine.noOp(null));
                 expectThrows(UnsupportedOperationException.class, () ->  readOnlyEngine.syncFlush(null, null));
             }
         }

@@ -171,16 +171,19 @@ public final class ReadOnlyEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) {
+        assert false : "this should not be called";
         throw new UnsupportedOperationException("indexing is not supported on a read-only engine");
     }
 
     @Override
     public DeleteResult delete(Delete delete) {
+        assert false : "this should not be called";
         throw new UnsupportedOperationException("deletes are not supported on a read-only engine");
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
+        assert false : "this should not be called";
         throw new UnsupportedOperationException("no-ops are not supported on a read-only engine");
     }
 
@@ -212,15 +215,12 @@ public final class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return new Translog.Snapshot() {
-
             @Override
             public void close() { }
-
             @Override
             public int totalOperations() {
                 return 0;
             }
-
             @Override
             public Translog.Operation next() {
                 return null;
@@ -254,7 +254,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void waitForOpsToComplete(long seqNo) { }
+    public void waitForOpsToComplete(long seqNo) {
+    }
 
     @Override
     public void resetLocalCheckpoint(long newCheckpoint) {
@@ -281,13 +282,14 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
+    public void refresh(String source) {
         // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
         // opened side-by-side
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {}
+    public void writeIndexingBuffer() throws EngineException {
+    }
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -295,7 +297,7 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
+    public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
         // we can't do synced flushes this would require an indexWriter which we don't have
         throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
     }
@@ -307,7 +309,8 @@ public final class ReadOnlyEngine extends Engine {
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           boolean upgrade, boolean upgradeOnlyAncientSegments) { }
+                           boolean upgrade, boolean upgradeOnlyAncientSegments) {
+    }
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
@@ -329,7 +332,8 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void trimUnreferencedTranslogFiles() { }
+    public void trimUnreferencedTranslogFiles() {
+    }
 
     @Override
     public boolean shouldRollTranslogGeneration() {
@@ -337,11 +341,11 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void rollTranslogGeneration() throws EngineException { throw new UnsupportedOperationException(); }
+    public void rollTranslogGeneration() {
+    }
 
     @Override
     public void restoreLocalCheckpointFromTranslog() {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -359,8 +363,10 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException { }
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {
+    }
 
     @Override
-    public void maybePruneDeletes() { }
+    public void maybePruneDeletes() {
+    }
 }

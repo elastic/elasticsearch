@@ -14,6 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 
 import java.util.Objects;
 
@@ -56,6 +57,16 @@ public class CcrClient {
     public ActionFuture<CcrStatsAction.TasksResponse> stats(final CcrStatsAction.TasksRequest request) {
         final PlainActionFuture<CcrStatsAction.TasksResponse> listener = PlainActionFuture.newFuture();
         client.execute(CcrStatsAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void unfollow(final UnfollowIndexAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+        client.execute(UnfollowIndexAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<UnfollowIndexAction.Request> unfollow(final UnfollowIndexAction.Request request) {
+        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        client.execute(UnfollowIndexAction.INSTANCE, request, listener);
         return listener;
     }
 

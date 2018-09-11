@@ -81,7 +81,8 @@ public class RestClusterStateAction extends BaseRestHandler {
             /*
              * there is no distinction in Java api between routing_table and routing_nodes, it's the same info set over the wire, one single
              * flag to ask for it.
-             * We ask for the routing table if metadata is requested because metadata includes index status, which requires the routing table.
+             * We ask for the routing table if metadata is requested because metadata includes index status, which requires the routing
+             * table.
              */
             clusterStateRequest.routingTable(
                     metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES)

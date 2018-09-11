@@ -71,6 +71,17 @@ public class HttpInfoTests extends ESTestCase {
         );
     }
 
+    public void testCorrectDisplayPublishedIpv6() throws Exception {
+        int port = 9200;
+        TransportAddress localhost =
+            new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
+        assertPublishAddress(
+            new HttpInfo(
+                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L, true
+            ), localhost.toString()
+        );
+    }
+
     @SuppressWarnings("unchecked")
     private void assertPublishAddress(HttpInfo httpInfo, String expected) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();

@@ -19,13 +19,12 @@
 
 package org.elasticsearch.http;
 
-import java.net.InetSocketAddress;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -82,9 +81,8 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
         TransportAddress publishAddress = address.publishAddress();
         String publishAddressString = publishAddress.toString();
-        InetSocketAddress publishInetAddress = publishAddress.address();
-        String hostString = publishInetAddress.getHostString();
-        if (!hostString.equals(NetworkAddress.format(publishInetAddress.getAddress()))) {
+        String hostString = publishAddress.address().getHostString();
+        if (InetAddresses.isInetAddress(hostString) == false) {
             if (cnameInPublishHost) {
                 publishAddressString = hostString + '/' + publishAddress.toString();
             } else {

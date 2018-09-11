@@ -12,9 +12,11 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -52,7 +54,7 @@ import java.util.Objects;
 public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Response> {
 
     public static final CreateAndFollowIndexAction INSTANCE = new CreateAndFollowIndexAction();
-    public static final String NAME = "cluster:admin/xpack/ccr/create_and_follow_index";
+    public static final String NAME = "indices:admin/xpack/ccr/create_and_follow_index";
 
     private CreateAndFollowIndexAction() {
         super(NAME);
@@ -63,7 +65,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         return new Response();
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private FollowIndexAction.Request followRequest;
 
@@ -81,6 +83,16 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         @Override
         public ActionRequestValidationException validate() {
             return followRequest.validate();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{followRequest.getFollowerIndex()};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override
@@ -221,21 +233,21 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         @Override
         protected void masterOperation(
                 final Request request, final ClusterState state, final ActionListener<Response> listener) throws Exception {
-            if (ccrLicenseChecker.isCcrAllowed()) {
-                final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-                final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-                if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    createFollowerIndexAndFollowLocalIndex(request, state, listener);
-                } else {
-                    assert remoteClusterIndices.size() == 1;
-                    final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-                    assert entry.getValue().size() == 1;
-                    final String clusterAlias = entry.getKey();
-                    final String leaderIndex = entry.getValue().get(0);
-                    createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
-                }
-            } else {
+            if (ccrLicenseChecker.isCcrAllowed() == false) {
                 listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+                return;
+            }
+            final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
+            final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
+            if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                createFollowerIndexAndFollowLocalIndex(request, state, listener);
+            } else {
+                assert remoteClusterIndices.size() == 1;
+                final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
+                assert entry.getValue().size() == 1;
+                final String clusterAlias = entry.getKey();
+                final String leaderIndex = entry.getValue().get(0);
+                createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
             }
         }
 
@@ -255,7 +267,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     client,
                     clusterAlias,
                     leaderIndex,
-                    listener,
+                    listener::onFailure,
                     leaderIndexMetaData -> createFollowerIndex(leaderIndexMetaData, request, listener));
         }
 

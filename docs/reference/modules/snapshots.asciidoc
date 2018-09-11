@@ -208,6 +208,50 @@ URL repositories with `file:` URLs can only point to locations registered in the
 shared file system repository.
 
 [float]
+===== Source Only Repository
+
+The `_source`-only repository adds support for creating minimal snapshots of an index using any other
+available repository as it's storage backend. This allows using {ref}/modules-snapshots.html[Snapshot/Restore]
+to create incremental, storage optimized, and minimal snapshots of an index where only the `_source` and some metadata
+is maintained in the snapshot. `_source`-only snapshots take approximately 30% to 50% of the size on disk compared
+to a full snapshot.
+
+[WARNING]
+.`_source`-only snapshots are minimal and not searchable
+==================================================
+
+Since the `_source`-only repository doesn't snapshot any index or doc-values structures but only stored
+fields and index metadata, it's required to <<docs-reindex,`reindex`>> the data into a separate index
+after the snapshot is restored. Be aware of the following limitations:
+
+ * The restored index will be read-only and can only serve match-all scroll requests in order to reindex
+
+ * Individual queries will succeed but won't match or filter any documents except of a `match_all` query.
+
+ * The restored index has an empty mapping but allows access to the original mapping via the types top
+   level `meta` element.
+
+ * `_source`-only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
+==================================================
+
+The `_source`-only repository always requires a delegate repository to be used as it's storage backend.
+In order to use the `fs` repository:
+
+[source,js]
+-----------------------------------
+PUT _snapshot/my_src_only_repository
+{
+  "type": "source",
+  "settings": {
+    "delegate_type": "fs",  <1>
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// CONSOLE
+<1> Specifies the delegate repository type to use as a backend.
+
+[float]
 ===== Repository plugins
 
 Other repository backends are available in these official plugins:

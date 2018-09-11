@@ -22,7 +22,11 @@ import java.util.Objects;
 
 public class FeatureIndexBuilderJob implements XPackPlugin.XPackPersistentTaskParams {
 
+    public static final ParseField ID = new ParseField("id");
     public static final String NAME = "xpack/feature_index_builder/job";
+
+    // note: this is used to match tasks
+    public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "feature_index_builder-";
 
     private FeatureIndexBuilderJobConfig config;
 

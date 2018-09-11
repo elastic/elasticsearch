@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction.Response;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,7 +42,7 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
     public FeatureIndexBuilderJobTask(long id, String type, String action, TaskId parentTask, FeatureIndexBuilderJob job,
             FeatureIndexBuilderJobState state, Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool,
             Map<String, String> headers) {
-        super(id, type, action, "" + "_" + job.getConfig().getId(), parentTask, headers);
+        super(id, type, action, FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + job.getConfig().getId(), parentTask, headers);
         this.job = job;
         this.threadPool = threadPool;
         logger.info("construct job task");
@@ -56,8 +57,15 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
     }
 
     public synchronized void start(ActionListener<Response> listener) {
+        // TODO: safeguards missing, see rollup code
         indexer.start();
         listener.onResponse(new StartFeatureIndexBuilderJobAction.Response(true));
+    }
+
+    public void stop(ActionListener<StopFeatureIndexBuilderJobAction.Response> listener) {
+        // TODO: safeguards missing, see rollup code
+        indexer.stop();
+        listener.onResponse(new StopFeatureIndexBuilderJobAction.Response(true));
     }
 
     @Override
@@ -95,9 +103,7 @@ public class FeatureIndexBuilderJobTask extends AllocatedPersistentTask implemen
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
                 next.run();
             } else {
-                // to be implemented
-
-                final FeatureIndexBuilderJobState state = new FeatureIndexBuilderJobState(indexerState);
+                final FeatureIndexBuilderJobState state = new FeatureIndexBuilderJobState(indexerState, getPosition());
                 logger.info("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
 
                 // TODO: we can not persist the state right now, need to be called from the task

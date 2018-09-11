@@ -20,6 +20,10 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,13 +45,14 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -220,6 +225,52 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testForecastJob() throws Exception {
+        String jobId = "ml-forecast-job-test";
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+
+        ForecastJobRequest request = new ForecastJobRequest(jobId);
+        ForecastJobResponse response = execute(request, machineLearningClient::forecastJob, machineLearningClient::forecastJobAsync);
+
+        assertTrue(response.isAcknowledged());
+        assertNotNull(response.getForecastId());
+    }
+
+    public void testPostData() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 10; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        assertEquals(10, response.getDataCounts().getInputRecordCount());
+        assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
+    }
+
     public void testUpdateJob() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
@@ -256,8 +307,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeFormat(randomFrom(DataDescription.EPOCH_MS, DataDescription.EPOCH));
-        dataDescription.setTimeField(randomAlphaOfLength(10));
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        dataDescription.setTimeField("timestamp");
         builder.setDataDescription(dataDescription);
 
         return builder.build();

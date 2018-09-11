@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,12 +35,19 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
 import java.util.function.Supplier;
 
 public class Coordinator extends AbstractLifecycleComponent {
+
+    public static final String START_JOIN_ACTION_NAME = "internal:cluster/start_join";
 
     private final TransportService transportService;
     private final JoinHelper joinHelper;
@@ -76,6 +85,13 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService, unicastHostsProvider);
+
+        transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.SAME, false, false,
+            StartJoinRequest::new,
+            (request, channel, task) -> {
+                handleStartJoinRequest(request);
+                channel.sendResponse(Empty.INSTANCE);
+            });
     }
 
     private void closePrevotingAndElectionScheduler() {
@@ -91,7 +107,52 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     private void startElection() {
-        throw new AssertionError("TODO startElection");
+        synchronized (mutex) {
+            // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
+            // to check our mode again here.
+            if (mode == Mode.CANDIDATE) {
+                final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), getCurrentTerm());
+                handleStartJoinRequestUnderLock(startJoinRequest); // getFoundPeers() doesn't return the local node
+                peerFinder.getFoundPeers().forEach(peer -> sendStartJoinRequest(startJoinRequest, peer));
+            }
+        }
+    }
+
+    private void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
+            startJoinRequest, new TransportResponseHandler<Empty>() {
+                @Override
+                public Empty read(StreamInput in) {
+                    return Empty.INSTANCE;
+                }
+
+                @Override
+                public void handleResponse(Empty response) {
+                    logger.debug("successful response to {} from {}", startJoinRequest, destination);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
+    }
+
+    private void handleStartJoinRequest(final StartJoinRequest startJoinRequest) {
+        synchronized (mutex) {
+            handleStartJoinRequestUnderLock(startJoinRequest);
+        }
+    }
+
+    private void handleStartJoinRequestUnderLock(final StartJoinRequest startJoinRequest) {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        final Join join = joinLeaderInTerm(startJoinRequest);
+        joinHelper.sendJoin(startJoinRequest.getSourceNode(), new JoinRequest(getLocalNode(), Optional.of(join)));
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -105,7 +166,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug("joinLeaderInTerm: from [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
-        Join join = coordinationState.get().handleStartJoin(startJoinRequest);
+        final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
         lastJoin = Optional.of(join);
         if (mode != Mode.CANDIDATE) {
             becomeCandidate("joinLeaderInTerm");

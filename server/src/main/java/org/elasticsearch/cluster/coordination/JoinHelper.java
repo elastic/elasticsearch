@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -27,9 +28,14 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -100,6 +106,35 @@ public class JoinHelper extends AbstractComponent {
                     return "JoinCallback{request=" + request + "}";
                 }
             }));
+    }
+
+    public void sendJoin(final DiscoveryNode destination, final JoinRequest joinRequest) {
+        transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,new TransportResponseHandler<Empty>() {
+            @Override
+            public Empty read(StreamInput in) {
+                return Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(Empty response) {
+                logger.debug("successfully joined {} with {}", destination, joinRequest);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                final Throwable rootCause = exp.getRootCause();
+                if (rootCause instanceof CoordinationStateRejectedException) {
+                    logger.debug("failed to join {} with {}: {}", destination, joinRequest, rootCause.getMessage());
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                }
+            }
+
+            @Override
+            public String executor() {
+                return Names.SAME;
+            }
+        });
     }
 
     public interface JoinCallback {

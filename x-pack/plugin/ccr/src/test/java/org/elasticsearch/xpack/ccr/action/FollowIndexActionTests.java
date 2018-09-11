@@ -52,7 +52,7 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("follow index [index2] should reference [another-uuid] as history uuid but " +
+            assertThat(e.getMessage(), equalTo("leader shard [index2][0] should reference [another-uuid] as history uuid but " +
                 "instead reference [uuid] as history uuid"));
         }
         {

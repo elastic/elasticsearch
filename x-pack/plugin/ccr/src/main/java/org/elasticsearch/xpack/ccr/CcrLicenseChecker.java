@@ -27,7 +27,9 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -73,12 +75,12 @@ public final class CcrLicenseChecker {
      * If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked. Otherwise,
      * the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
      *
-     * @param client                      the client
-     * @param clusterAlias                the remote cluster alias
-     * @param leaderIndex                 the name of the leader index
-     * @param onFailure                   the failure consumer
-     * @param consumer                    the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
-     * @param <T>                         the type of response the listener is waiting for
+     * @param client        the client
+     * @param clusterAlias  the remote cluster alias
+     * @param leaderIndex   the name of the leader index
+     * @param onFailure     the failure consumer
+     * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
+     * @param <T>           the type of response the listener is waiting for
      */
     public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
@@ -208,14 +210,24 @@ public final class CcrLicenseChecker {
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
                     CommitStats commitStats = shardStats.getCommitStats();
+                    if (commitStats == null) {
+                        onFailure.accept(new IllegalArgumentException("leader index's commit stats are missing"));
+                        return;
+                    }
                     String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+                    if (historyUUID == null) {
+                        onFailure.accept(new IllegalArgumentException("leader index does not have an history uuid"));
+                        return;
+                    }
                     ShardId shardId = shardStats.getShardRouting().shardId();
                     historyUUIDs[shardId.id()] = historyUUID;
                 }
             }
+            assert new HashSet<>(Arrays.asList(historyUUIDs)).size() == leaderIndexMetaData.getNumberOfShards();
             historyUUIDConsumer.accept(historyUUIDs);
         };
         IndicesStatsRequest request = new IndicesStatsRequest();
+        request.clear();
         request.indices(leaderIndex);
         leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }

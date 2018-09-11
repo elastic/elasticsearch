@@ -546,9 +546,9 @@ public class FollowIndexAction extends Action<AcknowledgedResponse> {
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
             String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
             if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
-                throw new IllegalArgumentException("follow index [" + request.followerIndex + "] should reference [" +
-                    recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" +
-                    actualLeaderIndexHistoryUUID + "] as history uuid");
+                throw new IllegalArgumentException("leader shard [" + request.followerIndex + "][" + i + "] should reference [" +
+                    recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
+                    "] as history uuid");
             }
         }
 

@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
@@ -46,12 +47,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
+ * Note: this engine can be opened side-by-side with a read-write engine but will not reflect any changes made to the read-write
+ * engine.
+ *
+ * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function)
  */
-public class ReadOnlyEngine extends Engine {
+public final class ReadOnlyEngine extends Engine {
 
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
@@ -60,11 +66,20 @@ public class ReadOnlyEngine extends Engine {
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
 
-    public ReadOnlyEngine(EngineConfig config) {
-        this(config, null, new TranslogStats(0, 0, 0, 0, 0), true);
-    }
-
-    ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock) {
+    /**
+     * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
+     * read-write engine. It allows to optionally obtain the writer locks for the shard which would time-out if another
+     * engine is still open.
+     *
+     * @param config the engine configuration
+     * @param seqNoStats sequence number statistics for this engine or null if not provided
+     * @param translogStats translog stats for this engine or null if not provided
+     * @param obtainLock if <code>true</code> this engine will try to obtain the {@link IndexWriter#WRITE_LOCK_NAME} lock. Otherwise
+     *                   the lock won't be obtained
+     * @param readerWrapperFunction allows to wrap the index-reader for this engine.
+     */
+    public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
+                   Function<DirectoryReader, DirectoryReader> readerWrapperFunction) {
         super(config);
         try {
             Store store = config.getStore();
@@ -78,9 +93,13 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                this.translogStats = translogStats;
+                this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = wrapReader(DirectoryReader.open(directory), config.getShardId());
+                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), config.getShardId());
+                if (config.getIndexSettings().isSoftDeleteEnabled()) {
+                    reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+                }
+                reader = readerWrapperFunction.apply(reader);
                 this.indexCommit = reader.getIndexCommit();
                 this.searcherManager = new SearcherManager(reader,
                     new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
@@ -107,10 +126,6 @@ public class ReadOnlyEngine extends Engine {
                 closedLatch.countDown();
             }
         }
-    }
-
-    protected DirectoryReader wrapReader(DirectoryReader reader, ShardId shardId) throws IOException {
-        return ElasticsearchDirectoryReader.wrap(reader, shardId);
     }
 
     public static SeqNoStats buildSeqNoStats(SegmentInfos infos) {
@@ -158,17 +173,17 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("indexing is not supported on a read-only engine");
     }
 
     @Override
     public DeleteResult delete(Delete delete) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("deletes are not supported on a read-only engine");
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("no-ops are not supported on a read-only engine");
     }
 
     @Override
@@ -268,7 +283,10 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {}
+    public void refresh(String source) throws EngineException {
+        // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
+        // opened side-by-side
+    }
 
     @Override
     public void writeIndexingBuffer() throws EngineException {}
@@ -281,7 +299,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
         // we can't do synced flushes this would require an indexWriter which we don't have
-        return SyncedFlushResult.COMMIT_MISMATCH;
+        throw new UnsupportedOperationException("syncedFlush is not supported on a read-only engine");
     }
 
     @Override

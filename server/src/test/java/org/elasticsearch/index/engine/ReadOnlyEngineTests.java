@@ -28,6 +28,7 @@ import org.elasticsearch.index.store.Store;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -62,7 +63,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 engine.flush();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()),
-                    engine.getTranslogStats(), false);
+                    engine.getTranslogStats(), false, Function.identity());
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -126,10 +127,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
                 engine.syncTranslog();
                 engine.flushAndClose();
-                readOnlyEngine = new ReadOnlyEngine(engine.engineConfig);
+                readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
                 Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), randomBoolean());
                 assertEquals(flush, readOnlyEngine.flush(randomBoolean(), randomBoolean()));
-                assertEquals(Engine.SyncedFlushResult.COMMIT_MISMATCH, readOnlyEngine.syncFlush(null, null));
             } finally {
                 IOUtils.close(readOnlyEngine);
             }
@@ -142,11 +142,12 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config)) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.index(null));
                 expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.delete(null));
                 expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.noOp(null));
                 expectThrows(UnsupportedOperationException.class, () -> readOnlyEngine.restoreLocalCheckpointFromTranslog());
+                expectThrows(UnsupportedOperationException.class, () ->  readOnlyEngine.syncFlush(null, null));
             }
         }
     }

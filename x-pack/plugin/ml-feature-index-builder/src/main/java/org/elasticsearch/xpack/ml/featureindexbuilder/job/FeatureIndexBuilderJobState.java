@@ -19,9 +19,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
 import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -33,7 +35,7 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
     private final IndexerState state;
 
     @Nullable
-    private final TreeMap<String, Object> currentPosition;
+    private final SortedMap<String, Object> currentPosition;
 
     private static final ParseField STATE = new ParseField("job_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
@@ -63,13 +65,13 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
 
     public FeatureIndexBuilderJobState(IndexerState state, @Nullable Map<String, Object> position) {
         this.state = state;
-        this.currentPosition = position == null ? null : new TreeMap<>(position);
+        this.currentPosition = Collections.unmodifiableSortedMap(position == null ? null : new TreeMap<>(position));
 
     }
 
     public FeatureIndexBuilderJobState(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
-        currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
+        currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
     }
 
     public IndexerState getJobState() {

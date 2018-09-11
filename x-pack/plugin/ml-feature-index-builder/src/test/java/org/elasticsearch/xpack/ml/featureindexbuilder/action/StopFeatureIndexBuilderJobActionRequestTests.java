@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction.Request;
 import java.io.IOException;
 
-public class StopFeatureIndexBuilderJobActionRequestTests extends AbstractXContentTestCase<Request> {
+public class StopFeatureIndexBuilderJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -26,5 +26,10 @@ public class StopFeatureIndexBuilderJobActionRequestTests extends AbstractXConte
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
         return Request.PARSER.parse(parser, null);
+    }
+
+    @Override
+    protected Request createBlankInstance() {
+        return new Request();
     }
 }

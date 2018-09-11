@@ -52,7 +52,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.snapshots.SourceOnlySnapshotEngine;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -358,8 +357,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
-            EngineFactory engineFactory = SourceOnlySnapshotEngine::new;
-            return Optional.of(engineFactory);
+            return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
         return Optional.empty();
     }

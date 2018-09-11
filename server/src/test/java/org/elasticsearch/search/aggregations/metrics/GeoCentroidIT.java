@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;

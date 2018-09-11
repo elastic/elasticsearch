@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor;
@@ -26,6 +28,18 @@ public final class InternalSqlScriptUtils {
 
     public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
         return DateTimeFunction.dateTimeChrono(millis, tzId, chronoName);
+    }
+    
+    public static String dayName(long millis, String tzId) {
+        return NameExtractor.DAY_NAME.extract(millis, tzId);
+    }
+    
+    public static String monthName(long millis, String tzId) {
+        return NameExtractor.MONTH_NAME.extract(millis, tzId);
+    }
+    
+    public static Integer quarter(long millis, String tzId) {
+        return QuarterProcessor.quarter(millis, tzId);
     }
     
     public static Integer ascii(String s) {

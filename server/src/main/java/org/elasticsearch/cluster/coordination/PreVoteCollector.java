@@ -48,10 +48,9 @@ public class PreVoteCollector extends AbstractComponent {
     // Tuple for simple atomic updates
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader
 
-    PreVoteCollector(final Settings settings, final PreVoteResponse preVoteResponse,
-                     final TransportService transportService, final Runnable startElection) {
+    PreVoteCollector(final Settings settings, final TransportService transportService, final Runnable startElection) {
         super(settings);
-        state = new Tuple<>(null, preVoteResponse);
+        state = new Tuple<>(null, new PreVoteResponse(0, 0, 0));
         this.transportService = transportService;
         this.startElection = startElection;
 

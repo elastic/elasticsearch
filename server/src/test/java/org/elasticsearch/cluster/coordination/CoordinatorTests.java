@@ -61,8 +61,16 @@ public class CoordinatorTests extends ESTestCase {
         final List<ClusterNode> clusterNodes;
 
         Cluster(int initialNodeCount) {
+            logger.info("--> creating cluster of {} nodes", initialNodeCount);
             clusterNodes = new ArrayList<>(initialNodeCount);
+            for (int i = 0; i < initialNodeCount; i++) {
+                final ClusterNode clusterNode = new ClusterNode(i);
+                clusterNodes.add(clusterNode);
+            }
 
+            for (final ClusterNode clusterNode : clusterNodes) {
+                clusterNode.initialise();
+            }
         }
 
         void runRandomly() {
@@ -88,6 +96,10 @@ public class CoordinatorTests extends ESTestCase {
             Coordinator coordinator;
             private DiscoveryNode localNode;
 
+            ClusterNode(int nodeIndex) {
+
+            }
+
             String getId() {
                 return localNode.getId();
             }
@@ -102,6 +114,9 @@ public class CoordinatorTests extends ESTestCase {
 
             boolean isLeader() {
                 return coordinator.getMode() == Coordinator.Mode.LEADER;
+            }
+
+            void initialise() {
             }
         }
     }

@@ -72,7 +72,7 @@ public abstract class PeerFinder extends AbstractComponent {
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
 
-    PeerFinder(Settings settings, TransportService transportService,
+    public PeerFinder(Settings settings, TransportService transportService,
                TransportAddressConnector transportAddressConnector, ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);

@@ -23,8 +23,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
+import org.elasticsearch.discovery.PeerFinder;
+import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
@@ -40,13 +48,22 @@ public class Coordinator extends AbstractLifecycleComponent {
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
 
+    private final PeerFinder peerFinder;
+    private final PreVoteCollector preVoteCollector;
+    private final ElectionSchedulerFactory electionSchedulerFactory;
+    @Nullable
+    private Releasable electionScheduler;
+    @Nullable
+    private Releasable prevotingRound;
+
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
-                       MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier) {
+                       MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
+                       UnicastHostsProvider unicastHostsProvider) {
         super(settings);
         this.transportService = transportService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
@@ -55,6 +72,63 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = joinHelper.new CandidateJoinAccumulator();
+
+        this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
+        this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
+
+        this.peerFinder = new PeerFinder(settings, transportService, new HandshakingTransportAddressConnector(settings, transportService),
+            new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider)) {
+
+            @Override
+            protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
+                // TODO
+            }
+
+            @Override
+            protected void onFoundPeersUpdated() {
+                synchronized (mutex) {
+                    if (mode == Mode.CANDIDATE) {
+                        final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
+                        getFoundPeers().forEach(expectedVotes::addVote);
+                        final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+                        final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
+
+                        if (foundQuorum) {
+                            if (electionScheduler == null) {
+                                electionScheduler = electionSchedulerFactory.startElectionScheduler(TimeValue.ZERO, () -> {
+                                    synchronized (mutex) {
+                                        if (mode == Mode.CANDIDATE) {
+                                            if (prevotingRound != null) {
+                                                prevotingRound.close();
+                                            }
+                                            prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundPeers());
+                                        }
+                                    }
+                                });
+                            }
+                        } else {
+                            closePrevotingAndElectionScheduler();
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    private void closePrevotingAndElectionScheduler() {
+        if (prevotingRound != null) {
+            prevotingRound.close();
+            prevotingRound = null;
+        }
+
+        if (electionScheduler != null) {
+            electionScheduler.close();
+            electionScheduler = null;
+        }
+    }
+
+    private void startElection() {
+
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -121,6 +195,8 @@ public class Coordinator extends AbstractLifecycleComponent {
             mode = Mode.CANDIDATE;
             joinAccumulator.close(mode);
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
+
+            peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
         }
     }
 
@@ -130,9 +206,12 @@ public class Coordinator extends AbstractLifecycleComponent {
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         mode = Mode.LEADER;
-        lastKnownLeader = Optional.of(getLocalNode());
         joinAccumulator.close(mode);
         joinAccumulator = joinHelper.new LeaderJoinAccumulator();
+
+        lastKnownLeader = Optional.of(getLocalNode());
+        peerFinder.deactivate(getLocalNode());
+        closePrevotingAndElectionScheduler();
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -146,6 +225,8 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
 
         lastKnownLeader = Optional.of(leaderNode);
+        peerFinder.deactivate(getLocalNode());
+        closePrevotingAndElectionScheduler();
     }
 
     // package-visible for testing

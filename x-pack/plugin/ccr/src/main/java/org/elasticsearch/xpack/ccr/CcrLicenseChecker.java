@@ -27,9 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -221,16 +219,16 @@ public final class CcrLicenseChecker {
                         return;
                     }
                     String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-                    if (historyUUID == null) {
-                        onFailure.accept(new IllegalArgumentException("leader index does not have an history uuid"));
-                        return;
-                    }
                     ShardId shardId = shardStats.getShardRouting().shardId();
-                    assert historyUUIDs[shardId.id()] == null;
                     historyUUIDs[shardId.id()] = historyUUID;
                 }
             }
-            assert new HashSet<>(Arrays.asList(historyUUIDs)).size() == leaderIndexMetaData.getNumberOfShards();
+            for (int i = 0; i < historyUUIDs.length; i++) {
+                if (historyUUIDs[i] == null) {
+                    onFailure.accept(new IllegalArgumentException("no history uuid for [" + leaderIndex + "][" + i + "]"));
+                    return;
+                }
+            }
             historyUUIDConsumer.accept(historyUUIDs);
         };
         IndicesStatsRequest request = new IndicesStatsRequest();

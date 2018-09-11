@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
@@ -69,11 +68,9 @@ public abstract class ScalarFunction extends Function {
             if (attr instanceof AggregateFunctionAttribute) {
                 return asScriptFrom((AggregateFunctionAttribute) attr);
             }
-            if (attr instanceof LiteralAttribute) {
-                return asScriptFrom((LiteralAttribute) attr);
+            if (attr instanceof FieldAttribute) {
+                return asScriptFrom((FieldAttribute) attr);
             }
-            // fall-back to
-            return asScriptFrom((FieldAttribute) attr);
         }
         throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }
@@ -100,12 +97,6 @@ public abstract class ScalarFunction extends Function {
         return new ScriptTemplate(formatScript("{}"),
                 paramsBuilder().agg(aggregate).build(),
                 aggregate.dataType());
-    }
-
-    protected ScriptTemplate asScriptFrom(LiteralAttribute literal) {
-        return new ScriptTemplate(formatScript("{}"),
-            paramsBuilder().variable(literal.literal()).build(),
-            literal.dataType());
     }
 
     protected String formatScript(String scriptTemplate) {

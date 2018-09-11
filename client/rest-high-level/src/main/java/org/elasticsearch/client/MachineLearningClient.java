@@ -19,6 +19,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -389,6 +391,11 @@ public final class MachineLearningClient {
     /**
      * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
      *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-job.html"></a>
+     * </p>
+     *
      * @param request the {@link UpdateJobRequest} object enclosing the desired updates
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return a PutJobResponse object containing the updated job object
@@ -427,6 +434,10 @@ public final class MachineLearningClient {
     /**
      * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job} asynchronously
      *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-job.html"></a>
+     * </p>
      * @param request the {@link UpdateJobRequest} object enclosing the desired updates
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
@@ -436,6 +447,48 @@ public final class MachineLearningClient {
             MLRequestConverters::updateJob,
             options,
             PutJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Job Forecasts
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
+     * </p>
+     *
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return a AcknowledgedResponse object indicating request success
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteForecast(DeleteForecastRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteForecast,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Job Forecasts asynchronously
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
+     * </p>
+     *
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteForecastAsync(DeleteForecastRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteForecast,
+            options,
+            AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

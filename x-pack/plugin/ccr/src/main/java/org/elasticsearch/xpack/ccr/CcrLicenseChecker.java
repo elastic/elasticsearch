@@ -209,6 +209,12 @@ public final class CcrLicenseChecker {
             String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
+                    // Ignore replica shards as they may not have yet started and
+                    // we just end up overwriting slots in historyUUIDs
+                    if (shardStats.getShardRouting().primary() == false) {
+                        continue;
+                    }
+
                     CommitStats commitStats = shardStats.getCommitStats();
                     if (commitStats == null) {
                         onFailure.accept(new IllegalArgumentException("leader index's commit stats are missing"));
@@ -220,6 +226,7 @@ public final class CcrLicenseChecker {
                         return;
                     }
                     ShardId shardId = shardStats.getShardRouting().shardId();
+                    assert historyUUIDs[shardId.id()] == null;
                     historyUUIDs[shardId.id()] = historyUUID;
                 }
             }

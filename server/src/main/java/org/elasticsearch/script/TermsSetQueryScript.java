@@ -19,6 +19,8 @@
 package org.elasticsearch.script;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -31,6 +33,18 @@ public abstract class TermsSetQueryScript {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 
+    private static final Map<String, String> DEPRECATIONS;
+
+    static {
+        Map<String, String> deprecations = new HashMap<>();
+        deprecations.put(
+            "doc",
+            "Accessing variable [doc] via [params.doc] from within a terms-set-query-script " +
+                "is deprecated in favor of directly accessing [doc]."
+        );
+        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+    }
+
     /**
      * The generic runtime parameters for the script.
      */
@@ -42,7 +56,7 @@ public abstract class TermsSetQueryScript {
     private final LeafSearchLookup leafLookup;
 
     public TermsSetQueryScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = params;
+        this.params = new ParameterMap(params, DEPRECATIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
     }
 

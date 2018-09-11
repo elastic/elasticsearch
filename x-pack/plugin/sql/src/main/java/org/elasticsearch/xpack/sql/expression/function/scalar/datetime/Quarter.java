@@ -3,33 +3,33 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
 import java.util.Objects;
 import java.util.TimeZone;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
-public abstract class DateTimeFunction extends BaseDateTimeFunction {
+public class Quarter extends BaseDateTimeFunction {
 
-    DateTimeFunction(Location location, Expression field, TimeZone timeZone) {
+    protected static final String QUARTER_FORMAT = "q";
+    
+    public Quarter(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
     }
 
@@ -40,12 +40,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
             return null;
         }
 
-        return dateTimeChrono(folded.getMillis(), timeZone().getID(), chronoField().name());
-    }
-
-    public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
-        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-        return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
+        return quarter(folded.getMillis(), timeZone().getID());
     }
 
     @Override
@@ -53,41 +48,40 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value.millis, {}, {})");
+        template = formatTemplate("{sql}.quarter(doc[{}].value.millis, {})");
         params.variable(field.name())
-              .variable(timeZone().getID())
-              .variable(chronoField().name());
+              .variable(timeZone().getID());
         
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
-    /**
-     * Used for generating the painless script version of this function when the time zone is not UTC
-     */
-    protected abstract ChronoField chronoField();
+    @Override
+    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
+        return Quarter::new;
+    }
+
+    @Override
+    protected Quarter replaceChild(Expression newChild) {
+        return new Quarter(location(), newChild, timeZone());
+    }
 
     @Override
     protected ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new DateTimeProcessor(extractor(), timeZone()));
+                new QuarterProcessor(timeZone()));
     }
-
-    protected abstract DateTimeExtractor extractor();
 
     @Override
     public DataType dataType() {
         return DataType.INTEGER;
     }
 
-    // used for applying ranges
-    public abstract String dateTimeFormat();
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        DateTimeFunction other = (DateTimeFunction) obj;
+        BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
         return Objects.equals(other.field(), field())
             && Objects.equals(other.timeZone(), timeZone());
     }
@@ -96,4 +90,5 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     public int hashCode() {
         return Objects.hash(field(), timeZone());
     }
+
 }

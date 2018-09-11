@@ -160,6 +160,11 @@ public abstract class PeerFinder extends AbstractComponent {
      */
     protected abstract void onFoundPeersUpdated();
 
+    // only for assertions
+    public boolean isActive() {
+        return active;
+    }
+
     public interface TransportAddressConnector {
         /**
          * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.

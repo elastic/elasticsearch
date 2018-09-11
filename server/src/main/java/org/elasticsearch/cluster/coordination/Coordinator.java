@@ -75,44 +75,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
-
-        this.peerFinder = new PeerFinder(settings, transportService, new HandshakingTransportAddressConnector(settings, transportService),
-            new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider)) {
-
-            @Override
-            protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
-                // TODO
-            }
-
-            @Override
-            protected void onFoundPeersUpdated() {
-                synchronized (mutex) {
-                    if (mode == Mode.CANDIDATE) {
-                        final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
-                        getFoundPeers().forEach(expectedVotes::addVote);
-                        final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-                        final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
-
-                        if (foundQuorum) {
-                            if (electionScheduler == null) {
-                                electionScheduler = electionSchedulerFactory.startElectionScheduler(TimeValue.ZERO, () -> {
-                                    synchronized (mutex) {
-                                        if (mode == Mode.CANDIDATE) {
-                                            if (prevotingRound != null) {
-                                                prevotingRound.close();
-                                            }
-                                            prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundPeers());
-                                        }
-                                    }
-                                });
-                            }
-                        } else {
-                            closePrevotingAndElectionScheduler();
-                        }
-                    }
-                }
-            }
-        };
+        this.peerFinder = new CoordinatorPeerFinder(settings, transportService, unicastHostsProvider);
     }
 
     private void closePrevotingAndElectionScheduler() {
@@ -198,6 +161,8 @@ public class Coordinator extends AbstractLifecycleComponent {
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
         }
+
+        preVoteCollector.update(getPreVoteResponse(), null);
     }
 
     void becomeLeader(String method) {
@@ -212,6 +177,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
         closePrevotingAndElectionScheduler();
+        preVoteCollector.update(getPreVoteResponse(), getLocalNode());
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
@@ -227,6 +193,11 @@ public class Coordinator extends AbstractLifecycleComponent {
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(getLocalNode());
         closePrevotingAndElectionScheduler();
+        preVoteCollector.update(getPreVoteResponse(), leaderNode);
+    }
+
+    private PreVoteResponse getPreVoteResponse() {
+        return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(), coordinationState.get().getLastAcceptedVersion());
     }
 
     // package-visible for testing
@@ -276,13 +247,21 @@ public class Coordinator extends AbstractLifecycleComponent {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
+                assert peerFinder.isActive() == false;
+                assert electionScheduler == null : electionScheduler;
+                assert prevotingRound == null : prevotingRound;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
+                assert peerFinder.isActive() == false;
+                assert electionScheduler == null : electionScheduler;
+                assert prevotingRound == null : prevotingRound;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
+                assert peerFinder.isActive();
+                assert prevotingRound == null || electionScheduler != null;
             }
         }
     }
@@ -293,5 +272,47 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
+    }
+
+    private class CoordinatorPeerFinder extends PeerFinder {
+
+        public CoordinatorPeerFinder(Settings settings, TransportService transportService, UnicastHostsProvider unicastHostsProvider) {
+            super(settings, transportService, new HandshakingTransportAddressConnector(settings, transportService),
+                new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider));
+        }
+
+        @Override
+        protected void onActiveMasterFound(DiscoveryNode masterNode, long term) {
+            // TODO
+        }
+
+        @Override
+        protected void onFoundPeersUpdated() {
+            synchronized (mutex) {
+                if (mode == Mode.CANDIDATE) {
+                    final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
+                    getFoundPeers().forEach(expectedVotes::addVote);
+                    final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+                    final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
+
+                    if (foundQuorum) {
+                        if (electionScheduler == null) {
+                            electionScheduler = electionSchedulerFactory.startElectionScheduler(TimeValue.ZERO, () -> {
+                                synchronized (mutex) {
+                                    if (mode == Mode.CANDIDATE) {
+                                        if (prevotingRound != null) {
+                                            prevotingRound.close();
+                                        }
+                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getFoundPeers());
+                                    }
+                                }
+                            });
+                        }
+                    } else {
+                        closePrevotingAndElectionScheduler();
+                    }
+                }
+            }
+        }
     }
 }

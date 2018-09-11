@@ -1000,8 +1000,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
 
-        ZonedDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate, equalTo(date));
+        JodaCompatibleZonedDateTime fetchedDate = dateField.getValue();
+        assertThat(fetchedDate.getZonedDateTime(), equalTo(date));
     }
 
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
@@ -1064,8 +1064,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
 
-        ZonedDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate, equalTo(date));
+        JodaCompatibleZonedDateTime fetchedDate = dateField.getValue();
+        assertThat(fetchedDate.getZonedDateTime(), equalTo(date));
     }
 
 

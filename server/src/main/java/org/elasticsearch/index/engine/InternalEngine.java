@@ -524,7 +524,7 @@ public class InternalEngine extends Engine {
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
-        return indexWriter.getFlushingBytes();
+        return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
     }
 
     /**

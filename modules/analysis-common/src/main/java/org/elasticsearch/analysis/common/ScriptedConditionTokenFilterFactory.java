@@ -21,12 +21,6 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.KeywordAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
-import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -36,6 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -76,30 +71,26 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             }
             return in;
         };
-        AnalysisPredicateScript script = factory.newInstance();
-        final AnalysisPredicateScript.Token token = new AnalysisPredicateScript.Token();
-        return new ConditionalTokenFilter(tokenStream, filter) {
+        return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
+    }
 
-            CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-            PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
-            PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
-            OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
-            TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
-            KeywordAttribute keywordAtt = addAttribute(KeywordAttribute.class);
+    private static class ScriptedConditionTokenFilter extends ConditionalTokenFilter {
 
-            @Override
-            protected boolean shouldFilter() {
-                token.term = termAtt;
-                token.posInc = posIncAtt.getPositionIncrement();
-                token.pos += token.posInc;
-                token.posLen = posLenAtt.getPositionLength();
-                token.startOffset = offsetAtt.startOffset();
-                token.endOffset = offsetAtt.endOffset();
-                token.type = typeAtt.type();
-                token.isKeyword = keywordAtt.isKeyword();
-                return script.execute(token);
-            }
-        };
+        private final AnalysisPredicateScript script;
+        private final AnalysisPredicateScript.Token token;
+
+        ScriptedConditionTokenFilter(TokenStream input, Function<TokenStream, TokenStream> inputFactory,
+                                               AnalysisPredicateScript script) {
+            super(input, inputFactory);
+            this.script = script;
+            this.token = new AnalysisPredicateScript.Token(this);
+        }
+
+        @Override
+        protected boolean shouldFilter() throws IOException {
+            token.updatePosition();
+            return script.execute(token);
+        }
     }
 
     @Override

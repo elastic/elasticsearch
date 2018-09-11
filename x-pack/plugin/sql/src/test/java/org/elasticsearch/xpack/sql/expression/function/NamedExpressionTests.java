@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
@@ -13,7 +14,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class NamedExpressionTests extends ESTestCase {
@@ -36,6 +40,12 @@ public class NamedExpressionTests extends ESTestCase {
 
         Neg neg = new Neg(EMPTY, l(5));
         assertEquals("-5", neg.name());
+    }
+
+    public void testNameForArithmeticFunctionAppliedOnTableColumn() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true));
+        Add add = new Add(EMPTY, fa, l(10));
+        assertEquals("((myField) + 10)", add.name());
     }
 
     private static Literal l(Object value) {

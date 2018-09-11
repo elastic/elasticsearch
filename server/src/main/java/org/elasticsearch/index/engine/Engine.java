@@ -661,7 +661,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public CommitStats commitStats() {
+    public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -951,7 +951,9 @@ public abstract class Engine implements Closeable {
      *
      * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush() throws EngineException;
+    public final CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
 
 
     /**

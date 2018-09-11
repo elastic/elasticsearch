@@ -21,7 +21,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     public RestDeleteAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/_auto_follow/{leader_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/auto_follow/{leader_cluster_alias}", this);
     }
 
     @Override

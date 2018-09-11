@@ -133,4 +133,8 @@ public class BasicAPITests extends ScriptTestCase {
     public void testNoSemicolon() {
         assertEquals(true, exec("def x = true; if (x) return x"));
     }
+
+    public void testStatic() {
+        assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
+    }
 }

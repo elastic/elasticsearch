@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.search.lookup.DocLookup;
 
 import java.io.IOException;
@@ -32,9 +32,9 @@ import java.io.IOException;
  */
 public final class ScoreAccessor extends Number implements Comparable<Number> {
 
-    Scorer scorer;
+    Scorable scorer;
 
-    public ScoreAccessor(Scorer scorer) {
+    public ScoreAccessor(Scorable scorer) {
         this.scorer = scorer;
     }
 

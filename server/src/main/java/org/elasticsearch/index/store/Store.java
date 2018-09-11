@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
@@ -153,18 +152,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock,
-                 OnClose onClose) throws IOException {
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock,
+                 OnClose onClose) {
         super(shardId, indexSettings);
-        final Settings settings = indexSettings.getSettings();
-        Directory dir = directoryService.newDirectory();
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);
+        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;

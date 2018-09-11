@@ -19,6 +19,13 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.KeywordAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.AttributeSource;
 import org.elasticsearch.script.ScriptContext;
 
 /**
@@ -30,21 +37,40 @@ public abstract class AnalysisPredicateScript {
      * Encapsulation of the state of the current token
      */
     public static class Token {
-        public CharSequence term;
-        public int pos;
-        public int posInc;
-        public int posLen;
-        public int startOffset;
-        public int endOffset;
-        public String type;
-        public boolean isKeyword;
+
+        private final CharTermAttribute termAtt;
+        private final PositionIncrementAttribute posIncAtt;
+        private final PositionLengthAttribute posLenAtt;
+        private final OffsetAttribute offsetAtt;
+        private final TypeAttribute typeAtt;
+        private final KeywordAttribute keywordAtt;
+
+        // posInc is always 1 at the beginning of a tokenstream and the convention
+        // from the _analyze endpoint is that tokenstream positions are 0-based
+        private int pos = -1;
+
+        /**
+         * Create a token exposing values from an AttributeSource
+         */
+        public Token(AttributeSource source) {
+            this.termAtt = source.addAttribute(CharTermAttribute.class);
+            this.posIncAtt = source.addAttribute(PositionIncrementAttribute.class);
+            this.posLenAtt = source.addAttribute(PositionLengthAttribute.class);
+            this.offsetAtt = source.addAttribute(OffsetAttribute.class);
+            this.typeAtt = source.addAttribute(TypeAttribute.class);
+            this.keywordAtt = source.addAttribute(KeywordAttribute.class);
+        }
+
+        public void updatePosition() {
+            this.pos = this.pos + posIncAtt.getPositionIncrement();
+        }
 
         public CharSequence getTerm() {
-            return term;
+            return termAtt;
         }
 
         public int getPositionIncrement() {
-            return posInc;
+            return posIncAtt.getPositionIncrement();
         }
 
         public int getPosition() {
@@ -52,23 +78,23 @@ public abstract class AnalysisPredicateScript {
         }
 
         public int getPositionLength() {
-            return posLen;
+            return posLenAtt.getPositionLength();
         }
 
         public int getStartOffset() {
-            return startOffset;
+            return offsetAtt.startOffset();
         }
 
         public int getEndOffset() {
-            return endOffset;
+            return offsetAtt.endOffset();
         }
 
         public String getType() {
-            return type;
+            return typeAtt.type();
         }
 
         public boolean isKeyword() {
-            return isKeyword;
+            return keywordAtt.isKeyword();
         }
     }
 

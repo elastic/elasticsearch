@@ -369,58 +369,63 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
-            builder.field(SHARD_ID.getPreferredName(), shardId);
-            builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
-            builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
-            builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
-            builder.field(FOLLOWER_MAX_SEQ_NO_FIELD.getPreferredName(), followerMaxSeqNo);
-            builder.field(LAST_REQUESTED_SEQ_NO_FIELD.getPreferredName(), lastRequestedSeqNo);
-            builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
-            builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
-            builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
-            builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
-            builder.humanReadableField(
-                    TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
-                    "total_fetch_time",
-                    new TimeValue(totalFetchTimeMillis, TimeUnit.MILLISECONDS));
-            builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
-            builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
-            builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
-            builder.humanReadableField(
-                    TOTAL_TRANSFERRED_BYTES.getPreferredName(),
-                    "total_transferred",
-                    new ByteSizeValue(totalTransferredBytes, ByteSizeUnit.BYTES));
-            builder.humanReadableField(
-                    TOTAL_INDEX_TIME_MILLIS_FIELD.getPreferredName(),
-                    "total_index_time",
-                    new TimeValue(totalIndexTimeMillis, TimeUnit.MILLISECONDS));
-            builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
-            builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
-            builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
-            builder.startArray(FETCH_EXCEPTIONS.getPreferredName());
-            {
-                for (final Map.Entry<Long, ElasticsearchException> entry : fetchExceptions.entrySet()) {
+            toXContentFragment(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
+        builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
+        builder.field(SHARD_ID.getPreferredName(), shardId);
+        builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
+        builder.field(LEADER_MAX_SEQ_NO_FIELD.getPreferredName(), leaderMaxSeqNo);
+        builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
+        builder.field(FOLLOWER_MAX_SEQ_NO_FIELD.getPreferredName(), followerMaxSeqNo);
+        builder.field(LAST_REQUESTED_SEQ_NO_FIELD.getPreferredName(), lastRequestedSeqNo);
+        builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
+        builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
+        builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
+        builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
+        builder.humanReadableField(
+                TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
+                "total_fetch_time",
+                new TimeValue(totalFetchTimeMillis, TimeUnit.MILLISECONDS));
+        builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
+        builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
+        builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
+        builder.humanReadableField(
+                TOTAL_TRANSFERRED_BYTES.getPreferredName(),
+                "total_transferred",
+                new ByteSizeValue(totalTransferredBytes, ByteSizeUnit.BYTES));
+        builder.humanReadableField(
+                TOTAL_INDEX_TIME_MILLIS_FIELD.getPreferredName(),
+                "total_index_time",
+                new TimeValue(totalIndexTimeMillis, TimeUnit.MILLISECONDS));
+        builder.field(NUMBER_OF_SUCCESSFUL_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfSuccessfulBulkOperations);
+        builder.field(NUMBER_OF_FAILED_BULK_OPERATIONS_FIELD.getPreferredName(), numberOfFailedBulkOperations);
+        builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
+        builder.startArray(FETCH_EXCEPTIONS.getPreferredName());
+        {
+            for (final Map.Entry<Long, ElasticsearchException> entry : fetchExceptions.entrySet()) {
+                builder.startObject();
+                {
+                    builder.field(FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO.getPreferredName(), entry.getKey());
+                    builder.field(FETCH_EXCEPTIONS_ENTRY_EXCEPTION.getPreferredName());
                     builder.startObject();
                     {
-                        builder.field(FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO.getPreferredName(), entry.getKey());
-                        builder.field(FETCH_EXCEPTIONS_ENTRY_EXCEPTION.getPreferredName());
-                        builder.startObject();
-                        {
-                            ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
-                        }
-                        builder.endObject();
+                        ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
                     }
                     builder.endObject();
                 }
+                builder.endObject();
             }
-            builder.endArray();
-            builder.humanReadableField(
-                    TIME_SINCE_LAST_FETCH_MILLIS_FIELD.getPreferredName(),
-                    "time_since_last_fetch",
-                    new TimeValue(timeSinceLastFetchMillis, TimeUnit.MILLISECONDS));
         }
-        builder.endObject();
+        builder.endArray();
+        builder.humanReadableField(
+                TIME_SINCE_LAST_FETCH_MILLIS_FIELD.getPreferredName(),
+                "time_since_last_fetch",
+                new TimeValue(timeSinceLastFetchMillis, TimeUnit.MILLISECONDS));
         return builder;
     }
 

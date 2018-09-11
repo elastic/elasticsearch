@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
@@ -76,7 +77,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
 
 /**

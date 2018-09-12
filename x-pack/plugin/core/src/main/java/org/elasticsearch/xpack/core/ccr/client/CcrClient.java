@@ -49,13 +49,13 @@ public class CcrClient {
     }
 
     public void stats(
-            final CcrStatsAction.TasksRequest request,
-            final ActionListener<CcrStatsAction.TasksResponse> listener) {
+            final CcrStatsAction.StatsRequest request,
+            final ActionListener<CcrStatsAction.StatsResponses> listener) {
         client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<CcrStatsAction.TasksResponse> stats(final CcrStatsAction.TasksRequest request) {
-        final PlainActionFuture<CcrStatsAction.TasksResponse> listener = PlainActionFuture.newFuture();
+    public ActionFuture<CcrStatsAction.StatsResponses> stats(final CcrStatsAction.StatsRequest request) {
+        final PlainActionFuture<CcrStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
         client.execute(CcrStatsAction.INSTANCE, request, listener);
         return listener;
     }

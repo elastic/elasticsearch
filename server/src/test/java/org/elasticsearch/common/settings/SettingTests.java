@@ -924,7 +924,6 @@ public class SettingTests extends ESTestCase {
 
         final String key = updatedSettings.keySet().iterator().next();
         final String value = updatedSettings.get(key);
-
         assertEquals("_host", key);
         assertEquals("", value);
     }

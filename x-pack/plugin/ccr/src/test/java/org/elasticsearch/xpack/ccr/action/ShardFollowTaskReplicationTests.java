@@ -206,7 +206,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 8),
             Long.MAX_VALUE,
             between(1, 4), 10240,
-            TimeValue.timeValueMillis(100),
+            TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             leaderGroup.getPrimary().getHistoryUUID(),
             Collections.emptyMap()

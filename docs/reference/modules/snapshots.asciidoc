@@ -208,6 +208,51 @@ URL repositories with `file:` URLs can only point to locations registered in the
 shared file system repository.
 
 [float]
+[role="xpack"]
+[testenv="basic"]
+===== Source Only Repository
+
+A source repository enables you to create minimal, source-only snapshots that take up to 50% less space on disk.
+Source only snapshots contain stored fields and index metadata. They do not include index or doc values structures
+and are not searchable when restored. After restoring a source-only snapshot, you must <<docs-reindex,reindex>>
+the data into a new index.
+
+Source repositories delegate to another snapshot repository for storage.
+
+
+[IMPORTANT]
+==================================================
+
+Source only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
+When you restore a source only snapshot:
+
+ * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
+
+ * Queries other than `match_all` and `_get` requests are not supported.
+
+ * The mapping of the restored index is empty, but the original mapping is available from the types top
+   level `meta` element.
+
+==================================================
+
+When you create a source repository, you must specify the type and name of the delegate repository
+where the snapshots will be stored:
+
+[source,js]
+-----------------------------------
+PUT _snapshot/my_src_only_repository
+{
+  "type": "source",
+  "settings": {
+    "delegate_type": "fs",
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+[float]
 ===== Repository plugins
 
 Other repository backends are available in these official plugins:

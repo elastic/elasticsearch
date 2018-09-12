@@ -27,7 +27,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
@@ -43,7 +43,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
             final SeqNoStats lastSeqNoStats;
-            final Set<String> lastDocIds;
+            final List<DocIdSeqNoAndTerm> lastDocIds;
             try (InternalEngine engine = createEngine(config)) {
                 Engine.Get get = null;
                 for (int i = 0; i < numDocs; i++) {

@@ -258,8 +258,20 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public int hashCode() {
-        return Objects.hash(leaderClusterAlias, followShardId, leaderShardId, maxBatchOperationCount, maxConcurrentReadBatches,
-            maxConcurrentWriteBatches, maxBatchSizeInBytes, maxWriteBufferSize, maxRetryDelay, idleShardRetryDelay,recordedLeaderIndexHistoryUUID, headers);
+        return Objects.hash(
+            leaderClusterAlias,
+            followShardId,
+            leaderShardId,
+            maxBatchOperationCount,
+            maxConcurrentReadBatches,
+            maxConcurrentWriteBatches,
+            maxBatchSizeInBytes,
+            maxWriteBufferSize,
+            maxRetryDelay,
+            idleShardRetryDelay,
+            recordedLeaderIndexHistoryUUID,
+            headers
+        );
     }
 
     public String toString() {

@@ -47,7 +47,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
     DirectoryReader reader;
 
     @Before
-    void initLuceneStuff() throws IOException {
+    public void initLuceneStuff() throws IOException {
         dir = newDirectory();
         w = new RandomIndexWriter(random(), dir);
         reader = w.getReader();
@@ -55,11 +55,12 @@ public class OptOutQueryCacheTests extends ESTestCase {
     }
 
     @After
-    void closeLuceneStuff() throws IOException {
+    public void closeLuceneStuff() throws IOException {
         w.close();
         dir.close();
         reader.close();
     }
+
     public void testOptOutQueryCacheSafetyCheck() throws IOException {
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -122,25 +123,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
     }
 
-    public void testOptOutQueryCacheSecurityIsNotEnabled() {
-        final Settings.Builder settings = Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
-        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        when(licenseState.isAuthAllowed()).thenReturn(randomBoolean());
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
-        final Weight weight = mock(Weight.class);
-        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
-        cache.doCache(weight, policy);
-        verify(indicesQueryCache).doCache(same(weight), same(policy));
-    }
-
     public void testOptOutQueryCacheAuthIsNotAllowed() {
         final Settings.Builder settings = Settings.builder()
                 .put("index.version.created", Version.CURRENT)
@@ -151,7 +133,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(randomBoolean());
         when(licenseState.isAuthAllowed()).thenReturn(false);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         final Weight weight = mock(Weight.class);
@@ -170,7 +151,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         final Weight weight = mock(Weight.class);
@@ -195,7 +175,6 @@ public class OptOutQueryCacheTests extends ESTestCase {
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         final Weight weight = mock(Weight.class);

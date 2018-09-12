@@ -39,7 +39,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
 
     public void testUnlicensed() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(false);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
@@ -49,7 +48,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
         listener.onNewScrollContext(searchContext);
         listener.validateSearchContext(searchContext, Empty.INSTANCE);
-        verify(licenseState, times(2)).isSecurityEnabled();
         verify(licenseState, times(2)).isAuthAllowed();
         verifyZeroInteractions(auditTrailService, searchContext);
     }
@@ -60,7 +58,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         final Scroll scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         testSearchContext.scrollContext().scroll = scroll;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
@@ -75,7 +72,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         assertEquals(scroll, testSearchContext.scrollContext().scroll);
 
         verify(licenseState).isAuthAllowed();
-        verify(licenseState).isSecurityEnabled();
         verifyZeroInteractions(auditTrailService);
     }
 
@@ -86,7 +82,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
@@ -97,7 +92,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
             verify(licenseState).isAuthAllowed();
-            verify(licenseState).isSecurityEnabled();
             verifyZeroInteractions(auditTrailService);
         }
 
@@ -108,7 +102,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
             verify(licenseState, times(2)).isAuthAllowed();
-            verify(licenseState, times(2)).isSecurityEnabled();
             verifyZeroInteractions(auditTrailService);
         }
 
@@ -125,7 +118,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(3)).isAuthAllowed();
-            verify(licenseState, times(3)).isSecurityEnabled();
             verify(auditTrailService).accessDenied(authentication, "action", request, authentication.getUser().roles());
         }
 
@@ -142,7 +134,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             listener.validateSearchContext(testSearchContext, request);
             verify(licenseState, times(4)).isAuthAllowed();
-            verify(licenseState, times(4)).isSecurityEnabled();
             verifyNoMoreInteractions(auditTrailService);
         }
 
@@ -161,7 +152,6 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.id());
             verify(licenseState, times(5)).isAuthAllowed();
-            verify(licenseState, times(5)).isSecurityEnabled();
             verify(auditTrailService).accessDenied(authentication, "action", request, authentication.getUser().roles());
         }
     }

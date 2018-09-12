@@ -163,6 +163,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
+        if (enabled == false) {
+            return emptyList();
+        }
+
         return Arrays.asList(
                 // stats API
                 new RestCcrStatsAction(settings, restController),
@@ -228,10 +232,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return Collections.emptyList();
         }
 
-        FixedExecutorBuilder ccrTp = new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME,
-                32, 100, "xpack.ccr.ccr_thread_pool");
-
-        return Collections.singletonList(ccrTp);
+        return Collections.singletonList(new FixedExecutorBuilder(settings, CCR_THREAD_POOL_NAME, 32, 100, "xpack.ccr.ccr_thread_pool"));
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }

@@ -922,6 +922,9 @@
             "leader_index": {
               "type": "keyword"
             },
+            "follower_index": {
+              "type": "keyword"
+            },
             "shard_id": {
               "type": "integer"
             },

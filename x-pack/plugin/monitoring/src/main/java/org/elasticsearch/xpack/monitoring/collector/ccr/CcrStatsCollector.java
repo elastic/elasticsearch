@@ -72,7 +72,7 @@ public class CcrStatsCollector extends Collector {
             final ClusterState clusterState) throws Exception {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
             final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
-            request.setIndices(Strings.EMPTY_ARRAY);
+            request.setIndices(getCollectionIndices());
             final CcrStatsAction.StatsResponses responses = ccrClient.stats(request).actionGet(getCollectionTimeout());
 
             final long timestamp = timestamp();

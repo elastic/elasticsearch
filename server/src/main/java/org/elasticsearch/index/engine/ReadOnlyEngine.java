@@ -341,7 +341,9 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void restoreLocalCheckpointFromTranslog() {
+    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("restore history is not supported on a read-only engine");
     }
 
     @Override

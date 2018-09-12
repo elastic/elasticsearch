@@ -182,6 +182,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
@@ -218,6 +219,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 

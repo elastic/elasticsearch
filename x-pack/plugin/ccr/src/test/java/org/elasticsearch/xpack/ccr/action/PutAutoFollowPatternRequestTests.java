@@ -41,7 +41,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setRetryTimeout(TimeValue.timeValueMillis(500));
+            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));

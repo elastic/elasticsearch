@@ -48,7 +48,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
     public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
     public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-    public static final ParseField RETRY_TIMEOUT = new ParseField("retry_timeout");
+    public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
     public static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
     public static final ParseField RECORDED_HISTORY_UUID = new ParseField("recorded_history_uuid");
 
@@ -72,8 +72,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_SIZE);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), RETRY_TIMEOUT.getPreferredName()),
-            RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
+            MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), IDLE_SHARD_RETRY_DELAY.getPreferredName()),
             IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -89,7 +89,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final long maxBatchSizeInBytes;
     private final int maxConcurrentWriteBatches;
     private final int maxWriteBufferSize;
-    private final TimeValue retryTimeout;
+    private final TimeValue maxRetryDelay;
     private final TimeValue idleShardRetryDelay;
     private final String recordedLeaderIndexHistoryUUID;
     private final Map<String, String> headers;
@@ -103,7 +103,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                     long maxBatchSizeInBytes,
                     int maxConcurrentWriteBatches,
                     int maxWriteBufferSize,
-                    TimeValue retryTimeout,
+                    TimeValue maxRetryDelay,
                     TimeValue idleShardRetryDelay,
                     String recordedLeaderIndexHistoryUUID,
                     Map<String, String> headers) {
@@ -115,7 +115,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.maxBatchSizeInBytes = maxBatchSizeInBytes;
         this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         this.maxWriteBufferSize = maxWriteBufferSize;
-        this.retryTimeout = retryTimeout;
+        this.maxRetryDelay = maxRetryDelay;
         this.idleShardRetryDelay = idleShardRetryDelay;
         this.recordedLeaderIndexHistoryUUID = recordedLeaderIndexHistoryUUID;
         this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
@@ -130,7 +130,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.maxBatchSizeInBytes = in.readVLong();
         this.maxConcurrentWriteBatches = in.readVInt();
         this.maxWriteBufferSize = in.readVInt();
-        this.retryTimeout = in.readTimeValue();
+        this.maxRetryDelay = in.readTimeValue();
         this.idleShardRetryDelay = in.readTimeValue();
         this.recordedLeaderIndexHistoryUUID = in.readString();
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
@@ -168,8 +168,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         return maxBatchSizeInBytes;
     }
 
-    public TimeValue getRetryTimeout() {
-        return retryTimeout;
+    public TimeValue getMaxRetryDelay() {
+        return maxRetryDelay;
     }
 
     public TimeValue getIdleShardRetryDelay() {
@@ -203,7 +203,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         out.writeVLong(maxBatchSizeInBytes);
         out.writeVInt(maxConcurrentWriteBatches);
         out.writeVInt(maxWriteBufferSize);
-        out.writeTimeValue(retryTimeout);
+        out.writeTimeValue(maxRetryDelay);
         out.writeTimeValue(idleShardRetryDelay);
         out.writeString(recordedLeaderIndexHistoryUUID);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
@@ -230,7 +230,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxBatchSizeInBytes);
         builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
         builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
-        builder.field(RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+        builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
         builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
         builder.field(RECORDED_HISTORY_UUID.getPreferredName(), recordedLeaderIndexHistoryUUID);
         builder.field(HEADERS.getPreferredName(), headers);
@@ -250,7 +250,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 maxConcurrentWriteBatches == that.maxConcurrentWriteBatches &&
                 maxBatchSizeInBytes == that.maxBatchSizeInBytes &&
                 maxWriteBufferSize == that.maxWriteBufferSize &&
-                Objects.equals(retryTimeout, that.retryTimeout) &&
+                Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
                 Objects.equals(idleShardRetryDelay, that.idleShardRetryDelay) &&
                 Objects.equals(recordedLeaderIndexHistoryUUID, that.recordedLeaderIndexHistoryUUID) &&
                 Objects.equals(headers, that.headers);
@@ -258,20 +258,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            leaderClusterAlias,
-            followShardId,
-            leaderShardId,
-            maxBatchOperationCount,
-            maxConcurrentReadBatches,
-            maxConcurrentWriteBatches,
-            maxBatchSizeInBytes,
-            maxWriteBufferSize,
-            retryTimeout,
-            idleShardRetryDelay,
-            recordedLeaderIndexHistoryUUID,
-            headers
-        );
+        return Objects.hash(leaderClusterAlias, followShardId, leaderShardId, maxBatchOperationCount, maxConcurrentReadBatches,
+            maxConcurrentWriteBatches, maxBatchSizeInBytes, maxWriteBufferSize, maxRetryDelay, idleShardRetryDelay,recordedLeaderIndexHistoryUUID, headers);
     }
 
     public String toString() {

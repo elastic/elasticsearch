@@ -42,6 +42,11 @@ public abstract class TermsSetQueryScript {
             "Accessing variable [doc] via [params.doc] from within a terms-set-query-script " +
                 "is deprecated in favor of directly accessing [doc]."
         );
+        deprecations.put(
+            "_doc",
+            "Accessing variable [doc] via [params._doc] from within a terms-set-query-script " +
+                "is deprecated in favor of directly accessing [doc]."
+        );
         DEPRECATIONS = Collections.unmodifiableMap(deprecations);
     }
 
@@ -64,6 +69,7 @@ public abstract class TermsSetQueryScript {
      * Return the parameters for this script.
      */
     public Map<String, Object> getParams() {
+        this.params.putAll(leafLookup.asMap());
         return params;
     }
 

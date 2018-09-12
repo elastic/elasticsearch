@@ -133,4 +133,5 @@ public class SimilarityServiceTests extends ESTestCase {
                 () -> SimilarityService.validateSimilarity(Version.V_7_0_0_alpha1, increasingScoresWithNormSim));
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
     }
+
 }

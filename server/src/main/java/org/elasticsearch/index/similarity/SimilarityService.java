@@ -138,9 +138,14 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             TriFunction<Settings, Version, ScriptService, Similarity> defaultFactory = BUILT_IN.get(typeName);
             TriFunction<Settings, Version, ScriptService, Similarity> factory = similarities.getOrDefault(typeName, defaultFactory);
-            final Similarity similarity = factory.apply(providerSettings, indexSettings.getIndexVersionCreated(), scriptService);
+            Similarity similarity = factory.apply(providerSettings, indexSettings.getIndexVersionCreated(), scriptService);
             validateSimilarity(indexSettings.getIndexVersionCreated(), similarity);
-            providers.put(name, () -> similarity);
+            if (BUILT_IN.containsKey(typeName) == false || "scripted".equals(typeName)) {
+                // We don't trust custom similarities
+                similarity = new NonNegativeScoresSimilarity(similarity);
+            }
+            final Similarity similarityF = similarity; // like similarity but final
+            providers.put(name, () -> similarityF);
         }
         for (Map.Entry<String, Function<Version, Supplier<Similarity>>> entry : DEFAULTS.entrySet()) {
             providers.put(entry.getKey(), entry.getValue().apply(indexSettings.getIndexVersionCreated()));
@@ -159,7 +164,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                 defaultSimilarity;
     }
 
-    
+
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
         if (sim == null) {
@@ -265,4 +270,5 @@ public final class SimilarityService extends AbstractIndexComponent {
             DEPRECATION_LOGGER.deprecated(message);
         }
     }
+
 }

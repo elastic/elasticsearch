@@ -174,7 +174,7 @@ public class GlobalCheckpointListeners implements Closeable {
      * @param listener the listener to get the scheduled future for
      * @return a scheduled future representing the timeout future for the listener, otherwise null
      */
-    synchronized ScheduledFuture<?> timeout(final GlobalCheckpointListener listener) {
+    synchronized ScheduledFuture<?> getTimeoutFuture(final GlobalCheckpointListener listener) {
         return listeners.get(listener);
     }
 

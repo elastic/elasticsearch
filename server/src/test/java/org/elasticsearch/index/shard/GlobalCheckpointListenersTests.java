@@ -594,7 +594,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             assertNull(e);
         };
         globalCheckpointListeners.add(NO_OPS_PERFORMED, globalCheckpointListener, timeout);
-        final ScheduledFuture<?> future = globalCheckpointListeners.timeout(globalCheckpointListener);
+        final ScheduledFuture<?> future = globalCheckpointListeners.getTimeoutFuture(globalCheckpointListener);
         assertNotNull(future);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         assertTrue(future.isCancelled());

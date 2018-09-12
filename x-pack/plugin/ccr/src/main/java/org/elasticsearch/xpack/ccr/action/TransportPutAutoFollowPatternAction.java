@@ -154,7 +154,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxOperationSizeInBytes(),
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
-            request.getRetryTimeout(),
+            request.getMaxRetryDelay(),
             request.getIdleShardRetryDelay(),
             filteredHeaders);
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);

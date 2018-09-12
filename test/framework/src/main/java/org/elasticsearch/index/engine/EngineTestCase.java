@@ -33,6 +33,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -95,11 +96,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -775,26 +775,41 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     /**
-     * Gets all docId from the given engine.
+     * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
-    public static Set<String> getDocIds(Engine engine, boolean refresh) throws IOException {
+    public static List<DocIdSeqNoAndTerm> getDocIds(Engine engine, boolean refresh) throws IOException {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
-            Set<String> ids = new HashSet<>();
+            List<DocIdSeqNoAndTerm> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.reader().leaves()) {
                 LeafReader reader = leafContext.reader();
+                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
                         BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
+                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        final long primaryTerm;
+                        if (primaryTermDocValues.advanceExact(i)) {
+                            primaryTerm = primaryTermDocValues.longValue();
+                        } else {
+                            primaryTerm = 0; // non-root documents of a nested document.
+                        }
+                        if (seqNoDocValues.advanceExact(i) == false) {
+                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
+                        }
+                        final long seqNo = seqNoDocValues.longValue();
+                        docs.add(new DocIdSeqNoAndTerm(id, seqNo, primaryTerm));
                     }
                 }
             }
-            return ids;
+            docs.sort(Comparator.comparing(DocIdSeqNoAndTerm::getId)
+                .thenComparingLong(DocIdSeqNoAndTerm::getSeqNo).thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm));
+            return docs;
         }
     }
 

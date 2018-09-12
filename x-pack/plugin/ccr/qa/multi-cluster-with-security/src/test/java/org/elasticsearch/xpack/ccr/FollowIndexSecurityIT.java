@@ -31,6 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
@@ -81,6 +82,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -267,6 +269,39 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     private static void unfollowIndex(String followIndex) throws IOException {
         assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
+    }
+
+    private static void verifyCcrMonitoring(String expectedLeaderIndex) throws IOException {
+        ensureYellow(".monitoring-*");
+
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_stats\"}}}");
+        Map<String, ?> response = toMap(adminClient().performRequest(request));
+
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertThat(numDocs, greaterThanOrEqualTo(1));
+
+        int numberOfOperationsReceived = 0;
+        int numberOfOperationsIndexed = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        for (int i = 0; i < numDocs; i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+            String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
+            if (leaderIndex.endsWith(expectedLeaderIndex) == false) {
+                continue;
+            }
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);
+            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
+            int foundNumberOfOperationsIndexed =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.number_of_operations_indexed", hit);
+            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+        }
+
+        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
+        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
     }
 
 }

@@ -25,9 +25,9 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Collection;
 import java.util.Collections;

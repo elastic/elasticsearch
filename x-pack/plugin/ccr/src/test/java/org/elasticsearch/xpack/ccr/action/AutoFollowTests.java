@@ -15,6 +15,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
 import java.util.Collection;

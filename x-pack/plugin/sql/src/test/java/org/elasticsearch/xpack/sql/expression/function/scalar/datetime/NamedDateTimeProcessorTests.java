@@ -37,6 +37,7 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         return new NamedDateTimeProcessor(replaced, UTC);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidDayNamesInUTC() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, UTC);
         assertEquals("Thursday", proc.process("0"));
@@ -48,7 +49,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertEquals("Friday", proc.process(new DateTime(30, 2, 1, 12, 13, DateTimeZone.UTC)));
         assertEquals("Tuesday", proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC)));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidDayNamesWithNonUTCTimeZone() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, TimeZone.getTimeZone("GMT-10:00"));
         assertEquals("Wednesday", proc.process("0"));
@@ -61,7 +63,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertEquals("Tuesday", proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC)));
         assertEquals("Monday", proc.process(new DateTime(10902, 8, 22, 9, 59, DateTimeZone.UTC)));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidMonthNamesInUTC() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, UTC);
         assertEquals("January", proc.process("0"));
@@ -73,7 +76,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertEquals("February", proc.process(new DateTime(30, 2, 1, 12, 13, DateTimeZone.UTC)));
         assertEquals("August", proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC)));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidMonthNamesWithNonUTCTimeZone() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, TimeZone.getTimeZone("GMT-3:00"));
         assertEquals("December", proc.process("0"));

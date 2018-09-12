@@ -302,7 +302,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
-        this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
+        this.globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
         this.replicationTracker =
                 new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
 
@@ -1781,15 +1782,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will fire immediately on the calling thread.
+     * listener will fire immediately on the calling thread. If the specified timeout elapses before the listener is notified, the listener
+     * will be notified with an {@link TimeoutException}. A caller may pass null to specify no timeout.
      *
      * @param currentGlobalCheckpoint the current global checkpoint known to the listener
      * @param listener                the listener
+     * @param timeout                 the timeout
      */
     public void addGlobalCheckpointListener(
             final long currentGlobalCheckpoint,
-            final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
-        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener);
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener,
+            final TimeValue timeout) {
+        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener, timeout);
     }
 
     /**

@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction.Request;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.util.ArrayList;

@@ -97,7 +97,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     @Override
     public Iterator<Realm> iterator() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyIterator();
         }
 
@@ -119,7 +119,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     }
 
     public List<Realm> asList() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyList();
         }
 

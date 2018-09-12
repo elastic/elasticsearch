@@ -122,7 +122,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
         // ensure we can not find hits it's a minimal restore
         assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
-        // make sure deletes work
+        // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
             .setRouting("r" + idToDelete).get());

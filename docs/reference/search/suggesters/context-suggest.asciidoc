@@ -13,8 +13,8 @@ Every context mapping has a unique name and a type. There are two types: `catego
 and `geo`. Context mappings are configured under the `contexts` parameter in
 the field mapping.
 
-NOTE: It is mandatory to provide a context when indexing and querying
-      a context enabled completion field.
+NOTE: deprecated[6.4.0, Indexing and querying without context on a context enabled completion
+field is deprecated and will be removed in the next major release.
 
 The following defines types, each with two context mappings for a completion
 field:

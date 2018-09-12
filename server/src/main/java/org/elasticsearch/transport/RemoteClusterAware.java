@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -65,6 +66,20 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                             Setting.Property.Deprecated,
                             Setting.Property.Dynamic,
                             Setting.Property.NodeScope));
+
+    public static final SettingUpgrader<List<String>> SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER = new SettingUpgrader<List<String>>() {
+
+        @Override
+        public Setting<List<String>> getSetting() {
+            return SEARCH_REMOTE_CLUSTERS_SEEDS;
+        }
+
+        @Override
+        public String getKey(final String key) {
+            return key.replaceFirst("^search", "cluster");
+        }
+
+    };
 
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
@@ -104,6 +119,20 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                     Setting.Property.Dynamic,
                     Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
+
+    public static final SettingUpgrader<String> SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER = new SettingUpgrader<String>() {
+
+        @Override
+        public Setting<String> getSetting() {
+            return SEARCH_REMOTE_CLUSTERS_PROXY;
+        }
+
+        @Override
+        public String getKey(final String key) {
+            return key.replaceFirst("^search", "cluster");
+        }
+
+    };
 
     /**
      * A proxy address for the remote cluster.

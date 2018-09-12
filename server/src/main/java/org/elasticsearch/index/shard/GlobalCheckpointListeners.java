@@ -97,7 +97,6 @@ public class GlobalCheckpointListeners implements Closeable {
         if (lastKnownGlobalCheckpoint > currentGlobalCheckpoint) {
             // notify directly
             executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
-            return;
         } else {
             if (listeners == null) {
                 listeners = new ArrayList<>();

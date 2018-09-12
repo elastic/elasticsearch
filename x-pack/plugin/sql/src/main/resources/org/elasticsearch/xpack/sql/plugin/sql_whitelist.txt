@@ -32,4 +32,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String replace(String, String, String)
   Integer locate(String, String)
   Integer locate(String, String, Integer)
+  Number round(Number, Number)
+  Number truncate(Number, Number)
 }

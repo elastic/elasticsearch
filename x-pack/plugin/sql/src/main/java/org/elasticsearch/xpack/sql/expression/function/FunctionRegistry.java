@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
@@ -159,6 +160,7 @@ public class FunctionRegistry {
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),
             def(Tan.class, Tan::new),
+            def(Truncate.class, Truncate::new),
             // String
             def(Ascii.class, Ascii::new),
             def(Char.class, Char::new),

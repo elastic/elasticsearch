@@ -51,6 +51,9 @@ public final class FileStructureUtils {
      *                    may be non-empty when the method is called, and this method may
      *                    append to it.
      * @param sampleRecords List of records derived from the provided sample.
+     * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
+     *                  values determined by structure analysis.  An exception will be thrown if the file structure
+     *                  is incompatible with an overridden value.
      * @return A tuple of (field name, timestamp format) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */

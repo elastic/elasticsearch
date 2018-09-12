@@ -141,7 +141,6 @@ public final class TimestampFormatFinder {
 
     /**
      * Find the first timestamp format that matches part of the supplied value.
-     *
      * @param text The value that the returned timestamp format must exist within.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
@@ -151,7 +150,6 @@ public final class TimestampFormatFinder {
 
     /**
      * Find the first timestamp format that matches part of the supplied value.
-     *
      * @param text The value that the returned timestamp format must exist within.
      * @param requiredFormat A date format that any returned match must support.
      * @return The timestamp format, or <code>null</code> if none matches.
@@ -163,8 +161,7 @@ public final class TimestampFormatFinder {
     /**
      * Find the first timestamp format that matches part of the supplied value,
      * excluding a specified number of candidate formats.
-     *
-     * @param text             The value that the returned timestamp format must exist within.
+     * @param text The value that the returned timestamp format must exist within.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
@@ -175,7 +172,6 @@ public final class TimestampFormatFinder {
     /**
      * Find the first timestamp format that matches part of the supplied value,
      * excluding a specified number of candidate formats.
-     *
      * @param text             The value that the returned timestamp format must exist within.
      * @param ignoreCandidates The number of candidate formats to exclude from the search.
      * @param requiredFormat A date format that any returned match must support.
@@ -213,7 +209,6 @@ public final class TimestampFormatFinder {
 
     /**
      * Find the best timestamp format for matching an entire field value.
-     *
      * @param text The value that the returned timestamp format must match in its entirety.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
@@ -223,7 +218,6 @@ public final class TimestampFormatFinder {
 
     /**
      * Find the best timestamp format for matching an entire field value.
-     *
      * @param text The value that the returned timestamp format must match in its entirety.
      * @param requiredFormat A date format that any returned match must support.
      * @return The timestamp format, or <code>null</code> if none matches.
@@ -471,7 +465,7 @@ public final class TimestampFormatFinder {
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
                 "%{GREEDYDATA:" + EPILOGUE + "}");
-            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), strictGrokPattern + "$");
+            this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$");
             this.standardGrokPatternName = standardGrokPatternName;
             assert quickRuleOutIndices.stream()
                 .noneMatch(quickRuleOutIndex -> quickRuleOutIndex < 0 || quickRuleOutIndex >= QUICK_RULE_OUT_PATTERNS.size());

@@ -272,7 +272,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         Map<String, Object> mappings = new HashMap<>();
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null);
 
-        assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"), grokPatternCreator.findFullLineGrokPattern(null));
+        assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"),
+            grokPatternCreator.findFullLineGrokPattern(randomBoolean() ? "timestamp" : null));
         assertEquals(10, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text"), mappings.get("agent"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("auth"));

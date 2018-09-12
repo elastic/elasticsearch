@@ -133,7 +133,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             if (isHeaderInFile) {
                 String quote = String.valueOf(csvPreference.getQuoteChar());
                 String twoQuotes = quote + quote;
-                String optQuote = quote + "?";
+                String optQuote = quote.replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "?";
                 structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
                     .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + optQuote)
                     .collect(Collectors.joining(",")));

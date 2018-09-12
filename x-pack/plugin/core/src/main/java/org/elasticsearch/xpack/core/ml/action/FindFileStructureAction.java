@@ -313,6 +313,8 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
             columnNames = in.readBoolean() ? in.readList(StreamInput::readString) : null;
             hasHeaderRow = in.readOptionalBoolean();
             delimiter = in.readBoolean() ? (char) in.readVInt() : null;
+            quote = in.readBoolean() ? (char) in.readVInt() : null;
+            shouldTrimFields = in.readOptionalBoolean();
             grokPattern = in.readOptionalString();
             timestampFormat = in.readOptionalString();
             timestampField = in.readOptionalString();
@@ -343,6 +345,13 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
                 out.writeBoolean(true);
                 out.writeVInt(delimiter);
             }
+            if (quote == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeVInt(quote);
+            }
+            out.writeOptionalBoolean(shouldTrimFields);
             out.writeOptionalString(grokPattern);
             out.writeOptionalString(timestampFormat);
             out.writeOptionalString(timestampField);

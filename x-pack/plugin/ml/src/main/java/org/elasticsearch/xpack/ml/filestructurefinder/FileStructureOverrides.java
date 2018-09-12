@@ -13,6 +13,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * An immutable holder for the aspects of file structure detection that can be overridden
+ * by the end user.  Every field can be <code>null</code>, and this means that that
+ * aspect of the file structure detection is not overridden.
+ *
+ * There is no consistency checking in this class.  Consistency checking of the different
+ * fields is done in {@link FindFileStructureAction.Request}.
+ */
 public class FileStructureOverrides {
 
     public static final FileStructureOverrides EMPTY_OVERRIDES = new Builder().build();

@@ -135,7 +135,9 @@ public class NativeRolesStore extends AbstractComponent {
                     ActionListener.<MultiGetResponse>wrap(mGetResponse ->
                         listener.onResponse(Arrays.stream(mGetResponse.getResponses())
                             .filter(item -> item.isFailed() == false)
+                            .filter(item -> item.getResponse().isExists())
                             .map(item -> transformRole(item.getResponse()))
+                            .filter(Objects::nonNull)
                             .collect(Collectors.toList())),
                         listener::onFailure), client::multiGet);
             });

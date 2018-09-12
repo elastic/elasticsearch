@@ -64,9 +64,9 @@ public class PutAutoFollowPatternAction
             PARSER.declareLong(Request::setMaxOperationSizeInBytes, AutoFollowPattern.MAX_BATCH_SIZE_IN_BYTES);
             PARSER.declareInt(Request::setMaxConcurrentWriteBatches, AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES);
             PARSER.declareInt(Request::setMaxWriteBufferSize, AutoFollowPattern.MAX_WRITE_BUFFER_SIZE);
-            PARSER.declareField(Request::setRetryTimeout,
+            PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.RETRY_TIMEOUT.getPreferredName()),
-                ShardFollowTask.RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+                ShardFollowTask.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(Request::setIdleShardRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
                 ShardFollowTask.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -95,7 +95,7 @@ public class PutAutoFollowPatternAction
         private Long maxOperationSizeInBytes;
         private Integer maxConcurrentWriteBatches;
         private Integer maxWriteBufferSize;
-        private TimeValue retryTimeout;
+        private TimeValue maxRetryDelay;
         private TimeValue idleShardRetryDelay;
 
         @Override
@@ -174,12 +174,12 @@ public class PutAutoFollowPatternAction
             this.maxWriteBufferSize = maxWriteBufferSize;
         }
 
-        public TimeValue getRetryTimeout() {
-            return retryTimeout;
+        public TimeValue getMaxRetryDelay() {
+            return maxRetryDelay;
         }
 
-        public void setRetryTimeout(TimeValue retryTimeout) {
-            this.retryTimeout = retryTimeout;
+        public void setMaxRetryDelay(TimeValue maxRetryDelay) {
+            this.maxRetryDelay = maxRetryDelay;
         }
 
         public TimeValue getIdleShardRetryDelay() {
@@ -201,7 +201,7 @@ public class PutAutoFollowPatternAction
             maxOperationSizeInBytes = in.readOptionalLong();
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
-            retryTimeout = in.readOptionalTimeValue();
+            maxRetryDelay = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
         }
 
@@ -216,7 +216,7 @@ public class PutAutoFollowPatternAction
             out.writeOptionalLong(maxOperationSizeInBytes);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(retryTimeout);
+            out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(idleShardRetryDelay);
         }
 
@@ -244,8 +244,8 @@ public class PutAutoFollowPatternAction
                 if (maxConcurrentWriteBatches != null) {
                     builder.field(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
                 }
-                if (retryTimeout != null) {
-                    builder.field(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+                if (maxRetryDelay != null) {
+                    builder.field(ShardFollowTask.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
                 if (idleShardRetryDelay != null) {
                     builder.field(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
@@ -268,7 +268,7 @@ public class PutAutoFollowPatternAction
                 Objects.equals(maxOperationSizeInBytes, request.maxOperationSizeInBytes) &&
                 Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
-                Objects.equals(retryTimeout, request.retryTimeout) &&
+                Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                 Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay);
         }
 
@@ -283,7 +283,7 @@ public class PutAutoFollowPatternAction
                 maxOperationSizeInBytes,
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
-                retryTimeout,
+                maxRetryDelay,
                 idleShardRetryDelay
             );
         }

@@ -65,6 +65,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -1015,6 +1016,113 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-execute-async
             client.updateByQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::update-by-query-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteByQuery() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String mapping =
+                "\"doc\": {\n" +
+                    "    \"properties\": {\n" +
+                    "      \"user\": {\n" +
+                    "        \"type\": \"text\"\n" +
+                    "      },\n" +
+                    "      \"field1\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      },\n" +
+                    "      \"field2\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }";
+            createIndex("source1", Settings.EMPTY, mapping);
+            createIndex("source2", Settings.EMPTY, mapping);
+        }
+        {
+            // tag::delete-by-query-request
+            DeleteByQueryRequest request = new DeleteByQueryRequest("source1", "source2"); // <1>
+            // end::delete-by-query-request
+            // tag::delete-by-query-request-conflicts
+            request.setConflicts("proceed"); // <1>
+            // end::delete-by-query-request-conflicts
+            // tag::delete-by-query-request-typeOrQuery
+            request.setDocTypes("doc"); // <1>
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
+            // end::delete-by-query-request-typeOrQuery
+            // tag::delete-by-query-request-size
+            request.setSize(10); // <1>
+            // end::delete-by-query-request-size
+            // tag::delete-by-query-request-scrollSize
+            request.setBatchSize(100); // <1>
+            // end::delete-by-query-request-scrollSize
+            // tag::delete-by-query-request-timeout
+            request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
+            // end::delete-by-query-request-timeout
+            // tag::delete-by-query-request-refresh
+            request.setRefresh(true); // <1>
+            // end::delete-by-query-request-refresh
+            // tag::delete-by-query-request-slices
+            request.setSlices(2); // <1>
+            // end::delete-by-query-request-slices
+            // tag::delete-by-query-request-scroll
+            request.setScroll(TimeValue.timeValueMinutes(10)); // <1>
+            // end::delete-by-query-request-scroll
+            // tag::delete-by-query-request-routing
+            request.setRouting("=cat"); // <1>
+            // end::delete-by-query-request-routing
+            // tag::delete-by-query-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
+            // end::delete-by-query-request-indicesOptions
+
+            // tag::delete-by-query-execute
+            BulkByScrollResponse bulkResponse = client.deleteByQuery(request, RequestOptions.DEFAULT);
+            // end::delete-by-query-execute
+            assertSame(0, bulkResponse.getSearchFailures().size());
+            assertSame(0, bulkResponse.getBulkFailures().size());
+            // tag::delete-by-query-response
+            TimeValue timeTaken = bulkResponse.getTook(); // <1>
+            boolean timedOut = bulkResponse.isTimedOut(); // <2>
+            long totalDocs = bulkResponse.getTotal(); // <3>
+            long deletedDocs = bulkResponse.getDeleted(); // <4>
+            long batches = bulkResponse.getBatches(); // <5>
+            long noops = bulkResponse.getNoops(); // <6>
+            long versionConflicts = bulkResponse.getVersionConflicts(); // <7>
+            long bulkRetries = bulkResponse.getBulkRetries(); // <8>
+            long searchRetries = bulkResponse.getSearchRetries(); // <9>
+            TimeValue throttledMillis = bulkResponse.getStatus().getThrottled(); // <10>
+            TimeValue throttledUntilMillis = bulkResponse.getStatus().getThrottledUntil(); // <11>
+            List<ScrollableHitSource.SearchFailure> searchFailures = bulkResponse.getSearchFailures(); // <12>
+            List<BulkItemResponse.Failure> bulkFailures = bulkResponse.getBulkFailures(); // <13>
+            // end::delete-by-query-response
+        }
+        {
+            DeleteByQueryRequest request = new DeleteByQueryRequest();
+            request.indices("source1");
+
+            // tag::delete-by-query-execute-listener
+            ActionListener<BulkByScrollResponse> listener = new ActionListener<BulkByScrollResponse>() {
+                @Override
+                public void onResponse(BulkByScrollResponse bulkResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-by-query-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-by-query-execute-async
+            client.deleteByQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-by-query-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

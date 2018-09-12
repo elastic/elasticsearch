@@ -336,12 +336,63 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         };
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
+        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE);
+        final AtomicInteger notified = new AtomicInteger();
         final int numberOfListeners = randomIntBetween(0, 16);
         for (int i = 0; i < numberOfListeners; i++) {
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {});
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {
+                notified.incrementAndGet();
+                assertThat(g, equalTo(globalCheckpoint));
+                assertNull(e);
+            });
         }
-        globalCheckpointListeners.globalCheckpointUpdated(randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE));
+        globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
+        assertThat(notified.get(), equalTo(numberOfListeners));
         assertThat(count.get(), equalTo(numberOfListeners == 0 ? 0 : 1));
+    }
+
+    public void testNotificationOnClosedUsesExecutor() throws IOException {
+        final AtomicInteger count = new AtomicInteger();
+        final Executor executor = command -> {
+            count.incrementAndGet();
+            command.run();
+        };
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        globalCheckpointListeners.close();
+        final AtomicInteger notified = new AtomicInteger();
+        final int numberOfListeners = randomIntBetween(0, 16);
+        for (int i = 0; i < numberOfListeners; i++) {
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {
+                notified.incrementAndGet();
+                assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                assertNotNull(e);
+                assertThat(e.getShardId(), equalTo(shardId));
+            });
+        }
+        assertThat(notified.get(), equalTo(numberOfListeners));
+        assertThat(count.get(), equalTo(numberOfListeners));
+    }
+
+    public void testListenersReadyToBeNotifiedUsesExecutor() {
+        final AtomicInteger count = new AtomicInteger();
+        final Executor executor = command -> {
+            count.incrementAndGet();
+            command.run();
+        };
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        final long globalCheckpoint = randomNonNegativeLong();
+        globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
+        final AtomicInteger notified = new AtomicInteger();
+        final int numberOfListeners = randomIntBetween(0, 16);
+        for (int i = 0; i < numberOfListeners; i++) {
+            globalCheckpointListeners.add(randomLongBetween(0, globalCheckpoint), (g, e) -> {
+                notified.incrementAndGet();
+                assertThat(g, equalTo(globalCheckpoint));
+                assertNull(e);
+            });
+        }
+        assertThat(notified.get(), equalTo(numberOfListeners));
+        assertThat(count.get(), equalTo(numberOfListeners));
     }
 
     public void testConcurrency() throws BrokenBarrierException, InterruptedException {

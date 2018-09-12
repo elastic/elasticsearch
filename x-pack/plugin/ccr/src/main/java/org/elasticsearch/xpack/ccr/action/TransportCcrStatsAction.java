@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,11 +66,11 @@ public class TransportCcrStatsAction extends TransportTasksAction<
             final Task task,
             final CcrStatsAction.TasksRequest request,
             final ActionListener<CcrStatsAction.TasksResponse> listener) {
-        if (ccrLicenseChecker.isCcrAllowed()) {
-            super.doExecute(task, request, listener);
-        } else {
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+            return;
         }
+        super.doExecute(task, request, listener);
     }
 
     @Override

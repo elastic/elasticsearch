@@ -20,6 +20,16 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
@@ -39,13 +49,14 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -218,6 +229,138 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testForecastJob() throws Exception {
+        String jobId = "ml-forecast-job-test";
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+
+        ForecastJobRequest request = new ForecastJobRequest(jobId);
+        ForecastJobResponse response = execute(request, machineLearningClient::forecastJob, machineLearningClient::forecastJobAsync);
+
+        assertTrue(response.isAcknowledged());
+        assertNotNull(response.getForecastId());
+    }
+
+    public void testPostData() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 10; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        assertEquals(10, response.getDataCounts().getInputRecordCount());
+        assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
+    }
+
+    public void testUpdateJob() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        UpdateJobRequest request = new UpdateJobRequest(new JobUpdate.Builder(jobId).setDescription("Updated description").build());
+
+        PutJobResponse response = execute(request, machineLearningClient::updateJob, machineLearningClient::updateJobAsync);
+
+        assertEquals("Updated description", response.getResponse().getDescription());
+
+        GetJobRequest getRequest = new GetJobRequest(jobId);
+        GetJobResponse getResponse = machineLearningClient.getJob(getRequest, RequestOptions.DEFAULT);
+        assertEquals("Updated description", getResponse.jobs().get(0).getDescription());
+    }
+
+    public void testDeleteForecast() throws Exception {
+        String jobId = "test-delete-forecast";
+
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        machineLearningClient.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+
+        Job noForecastsJob = buildJob("test-delete-forecast-none");
+        machineLearningClient.putJob(new PutJobRequest(noForecastsJob), RequestOptions.DEFAULT);
+
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
+
+        PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
+        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse1 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse2 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
+        waitForForecastToComplete(jobId, forecastJobResponse1.getForecastId());
+        waitForForecastToComplete(jobId, forecastJobResponse2.getForecastId());
+
+        {
+            DeleteForecastRequest request = new DeleteForecastRequest(jobId);
+            request.setForecastIds(forecastJobResponse1.getForecastId(), forecastJobResponse2.getForecastId());
+            AcknowledgedResponse response = execute(request, machineLearningClient::deleteForecast,
+                machineLearningClient::deleteForecastAsync);
+            assertTrue(response.isAcknowledged());
+            assertFalse(forecastExists(jobId, forecastJobResponse1.getForecastId()));
+            assertFalse(forecastExists(jobId, forecastJobResponse2.getForecastId()));
+        }
+        {
+            DeleteForecastRequest request = DeleteForecastRequest.deleteAllForecasts(noForecastsJob.getId());
+            request.setAllowNoForecasts(true);
+            AcknowledgedResponse response = execute(request, machineLearningClient::deleteForecast,
+                machineLearningClient::deleteForecastAsync);
+            assertTrue(response.isAcknowledged());
+        }
+        {
+            DeleteForecastRequest request = DeleteForecastRequest.deleteAllForecasts(noForecastsJob.getId());
+            request.setAllowNoForecasts(false);
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(request, machineLearningClient::deleteForecast, machineLearningClient::deleteForecastAsync));
+            assertThat(exception.status().getStatus(), equalTo(404));
+        }
+    }
+
+    private void waitForForecastToComplete(String jobId, String forecastId) throws Exception {
+        GetRequest request = new GetRequest(".ml-anomalies-" + jobId);
+        request.id(jobId + "_model_forecast_request_stats_" + forecastId);
+        assertBusy(() -> {
+            GetResponse getResponse = highLevelClient().get(request, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertTrue(getResponse.getSourceAsString().contains("finished"));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private boolean forecastExists(String jobId, String forecastId) throws Exception {
+        GetRequest getRequest = new GetRequest(".ml-anomalies-" + jobId);
+        getRequest.id(jobId + "_model_forecast_request_stats_" + forecastId);
+        GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
+        return getResponse.isExists();
+    }
+
     public static String randomValidJobId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz0123456789".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
@@ -237,8 +380,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         builder.setAnalysisConfig(configBuilder);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeFormat(randomFrom(DataDescription.EPOCH_MS, DataDescription.EPOCH));
-        dataDescription.setTimeField(randomAlphaOfLength(10));
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        dataDescription.setTimeField("timestamp");
         builder.setDataDescription(dataDescription);
 
         return builder.build();

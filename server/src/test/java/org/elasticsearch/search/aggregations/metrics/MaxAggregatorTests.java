@@ -49,9 +49,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +98,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(7, max.getValue(), 0);
         });
     }
-
 
     public void testQueryFiltering() throws IOException {
         testCase(IntPoint.newRangeQuery("number", 0, 5), iw -> {
@@ -243,7 +239,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.compareUnsigned(maxPackedValue, 0,  numBytes, maxValue, 0, numBytes) == 0) {
+                if (FutureArrays.equals(maxPackedValue, 0,  numBytes, maxValue, 0, numBytes)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;

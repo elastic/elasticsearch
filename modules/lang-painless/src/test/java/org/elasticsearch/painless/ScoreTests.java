@@ -19,26 +19,17 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class ScoreTests extends ScriptTestCase {
 
     /** Most of a dummy scorer impl that requires overriding just score(). */
-    abstract class MockScorer extends Scorer {
-        MockScorer() {
-            super(null);
-        }
+    abstract class MockScorer extends Scorable {
         @Override
         public int docID() {
             return 0;
-        }
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -46,7 +37,7 @@ public class ScoreTests extends ScriptTestCase {
         assertEquals(2.5, exec("_score", Collections.emptyMap(), Collections.emptyMap(),
             new MockScorer() {
                 @Override
-                public float score() throws IOException {
+                public float score() {
                     return 2.5f;
                 }
             },
@@ -57,7 +48,7 @@ public class ScoreTests extends ScriptTestCase {
         assertEquals(3.5, exec("3.5", Collections.emptyMap(), Collections.emptyMap(),
             new MockScorer() {
                 @Override
-                public float score() throws IOException {
+                public float score() {
                     throw new AssertionError("score() should not be called");
                 }
             },
@@ -69,7 +60,7 @@ public class ScoreTests extends ScriptTestCase {
             new MockScorer() {
                 private boolean used = false;
                 @Override
-                public float score() throws IOException {
+                public float score() {
                     if (used == false) {
                         return 4.5f;
                     }

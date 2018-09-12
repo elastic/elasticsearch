@@ -169,7 +169,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
         public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        public static final ParseField RETRY_TIMEOUT = new ParseField("retry_timeout");
+        public static final ParseField MAX_RETRY_DELAY = new ParseField("retry_timeout");
         public static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
 
         @SuppressWarnings("unchecked")
@@ -187,8 +187,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), RETRY_TIMEOUT.getPreferredName()),
-                RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
+                MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), IDLE_SHARD_RETRY_DELAY.getPreferredName()),
                 IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -201,12 +201,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final Long maxOperationSizeInBytes;
         private final Integer maxConcurrentWriteBatches;
         private final Integer maxWriteBufferSize;
-        private final TimeValue retryTimeout;
+        private final TimeValue maxRetryDelay;
         private final TimeValue idleShardRetryDelay;
 
         public AutoFollowPattern(List<String> leaderIndexPatterns, String followIndexPattern, Integer maxBatchOperationCount,
                                  Integer maxConcurrentReadBatches, Long maxOperationSizeInBytes, Integer maxConcurrentWriteBatches,
-                                 Integer maxWriteBufferSize, TimeValue retryTimeout, TimeValue idleShardRetryDelay) {
+                                 Integer maxWriteBufferSize, TimeValue maxRetryDelay, TimeValue idleShardRetryDelay) {
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.maxBatchOperationCount = maxBatchOperationCount;
@@ -214,7 +214,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
-            this.retryTimeout = retryTimeout;
+            this.maxRetryDelay = maxRetryDelay;
             this.idleShardRetryDelay = idleShardRetryDelay;
         }
 
@@ -226,7 +226,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             maxOperationSizeInBytes = in.readOptionalLong();
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
-            retryTimeout = in.readOptionalTimeValue();
+            maxRetryDelay = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
         }
 
@@ -266,8 +266,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return maxWriteBufferSize;
         }
 
-        public TimeValue getRetryTimeout() {
-            return retryTimeout;
+        public TimeValue getMaxRetryDelay() {
+            return maxRetryDelay;
         }
 
         public TimeValue getIdleShardRetryDelay() {
@@ -283,7 +283,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeOptionalLong(maxOperationSizeInBytes);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(retryTimeout);
+            out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(idleShardRetryDelay);
         }
 
@@ -308,8 +308,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (maxWriteBufferSize != null){
                 builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
             }
-            if (retryTimeout != null) {
-                builder.field(RETRY_TIMEOUT.getPreferredName(), retryTimeout);
+            if (maxRetryDelay != null) {
+                builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
             }
             if (idleShardRetryDelay != null) {
                 builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay);
@@ -334,7 +334,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 Objects.equals(maxOperationSizeInBytes, that.maxOperationSizeInBytes) &&
                 Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
                 Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                Objects.equals(retryTimeout, that.retryTimeout) &&
+                Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
                 Objects.equals(idleShardRetryDelay, that.idleShardRetryDelay);
         }
 
@@ -348,7 +348,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 maxOperationSizeInBytes,
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
-                retryTimeout,
+                maxRetryDelay,
                 idleShardRetryDelay
             );
         }

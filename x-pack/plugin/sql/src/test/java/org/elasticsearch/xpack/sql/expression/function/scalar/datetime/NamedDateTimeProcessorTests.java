@@ -38,6 +38,7 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         return new NamedDateTimeProcessor(replaced, UTC);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidDayNamesInUTC() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, UTC);
         // because of https://github.com/elastic/elasticsearch/issues/33621#issuecomment-420617752
@@ -52,7 +53,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertTrue(((String) proc.process(new DateTime(30, 2, 1, 12, 13, DateTimeZone.UTC))).startsWith("Fri"));
         assertTrue(((String) proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC))).startsWith("Tue"));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidDayNamesWithNonUTCTimeZone() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, TimeZone.getTimeZone("GMT-10:00"));
         assertTrue(((String) proc.process("0")).startsWith("Wed"));
@@ -65,7 +67,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertTrue(((String) proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC))).startsWith("Tue"));
         assertTrue(((String) proc.process(new DateTime(10902, 8, 22, 9, 59, DateTimeZone.UTC))).startsWith("Mon"));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidMonthNamesInUTC() {
         NamedDateTimeProcessor proc  = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, UTC);
         assertTrue(((String) proc.process("0")).startsWith("Jan"));
@@ -77,7 +80,8 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
         assertTrue(((String) proc.process(new DateTime(30, 2, 1, 12, 13, DateTimeZone.UTC))).startsWith("Feb"));
         assertTrue(((String) proc.process(new DateTime(10902, 8, 22, 11, 11, DateTimeZone.UTC))).startsWith("Aug"));
     }
-    
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
     public void testValidMonthNamesWithNonUTCTimeZone() {
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, TimeZone.getTimeZone("GMT-3:00"));
         assertTrue(((String) proc.process("0")).startsWith("Dec"));

@@ -15,8 +15,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.INSTANCE;
-import static org.elasticsearch.xpack.ccr.action.FollowIndexAction.Request;
+import static org.elasticsearch.xpack.core.ccr.action.FollowIndexAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowIndexAction.Request;
 
 public class RestFollowIndexAction extends BaseRestHandler {
 

@@ -38,7 +38,6 @@ public final class FollowIndexAction extends Action<
     public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
-    public static final int RETRY_LIMIT = 10;
     public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
     public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
 
@@ -60,7 +59,7 @@ public final class FollowIndexAction extends Action<
         private static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
         private static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         private static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        private static final ParseField RETRY_TIMEOUT = new ParseField("retry_timeout");
+        private static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
         private static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(NAME, true,
             (args, followerIndex) -> {
@@ -81,8 +80,8 @@ public final class FollowIndexAction extends Action<
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> TimeValue.parseTimeValue(p.text(), RETRY_TIMEOUT.getPreferredName()),
-                    RETRY_TIMEOUT,
+                    (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
+                    MAX_RETRY_DELAY,
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
@@ -148,10 +147,10 @@ public final class FollowIndexAction extends Action<
             return maxWriteBufferSize;
         }
 
-        private TimeValue retryTimeout;
+        private TimeValue maxRetryDelay;
 
-        public TimeValue getRetryTimeout() {
-            return retryTimeout;
+        public TimeValue getMaxRetryDelay() {
+            return maxRetryDelay;
         }
 
         private TimeValue idleShardRetryDelay;
@@ -168,7 +167,7 @@ public final class FollowIndexAction extends Action<
             final Long maxOperationSizeInBytes,
             final Integer maxConcurrentWriteBatches,
             final Integer maxWriteBufferSize,
-            final TimeValue retryTimeout,
+            final TimeValue maxRetryDelay,
             final TimeValue idleShardRetryDelay) {
 
             if (leaderIndex == null) {
@@ -208,7 +207,7 @@ public final class FollowIndexAction extends Action<
                 throw new IllegalArgumentException(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0");
             }
 
-            final TimeValue actualRetryTimeout = retryTimeout == null ? DEFAULT_RETRY_TIMEOUT : retryTimeout;
+            final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_RETRY_TIMEOUT : maxRetryDelay;
             final TimeValue actualIdleShardRetryDelay = idleShardRetryDelay == null ? DEFAULT_IDLE_SHARD_RETRY_DELAY : idleShardRetryDelay;
 
             this.leaderIndex = leaderIndex;
@@ -218,7 +217,7 @@ public final class FollowIndexAction extends Action<
             this.maxOperationSizeInBytes = actualMaxOperationSizeInBytes;
             this.maxConcurrentWriteBatches = actualMaxConcurrentWriteBatches;
             this.maxWriteBufferSize = actualMaxWriteBufferSize;
-            this.retryTimeout = actualRetryTimeout;
+            this.maxRetryDelay = actualRetryTimeout;
             this.idleShardRetryDelay = actualIdleShardRetryDelay;
         }
 
@@ -241,7 +240,7 @@ public final class FollowIndexAction extends Action<
             maxOperationSizeInBytes = in.readVLong();
             maxConcurrentWriteBatches = in.readVInt();
             maxWriteBufferSize = in.readVInt();
-            retryTimeout = in.readOptionalTimeValue();
+            maxRetryDelay = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
         }
 
@@ -255,7 +254,7 @@ public final class FollowIndexAction extends Action<
             out.writeVLong(maxOperationSizeInBytes);
             out.writeVInt(maxConcurrentWriteBatches);
             out.writeVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(retryTimeout);
+            out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(idleShardRetryDelay);
         }
 
@@ -270,7 +269,7 @@ public final class FollowIndexAction extends Action<
                 builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                builder.field(RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+                builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
             }
             builder.endObject();
@@ -287,7 +286,7 @@ public final class FollowIndexAction extends Action<
                 maxOperationSizeInBytes == request.maxOperationSizeInBytes &&
                 maxConcurrentWriteBatches == request.maxConcurrentWriteBatches &&
                 maxWriteBufferSize == request.maxWriteBufferSize &&
-                Objects.equals(retryTimeout, request.retryTimeout) &&
+                Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                 Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
                 Objects.equals(followerIndex, request.followerIndex);
@@ -303,7 +302,7 @@ public final class FollowIndexAction extends Action<
                 maxOperationSizeInBytes,
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
-                retryTimeout,
+                maxRetryDelay,
                 idleShardRetryDelay
             );
         }

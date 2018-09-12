@@ -124,22 +124,20 @@ public class GlobalCheckpointListeners implements Closeable {
                                 () -> {
                                     final boolean removed;
                                     synchronized (this) {
-                                        if (listeners == null) {
-                                            /*
-                                             * This can happen if a notification nulled out the listeners, and then our scheduled execution
-                                             * occurred before we could be cancelled by the notification. In this case, we would have
-                                             * blocked waiting for access to this critical section.
-                                             */
-                                            removed = false;
-                                        } else {
-                                            /*
-                                             * Removed can be false here if a notification nulled out the listeners, and then our scheduled
-                                             * execution occurred before we could be cancelled by the notfication, and then another thread
-                                             * added a listener causing listeners to be non-null again.
-                                             */
-                                            removed = listeners.containsKey(listener);
-                                            listeners.remove(listener);
-                                        }
+                                        /*
+                                         * Note that the listeners map can be null if a notification nulled out the map reference when
+                                         * notifying listeners, and then our scheduled execution occurred before we could be cancelled by
+                                         * the notification. In this case, we would have blocked waiting for access to this critical
+                                         * section.
+                                         *
+                                         * What is more, we know that this listener has a timeout associated with it (otherwise we would
+                                         * not be here) so the return value from remove being null is an indication that we are not in the
+                                         * map. This can happen if a notification nulled out the listeners, and then our scheduled execution
+                                         * occurred before we could be cancelled by the notification, and then another thread added a
+                                         * listener causing the listeners map reference to be non-null again. In this case, our listener
+                                         * here would not be in the map and we should not fire the timeout logic.
+                                         */
+                                        removed = listeners != null && listeners.remove(listener) != null;
                                     }
                                     if (removed) {
                                         final TimeoutException e = new TimeoutException(timeout.getStringRep());

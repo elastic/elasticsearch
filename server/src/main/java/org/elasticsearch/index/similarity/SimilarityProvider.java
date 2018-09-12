@@ -21,6 +21,8 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
 
+import java.util.Objects;
+
 /**
  * Wrapper around a {@link Similarity} and its name.
  */
@@ -48,4 +50,26 @@ public final class SimilarityProvider {
         return similarity;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SimilarityProvider that = (SimilarityProvider) o;
+        /**
+         * We check name only because the <code>similarity</code> is
+         * re-created for each new instance and they don't implement equals.
+         * This is safe though because each similarity name is unique within an index.
+         **/
+        return Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        /**
+         * We use name only because the <code>similarity</code> is
+         * re-created for each new instance and they don't implement equals.
+         * This is safe though because each similarity name is unique within an index.
+         **/
+        return Objects.hash(name);
+    }
 }

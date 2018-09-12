@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
+public class CcrStatsAction extends Action<CcrStatsAction.StatsResponses> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
 
@@ -40,41 +40,45 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
     }
 
     @Override
-    public TasksResponse newResponse() {
-        return new TasksResponse();
+    public StatsResponses newResponse() {
+        return new StatsResponses();
     }
 
-    public static class TasksResponse extends BaseTasksResponse implements ToXContentObject {
+    public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
 
-        private final List<TaskResponse> taskResponses;
+        private final List<StatsResponse> statsResponse;
 
-        public TasksResponse() {
+        public List<StatsResponse> getStatsResponses() {
+            return statsResponse;
+        }
+
+        public StatsResponses() {
             this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
 
-        public TasksResponse(
+        public StatsResponses(
                 final List<TaskOperationFailure> taskFailures,
                 final List<? extends FailedNodeException> nodeFailures,
-                final List<TaskResponse> taskResponses) {
+                final List<StatsResponse> statsResponse) {
             super(taskFailures, nodeFailures);
-            this.taskResponses = taskResponses;
+            this.statsResponse = statsResponse;
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             // sort by index name, then shard ID
-            final Map<String, Map<Integer, TaskResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final TaskResponse taskResponse : taskResponses) {
+            final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
+            for (final StatsResponse statsResponse : statsResponse) {
                 taskResponsesByIndex.computeIfAbsent(
-                        taskResponse.followerShardId().getIndexName(),
-                        k -> new TreeMap<>()).put(taskResponse.followerShardId().getId(), taskResponse);
+                        statsResponse.followerShardId().getIndexName(),
+                        k -> new TreeMap<>()).put(statsResponse.followerShardId().getId(), statsResponse);
             }
             builder.startObject();
             {
-                for (final Map.Entry<String, Map<Integer, TaskResponse>> index : taskResponsesByIndex.entrySet()) {
+                for (final Map.Entry<String, Map<Integer, StatsResponse>> index : taskResponsesByIndex.entrySet()) {
                     builder.startArray(index.getKey());
                     {
-                        for (final Map.Entry<Integer, TaskResponse> shard : index.getValue().entrySet()) {
+                        for (final Map.Entry<Integer, StatsResponse> shard : index.getValue().entrySet()) {
                             shard.getValue().status().toXContent(builder, params);
                         }
                     }
@@ -86,7 +90,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
         }
     }
 
-    public static class TasksRequest extends BaseTasksRequest<TasksRequest> implements IndicesRequest {
+    public static class StatsRequest extends BaseTasksRequest<StatsRequest> implements IndicesRequest {
 
         private String[] indices;
 
@@ -144,26 +148,26 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
 
     }
 
-    public static class TaskResponse implements Writeable {
+    public static class StatsResponse implements Writeable {
 
         private final ShardId followerShardId;
 
-        ShardId followerShardId() {
+        public ShardId followerShardId() {
             return followerShardId;
         }
 
         private final ShardFollowNodeTaskStatus status;
 
-        ShardFollowNodeTaskStatus status() {
+        public ShardFollowNodeTaskStatus status() {
             return status;
         }
 
-        public TaskResponse(final ShardId followerShardId, final ShardFollowNodeTaskStatus status) {
+        public StatsResponse(final ShardId followerShardId, final ShardFollowNodeTaskStatus status) {
             this.followerShardId = followerShardId;
             this.status = status;
         }
 
-        public TaskResponse(final StreamInput in) throws IOException {
+        public StatsResponse(final StreamInput in) throws IOException {
             this.followerShardId = ShardId.readShardId(in);
             this.status = new ShardFollowNodeTaskStatus(in);
         }

@@ -73,6 +73,33 @@ public class JodaCompatibleZonedDateTime {
         return dt;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        return dt.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        return dt.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return dt.toString();
+    }
+
+    public boolean isAfter(ZonedDateTime o) {
+        return dt.isAfter(o);
+    }
+
+    public boolean isBefore(ZonedDateTime o) {
+        return dt.isBefore(o);
+    }
+
+    public boolean isEqual(ZonedDateTime o) {
+        return dt.isEqual(o);
+    }
+
     public int getDayOfMonth() {
         return dt.getDayOfMonth();
     }

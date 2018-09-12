@@ -195,10 +195,10 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testQualifiedMethodMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = [2, 1]; l.sort(Instant::bogus); return l.get(0);", false);
+            exec("List l = [2, 1]; l.sort(java.time.Instant::bogus); return l.get(0);", false);
         });
         assertThat(e.getMessage(),
-                containsString("function reference [org.joda.time.ReadableDateTime::bogus/2] matching [java.util.Comparator"));
+                containsString("function reference [java.time.Instant::bogus/2] matching [java.util.Comparator, compare/2"));
     }
 
     public void testClassMissing() {

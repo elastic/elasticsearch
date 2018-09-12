@@ -198,6 +198,20 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
 
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
+        Map<String, Object> combineScriptParams;
+        if (combineScript != null) {
+            compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
+                ScriptedMetricAggContexts.CombineScript.CONTEXT);
+            combineScriptParams = combineScript.getParams();
+        } else {
+            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+        }
+
+        if(reduceScript == null) {
+            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+        }
+        
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
         // access to them for the scripts it's given precompiled.
 
@@ -215,19 +229,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             ScriptedMetricAggContexts.MapScript.CONTEXT);
         Map<String, Object> mapScriptParams = mapScript.getParams();
 
-        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
-        Map<String, Object> combineScriptParams;
-        if (combineScript != null) {
-            compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
-                ScriptedMetricAggContexts.CombineScript.CONTEXT);
-            combineScriptParams = combineScript.getParams();
-        } else {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
-        }
-
-        if(reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
-        }
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
                 params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);

@@ -399,7 +399,7 @@ public class Lucene {
         out.writeVLong(totalHits.value);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
             out.writeEnum(totalHits.relation);
-        } else if (totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
             throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
         }
     }
@@ -743,31 +743,6 @@ public class Lucene {
             }
             return defaultValue;
         }
-    }
-
-    /**
-     * Return a Scorer that throws an ElasticsearchIllegalStateException
-     * on all operations with the given message.
-     */
-    public static Scorer illegalScorer(final String message) {
-        return new Scorer(null) {
-            @Override
-            public float score() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public int docID() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public DocIdSetIterator iterator() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public float getMaxScore(int upTo) throws IOException {
-                throw new IllegalStateException(message);
-            }
-        };
     }
 
     private static final class CommitPoint extends IndexCommit {

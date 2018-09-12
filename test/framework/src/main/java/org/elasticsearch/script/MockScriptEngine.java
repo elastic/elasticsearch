@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
@@ -334,7 +334,7 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public void setScorer(Scorer scorer) {
+                public void setScorer(Scorable scorer) {
                     ctx.put("_score", new ScoreAccessor(scorer));
                 }
 
@@ -553,7 +553,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                    Scorer[] scorerHolder = new Scorer[1];
+                    Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, lookup, ctx) {
                         @Override
                         public double execute() {
@@ -566,7 +566,7 @@ public class MockScriptEngine implements ScriptEngine {
                         }
 
                         @Override
-                        public void setScorer(Scorer scorer) {
+                        public void setScorer(Scorable scorer) {
                             scorerHolder[0] = scorer;
                         }
                     };

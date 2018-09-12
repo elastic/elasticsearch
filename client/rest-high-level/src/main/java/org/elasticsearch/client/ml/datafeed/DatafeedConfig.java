@@ -217,6 +217,10 @@ public class DatafeedConfig implements ToXContentObject {
      * The lists of indices and types are compared for equality but they are not
      * sorted first so this test could fail simply because the indices and types
      * lists are in different orders.
+     *
+     * Also note this could be a heavy operation when a query or aggregations
+     * are set as we need to convert the bytes references into maps to correctly
+     * compare them.
      */
     @Override
     public boolean equals(Object other) {
@@ -243,6 +247,11 @@ public class DatafeedConfig implements ToXContentObject {
             && Objects.equals(this.chunkingConfig, that.chunkingConfig);
     }
 
+    /**
+     * Note this could be a heavy operation when a query or aggregations
+     * are set as we need to convert the bytes references into maps to
+     * compute a stable hash code.
+     */
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, types, asMap(query), scrollSize, asMap(aggregations), scriptFields,

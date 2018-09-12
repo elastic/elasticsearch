@@ -459,8 +459,8 @@ public final class MachineLearningClient {
      * <p>
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
-            *
-            * @param request The PutDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     *
+     * @param request The PutDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return PutDatafeedResponse with enclosed {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} object
      * @throws IOException when there is a serialization issue sending the request or receiving the response

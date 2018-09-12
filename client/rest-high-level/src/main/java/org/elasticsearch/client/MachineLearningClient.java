@@ -20,18 +20,15 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ml.DeleteForecastRequest;
-import org.elasticsearch.client.ml.ForecastJobRequest;
-import org.elasticsearch.client.ml.ForecastJobResponse;
-import org.elasticsearch.client.ml.PostDataRequest;
-import org.elasticsearch.client.ml.PostDataResponse;
-import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
@@ -48,12 +45,18 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
 import java.util.Collections;
+
 
 /**
  * Machine Learning API client wrapper for the {@link RestHighLevelClient}
@@ -449,6 +452,44 @@ public final class MachineLearningClient {
             PutJobResponse::fromXContent,
             listener,
             Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
+     *
+     * @param request The PutDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutDatafeedResponse with enclosed {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDatafeedResponse putDatafeed(PutDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::putDatafeed,
+                options,
+                PutDatafeedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Datafeed asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
+     *
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putDatafeedAsync(PutDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::putDatafeed,
+                options,
+                PutDatafeedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
     }
 
     /**

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ml.featureindexbuilder.job;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,18 +19,30 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskState {
     public static final String NAME = "xpack/feature_index_builder/job";
 
     private final IndexerState state;
 
-    private static final ParseField STATE = new ParseField("job_state");
+    @Nullable
+    private final SortedMap<String, Object> currentPosition;
 
+    private static final ParseField STATE = new ParseField("job_state");
+    private static final ParseField CURRENT_POSITION = new ParseField("current_position");
+
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FeatureIndexBuilderJobState, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new FeatureIndexBuilderJobState((IndexerState) args[0]));
+            args -> new FeatureIndexBuilderJobState((IndexerState) args[0], (HashMap<String, Object>) args[1]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -37,19 +50,36 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
                 return IndexerState.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+
         }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                return p.map();
+            }
+            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
-    public FeatureIndexBuilderJobState(IndexerState state) {
+    public FeatureIndexBuilderJobState(IndexerState state, @Nullable Map<String, Object> position) {
         this.state = state;
+        this.currentPosition = Collections.unmodifiableSortedMap(position == null ? null : new TreeMap<>(position));
+
     }
 
     public FeatureIndexBuilderJobState(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
+        currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
     }
 
     public IndexerState getJobState() {
         return state;
+    }
+
+    public Map<String, Object> getPosition() {
+        return currentPosition;
     }
 
     public static FeatureIndexBuilderJobState fromXContent(XContentParser parser) {
@@ -64,6 +94,9 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STATE.getPreferredName(), state.value());
+        if (currentPosition != null) {
+            builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
+        }
         builder.endObject();
         return builder;
     }
@@ -76,6 +109,10 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
+        out.writeBoolean(currentPosition != null);
+        if (currentPosition != null) {
+            out.writeMap(currentPosition);
+        }
     }
 
     @Override
@@ -90,11 +127,11 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
 
         FeatureIndexBuilderJobState that = (FeatureIndexBuilderJobState) other;
 
-        return Objects.equals(this.state, that.state);
+        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state);
+        return Objects.hash(state, currentPosition);
     }
 }

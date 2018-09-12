@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.ml.featureindexbuilder.action;
 
 import org.elasticsearch.action.Action;
@@ -15,9 +14,11 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
 
@@ -25,12 +26,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartFeatureIndexBuilderJobAction extends Action<StartFeatureIndexBuilderJobAction.Response> {
+public class StopFeatureIndexBuilderJobAction extends Action<StopFeatureIndexBuilderJobAction.Response> {
 
-    public static final StartFeatureIndexBuilderJobAction INSTANCE = new StartFeatureIndexBuilderJobAction();
-    public static final String NAME = "cluster:admin/xpack/feature_index_builder/start";
+    public static final StopFeatureIndexBuilderJobAction INSTANCE = new StopFeatureIndexBuilderJobAction();
+    public static final String NAME = "cluster:admin/xpack/feature_index_builder/stop";
 
-    private StartFeatureIndexBuilderJobAction() {
+    private StopFeatureIndexBuilderJobAction() {
         super(NAME);
     }
 
@@ -42,6 +43,12 @@ public class StartFeatureIndexBuilderJobAction extends Action<StartFeatureIndexB
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
 
+        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setId, FeatureIndexBuilderJob.ID);
+        }
+
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, FeatureIndexBuilderJob.ID.getPreferredName());
         }
@@ -51,6 +58,10 @@ public class StartFeatureIndexBuilderJobAction extends Action<StartFeatureIndexB
 
         public String getId() {
             return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
         }
 
         @Override
@@ -83,26 +94,35 @@ public class StartFeatureIndexBuilderJobAction extends Action<StartFeatureIndexB
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
+            if (this == obj) {
+                return true;
             }
-            if (getClass() != obj.getClass()) {
+
+            if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
         }
+
+        @Override
+        public boolean match(Task task) {
+            String expectedDescription = FeatureIndexBuilderJob.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
+
+            return task.getDescription().equals(expectedDescription);
+        }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, StartFeatureIndexBuilderJobAction action) {
+        protected RequestBuilder(ElasticsearchClient client, StopFeatureIndexBuilderJobAction action) {
             super(client, action, new Request());
         }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
+
+        private boolean stopped;
 
         public Response() {
             super(Collections.emptyList(), Collections.emptyList());
@@ -113,51 +133,48 @@ public class StartFeatureIndexBuilderJobAction extends Action<StartFeatureIndexB
             readFrom(in);
         }
 
-        public Response(boolean started) {
+        public Response(boolean stopped) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.started = started;
+            this.stopped = stopped;
         }
 
-        public boolean isStarted() {
-            return started;
+        public boolean isStopped() {
+            return stopped;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            started = in.readBoolean();
+            stopped = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(started);
+            out.writeBoolean(stopped);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("started", started);
+            builder.field("stopped", stopped);
             builder.endObject();
             return builder;
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
+        public boolean equals(Object o) {
+            if (this == o)
                 return true;
-            }
-
-            if (obj == null || getClass() != obj.getClass()) {
+            if (o == null || getClass() != o.getClass())
                 return false;
-            }
-            Response response = (Response) obj;
-            return started == response.started;
+            Response response = (Response) o;
+            return stopped == response.stopped;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(started);
+            return Objects.hash(stopped);
         }
     }
 }

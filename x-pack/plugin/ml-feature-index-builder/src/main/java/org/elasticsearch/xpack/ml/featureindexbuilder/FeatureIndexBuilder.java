@@ -19,26 +19,36 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.DeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.PutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.StartFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.StopFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportDeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStartFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.action.TransportStopFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJob;
 import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.featureindexbuilder.job.FeatureIndexBuilderJobState;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestDeleteFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestPutFeatureIndexBuilderJobAction;
 import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStartFeatureIndexBuilderJobAction;
+import org.elasticsearch.xpack.ml.featureindexbuilder.rest.action.RestStopFeatureIndexBuilderJobAction;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -64,21 +74,29 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
 
     private final boolean enabled;
     private final Settings settings;
+    private final boolean transportClientMode;
 
     public FeatureIndexBuilder(Settings settings) {
         this.settings = settings;
 
         // todo: XPackSettings.FEATURE_INDEX_BUILDER_ENABLED.get(settings);
         this.enabled = true;
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
 
+        if (transportClientMode) {
+            return modules;
+        }
+
         modules.add(b -> XPackPlugin.bindFeatureSet(b, FeatureIndexBuilderFeatureSet.class));
         return modules;
     }
+
+    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public List<RestHandler> getRestHandlers(final Settings settings, final RestController restController,
@@ -91,7 +109,9 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
 
         return Arrays.asList(
                 new RestPutFeatureIndexBuilderJobAction(settings, restController),
-                new RestStartFeatureIndexBuilderJobAction(settings, restController)
+                new RestStartFeatureIndexBuilderJobAction(settings, restController),
+                new RestStopFeatureIndexBuilderJobAction(settings, restController),
+                new RestDeleteFeatureIndexBuilderJobAction(settings, restController)
         );
     }
 
@@ -103,13 +123,15 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
 
         return Arrays.asList(
                 new ActionHandler<>(PutFeatureIndexBuilderJobAction.INSTANCE, TransportPutFeatureIndexBuilderJobAction.class),
-                new ActionHandler<>(StartFeatureIndexBuilderJobAction.INSTANCE, TransportStartFeatureIndexBuilderJobAction.class)
+                new ActionHandler<>(StartFeatureIndexBuilderJobAction.INSTANCE, TransportStartFeatureIndexBuilderJobAction.class),
+                new ActionHandler<>(StopFeatureIndexBuilderJobAction.INSTANCE, TransportStopFeatureIndexBuilderJobAction.class),
+                new ActionHandler<>(DeleteFeatureIndexBuilderJobAction.INSTANCE, TransportDeleteFeatureIndexBuilderJobAction.class)
                 );
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
+        if (false == enabled || transportClientMode) {
             return emptyList();
         }
 
@@ -122,7 +144,7 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
             Client client) {
-        if (enabled == false) {
+        if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
@@ -130,14 +152,19 @@ public class FeatureIndexBuilder extends Plugin implements ActionPlugin, Persist
         return Collections.singletonList(new FeatureIndexBuilderJobPersistentTasksExecutor(settings, client,
                 schedulerEngine, threadPool));
     }
+
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         if (enabled == false) {
             return emptyList();
         }
-        return  Collections.singletonList(
+        return  Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField("xpack/feature_index_builder/job"),
-                        FeatureIndexBuilderJob::fromXContent)
+                        FeatureIndexBuilderJob::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(FeatureIndexBuilderJobState.NAME),
+                        FeatureIndexBuilderJobState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(FeatureIndexBuilderJobState.NAME),
+                        FeatureIndexBuilderJobState::fromXContent)
                 );
     }
 }

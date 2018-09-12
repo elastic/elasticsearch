@@ -61,7 +61,7 @@ The result will look similar to the following:
 // We can't test tasks output
 
 It is also possible to retrieve information for a particular task. The following 
-example retrieves information about task ID `124` on node ID `oTUltX4IQMOUUVeiohTt8A`:
+example retrieves information about task ID `oTUltX4IQMOUUVeiohTt8A:124`:
 
 [source,js]
 --------------------------------------------------
@@ -70,9 +70,9 @@ GET _tasks/oTUltX4IQMOUUVeiohTt8A:124
 // CONSOLE
 // TEST[catch:missing]
 
-<1> This will return a 404 if the task isn't found.
+If the task isn't found, the API returns a 404.
 
-Or to retrieve all children of a particular task:
+To retrieve all children of a particular task:
 
 [source,js]
 --------------------------------------------------
@@ -80,7 +80,7 @@ GET _tasks?parent_task_id=oTUltX4IQMOUUVeiohTt8A:123
 --------------------------------------------------
 // CONSOLE
 
-This won't return a 404 if the parent isn't found.
+If the parent isn't found, the API does not return a 404.
 
 You can also use the `detailed` request parameter to get more information about
 the running tasks. This is useful for telling one task from another but is more
@@ -93,7 +93,7 @@ GET _tasks?actions=*search&detailed
 --------------------------------------------------
 // CONSOLE
 
-might look like:
+The results might look like:
 
 [source,js]
 --------------------------------------------------
@@ -167,8 +167,7 @@ GET _cat/tasks?detailed
 === Task Cancellation
 
 If a long-running task supports cancellation, it can be cancelled with the cancel 
-tasks API. The following example cancels task ID `12345` on node ID 
-`oTUltX4IQMOUUVeiohTt8A`:
+tasks API. The following example cancels task ID `oTUltX4IQMOUUVeiohTt8A:12345`:
 
 [source,js]
 --------------------------------------------------

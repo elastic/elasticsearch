@@ -1,0 +1,6 @@
+[[release-notes-5.6.12]]
+== 5.6.12 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+coming[5.6.12]

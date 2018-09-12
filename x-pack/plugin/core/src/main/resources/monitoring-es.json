@@ -923,7 +923,7 @@
               "type": "keyword"
             },
             "shard_id": {
-              "type": "keyword"
+              "type": "integer"
             },
             "leader_global_checkpoint": {
               "type": "long"

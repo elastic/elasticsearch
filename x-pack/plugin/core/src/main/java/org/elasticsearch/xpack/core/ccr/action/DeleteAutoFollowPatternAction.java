@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ccr.action;
+package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;

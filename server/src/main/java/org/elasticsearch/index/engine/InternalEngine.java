@@ -729,6 +729,7 @@ public class InternalEngine extends Engine {
                         : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
+                case LOCAL_RESET:
                     assert index.isRetry();
                     return true; // allow to optimize in order to update the max safe time stamp
                 default:
@@ -827,7 +828,7 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
-                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
@@ -1167,7 +1168,7 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
-            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            if (delete.origin().isFromTranslog() == false) {
                 final Translog.Location location;
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
@@ -1405,7 +1406,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            if (noOp.origin().isFromTranslog() == false) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);
             }
@@ -2322,11 +2323,6 @@ public class InternalEngine extends Engine {
     @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
-    }
-
-    @Override
-    public void resetLocalCheckpoint(long localCheckpoint) {
-        localCheckpointTracker.resetCheckpoint(localCheckpoint);
     }
 
     @Override

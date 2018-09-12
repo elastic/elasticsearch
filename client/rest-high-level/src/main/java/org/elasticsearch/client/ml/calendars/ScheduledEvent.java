@@ -107,7 +107,7 @@ public class ScheduledEvent implements ToXContentObject {
             return true;
         }
 
-        if (!(obj instanceof ScheduledEvent)) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 

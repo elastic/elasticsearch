@@ -16,7 +16,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-
 <1> Create a request with the given Calendar
 
 
-[[java-rest-high-snapshot-ml-put-calendar-response]]
+[[java-rest-high-x-pack-ml-put-calendar-response]]
 ==== Put Calendar Response
 
 The returned `PutCalendarResponse` contains the created Calendar:

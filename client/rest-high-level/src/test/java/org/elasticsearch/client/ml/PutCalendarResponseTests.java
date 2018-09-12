@@ -38,6 +38,6 @@ public class PutCalendarResponseTests extends AbstractXContentTestCase<PutCalend
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

@@ -65,7 +65,7 @@ public class Calendar implements ToXContentObject {
      */
     public Calendar(String id, List<String> jobIds, @Nullable String description) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
-        this.jobIds = Objects.requireNonNull(jobIds, JOB_IDS.getPreferredName() + " must not be null");
+        this.jobIds = Collections.unmodifiableList(Objects.requireNonNull(jobIds, JOB_IDS.getPreferredName() + " must not be null"));
         this.description = description;
     }
 
@@ -74,7 +74,7 @@ public class Calendar implements ToXContentObject {
     }
 
     public List<String> getJobIds() {
-        return Collections.unmodifiableList(jobIds);
+        return jobIds;
     }
 
     @Nullable
@@ -100,7 +100,7 @@ public class Calendar implements ToXContentObject {
             return true;
         }
 
-        if (!(obj instanceof Calendar)) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 

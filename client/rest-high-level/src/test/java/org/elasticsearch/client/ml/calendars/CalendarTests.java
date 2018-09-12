@@ -56,6 +56,6 @@ public class CalendarTests extends AbstractXContentTestCase<Calendar> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

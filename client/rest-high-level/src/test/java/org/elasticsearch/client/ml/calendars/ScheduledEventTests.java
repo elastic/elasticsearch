@@ -46,6 +46,6 @@ public class ScheduledEventTests extends AbstractXContentTestCase<ScheduledEvent
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

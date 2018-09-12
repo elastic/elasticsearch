@@ -751,7 +751,7 @@ progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
 
 With the task id you can look up the task directly. The following example 
-retrieves information about the task ID `36619` on node ID `r1A2WoRbTwKZ516z6NEs5A`:
+retrieves information about the task `r1A2WoRbTwKZ516z6NEs5A:36619`:
 
 [source,js]
 --------------------------------------------------
@@ -781,7 +781,7 @@ POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
 // CONSOLE
 
-The `task_id` can be found using the <<tasks,Tasks API>>.
+The task ID can be found using the <<tasks,Tasks API>>.
 
 Cancelation should happen quickly but might take a few seconds. The Tasks
 API will continue to list the task until it wakes to cancel itself.
@@ -799,9 +799,8 @@ the `_rethrottle` API:
 POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
-// TEST[s/task_id/node_id:1/]
 
-The `task_id` can be found using the Tasks API above.
+The task ID can be found using the <<tasks,tasks API>>.
 
 Just like when setting it on the Reindex API, `requests_per_second`
 can be either `-1` to disable throttling or any decimal number

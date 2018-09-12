@@ -61,7 +61,7 @@ The result will look similar to the following:
 // We can't test tasks output
 
 It is also possible to retrieve information for a particular task. The following 
-example retrieves information about task ID `oTUltX4IQMOUUVeiohTt8A:124`:
+example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
 
 [source,js]
 --------------------------------------------------
@@ -167,7 +167,7 @@ GET _cat/tasks?detailed
 === Task Cancellation
 
 If a long-running task supports cancellation, it can be cancelled with the cancel 
-tasks API. The following example cancels task ID `oTUltX4IQMOUUVeiohTt8A:12345`:
+tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 
 [source,js]
 --------------------------------------------------

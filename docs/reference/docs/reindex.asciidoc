@@ -692,6 +692,7 @@ You can fetch the status of all running reindex requests with the
 GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The response looks like:
 
@@ -726,7 +727,7 @@ The response looks like:
               "bulk": 0,
               "search": 0
             },
-            "throttled_millis": 0
+            "throttled_millis": 0,
             "requests_per_second": -1,
             "throttled_until_millis": 0
           },
@@ -741,9 +742,7 @@ The response looks like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
-
+// TESTRESPONSE
 <1> this object contains the actual status. It is identical to the response JSON
 except for the important addition of the `total` field. `total` is the total number
 of operations that the `_reindex` expects to perform. You can estimate the

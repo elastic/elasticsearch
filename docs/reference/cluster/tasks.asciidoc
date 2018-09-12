@@ -16,6 +16,7 @@ GET _tasks?nodes=nodeId1,nodeId2 <2>
 GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
 <2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
@@ -57,8 +58,7 @@ The result will look similar to the following:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
+// TESTRESPONSE
 
 It is also possible to retrieve information for a particular task. The following 
 example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
@@ -92,6 +92,7 @@ request parameter:
 GET _tasks?actions=*search&detailed
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The results might look like:
 
@@ -120,8 +121,7 @@ The results might look like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
+// TESTRESPONSE
 
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
@@ -216,7 +216,7 @@ a the client that started them:
 --------------------------------------------------
 curl -i -H "X-Opaque-Id: 123456" "http://localhost:9200/_tasks?group_by=parents"
 --------------------------------------------------
-// NOTCONSOLE
+//NOTCONSOLE
 
 The result will look similar to the following:
 
@@ -259,8 +259,7 @@ content-length: 831
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-
+//NOTCONSOLE
 <1> id as a part of the response header
 <2> id for the tasks that was initiated by the REST request
 <3> the child task of the task initiated by the REST request

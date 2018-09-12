@@ -304,6 +304,7 @@ You can fetch the status of any running delete-by-query requests with the
 GET _tasks?detailed=true&actions=*/delete/byquery
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:No tasks to retrieve]
 
 The responses looks like:
 
@@ -344,9 +345,7 @@ The responses looks like:
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
-// We can't test tasks output
-
+// TESTRESPONSE
 <1> this object contains the actual status. It is just like the response json
 with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the

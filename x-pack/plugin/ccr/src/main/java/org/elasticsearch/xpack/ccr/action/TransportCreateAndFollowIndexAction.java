@@ -29,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -90,6 +91,7 @@ public final class TransportCreateAndFollowIndexAction
 
     @Override
     protected void masterOperation(
+            final Task task,
             final CreateAndFollowIndexAction.Request request,
             final ClusterState state,
             final ActionListener<CreateAndFollowIndexAction.Response> listener) throws Exception {

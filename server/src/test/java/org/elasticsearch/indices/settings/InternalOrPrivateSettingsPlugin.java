@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -155,9 +156,10 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
         @Override
         protected void masterOperation(
-                final UpdateInternalOrPrivateAction.Request request,
-                final ClusterState state,
-                final ActionListener<UpdateInternalOrPrivateAction.Response> listener) throws Exception {
+            final Task task,
+            final UpdateInternalOrPrivateAction.Request request,
+            final ClusterState state,
+            final ActionListener<UpdateInternalOrPrivateAction.Response> listener) throws Exception {
             clusterService.submitStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {

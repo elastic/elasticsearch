@@ -7,7 +7,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -23,7 +22,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrStatsMonitoringDoc> {

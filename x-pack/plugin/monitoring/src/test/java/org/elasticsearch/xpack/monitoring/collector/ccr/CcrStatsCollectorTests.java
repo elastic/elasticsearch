@@ -1,28 +1,20 @@
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
-import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsMonitoringDoc;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -33,7 +25,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.*;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;

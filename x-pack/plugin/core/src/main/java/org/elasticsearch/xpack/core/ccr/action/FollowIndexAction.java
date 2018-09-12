@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public final class FollowIndexAction extends Action<AcknowledgedResponse> {
 
     public static final FollowIndexAction INSTANCE = new FollowIndexAction();
@@ -33,8 +35,9 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
     public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
-    public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
-    public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
+    static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
+    static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
+    static final TimeValue MAX_MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
 
     private FollowIndexAction() {
         super(NAME);
@@ -202,7 +205,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                 throw new IllegalArgumentException(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0");
             }
 
-            final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_RETRY_TIMEOUT : maxRetryDelay;
+            final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_MAX_RETRY_DELAY : maxRetryDelay;
             final TimeValue actualIdleShardRetryDelay = idleShardRetryDelay == null ? DEFAULT_IDLE_SHARD_RETRY_DELAY : idleShardRetryDelay;
 
             this.leaderIndex = leaderIndex;
@@ -222,7 +225,19 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+
+            if (maxRetryDelay.millis() <= 0) {
+                String message = "maxRetryDelay must be positive but was [" + maxRetryDelay.getStringRep() + "]";
+                validationException = addValidationError(message, validationException);
+            }
+            if (maxRetryDelay.millis() > MAX_MAX_RETRY_DELAY.millis()) {
+                String message = "maxRetryDelay must be less than [" + FollowIndexAction.MAX_MAX_RETRY_DELAY +
+                    "] but was [" + maxRetryDelay.getStringRep() + "]";
+                validationException = addValidationError(message, validationException);
+            }
+
+            return validationException;
         }
 
         @Override

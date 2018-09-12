@@ -99,6 +99,17 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
                 validationException = addValidationError("leaderIndexPatterns is missing", validationException);
             }
+            if (maxRetryDelay != null) {
+                if (maxRetryDelay.millis() <= 0) {
+                    String message = "maxRetryDelay must be positive but was [" + maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
+                if (maxRetryDelay.millis() > FollowIndexAction.MAX_MAX_RETRY_DELAY.millis()) {
+                    String message = "maxRetryDelay must be less than [" + FollowIndexAction.MAX_MAX_RETRY_DELAY +
+                        "] but was [" + maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
+            }
             return validationException;
         }
 

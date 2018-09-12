@@ -22,7 +22,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,7 +38,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -154,13 +152,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }) {
-
-            @Override
-            public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
-                throw new UnsupportedOperationException("_source only shards don't support _get calls");
-            }
-        };
+            });
     }
 
     /**

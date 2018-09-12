@@ -55,7 +55,7 @@ import java.util.stream.Stream;
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function)
  */
-public class ReadOnlyEngine extends Engine {
+public final class ReadOnlyEngine extends Engine {
 
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;

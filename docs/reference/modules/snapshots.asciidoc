@@ -228,9 +228,7 @@ When you restore a source only snapshot:
 
  * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
 
- * Queries other than `match_all` will return no results.
-
- * `_get` requests are not supported.
+ * Queries other than `match_all` and `_get` requests are not supported.
 
  * The mapping of the restored index is empty, but the original mapping is available from the types top
    level `meta` element.

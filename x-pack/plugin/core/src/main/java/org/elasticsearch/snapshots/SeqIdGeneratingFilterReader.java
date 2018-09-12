@@ -11,6 +11,8 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Terms;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 
@@ -143,6 +145,16 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
                 @Override
                 public CacheHelper getReaderCacheHelper() {
                     return reader.getReaderCacheHelper();
+                }
+
+                @Override
+                public Terms terms(String field) {
+                    throw new UnsupportedOperationException("_source only indices can't be searched or filtered");
+                }
+
+                @Override
+                public PointValues getPointValues(String field) {
+                    throw new UnsupportedOperationException("_source only indices can't be searched or filtered");
                 }
             };
         }

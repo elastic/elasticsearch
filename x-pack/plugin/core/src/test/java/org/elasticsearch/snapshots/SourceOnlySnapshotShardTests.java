@@ -11,6 +11,13 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -33,10 +40,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -47,6 +57,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -206,11 +217,28 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         assertEquals(IndexShardState.POST_RECOVERY, restoredShard.state());
         restoredShard.refresh("test");
         assertEquals(restoredShard.docStats().getCount(), shard.docStats().getCount());
-        expectThrows(UnsupportedOperationException.class,
-            () -> restoredShard.get(new Engine.Get(false, false, "_doc", Integer.toString(0),
-                new Term("_id", Uid.encodeId(Integer.toString(0))))));
+        EngineException engineException = expectThrows(EngineException.class, () -> restoredShard.get(
+            new Engine.Get(false, false, "_doc", Integer.toString(0), new Term("_id", Uid.encodeId(Integer.toString(0))))));
+        assertEquals(engineException.getCause().getMessage(), "_source only indices can't be searched or filtered");
+        SeqNoStats seqNoStats = restoredShard.seqNoStats();
+        assertEquals(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint());
         final IndexShard targetShard;
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
+            assertEquals(searcher.reader().maxDoc(), seqNoStats.getLocalCheckpoint());
+            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            assertEquals(searcher.reader().numDocs(), search.totalHits.value);
+            search = searcher.searcher().search(new MatchAllDocsQuery(), Integer.MAX_VALUE,
+                new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)), false);
+            assertEquals(searcher.reader().numDocs(), search.totalHits.value);
+            long previous = -1;
+            for (ScoreDoc doc : search.scoreDocs) {
+                FieldDoc fieldDoc = (FieldDoc) doc;
+                assertEquals(1, fieldDoc.fields.length);
+                long current = (Long)fieldDoc.fields[0];
+                assertThat(previous, Matchers.lessThan(current));
+                previous = current;
+            }
+            expectThrows(UnsupportedOperationException.class, () -> searcher.searcher().search(new TermQuery(new Term("boom", "boom")), 1));
             targetShard = reindex(searcher.getDirectoryReader(), new MappingMetaData("_doc",
                 restoredShard.mapperService().documentMapper("_doc").meta()));
         }

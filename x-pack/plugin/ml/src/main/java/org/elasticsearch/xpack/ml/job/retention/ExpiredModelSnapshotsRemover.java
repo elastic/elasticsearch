@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
@@ -123,9 +124,9 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         ModelSnapshot modelSnapshot = modelSnapshotIterator.next();
         DeleteModelSnapshotAction.Request deleteSnapshotRequest = new DeleteModelSnapshotAction.Request(
                 modelSnapshot.getJobId(), modelSnapshot.getSnapshotId());
-        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<DeleteModelSnapshotAction.Response>() {
+        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteModelSnapshotAction.Response response) {
+                public void onResponse(AcknowledgedResponse response) {
                     try {
                         deleteModelSnapshots(modelSnapshotIterator, listener);
                     } catch (Exception e) {

@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -13,6 +14,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -29,12 +31,19 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
     private final IndicesQueryCache indicesQueryCache;
     private final ThreadContext context;
     private final String indexName;
+    private final XPackLicenseState licenseState;
 
-    public OptOutQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache, ThreadContext context) {
+    public OptOutQueryCache(
+            final IndexSettings indexSettings,
+            final IndicesQueryCache indicesQueryCache,
+            final ThreadContext context,
+            final XPackLicenseState licenseState) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
         this.indexName = indexSettings.getIndex().getName();
+        this.licenseState = Objects.requireNonNull(licenseState, "licenseState");
+        licenseState.addListener(() -> this.clear("license state changed"));
     }
 
     @Override
@@ -50,6 +59,12 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        // TODO: this is not concurrently safe since the license state can change between reads
+        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+            logger.debug("not opting out of the query cache; authorization is not allowed");
+            return indicesQueryCache.doCache(weight, policy);
+        }
+
         IndicesAccessControl indicesAccessControl = context.getTransient(
                 AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
@@ -96,4 +111,5 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         // we can cache, all fields are ok
         return true;
     }
+
 }

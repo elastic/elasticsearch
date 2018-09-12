@@ -248,9 +248,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        }
+        collapse = in.readOptionalWriteable(CollapseBuilder::new);
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             trackTotalHits = in.readBoolean();
         } else {
@@ -313,9 +311,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeOptionalWriteable(collapse);
-        }
+        out.writeOptionalWriteable(collapse);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeBoolean(trackTotalHits);
         }
@@ -1154,9 +1150,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1294,6 +1288,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }

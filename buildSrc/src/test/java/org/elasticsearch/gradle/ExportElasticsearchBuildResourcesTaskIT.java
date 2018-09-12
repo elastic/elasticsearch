@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 
+
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
     public static final String PROJECT_NAME = "elasticsearch-build-resources";
@@ -39,7 +40,7 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("buildResources", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessfull(result, ":buildResources");
+        assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
@@ -59,8 +60,9 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withArguments("clean", "sampleCopyAll", "-s", "-i")
             .withPluginClasspath()
             .build();
-        assertTaskSuccessfull(result, ":buildResources");
-        assertTaskSuccessfull(result, ":sampleCopyAll");
+
+        assertTaskSuccessful(result, ":buildResources");
+        assertTaskSuccessful(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
         // This is a side effect of compile time reference
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
@@ -73,7 +75,7 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
             .withPluginClasspath()
             .build();
 
-        assertTaskSuccessfull(result, ":sample");
+        assertTaskSuccessful(result, ":sample");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }

@@ -1,11 +1,11 @@
-[role="xpack"]
-[[xpack-commands]]
-= {xpack} Commands
+[[commands]]
+= Command line tools
 
 [partintro]
 --
 
-{xpack} includes commands that help you configure security:
+{es} provides the following tools for configuring security and performing other 
+tasks from the command line:
 
 * <<certgen>>
 * <<certutil>>

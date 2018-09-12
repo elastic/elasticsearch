@@ -267,6 +267,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             IndexMetaData deserialized = indices.get(original.getIndex().getName());
             assertThat(deserialized, notNullValue());
             assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
+            assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }

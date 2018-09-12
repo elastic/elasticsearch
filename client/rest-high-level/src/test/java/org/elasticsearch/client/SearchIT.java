@@ -256,7 +256,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", termsAgg.getName());
         assertEquals(2, termsAgg.getBuckets().size());
@@ -293,7 +293,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Range rangeAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", rangeAgg.getName());
         assertEquals(2, rangeAgg.getBuckets().size());
@@ -323,7 +323,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", termsAgg.getName());
         assertEquals(2, termsAgg.getBuckets().size());
@@ -375,7 +375,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
@@ -474,7 +474,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(3, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         Terms terms = searchResponse.getAggregations().get("top-tags");
         assertEquals(0, terms.getDocCountError());
@@ -513,7 +513,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getAggregations());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().totalHits);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(1, searchResponse.getSuggest().size());
 
@@ -1034,7 +1034,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
             assertTrue(explainResponse.hasExplanation());
-            assertThat(explainResponse.getExplanation().getValue(), greaterThan(0.0f));
+            assertThat(explainResponse.getExplanation().getValue().floatValue(), greaterThan(0.0f));
             assertNull(explainResponse.getGetResult());
         }
         {

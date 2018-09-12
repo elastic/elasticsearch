@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.DEF_CLASS_NAME;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessConstructorKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessFieldKey;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.buildPainlessMethodKey;
@@ -36,18 +37,30 @@ public final class PainlessLookup {
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
-    PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses) {
+    private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
+    private final Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings;
+
+    PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses,
+            Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
+            Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings) {
+
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
 
+        Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
+        Objects.requireNonNull(painlessMethodKeysToPainlessBindings);
+
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
+
+        this.painlessMethodKeysToImportedPainlessMethods = Collections.unmodifiableMap(painlessMethodKeysToImportedPainlessMethods);
+        this.painlessMethodKeysToPainlessBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessBindings);
     }
 
     public boolean isValidCanonicalClassName(String canonicalClassName) {
         Objects.requireNonNull(canonicalClassName);
 
-        return canonicalClassNamesToClasses.containsKey(canonicalClassName);
+        return DEF_CLASS_NAME.equals(canonicalClassName) || canonicalClassNamesToClasses.containsKey(canonicalClassName);
     }
 
     public Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -159,6 +172,22 @@ public final class PainlessLookup {
         }
 
         return painlessField;
+    }
+
+    public PainlessMethod lookupImportedPainlessMethod(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
+    }
+
+    public PainlessBinding lookupPainlessBinding(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToPainlessBindings.get(painlessMethodKey);
     }
 
     public PainlessMethod lookupFunctionalInterfacePainlessMethod(Class<?> targetClass) {

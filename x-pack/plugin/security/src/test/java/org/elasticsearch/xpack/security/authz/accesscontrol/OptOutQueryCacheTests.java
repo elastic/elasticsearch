@@ -11,10 +11,20 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -23,6 +33,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
+
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 /** Simple tests for opt out query cache*/
 public class OptOutQueryCacheTests extends ESTestCase {
@@ -50,7 +66,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("foo", "bar")), BooleanClause.Occur.MUST);
         builder.add(new TermQuery(new Term("no", "baz")), BooleanClause.Occur.MUST_NOT);
-        Weight weight = builder.build().createWeight(searcher, false, 1f);
+        Weight weight = builder.build().createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         // whenever the allowed fields match the fields in the query and we do not deny access to any fields we allow caching.
         IndicesAccessControl.IndexAccessControl permissions = new IndicesAccessControl.IndexAccessControl(true,
@@ -105,6 +121,88 @@ public class OptOutQueryCacheTests extends ESTestCase {
         permissions = new IndicesAccessControl.IndexAccessControl(true,
                 new FieldPermissions(fieldPermissionDef(new String[]{}, null)), new HashSet<>());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
+    }
+
+    public void testOptOutQueryCacheSecurityIsNotEnabled() {
+        final Settings.Builder settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0);
+        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        when(licenseState.isAuthAllowed()).thenReturn(randomBoolean());
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        final Weight weight = mock(Weight.class);
+        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
+        cache.doCache(weight, policy);
+        verify(indicesQueryCache).doCache(same(weight), same(policy));
+    }
+
+    public void testOptOutQueryCacheAuthIsNotAllowed() {
+        final Settings.Builder settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0);
+        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(randomBoolean());
+        when(licenseState.isAuthAllowed()).thenReturn(false);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        final Weight weight = mock(Weight.class);
+        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
+        cache.doCache(weight, policy);
+        verify(indicesQueryCache).doCache(same(weight), same(policy));
+    }
+
+    public void testOptOutQueryCacheNoIndicesPermissions() {
+        final Settings.Builder settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0);
+        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        final Weight weight = mock(Weight.class);
+        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
+        final Weight w = cache.doCache(weight, policy);
+        assertSame(w, weight);
+        verifyNoMoreInteractions(indicesQueryCache);
+    }
+
+    public void testOptOutQueryCacheIndexDoesNotHaveFieldLevelSecurity() {
+        final Settings.Builder settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0);
+        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);
+        when(indexAccessControl.getFieldPermissions()).thenReturn(new FieldPermissions());
+        final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
+        when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
+        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        final Weight weight = mock(Weight.class);
+        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
+        cache.doCache(weight, policy);
+        verify(indicesQueryCache).doCache(same(weight), same(policy));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

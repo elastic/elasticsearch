@@ -109,6 +109,38 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testFindAliasWithExclusion() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("alias1").build())
+                .putAlias(AliasMetaData.builder("alias2").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(1));
+        assertThat(aliases.get(0).alias(), equalTo("alias2"));
+    }
+
+    public void testFindAliasWithExclusionAndOverride() {
+        MetaData metaData = MetaData.builder().put(
+            IndexMetaData.builder("index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(AliasMetaData.builder("aa").build())
+                .putAlias(AliasMetaData.builder("ab").build())
+                .putAlias(AliasMetaData.builder("bb").build())
+        ).build();
+        List<AliasMetaData> aliases =
+            metaData.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] {"index"}).get("index");
+        assertThat(aliases.size(), equalTo(2));
+        assertThat(aliases.get(0).alias(), equalTo("aa"));
+        assertThat(aliases.get(1).alias(), equalTo("bb"));
+    }
+
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))

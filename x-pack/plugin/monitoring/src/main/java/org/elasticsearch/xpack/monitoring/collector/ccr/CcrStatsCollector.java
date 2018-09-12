@@ -85,4 +85,5 @@ public class CcrStatsCollector extends Collector {
                     .collect(Collectors.toList());
         }
     }
+
 }

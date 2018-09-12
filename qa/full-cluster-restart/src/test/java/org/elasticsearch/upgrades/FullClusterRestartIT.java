@@ -997,15 +997,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
         clusterSettingsRequest.addParameter("flat_settings", "true");
         Map<String, Object> clusterSettingsResponse = entityAsMap(client().performRequest(clusterSettingsRequest));
-        Map<String, Object> expectedClusterSettings = new HashMap<>();
-        expectedClusterSettings.put("transient", emptyMap());
-        expectedClusterSettings.put("persistent",
-                singletonMap("cluster.routing.allocation.exclude.test_attr", getOldClusterVersion().toString()));
-        if (expectedClusterSettings.equals(clusterSettingsResponse) == false) {
-            NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
-            builder.compareMaps(clusterSettingsResponse, expectedClusterSettings);
-            fail("settings don't match:\n" + builder.toString());
-        }
+        @SuppressWarnings("unchecked") final Map<String, Object> persistentSettings =
+                (Map<String, Object>)clusterSettingsResponse.get("persistent");
+        assertThat(persistentSettings.get("cluster.routing.allocation.exclude.test_attr"), equalTo(getOldClusterVersion().toString()));
 
         // Check that the template was restored successfully
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(new Request("GET", "/_template/test_template")));

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -162,22 +163,19 @@ public class FollowIndexIT extends ESRestTestCase {
         ensureYellow(".monitoring-*");
 
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_stats\"}}}");
+        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
         Map<String, ?> response = toMap(client().performRequest(request));
-
-        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertThat(numDocs, greaterThanOrEqualTo(1));
 
         int numberOfOperationsReceived = 0;
         int numberOfOperationsIndexed = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
-        for (int i = 0; i < numDocs; i++) {
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
             Map<?, ?> hit = (Map<?, ?>) hits.get(i);
             String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
-            if (leaderIndex.endsWith(expectedLeaderIndex) == false) {
-                continue;
-            }
+            assertThat(leaderIndex, endsWith(leaderIndex));
 
             int foundNumberOfOperationsReceived =
                 (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);

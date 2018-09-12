@@ -7,19 +7,16 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.TimeZone;
 
-public class DateTimeProcessor implements Processor {
+public class DateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum DateTimeExtractor {
         DAY_OF_MONTH(DateTimeFieldType.dayOfMonth()),
@@ -45,24 +42,22 @@ public class DateTimeProcessor implements Processor {
     }
     
     public static final String NAME = "dt";
-
     private final DateTimeExtractor extractor;
-    private final TimeZone timeZone;
 
     public DateTimeProcessor(DateTimeExtractor extractor, TimeZone timeZone) {
+        super(timeZone);
         this.extractor = extractor;
-        this.timeZone = timeZone;
     }
 
     public DateTimeProcessor(StreamInput in) throws IOException {
+        super(in);
         extractor = in.readEnum(DateTimeExtractor.class);
-        timeZone = TimeZone.getTimeZone(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeEnum(extractor);
-        out.writeString(timeZone.getID());
     }
 
     @Override
@@ -75,32 +70,15 @@ public class DateTimeProcessor implements Processor {
     }
 
     @Override
-    public Object process(Object l) {
-        if (l == null) {
-            return null;
-        }
-
-        ReadableDateTime dt;
-        if (l instanceof String) {
-            // 6.4+
-            final long millis = Long.parseLong(l.toString());
-            dt = new DateTime(millis, DateTimeZone.forTimeZone(timeZone));
-        } else if (l instanceof ReadableInstant) {
-            // 6.3-
-            dt = (ReadableDateTime) l;
-            if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
-                dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
-            }
-        } else {
-            throw new SqlIllegalArgumentException("A string or a date is required; received {}", l);
-        }
+    public Object doProcess(long millis) {
+        ReadableDateTime dt = new DateTime(millis, DateTimeZone.forTimeZone(timeZone()));
 
         return extractor.extract(dt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone);
+        return Objects.hash(extractor, timeZone());
     }
 
     @Override
@@ -110,7 +88,7 @@ public class DateTimeProcessor implements Processor {
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone, other.timeZone);
+                && Objects.equals(timeZone(), other.timeZone());
     }
 
     @Override

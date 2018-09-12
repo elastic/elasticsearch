@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
@@ -110,7 +110,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             invalids.size() > 1 ? "s" : ""));
         boolean first = true;
         for (final String invalid : invalids) {
-            final LevensteinDistance ld = new LevensteinDistance();
+            final LevenshteinDistance ld = new LevenshteinDistance();
             final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
             for (final String candidate : candidates) {
                 final float distance = ld.getDistance(invalid, candidate);

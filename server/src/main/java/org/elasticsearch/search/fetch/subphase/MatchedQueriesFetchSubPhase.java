@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -67,7 +68,7 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 Query query = entry.getValue();
                 int readerIndex = -1;
                 int docBase = -1;
-                Weight weight = context.searcher().createNormalizedWeight(query, false);
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Bits matchingDocs = null;
                 final IndexReader indexReader = context.searcher().getIndexReader();
                 for (int i = 0; i < hits.length; ++i) {

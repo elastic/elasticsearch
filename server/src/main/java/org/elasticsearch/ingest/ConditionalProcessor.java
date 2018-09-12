@@ -51,12 +51,13 @@ public class ConditionalProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         IngestConditionalScript script =
             scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
         if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
-            processor.execute(ingestDocument);
+            return processor.execute(ingestDocument);
         }
+        return ingestDocument;
     }
 
     @Override

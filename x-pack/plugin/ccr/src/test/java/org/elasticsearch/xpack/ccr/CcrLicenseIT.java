@@ -90,9 +90,9 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
 
     public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.TasksRequest(), new ActionListener<CcrStatsAction.TasksResponse>() {
+        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.StatsRequest(), new ActionListener<CcrStatsAction.StatsResponses>() {
             @Override
-            public void onResponse(final CcrStatsAction.TasksResponse tasksResponse) {
+            public void onResponse(final CcrStatsAction.StatsResponses statsResponses) {
                 latch.countDown();
                 fail();
             }

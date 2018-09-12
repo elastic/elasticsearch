@@ -85,6 +85,8 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
+    public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
+    public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS = "leader_index_shard_history_uuids";
 
     private final boolean enabled;
     private final Settings settings;

@@ -43,6 +43,10 @@ h3. Installation
 * Run @curl -X GET http://localhost:9200/@.
 * Start more servers ...
 
+h3. Installation via composer
+
+composer require elasticsearch/elasticsearch
+
 h3. Indexing
 
 Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):

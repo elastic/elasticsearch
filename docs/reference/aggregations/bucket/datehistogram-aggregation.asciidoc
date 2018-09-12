@@ -425,7 +425,7 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
-// TEST[warning:getDayOfWeek() is incompatible with the java time api. Use getDayOfWeekEnum().getValue()."]
+// TEST[warning:The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().]
 
 Response:
 

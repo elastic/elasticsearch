@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -201,13 +202,11 @@ public class GlobalCheckpointListeners implements Closeable {
             if (currentListeners != null) {
                 executor.execute(() -> {
                     for (final Map.Entry<GlobalCheckpointListener, ScheduledFuture<?>> listener : currentListeners.entrySet()) {
-                        if (listener.getValue() != null) {
-                            /*
-                             * We do not want to interrupt any timeouts that fired, these will detect that the listener has been notified
-                             * and not trigger the timeout.
-                             */
-                            listener.getValue().cancel(false);
-                        }
+                        /*
+                         * We do not want to interrupt any timeouts that fired, these will detect that the listener has been notified and
+                         * not trigger the timeout.
+                         */
+                        FutureUtils.cancel(listener.getValue());
                         notifyListener(listener.getKey(), globalCheckpoint, e);
                     }
                 });

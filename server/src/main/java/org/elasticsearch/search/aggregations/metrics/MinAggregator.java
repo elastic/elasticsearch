@@ -61,13 +61,13 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray mins;
 
-    public MinAggregator(String name,
-                            ValuesSourceConfig<ValuesSource.Numeric> config,
-                            ValuesSource.Numeric valuesSource,
-                            SearchContext context,
-                            Aggregator parent,
-                            List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) throws IOException {
+    MinAggregator(String name,
+                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSource.Numeric valuesSource,
+                    SearchContext context,
+                    Aggregator parent,
+                    List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -167,7 +167,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param parent The parent aggregator.
      * @param config The config for the values source metric.
      */
-    public static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
+    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
                                                                 ValuesSourceConfig<ValuesSource.Numeric> config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
@@ -196,7 +196,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * Returns the minimum value indexed in the <code>fieldName</code> field or <code>null</code>
      * if the value cannot be inferred from the indexed {@link PointValues}.
      */
-    public static Number findLeafMinValue(LeafReader reader, String fieldName, Function<byte[], Number> converter) throws IOException {
+    static Number findLeafMinValue(LeafReader reader, String fieldName, Function<byte[], Number> converter) throws IOException {
         final PointValues pointValues = reader.getPointValues(fieldName);
         if (pointValues == null) {
             return null;

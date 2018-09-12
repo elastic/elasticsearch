@@ -58,12 +58,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray maxes;
 
-    public MaxAggregator(String name,
-                            ValuesSourceConfig<ValuesSource.Numeric> config,
-                            ValuesSource.Numeric valuesSource,
-                            SearchContext context,
-                            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) throws IOException {
+    MaxAggregator(String name,
+                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSource.Numeric valuesSource,
+                    SearchContext context,
+                    Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -158,7 +158,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
      * Returns the maximum value indexed in the <code>fieldName</code> field or <code>null</code>
      * if the value cannot be inferred from the indexed {@link PointValues}.
      */
-    public static Number findLeafMaxValue(LeafReader reader, String fieldName, Function<byte[], Number> converter) throws IOException {
+    static Number findLeafMaxValue(LeafReader reader, String fieldName, Function<byte[], Number> converter) throws IOException {
         final PointValues pointValues = reader.getPointValues(fieldName);
         if (pointValues == null) {
             return null;

@@ -120,23 +120,43 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public double getKbFrac() {
-        return ((double) getBytes()) / ByteSizeUnit.C1;
+        return getKbFrac(getBytes());
+    }
+
+    private static double getKbFrac(long bytes) {
+        return ((double) bytes) / ByteSizeUnit.C1;
     }
 
     public double getMbFrac() {
-        return ((double) getBytes()) / ByteSizeUnit.C2;
+        return getMbFrac(getBytes());
+    }
+
+    private static double getMbFrac(long bytes) {
+        return ((double) bytes) / ByteSizeUnit.C2;
     }
 
     public double getGbFrac() {
-        return ((double) getBytes()) / ByteSizeUnit.C3;
+        return getGbFrac(getBytes());
+    }
+
+    private static double getGbFrac(long bytes) {
+        return ((double) bytes) / ByteSizeUnit.C3;
     }
 
     public double getTbFrac() {
-        return ((double) getBytes()) / ByteSizeUnit.C4;
+        return getTbFrac(getBytes());
+    }
+
+    private static double getTbFrac(long bytes) {
+        return ((double) bytes) / ByteSizeUnit.C4;
     }
 
     public double getPbFrac() {
-        return ((double) getBytes()) / ByteSizeUnit.C5;
+        return getPbFrac(getBytes());
+    }
+
+    private static double getPbFrac(long bytes) {
+        return ((double) bytes) / ByteSizeUnit.C5;
     }
 
     /**
@@ -156,23 +176,30 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public String toString() {
-        long bytes = getBytes();
+        return toString(getBytes());
+    }
+
+    public static String toString(long bytes) {
+        if (bytes == Long.MIN_VALUE) {
+            throw new IllegalArgumentException("Value " + bytes + " is not supported");
+        }
+        final long bs = bytes < 0 ? -bytes : bytes;
         double value = bytes;
         String suffix = ByteSizeUnit.BYTES.getSuffix();
-        if (bytes >= ByteSizeUnit.C5) {
-            value = getPbFrac();
+        if (bs >= ByteSizeUnit.C5) {
+            value = getPbFrac(bytes);
             suffix = ByteSizeUnit.PB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C4) {
-            value = getTbFrac();
+        } else if (bs >= ByteSizeUnit.C4) {
+            value = getTbFrac(bytes);
             suffix = ByteSizeUnit.TB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C3) {
-            value = getGbFrac();
+        } else if (bs >= ByteSizeUnit.C3) {
+            value = getGbFrac(bytes);
             suffix = ByteSizeUnit.GB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C2) {
-            value = getMbFrac();
+        } else if (bs >= ByteSizeUnit.C2) {
+            value = getMbFrac(bytes);
             suffix = ByteSizeUnit.MB.getSuffix();
-        } else if (bytes >= ByteSizeUnit.C1) {
-            value = getKbFrac();
+        } else if (bs >= ByteSizeUnit.C1) {
+            value = getKbFrac(bytes);
             suffix = ByteSizeUnit.KB.getSuffix();
         }
         return Strings.format1Decimals(value, suffix);

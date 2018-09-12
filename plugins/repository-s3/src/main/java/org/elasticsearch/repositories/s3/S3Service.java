@@ -30,7 +30,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -103,7 +102,16 @@ class S3Service extends AbstractComponent implements Closeable {
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
         final String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
-        logger.debug(() -> new ParameterizedMessage("using endpoint [{}]", endpoint));
+        logger.debug("using endpoint [{}]", endpoint);
+
+        // If the endpoint configuration isn't set on the builder then the default behaviour is to try
+        // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
+        // In contrast, directly-constructed clients use s3.amazonaws.com unless otherwise instructed. We currently
+        // use a directly-constructed client, and need to keep the existing behaviour to avoid a breaking change,
+        // so to move to using the builder we must set it explicitly to keep the existing behaviour.
+        //
+        // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
+        // so this change removes that usage of a deprecated API.
         builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
 
         return builder.build();

@@ -106,9 +106,12 @@ public class FilterAllocationDecider extends AllocationDecider {
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, CLUSTER_ROUTING_REQUIRE_GROUP_SETTING_OMIT_DEFAULTS);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, CLUSTER_ROUTING_INCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {},
+            CLUSTER_ROUTING_REQUIRE_GROUP_SETTING_OMIT_DEFAULTS);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {},
+            CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {},
+            CLUSTER_ROUTING_INCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
     }
 
     @Override

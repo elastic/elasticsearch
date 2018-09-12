@@ -240,7 +240,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
                 }
                 if (idleShardRetryDelay != null) {
-                    builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+                    builder.field(AutoFollowPattern.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
                 }
             }
             builder.endObject();

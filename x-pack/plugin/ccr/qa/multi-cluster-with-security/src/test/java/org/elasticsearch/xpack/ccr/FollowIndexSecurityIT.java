@@ -113,7 +113,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             e = expectThrows(ResponseException.class,
                 () -> followIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("follow index [" + unallowedIndex + "] does not exist"));
+            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }

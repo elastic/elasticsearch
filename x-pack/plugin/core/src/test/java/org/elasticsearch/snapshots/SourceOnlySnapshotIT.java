@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -34,6 +35,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -166,26 +169,40 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(index)
             .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setSize(numDocsExpected).get();
-        SearchHits hits = searchResponse.getHits();
-        assertEquals(numDocsExpected, hits.totalHits);
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
-        long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
-        boolean allowHoles = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
-        long i = 0;
-        for (SearchHit hit : hits) {
-            String id = hit.getId();
-            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-            assertTrue(sourceAsMap.containsKey("field1"));
-            if (allowHoles) {
-                long seqId = ((Number)hit.getSortValues()[0]).longValue();
-                assertThat(i, Matchers.lessThanOrEqualTo(seqId));
-                i = seqId + 1;
-            } else {
-                assertEquals(i++, hit.getSortValues()[0]);
+        Consumer<SearchResponse> assertConsumer = res -> {
+            SearchHits hits = res.getHits();
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
+            long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
+            boolean allowHoles = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
+            long i = 0;
+            for (SearchHit hit : hits) {
+                String id = hit.getId();
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                assertTrue(sourceAsMap.containsKey("field1"));
+                if (allowHoles) {
+                    long seqId = ((Number) hit.getSortValues()[0]).longValue();
+                    assertThat(i, Matchers.lessThanOrEqualTo(seqId));
+                    i = seqId + 1;
+                } else {
+                    assertEquals(i++, hit.getSortValues()[0]);
+                }
+                assertEquals("bar " + id, sourceAsMap.get("field1"));
+                assertEquals("r" + id, hit.field("_routing").getValue());
             }
-            assertEquals("bar " + id, sourceAsMap.get("field1"));
-            assertEquals("r" + id, hit.field("_routing").getValue());
-        }
+        };
+        assertConsumer.accept(searchResponse);
+        assertEquals(numDocsExpected, searchResponse.getHits().totalHits);
+        searchResponse = client().prepareSearch(index)
+            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            .setScroll("1m")
+            .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0,1), 2))
+            .setSize(randomIntBetween(1, 10)).get();
+        do {
+            // now do a scroll with a slice
+            assertConsumer.accept(searchResponse);
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+        } while (searchResponse.getHits().getHits().length > 0);
+
     }
 
     private IndexRequestBuilder[] snashotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting, boolean

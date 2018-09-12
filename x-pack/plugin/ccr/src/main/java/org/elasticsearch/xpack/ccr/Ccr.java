@@ -40,21 +40,17 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
+import org.elasticsearch.xpack.ccr.action.TransportCreateAndFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.ccr.action.TransportFollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.TransportPutAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.ccr.action.TransportUnfollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -66,6 +62,10 @@ import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -76,8 +76,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 
 /**
  * Container class for CCR functionality.

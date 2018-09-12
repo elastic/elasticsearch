@@ -15,6 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -52,7 +54,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
         task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
-            ShardFollowNodeTask.Status status = task.getStatus();
+            ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             final long numberOfFailedFetches =
@@ -65,7 +67,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
         task.markAsCompleted();
         assertBusy(() -> {
-            ShardFollowNodeTask.Status status = task.getStatus();
+            ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.numberOfConcurrentReads(), equalTo(0));
             assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         });
@@ -73,10 +75,20 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     private ShardFollowNodeTask createShardFollowTask(int concurrency, TestRun testRun) {
         AtomicBoolean stopped = new AtomicBoolean(false);
-        ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), testRun.maxOperationCount, concurrency,
-            ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES, concurrency, 10240,
-            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10), Collections.emptyMap());
+        ShardFollowTask params = new ShardFollowTask(
+            null,
+            new ShardId("follow_index", "", 0),
+            new ShardId("leader_index", "", 0),
+            testRun.maxOperationCount,
+            concurrency,
+            FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            concurrency,
+            10240,
+            TimeValue.timeValueMillis(10),
+            TimeValue.timeValueMillis(10),
+            "uuid",
+            Collections.emptyMap()
+        );
 
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
@@ -213,8 +225,16 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
                     ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                 }
-                item.add(new TestResponse(null, mappingVersion,
-                    new ShardChangesAction.Response(mappingVersion, nextGlobalCheckPoint, nextGlobalCheckPoint, ops.toArray(EMPTY))));
+                item.add(new TestResponse(
+                    null,
+                    mappingVersion,
+                    new ShardChangesAction.Response(
+                        mappingVersion,
+                        nextGlobalCheckPoint,
+                        nextGlobalCheckPoint,
+                        ops.toArray(EMPTY))
+                    )
+                );
                 responses.put(prevGlobalCheckpoint, item);
             } else {
                 // Simulates a leader shard copy not having all the operations the shard follow task thinks it has by
@@ -230,8 +250,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     }
                     // Sometimes add an empty shard changes response to also simulate a leader shard lagging behind
                     if (sometimes()) {
-                        ShardChangesAction.Response response =
-                            new ShardChangesAction.Response(mappingVersion, prevGlobalCheckpoint, prevGlobalCheckpoint, EMPTY);
+                        ShardChangesAction.Response response = new ShardChangesAction.Response(
+                            mappingVersion,
+                            prevGlobalCheckpoint,
+                            prevGlobalCheckpoint,
+                            EMPTY
+                        );
                         item.add(new TestResponse(null, mappingVersion, response));
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
@@ -242,8 +266,12 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     }
                     // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;
-                    ShardChangesAction.Response response =
-                            new ShardChangesAction.Response(mappingVersion, localLeaderGCP, localLeaderGCP, ops.toArray(EMPTY));
+                    ShardChangesAction.Response response = new ShardChangesAction.Response(
+                        mappingVersion,
+                        localLeaderGCP,
+                        localLeaderGCP,
+                        ops.toArray(EMPTY)
+                    );
                     item.add(new TestResponse(null, mappingVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));
                 }

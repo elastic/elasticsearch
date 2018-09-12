@@ -71,3 +71,14 @@ setup:
   - match: { test_index.shards.0.index.files.reused: 0}
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
   - gt: { test_index.shards.0.index.size.recovered_in_bytes: 0}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total:      1    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "1" }

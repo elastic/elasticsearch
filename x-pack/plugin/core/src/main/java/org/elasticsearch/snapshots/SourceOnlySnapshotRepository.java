@@ -82,7 +82,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 IndexMetaData index = metaData.index(indexId.getName());
                 IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
                 // for a minimal restore we basically disable indexing on all fields and only create an index
-                // that is fully functional from an operational perspective. ie. it will have all metadata fields like version/
+                // that is valid from an operational perspective. ie. it will have all metadata fields like version/
                 // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
                 ImmutableOpenMap<String, MappingMetaData> mappings = index.getMappings();
                 Iterator<ObjectObjectCursor<String, MappingMetaData>> iterator = mappings.iterator();
@@ -129,7 +129,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            tempStore.bootstrapNewHistoryWithLocalCheckpoint(segmentInfos.totalMaxDoc());
+            tempStore.bootstrapNewHistory(segmentInfos.totalMaxDoc());
             store.incRef();
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
                 IndexCommit indexCommit = reader.getIndexCommit();

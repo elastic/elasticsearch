@@ -72,8 +72,9 @@ public class CcrClient {
         return listener;
     }
 
-    public void putAutoFollowPattern(final PutAutoFollowPatternAction.Request request,
-                                     final ActionListener<AcknowledgedResponse> listener) {
+    public void putAutoFollowPattern(
+            final PutAutoFollowPatternAction.Request request,
+            final ActionListener<AcknowledgedResponse> listener) {
         client.execute(PutAutoFollowPatternAction.INSTANCE, request, listener);
     }
 
@@ -83,8 +84,9 @@ public class CcrClient {
         return listener;
     }
 
-    public void deleteAutoFollowPattern(final DeleteAutoFollowPatternAction.Request request,
-                                     final ActionListener<AcknowledgedResponse> listener) {
+    public void deleteAutoFollowPattern(
+            final DeleteAutoFollowPatternAction.Request request,
+            final ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteAutoFollowPatternAction.INSTANCE, request, listener);
     }
 

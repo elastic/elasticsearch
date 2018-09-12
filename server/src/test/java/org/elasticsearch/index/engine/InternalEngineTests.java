@@ -4087,7 +4087,7 @@ public class InternalEngineTests extends EngineTestCase {
             final long currentLocalCheckpoint = actualEngine.getLocalCheckpoint();
             final long resetLocalCheckpoint =
                     randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(currentLocalCheckpoint));
-            actualEngine.resetLocalCheckpoint(resetLocalCheckpoint);
+            actualEngine.getLocalCheckpointTracker().resetCheckpoint(resetLocalCheckpoint);
             completedSeqNos.clear();
             actualEngine.restoreLocalCheckpointFromTranslog();
             final Set<Long> intersection = new HashSet<>(expectedCompletedSeqNos);

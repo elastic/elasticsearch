@@ -627,9 +627,20 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                                                       int bufferWriteLimit,
                                                       long maxBatchSizeInBytes) {
         AtomicBoolean stopped = new AtomicBoolean(false);
-        ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), maxBatchOperationCount, maxConcurrentReadBatches, maxBatchSizeInBytes,
-            maxConcurrentWriteBatches, bufferWriteLimit, TimeValue.ZERO, TimeValue.ZERO, Collections.emptyMap());
+        ShardFollowTask params = new ShardFollowTask(
+            null,
+            new ShardId("follow_index", "", 0),
+            new ShardId("leader_index", "", 0),
+            maxBatchOperationCount,
+            maxConcurrentReadBatches,
+            maxBatchSizeInBytes,
+            maxConcurrentWriteBatches,
+            bufferWriteLimit,
+            TimeValue.ZERO,
+            TimeValue.ZERO,
+            "uuid",
+            Collections.emptyMap()
+        );
 
         shardChangesRequests = new ArrayList<>();
         bulkShardOperationRequests = new ArrayList<>();
@@ -690,12 +701,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     for (int i = 0; i < requestBatchSize; i++) {
                         operations[i] = new Translog.NoOp(from + i, 0, "test");
                     }
-                    final ShardChangesAction.Response response =
-                            new ShardChangesAction.Response(
-                                    mappingVersions.poll(),
-                                    leaderGlobalCheckpoints.poll(),
-                                    maxSeqNos.poll(),
-                                    operations);
+                    final ShardChangesAction.Response response = new ShardChangesAction.Response(
+                        mappingVersions.poll(),
+                        leaderGlobalCheckpoints.poll(),
+                        maxSeqNos.poll(),
+                        operations
+                    );
                     handler.accept(response);
                 }
             }
@@ -727,7 +738,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             ops.add(new Translog.Index("doc", id, seqNo, 0, source));
         }
         return new ShardChangesAction.Response(
-                mappingVersion, leaderGlobalCheckPoint, leaderGlobalCheckPoint, ops.toArray(new Translog.Operation[0]));
+            mappingVersion,
+            leaderGlobalCheckPoint,
+            leaderGlobalCheckPoint,
+            ops.toArray(new Translog.Operation[0])
+        );
     }
 
     void startTask(ShardFollowNodeTask task, long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {

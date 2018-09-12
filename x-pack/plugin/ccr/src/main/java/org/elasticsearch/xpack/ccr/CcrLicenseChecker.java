@@ -10,9 +10,18 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -21,6 +30,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -58,23 +68,24 @@ public final class CcrLicenseChecker {
     }
 
     /**
-     * Fetches the leader index metadata from the remote cluster. Before fetching the index metadata, the remote cluster is checked for
-     * license compatibility with CCR. If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked.
-     * Otherwise, the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
+     * Fetches the leader index metadata and history UUIDs for leader index shards from the remote cluster.
+     * Before fetching the index metadata, the remote cluster is checked for license compatibility with CCR.
+     * If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked. Otherwise,
+     * the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
      *
-     * @param client                      the client
-     * @param clusterAlias                the remote cluster alias
-     * @param leaderIndex                 the name of the leader index
-     * @param onFailure                   the failure consumer
-     * @param leaderIndexMetadataConsumer the leader index metadata consumer
-     * @param <T>                         the type of response the listener is waiting for
+     * @param client        the client
+     * @param clusterAlias  the remote cluster alias
+     * @param leaderIndex   the name of the leader index
+     * @param onFailure     the failure consumer
+     * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
+     * @param <T>           the type of response the listener is waiting for
      */
-    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
             final String clusterAlias,
             final String leaderIndex,
             final Consumer<Exception> onFailure,
-            final Consumer<IndexMetaData> leaderIndexMetadataConsumer) {
+            final BiConsumer<String[], IndexMetaData> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
@@ -85,7 +96,13 @@ public final class CcrLicenseChecker {
                 clusterAlias,
                 request,
                 onFailure,
-                leaderClusterState -> leaderIndexMetadataConsumer.accept(leaderClusterState.getMetaData().index(leaderIndex)),
+                leaderClusterState -> {
+                    IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
+                    final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
+                    fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
+                        consumer.accept(historyUUIDs, leaderIndexMetaData);
+                    });
+                },
                 licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
                 e -> indexMetadataUnknownRemoteLicense(leaderIndex, clusterAlias, e));
     }
@@ -166,6 +183,58 @@ public final class CcrLicenseChecker {
                     }
 
                 });
+    }
+
+    /**
+     * Fetches the history UUIDs for leader index on per shard basis using the specified leaderClient.
+     *
+     * @param leaderClient                              the leader client
+     * @param leaderIndexMetaData                       the leader index metadata
+     * @param onFailure                                 the failure consumer
+     * @param historyUUIDConsumer                       the leader index history uuid and consumer
+     */
+    // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
+    // in case of following a local or a remote cluster.
+    public void fetchLeaderHistoryUUIDs(
+        final Client leaderClient,
+        final IndexMetaData leaderIndexMetaData,
+        final Consumer<Exception> onFailure,
+        final Consumer<String[]> historyUUIDConsumer) {
+
+        String leaderIndex = leaderIndexMetaData.getIndex().getName();
+        CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
+            IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+            String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
+            for (IndexShardStats indexShardStats : indexStats) {
+                for (ShardStats shardStats : indexShardStats) {
+                    // Ignore replica shards as they may not have yet started and
+                    // we just end up overwriting slots in historyUUIDs
+                    if (shardStats.getShardRouting().primary() == false) {
+                        continue;
+                    }
+
+                    CommitStats commitStats = shardStats.getCommitStats();
+                    if (commitStats == null) {
+                        onFailure.accept(new IllegalArgumentException("leader index's commit stats are missing"));
+                        return;
+                    }
+                    String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
+                    ShardId shardId = shardStats.getShardRouting().shardId();
+                    historyUUIDs[shardId.id()] = historyUUID;
+                }
+            }
+            for (int i = 0; i < historyUUIDs.length; i++) {
+                if (historyUUIDs[i] == null) {
+                    onFailure.accept(new IllegalArgumentException("no history uuid for [" + leaderIndex + "][" + i + "]"));
+                    return;
+                }
+            }
+            historyUUIDConsumer.accept(historyUUIDs);
+        };
+        IndicesStatsRequest request = new IndicesStatsRequest();
+        request.clear();
+        request.indices(leaderIndex);
+        leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
     private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(

@@ -175,7 +175,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
                     request.getMaxOperationSizeInBytes(),
                     request.getMaxConcurrentWriteBatches(),
                     request.getMaxWriteBufferSize(),
-                    request.getRetryTimeout(),
+                    request.getMaxRetryDelay(),
                     request.getIdleShardRetryDelay(),
                     filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,

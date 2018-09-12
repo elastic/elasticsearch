@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,7 +19,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.util.ArrayList;
@@ -43,11 +43,12 @@ import java.util.function.LongSupplier;
  */
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
+    private static final int DELAY_MILLIS = 50;
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
     private final String leaderIndex;
     private final ShardFollowTask params;
-    private final TimeValue retryTimeout;
+    private final TimeValue maxRetryDelay;
     private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -79,7 +80,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.retryTimeout = params.getRetryTimeout();
+        this.maxRetryDelay = params.getMaxRetryDelay();
         this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
         /*
          * We keep track of the most recent fetch exceptions, with the number of exceptions that we track equal to the maximum number of
@@ -357,20 +358,28 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void handleFailure(Exception e, AtomicInteger retryCounter, Runnable task) {
         assert e != null;
-        if (shouldRetry(e)) {
-            if (isStopped() == false && retryCounter.incrementAndGet() <= FollowIndexAction.RETRY_LIMIT) {
-                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...", params.getFollowShardId()), e);
-                scheduler.accept(retryTimeout, task);
-            } else {
-                markAsFailed(new ElasticsearchException("retrying failed [" + retryCounter.get() +
-                    "] times, aborting...", e));
-            }
+        if (shouldRetry(e) && isStopped() == false) {
+            int currentRetry = retryCounter.incrementAndGet();
+            LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying [{}]",
+                params.getFollowShardId(), currentRetry), e);
+            long delay = computeDelay(currentRetry, maxRetryDelay.getMillis());
+            scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             markAsFailed(e);
         }
     }
 
-    private boolean shouldRetry(Exception e) {
+    static long computeDelay(int currentRetry, long maxRetryDelayInMillis) {
+        // Cap currentRetry to avoid overflow when computing n variable
+        int maxCurrentRetry = Math.min(currentRetry, 24);
+        long n = Math.round(Math.pow(2, maxCurrentRetry - 1));
+        // + 1 here, because nextInt(...) bound is exclusive and otherwise the first delay would always be zero.
+        int k = Randomness.get().nextInt(Math.toIntExact(n + 1));
+        int backOffDelay = k * DELAY_MILLIS;
+        return Math.min(backOffDelay, maxRetryDelayInMillis);
+    }
+
+    private static boolean shouldRetry(Exception e) {
         return NetworkExceptionHelper.isConnectException(e) ||
             NetworkExceptionHelper.isCloseConnectionException(e) ||
             TransportActions.isShardNotAvailableException(e);

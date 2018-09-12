@@ -41,11 +41,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
-    @Override
-    protected boolean preserveClusterSettings() {
-        return true;
-    }
-
     public void testRemoteClusterSettingsUpgraded() throws IOException {
         assumeTrue("settings automatically upgraded since 7.0.0", getOldClusterVersion().before(Version.V_7_0_0_alpha1));
         if (isRunningAgainstOldCluster()) {

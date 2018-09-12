@@ -22,11 +22,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.PutAutoFollowPatternAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
@@ -196,11 +195,11 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         return new FollowIndexAction.Request(
                 "leader",
                 "follower",
-                ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-                ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
-                ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-                ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
-                ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE,
+                FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
+                FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES,
+                FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+                FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
+                FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
                 TimeValue.timeValueMillis(10),
                 TimeValue.timeValueMillis(10));
     }

@@ -80,8 +80,7 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return mutate(instance);
     }
 
-    @Override
-    protected GetMappingsResponse createTestInstance() {
+    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
         // rarely have no types
         int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
@@ -104,8 +103,13 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         }
         ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = ImmutableOpenMap.builder();
         typeMappings.forEach(mmd -> typeBuilder.put(mmd.type(), mmd));
+        return typeBuilder.build();
+    }
+
+    @Override
+    protected GetMappingsResponse createTestInstance() {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), typeBuilder.build());
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;

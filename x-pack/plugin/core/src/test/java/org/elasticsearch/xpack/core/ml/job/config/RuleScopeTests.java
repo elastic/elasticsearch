@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,6 +53,17 @@ public class RuleScopeTests extends AbstractWireSerializingTestCase<RuleScope> {
         assertThat(scope.isEmpty(), is(false));
 
         scope.validate(Sets.newHashSet("foo", "bar", "foobar"));
+    }
+
+    public void testValidate_GivenNoAvailableFieldsForScope() {
+        RuleScope scope = RuleScope.builder()
+                .include("foo", "filter1")
+                .build();
+        assertThat(scope.isEmpty(), is(false));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> scope.validate(Collections.emptySet()));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: scope field 'foo' is invalid; " +
+                "detector has no available fields for scoping"));
     }
 
     public void testValidate_GivenMultipleFieldsIncludingInvalid() {

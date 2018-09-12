@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -88,12 +89,20 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests[0]);
-            assertThat(singleResponse, hasSize(1));
-            assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
+            try {
+                assertThat(singleResponse, hasSize(1));
+                assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
 
-            Collection<FullHttpResponse> multipleResponses = nettyHttpClient.post(transportAddress.address(), requests);
-            assertThat(multipleResponses, hasSize(requests.length));
-            assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);
+                Collection<FullHttpResponse> multipleResponses = nettyHttpClient.post(transportAddress.address(), requests);
+                try {
+                    assertThat(multipleResponses, hasSize(requests.length));
+                    assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);
+                } finally {
+                    multipleResponses.forEach(ReferenceCounted::release);
+                }
+            } finally {
+                singleResponse.forEach(ReferenceCounted::release);
+            }
         }
     }
 
@@ -113,8 +122,12 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
-            assertThat(responses, hasSize(requestUris.length));
-            assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+            try {
+                assertThat(responses, hasSize(requestUris.length));
+                assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+            } finally {
+                responses.forEach(ReferenceCounted::release);
+            }
         }
     }
 

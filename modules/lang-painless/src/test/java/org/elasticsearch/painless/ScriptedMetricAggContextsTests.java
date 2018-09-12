@@ -22,9 +22,10 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -74,6 +75,11 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
             @Override
             public DocIdSetIterator iterator() { return null; }
+
+            @Override
+            public float getMaxScore(int upTo) throws IOException {
+                return 0.5f;
+            }
         };
 
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, null);

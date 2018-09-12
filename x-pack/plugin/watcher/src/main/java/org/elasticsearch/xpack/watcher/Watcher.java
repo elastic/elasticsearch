@@ -38,6 +38,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -91,12 +92,7 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -123,6 +119,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -194,7 +191,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
+public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -221,6 +218,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     protected final boolean transportClient;
     protected final boolean enabled;
     protected final Environment env;
+    protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -261,12 +259,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
 
         // http client
-        Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
-        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
-        // TODO: add more auth types, or remove this indirection
-        HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
-        HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
-        httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
+        httpClient = new HttpClient(settings, getSslService(), cryptoService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
@@ -275,13 +268,17 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
 
+        reloadableServices.add(emailService);
+        reloadableServices.add(hipChatService);
+        reloadableServices.add(jiraService);
+        reloadableServices.add(slackService);
+        reloadableServices.add(pagerDutyService);
+
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser,
-                templateEngine));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine,
-                httpAuthRegistry));
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
@@ -301,9 +298,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
+        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
@@ -315,7 +312,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
-        inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
+        inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
         inputFactories.put(TransformInput.TYPE, new TransformInputFactory(settings, transformRegistry));
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
@@ -538,7 +535,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -605,12 +602,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     }
 
     @Override
-    public List<ScriptContext> getContexts() {
+    public List<ScriptContext<?>> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 
     @Override
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(httpClient);
+    }
+
+    /**
+     * Reloads all the reloadable services in watcher.
+     */
+    @Override
+    public void reload(Settings settings) {
+        if (enabled == false || transportClient) {
+            return;
+        }
+        reloadableServices.forEach(s -> s.reload(settings));
     }
 }

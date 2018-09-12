@@ -35,8 +35,7 @@ public class DocsTestPlugin extends RestTestPlugin {
         // The distribution can be configured with -Dtests.distribution on the command line
         project.integTestCluster.distribution = System.getProperty('tests.distribution', 'zip')
         // Docs are published separately so no need to assemble
-        project.tasks.remove(project.assemble)
-        project.build.dependsOn.remove('assemble')
+        project.tasks.assemble.enabled = false
         Map<String, String> defaultSubstitutions = [
             /* These match up with the asciidoc syntax for substitutions but
              * the values may differ. In particular {version} needs to resolve

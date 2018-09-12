@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 
 public class XPackInfoAction extends Action<XPackInfoResponse> {
 

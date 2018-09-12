@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -27,20 +30,16 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.jts.geom.Coordinate;
-
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -502,5 +501,34 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .execute().actionGet();
 
         assertEquals(2, response.getHits().getTotalHits());
+    }
+
+    public void testFieldAlias() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("location")
+                        .field("type", "geo_shape")
+                        .field("tree", randomBoolean() ? "quadtree" : "geohash")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "location")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        createIndex("test", Settings.EMPTY, "type", mapping);
+
+        ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(geoShapeQuery("alias", shape))
+            .execute().actionGet();
+        assertEquals(1, response.getHits().getTotalHits());
     }
 }

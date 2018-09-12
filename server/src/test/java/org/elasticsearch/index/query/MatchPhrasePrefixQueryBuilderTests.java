@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -42,13 +43,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<MatchPhrasePrefixQueryBuilder> {
     @Override
     protected MatchPhrasePrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
                 DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
-        if (fieldName.equals(DATE_FIELD_NAME)) {
-            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        }
         Object value;
-        if (fieldName.equals(STRING_FIELD_NAME)) {
+        if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
@@ -61,7 +59,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(fieldName, value);
 
-        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+        if (randomBoolean() && isTextField(fieldName)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -119,7 +117,6 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     public void testPhraseOnFieldWithNoTerms() {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
         expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createShardContext()));

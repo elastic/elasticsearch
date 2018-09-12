@@ -66,7 +66,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        operations = Translog.readOperations(in);
+        operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
     }
 

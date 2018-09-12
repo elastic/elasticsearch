@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.Date;
 import java.sql.JDBCType;
-import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
@@ -56,14 +55,15 @@ final class TypeConverter {
 
     }
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24;
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
     private static final Map<Class<?>, JDBCType> javaToJDBC;
-    
+
+
     static {
         Map<Class<?>, JDBCType> aMap = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType.javaClass() != null 
-                        && dataType != DataType.HALF_FLOAT 
-                        && dataType != DataType.SCALED_FLOAT 
+                .filter(dataType -> dataType.javaClass() != null
+                        && dataType != DataType.HALF_FLOAT
+                        && dataType != DataType.SCALED_FLOAT
                         && dataType != DataType.TEXT)
                 .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
@@ -119,7 +119,8 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-    
+
+
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
             return value;
@@ -142,15 +143,19 @@ final class TypeConverter {
         if (type == null) {
             return (T) convert(val, columnType);
         }
-        
-        if (type.isInstance(val)) {
+
+        // converting a Long to a Timestamp shouldn't be possible according to the spec,
+        // it feels a little brittle to check this scenario here and I don't particularly like it
+        // TODO: can we do any better or should we go over the spec and allow getLong(date) to be valid?
+        if (!(type == Long.class && columnType == JDBCType.TIMESTAMP) && type.isInstance(val)) {
             try {
                 return type.cast(val);
             } catch (ClassCastException cce) {
-                throw new SQLDataException("Unable to convert " + val.getClass().getName() + " to " + columnType, cce);
+                throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a %s", val, 
+                        columnType.getName(), type.getName()), cce);
             }
         }
-        
+
         if (type == String.class) {
             return (T) asString(convert(val, columnType));
         }
@@ -205,7 +210,8 @@ final class TypeConverter {
         if (type == OffsetDateTime.class) {
             return (T) asOffsetDateTime(val, columnType);
         }
-        throw new SQLException("Conversion from type [" + columnType + "] to [" + type.getName() + "] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a %s", val, 
+                columnType.getName(), type.getName()));
     }
 
     /**
@@ -254,7 +260,7 @@ final class TypeConverter {
             case REAL:
                 return floatValue(v);  // Float might be represented as string for infinity and NaN values
             case TIMESTAMP:
-                return ((Number) v).longValue();
+                return new Timestamp(((Number) v).longValue());
             default:
                 throw new SQLException("Unexpected column type [" + columnType.getName() + "]");
 
@@ -276,8 +282,8 @@ final class TypeConverter {
         }
         return dataType.isSigned();
     }
-    
-    
+
+
     static JDBCType fromJavaToJDBC(Class<?> clazz) throws SQLException {
         for (Entry<Class<?>, JDBCType> e : javaToJDBC.entrySet()) {
             // java.util.Calendar from {@code javaToJDBC} is an abstract class and this method can be used with concrete classes as well
@@ -285,7 +291,7 @@ final class TypeConverter {
                 return e.getValue();
             }
         }
-        
+
         throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
     }
 
@@ -336,8 +342,11 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
+            case VARCHAR:
+                return Boolean.valueOf((String) val);
             default:
-                throw new SQLException("Conversion from type [" + columnType + "] to [Boolean] not supported");
+                throw new SQLException(
+                        format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Boolean", val, columnType.getName()));
 
         }
     }
@@ -355,10 +364,16 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return safeToByte(safeToLong(((Number) val).doubleValue()));
+            case VARCHAR:
+                try {
+                    return Byte.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Byte", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Byte] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Byte", val, columnType.getName()));
     }
 
     private static Short asShort(Object val, JDBCType columnType) throws SQLException {
@@ -374,10 +389,16 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return safeToShort(safeToLong(((Number) val).doubleValue()));
+            case VARCHAR:
+                try {
+                    return Short.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Short", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Short] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Short", val, columnType.getName()));
     }
 
     private static Integer asInteger(Object val, JDBCType columnType) throws SQLException {
@@ -393,10 +414,18 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return safeToInt(safeToLong(((Number) val).doubleValue()));
+            case VARCHAR:
+                try {
+                    return Integer.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(
+                            format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to an Integer", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Integer] not supported");
+        throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to an Integer", val, columnType.getName()));
     }
 
     private static Long asLong(Object val, JDBCType columnType) throws SQLException {
@@ -412,12 +441,21 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return safeToLong(((Number) val).doubleValue());
-            case TIMESTAMP:
-                return ((Number) val).longValue();
+            //TODO: should we support conversion to TIMESTAMP?
+            //The spec says that getLong() should support the following types conversions:
+            //TINYINT, SMALLINT, INTEGER, BIGINT, REAL, FLOAT, DOUBLE, DECIMAL, NUMERIC, BIT, BOOLEAN, CHAR, VARCHAR, LONGVARCHAR
+            //case TIMESTAMP:
+            //    return ((Number) val).longValue();
+            case VARCHAR:
+                try {
+                    return Long.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Long", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Long] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, columnType.getName()));
     }
 
     private static Float asFloat(Object val, JDBCType columnType) throws SQLException {
@@ -428,15 +466,21 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Float.valueOf((float) ((Number) val).longValue());
+                return Float.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return new Float(((Number) val).doubleValue());
+                return Float.valueOf((((float) ((Number) val).doubleValue())));
+            case VARCHAR:
+                try {
+                    return Float.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Float", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Float] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Float", val, columnType.getName()));
     }
 
     private static Double asDouble(Object val, JDBCType columnType) throws SQLException {
@@ -447,36 +491,45 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Double.valueOf((double) ((Number) val).longValue());
+                return Double.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return new Double(((Number) val).doubleValue());
+
+                return Double.valueOf(((Number) val).doubleValue());
+            case VARCHAR:
+                try {
+                    return Double.valueOf((String) val);
+                } catch (NumberFormatException e) {
+                    throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VARCHAR] to a Double", val), e);
+                }
             default:
         }
 
-        throw new SQLException("Conversion from type [" + columnType + "] to [Double] not supported");
+        throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Double", val, columnType.getName()));
     }
 
     private static Date asDate(Object val, JDBCType columnType) throws SQLException {
         if (columnType == JDBCType.TIMESTAMP) {
             return new Date(utcMillisRemoveTime(((Number) val).longValue()));
         }
-        throw new SQLException("Conversion from type [" + columnType + "] to [Date] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, columnType.getName()));
     }
 
     private static Time asTime(Object val, JDBCType columnType) throws SQLException {
         if (columnType == JDBCType.TIMESTAMP) {
             return new Time(utcMillisRemoveDate(((Number) val).longValue()));
         }
-        throw new SQLException("Conversion from type [" + columnType + "] to [Time] not supported");
+        throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, columnType.getName()));
     }
 
     private static Timestamp asTimestamp(Object val, JDBCType columnType) throws SQLException {
         if (columnType == JDBCType.TIMESTAMP) {
             return new Timestamp(((Number) val).longValue());
         }
-        throw new SQLException("Conversion from type [" + columnType + "] to [Timestamp] not supported");
+        throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, columnType.getName()));
     }
 
     private static byte[] asByteArray(Object val, JDBCType columnType) {

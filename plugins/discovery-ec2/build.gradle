@@ -87,7 +87,7 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Logger',
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext'

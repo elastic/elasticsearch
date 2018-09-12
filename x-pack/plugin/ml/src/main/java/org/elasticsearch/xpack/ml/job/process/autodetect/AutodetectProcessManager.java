@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -22,35 +20,39 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
@@ -82,6 +84,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.Property;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class AutodetectProcessManager extends AbstractComponent {
 
@@ -108,7 +112,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
 
@@ -128,7 +132,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final Auditor auditor;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
-                                    JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
                                     NamedXContentRegistry xContentRegistry, Auditor auditor) {
@@ -141,7 +145,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
@@ -156,7 +160,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public synchronized void closeAllJobsOnThisNode(String reason) throws IOException {
+    public synchronized void closeAllJobsOnThisNode(String reason) {
         int numJobs = processByAllocation.size();
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
@@ -322,8 +326,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams,
-                                          Consumer<Exception> handler) {
+    public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
             String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
@@ -332,25 +335,59 @@ public class AutodetectProcessManager extends AbstractComponent {
             return;
         }
 
+        UpdateProcessMessage.Builder updateProcessMessage = new UpdateProcessMessage.Builder();
+        updateProcessMessage.setModelPlotConfig(updateParams.getModelPlotConfig());
+        updateProcessMessage.setDetectorUpdates(updateParams.getDetectorUpdates());
+
+        // Step 3. Set scheduled events on message and write update process message
         ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
                 events -> {
-                    communicator.writeUpdateProcessMessage(updateParams, events == null ? null : events.results(), (aVoid, e) -> {
+                    updateProcessMessage.setScheduledEvents(events == null ? null : events.results());
+                    communicator.writeUpdateProcessMessage(updateProcessMessage.build(), (aVoid, e) -> {
                         if (e == null) {
                             handler.accept(null);
                         } else {
                             handler.accept(e);
                         }
                     });
-                },
-                handler::accept);
+                }, handler
+        );
 
-        if (updateParams.isUpdateScheduledEvents()) {
-            Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
-            DataCounts dataCounts = getStatistics(jobTask).get().v1();
-            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
-            jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+        // Step 2. Set the filter on the message and get scheduled events
+        ActionListener<MlFilter> filterListener = ActionListener.wrap(
+                filter -> {
+                    updateProcessMessage.setFilter(filter);
+
+                    if (updateParams.isUpdateScheduledEvents()) {
+                        Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
+                        DataCounts dataCounts = getStatistics(jobTask).get().v1();
+                        ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
+                        jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+                    } else {
+                        eventsListener.onResponse(null);
+                    }
+                }, handler
+        );
+
+        // Step 1. Get the filter
+        if (updateParams.getFilter() == null) {
+            filterListener.onResponse(null);
         } else {
-            eventsListener.onResponse(null);
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
+            getFilterRequest.setFilterId(updateParams.getFilter().getId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
+                    new ActionListener<GetFiltersAction.Response>() {
+
+                @Override
+                public void onResponse(GetFiltersAction.Response response) {
+                    filterListener.onResponse(response.getFilters().results().get(0));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    handler.accept(e);
+                }
+            });
         }
     }
 
@@ -366,7 +403,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         logger.info("Opening job [{}]", jobId);
         processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
-        jobProvider.getAutodetectParams(job, params -> {
+        jobResultsProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
@@ -458,16 +495,16 @@ public class AutodetectProcessManager extends AbstractComponent {
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
                 jobDataCountsPersister);
-        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider,
+        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
+                renormalizerExecutorService);
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
+                client, auditor, jobId, renormalizer, jobResultsPersister, jobResultsProvider, autodetectParams.modelSizeStats(),
                 autodetectParams.modelSnapshot() != null);
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {

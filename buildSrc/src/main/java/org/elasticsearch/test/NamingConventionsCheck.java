@@ -69,6 +69,10 @@ public class NamingConventionsCheck {
                     fail("unsupported argument '" + arg + "'");
             }
         }
+        if (rootPathList == null) {
+            fail("No paths provided");
+            return;
+        }
 
         NamingConventionsCheck check = new NamingConventionsCheck(testClass, integTestClass);
         for (String rootDir : rootPathList.split(Pattern.quote(File.pathSeparator))) {

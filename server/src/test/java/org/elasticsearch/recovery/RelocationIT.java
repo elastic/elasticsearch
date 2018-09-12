@@ -58,6 +58,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -372,7 +373,7 @@ public class RelocationIT extends ESIntegTestCase {
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (!node.equals(clusterService.localNode())) {
-                mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, node.getName()), new RecoveryCorruption(mockTransportService.original(), corruptionCount));
+                mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()), new RecoveryCorruption(corruptionCount));
             }
         }
 
@@ -485,17 +486,16 @@ public class RelocationIT extends ESIntegTestCase {
 
     }
 
-    class RecoveryCorruption extends MockTransportService.DelegateTransport {
+    class RecoveryCorruption implements StubbableTransport.SendRequestBehavior {
 
         private final CountDownLatch corruptionCount;
 
-        RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
-            super(transport);
+        RecoveryCorruption(CountDownLatch corruptionCount) {
             this.corruptionCount = corruptionCount;
         }
 
         @Override
-        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
+        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
@@ -506,9 +506,9 @@ public class RelocationIT extends ESIntegTestCase {
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }
-                super.sendRequest(connection, requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options);
             } else {
-                super.sendRequest(connection, requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options);
             }
         }
     }

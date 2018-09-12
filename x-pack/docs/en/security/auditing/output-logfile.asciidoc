@@ -47,7 +47,7 @@ audited in plain text when including the request body in audit events.
 
 [[logging-file]]
 You can also configure how the logfile is written in the `log4j2.properties`
-file located in `CONFIG_DIR`. By default, audit information is appended to the
+file located in `ES_PATH_CONF`. By default, audit information is appended to the
 `<clustername>_access.log` file located in the standard Elasticsearch `logs` directory
 (typically located at `$ES_HOME/logs`). The file rolls over on a daily basis.
 

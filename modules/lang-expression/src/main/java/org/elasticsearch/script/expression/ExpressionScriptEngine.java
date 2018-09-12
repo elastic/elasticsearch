@@ -34,10 +34,12 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
@@ -54,6 +56,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -112,6 +115,17 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
+            return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
+        } else if (context.instanceClazz.equals(BucketAggregationSelectorScript.class)) {
+            BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
+            BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
+                @Override
+                public boolean execute() {
+                    return factory.newInstance(getParams()).execute() == 1.0;
+                }
+            };
+            return context.factoryClazz.cast(wrappedFactory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
@@ -120,6 +134,37 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
+    }
+
+    private static BucketAggregationScript.Factory newBucketAggregationScriptFactory(Expression expr) {
+        return parameters -> {
+            ReplaceableConstDoubleValues[] functionValuesArray =
+                new ReplaceableConstDoubleValues[expr.variables.length];
+            Map<String, ReplaceableConstDoubleValues> functionValuesMap = new HashMap<>();
+            for (int i = 0; i < expr.variables.length; ++i) {
+                functionValuesArray[i] = new ReplaceableConstDoubleValues();
+                functionValuesMap.put(expr.variables[i], functionValuesArray[i]);
+            }
+            return new BucketAggregationScript(parameters) {
+                @Override
+                public Double execute() {
+                    getParams().forEach((name, value) -> {
+                        ReplaceableConstDoubleValues placeholder = functionValuesMap.get(name);
+                        if (placeholder == null) {
+                            throw new IllegalArgumentException("Error using " + expr + ". " +
+                                "The variable [" + name + "] does not exist in the executable expressions script.");
+                        } else if (value instanceof Number == false) {
+                            throw new IllegalArgumentException("Error using " + expr + ". " +
+                                "Executable expressions scripts can only process numbers." +
+                                "  The variable [" + name + "] is not a number.");
+                        } else {
+                            placeholder.setValue(((Number) value).doubleValue());
+                        }
+                    });
+                    return expr.evaluate(functionValuesArray);
+                }
+            };
+        };
     }
 
     private SearchScript.LeafFactory newSearchScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
@@ -267,7 +312,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             };
         };
     }
-    
+
     private ScoreScript.LeafFactory newScoreScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         SearchScript.LeafFactory searchLeafFactory = newSearchScript(expr, lookup, vars);
         return new ScoreScript.LeafFactory() {
@@ -284,17 +329,17 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                     public double execute() {
                         return script.runAsDouble();
                     }
-    
+
                     @Override
                     public void setDocument(int docid) {
                         script.setDocument(docid);
                     }
-    
+
                     @Override
                     public void setScorer(Scorer scorer) {
                         script.setScorer(scorer);
                     }
-    
+
                     @Override
                     public double get_score() {
                         return script.getScore();

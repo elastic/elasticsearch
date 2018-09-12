@@ -19,21 +19,23 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-
-import org.elasticsearch.discovery.ec2.AwsEc2Service;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
@@ -106,6 +108,10 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         final MockSecureSettings mockSecure1 = new MockSecureSettings();
         mockSecure1.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), "ec2_access_1");
         mockSecure1.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_1");
+        final boolean mockSecure1HasSessionToken = randomBoolean();
+        if (mockSecure1HasSessionToken) {
+            mockSecure1.setString(Ec2ClientSettings.SESSION_TOKEN_SETTING.getKey(), "ec2_session_token_1");
+        }
         mockSecure1.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_1");
         mockSecure1.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_1");
         final Settings settings1 = Settings.builder()
@@ -117,6 +123,10 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         final MockSecureSettings mockSecure2 = new MockSecureSettings();
         mockSecure2.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), "ec2_access_2");
         mockSecure2.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_2");
+        final boolean mockSecure2HasSessionToken = randomBoolean();
+        if (mockSecure2HasSessionToken) {
+            mockSecure2.setString(Ec2ClientSettings.SESSION_TOKEN_SETTING.getKey(), "ec2_session_token_2");
+        }
         mockSecure2.setString(Ec2ClientSettings.PROXY_USERNAME_SETTING.getKey(), "proxy_username_2");
         mockSecure2.setString(Ec2ClientSettings.PROXY_PASSWORD_SETTING.getKey(), "proxy_password_2");
         final Settings settings2 = Settings.builder()
@@ -127,27 +137,50 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 .build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings1)) {
             try (AmazonEc2Reference clientReference = plugin.ec2Service.client()) {
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSAccessKeyId(), is("ec2_access_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSSecretKey(), is("ec2_secret_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyUsername(), is("proxy_username_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
-                assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
+                {
+                    final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.client()).credentials.getCredentials();
+                    assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_1"));
+                    assertThat(credentials.getAWSSecretKey(), is("ec2_secret_1"));
+                    if (mockSecure1HasSessionToken) {
+                        assertThat(credentials, instanceOf(BasicSessionCredentials.class));
+                        assertThat(((BasicSessionCredentials)credentials).getSessionToken(), is("ec2_session_token_1"));
+                    } else {
+                        assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                    }
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyUsername(), is("proxy_username_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
+                }
                 // reload secure settings2
                 plugin.reload(settings2);
                 // client is not released, it is still using the old settings
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSAccessKeyId(), is("ec2_access_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSSecretKey(), is("ec2_secret_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyUsername(), is("proxy_username_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
-                assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
+                {
+                    final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.client()).credentials.getCredentials();
+                    if (mockSecure1HasSessionToken) {
+                        assertThat(credentials, instanceOf(BasicSessionCredentials.class));
+                        assertThat(((BasicSessionCredentials)credentials).getSessionToken(), is("ec2_session_token_1"));
+                    } else {
+                        assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                    }
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyUsername(), is("proxy_username_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
+                }
             }
             try (AmazonEc2Reference clientReference = plugin.ec2Service.client()) {
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSAccessKeyId(), is("ec2_access_2"));
-                assertThat(((AmazonEC2Mock) clientReference.client()).credentials.getCredentials().getAWSSecretKey(), is("ec2_secret_2"));
+                final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.client()).credentials.getCredentials();
+                assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_2"));
+                assertThat(credentials.getAWSSecretKey(), is("ec2_secret_2"));
+                if (mockSecure2HasSessionToken) {
+                    assertThat(credentials, instanceOf(BasicSessionCredentials.class));
+                    assertThat(((BasicSessionCredentials)credentials).getSessionToken(), is("ec2_session_token_2"));
+                } else {
+                    assertThat(credentials, instanceOf(BasicAWSCredentials.class));
+                }
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyUsername(), is("proxy_username_2"));
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_2"));
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_2"));

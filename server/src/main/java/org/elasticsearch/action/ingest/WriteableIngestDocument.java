@@ -94,7 +94,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<WriteableIngestDocument, Void> PARSER =
         new ConstructingObjectParser<>(
             "writeable_ingest_document",

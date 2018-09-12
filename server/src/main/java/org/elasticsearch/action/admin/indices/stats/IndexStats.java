@@ -29,15 +29,22 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String index;
 
+    private final String uuid;
+
     private final ShardStats shards[];
 
-    public IndexStats(String index, ShardStats[] shards) {
+    public IndexStats(String index, String uuid, ShardStats[] shards) {
         this.index = index;
+        this.uuid = uuid;
         this.shards = shards;
     }
 
     public String getIndex() {
         return this.index;
+    }
+
+    public String getUuid() {
+        return uuid;
     }
 
     public ShardStats[] getShards() {

@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
@@ -24,10 +23,8 @@ import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -67,8 +64,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private static final ParseField OVERLAPPING_BUCKETS = new ParseField("overlapping_buckets");
     private static final ParseField RESULT_FINALIZATION_WINDOW = new ParseField("result_finalization_window");
     private static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
-    private static final ParseField MULTIPLE_BUCKET_SPANS = new ParseField("multiple_bucket_spans");
-    private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
@@ -76,46 +71,34 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> METADATA_PARSER =
-            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), true,
-                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> CONFIG_PARSER =
-            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), false,
-                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
-    public static final Map<MlParserType, ConstructingObjectParser<Builder, Void>> PARSERS =
-            new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                    (p, c) -> Detector.PARSERS.get(parserType).apply(p, c).build(), DETECTORS);
-            parser.declareString((builder, val) ->
-                    builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
-            parser.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
-            parser.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
-            // This one is nasty - the syntax for analyzers takes either names or objects at many levels, hence it's not
-            // possible to simply declare whether the field is a string or object and a completely custom parser is required
-            parser.declareField(Builder::setCategorizationAnalyzerConfig,
-                    (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, parserType),
-                    CATEGORIZATION_ANALYZER, ObjectParser.ValueType.OBJECT_OR_STRING);
-            parser.declareString((builder, val) ->
-                    builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
-            parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
-            parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
-            parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
-            parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
-            parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-            parser.declareStringArray((builder, values) -> builder.setMultipleBucketSpans(
-                    values.stream().map(v -> TimeValue.parseTimeValue(v, MULTIPLE_BUCKET_SPANS.getPreferredName()))
-                            .collect(Collectors.toList())), MULTIPLE_BUCKET_SPANS);
-            parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
-        }
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(),
+            ignoreUnknownFields, a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
+
+        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
+            (p, c) -> (ignoreUnknownFields ? Detector.LENIENT_PARSER : Detector.STRICT_PARSER).apply(p, c).build(), DETECTORS);
+        parser.declareString((builder, val) ->
+            builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
+        parser.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
+        parser.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
+        // This one is nasty - the syntax for analyzers takes either names or objects at many levels, hence it's not
+        // possible to simply declare whether the field is a string or object and a completely custom parser is required
+        parser.declareField(Builder::setCategorizationAnalyzerConfig,
+            (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, ignoreUnknownFields),
+            CATEGORIZATION_ANALYZER, ObjectParser.ValueType.OBJECT_OR_STRING);
+        parser.declareString((builder, val) ->
+            builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
+        parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
+        parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
+        parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
+        parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
+        parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
+
+        return parser;
     }
 
     /**
@@ -132,32 +115,28 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final Boolean overlappingBuckets;
     private final Long resultFinalizationWindow;
     private final Boolean multivariateByFields;
-    private final List<TimeValue> multipleBucketSpans;
-    private final boolean usePerPartitionNormalization;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
                            CategorizationAnalyzerConfig categorizationAnalyzerConfig, TimeValue latency, String summaryCountFieldName,
                            List<Detector> detectors, List<String> influencers, Boolean overlappingBuckets, Long resultFinalizationWindow,
-                           Boolean multivariateByFields, List<TimeValue> multipleBucketSpans, boolean usePerPartitionNormalization) {
+                           Boolean multivariateByFields) {
         this.detectors = detectors;
         this.bucketSpan = bucketSpan;
         this.latency = latency;
         this.categorizationFieldName = categorizationFieldName;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
-        this.categorizationFilters = categorizationFilters;
+        this.categorizationFilters = categorizationFilters == null ? null : Collections.unmodifiableList(categorizationFilters);
         this.summaryCountFieldName = summaryCountFieldName;
-        this.influencers = influencers;
+        this.influencers = Collections.unmodifiableList(influencers);
         this.overlappingBuckets = overlappingBuckets;
         this.resultFinalizationWindow = resultFinalizationWindow;
         this.multivariateByFields = multivariateByFields;
-        this.multipleBucketSpans = multipleBucketSpans;
-        this.usePerPartitionNormalization = usePerPartitionNormalization;
     }
 
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? in.readList(StreamInput::readString) : null;
+        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         } else {
@@ -165,22 +144,28 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
-        detectors = in.readList(Detector::new);
-        influencers = in.readList(StreamInput::readString);
+        detectors = Collections.unmodifiableList(in.readList(Detector::new));
+        influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
         overlappingBuckets = in.readOptionalBoolean();
         resultFinalizationWindow = in.readOptionalLong();
         multivariateByFields = in.readOptionalBoolean();
-        if (in.readBoolean()) {
-            final int arraySize = in.readVInt();
-            final List<TimeValue> spans = new ArrayList<>(arraySize);
-            for (int i = 0; i < arraySize; i++) {
-                spans.add(in.readTimeValue());
+
+        // BWC for removed multiple_bucket_spans
+        // TODO Remove in 7.0.0
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            if (in.readBoolean()) {
+                final int arraySize = in.readVInt();
+                for (int i = 0; i < arraySize; i++) {
+                    in.readTimeValue();
+                }
             }
-            multipleBucketSpans = spans;
-        } else {
-            multipleBucketSpans = null;
         }
-        usePerPartitionNormalization = in.readBoolean();
+
+        // BWC for removed per-partition normalization
+        // TODO Remove in 7.0.0
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            in.readBoolean();
+        }
     }
 
     @Override
@@ -203,16 +188,18 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(overlappingBuckets);
         out.writeOptionalLong(resultFinalizationWindow);
         out.writeOptionalBoolean(multivariateByFields);
-        if (multipleBucketSpans != null) {
-            out.writeBoolean(true);
-            out.writeVInt(multipleBucketSpans.size());
-            for (TimeValue span : multipleBucketSpans) {
-                out.writeTimeValue(span);
-            }
-        } else {
+
+        // BWC for removed multiple_bucket_spans
+        // TODO Remove in 7.0.0
+        if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeBoolean(false);
         }
-        out.writeBoolean(usePerPartitionNormalization);
+
+        // BWC for removed per-partition normalization
+        // TODO Remove in 7.0.0
+        if (out.getVersion().before(Version.V_6_5_0)) {
+            out.writeBoolean(false);
+        }
     }
 
     /**
@@ -316,14 +303,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         return multivariateByFields;
     }
 
-    public List<TimeValue> getMultipleBucketSpans() {
-        return multipleBucketSpans;
-    }
-
-    public boolean getUsePerPartitionNormalization() {
-        return usePerPartitionNormalization;
-    }
-
     /**
      * Return the set of fields required by the analysis.
      * These are the influencer fields, metric field, partition field,
@@ -424,13 +403,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         if (multivariateByFields != null) {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
         }
-        if (multipleBucketSpans != null) {
-            builder.field(MULTIPLE_BUCKET_SPANS.getPreferredName(),
-                    multipleBucketSpans.stream().map(TimeValue::getStringRep).collect(Collectors.toList()));
-        }
-        if (usePerPartitionNormalization) {
-            builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
-        }
         builder.endObject();
         return builder;
     }
@@ -441,7 +413,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisConfig that = (AnalysisConfig) o;
         return Objects.equals(latency, that.latency) &&
-                usePerPartitionNormalization == that.usePerPartitionNormalization &&
                 Objects.equals(bucketSpan, that.bucketSpan) &&
                 Objects.equals(categorizationFieldName, that.categorizationFieldName) &&
                 Objects.equals(categorizationFilters, that.categorizationFilters) &&
@@ -451,8 +422,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 Objects.equals(influencers, that.influencers) &&
                 Objects.equals(overlappingBuckets, that.overlappingBuckets) &&
                 Objects.equals(resultFinalizationWindow, that.resultFinalizationWindow) &&
-                Objects.equals(multivariateByFields, that.multivariateByFields) &&
-                Objects.equals(multipleBucketSpans, that.multipleBucketSpans);
+                Objects.equals(multivariateByFields, that.multivariateByFields);
     }
 
     @Override
@@ -460,7 +430,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         return Objects.hash(
                 bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, latency,
                 summaryCountFieldName, detectors, influencers, overlappingBuckets, resultFinalizationWindow,
-                multivariateByFields, multipleBucketSpans, usePerPartitionNormalization
+                multivariateByFields
         );
     }
 
@@ -479,27 +449,24 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private Boolean overlappingBuckets;
         private Long resultFinalizationWindow;
         private Boolean multivariateByFields;
-        private List<TimeValue> multipleBucketSpans;
-        private boolean usePerPartitionNormalization = false;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
         }
 
         public Builder(AnalysisConfig analysisConfig) {
-            this.detectors = analysisConfig.detectors;
+            this.detectors = new ArrayList<>(analysisConfig.detectors);
             this.bucketSpan = analysisConfig.bucketSpan;
             this.latency = analysisConfig.latency;
             this.categorizationFieldName = analysisConfig.categorizationFieldName;
-            this.categorizationFilters = analysisConfig.categorizationFilters;
+            this.categorizationFilters = analysisConfig.categorizationFilters == null ? null
+                    : new ArrayList<>(analysisConfig.categorizationFilters);
             this.categorizationAnalyzerConfig = analysisConfig.categorizationAnalyzerConfig;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
-            this.influencers = analysisConfig.influencers;
+            this.influencers = new ArrayList<>(analysisConfig.influencers);
             this.overlappingBuckets = analysisConfig.overlappingBuckets;
             this.resultFinalizationWindow = analysisConfig.resultFinalizationWindow;
             this.multivariateByFields = analysisConfig.multivariateByFields;
-            this.multipleBucketSpans = analysisConfig.multipleBucketSpans;
-            this.usePerPartitionNormalization = analysisConfig.usePerPartitionNormalization;
         }
 
         public void setDetectors(List<Detector> detectors) {
@@ -516,6 +483,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 sequentialIndexDetectors.add(builder.build());
             }
             this.detectors = sequentialIndexDetectors;
+        }
+
+        public void setDetector(int detectorIndex, Detector detector) {
+            detectors.set(detectorIndex, detector);
         }
 
         public void setBucketSpan(TimeValue bucketSpan) {
@@ -543,7 +514,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         public void setInfluencers(List<String> influencers) {
-            this.influencers = influencers;
+            this.influencers = ExceptionsHelper.requireNonNull(influencers, INFLUENCERS.getPreferredName());
         }
 
         public void setOverlappingBuckets(Boolean overlappingBuckets) {
@@ -556,14 +527,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         public void setMultivariateByFields(Boolean multivariateByFields) {
             this.multivariateByFields = multivariateByFields;
-        }
-
-        public void setMultipleBucketSpans(List<TimeValue> multipleBucketSpans) {
-            this.multipleBucketSpans = multipleBucketSpans;
-        }
-
-        public void setUsePerPartitionNormalization(boolean usePerPartitionNormalization) {
-            this.usePerPartitionNormalization = usePerPartitionNormalization;
         }
 
         /**
@@ -593,22 +556,16 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             verifyCategorizationAnalyzer();
             verifyCategorizationFilters();
             checkFieldIsNotNegativeIfSpecified(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
-            verifyMultipleBucketSpans();
 
             verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet();
 
             overlappingBuckets = verifyOverlappingBucketsConfig(overlappingBuckets, detectors);
 
-            if (usePerPartitionNormalization) {
-                checkDetectorsHavePartitionFields(detectors);
-                checkNoInfluencersAreSet(influencers);
-            }
-
             verifyNoInconsistentNestedFieldNames();
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
                     latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
-                    resultFinalizationWindow, multivariateByFields, multipleBucketSpans, usePerPartitionNormalization);
+                    resultFinalizationWindow, multivariateByFields);
         }
 
         private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {
@@ -729,36 +686,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                     throw ExceptionsHelper.badRequestException(
                             Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, filter));
                 }
-            }
-        }
-
-        private void verifyMultipleBucketSpans() {
-            if (multipleBucketSpans == null) {
-                return;
-            }
-
-            for (TimeValue span : multipleBucketSpans) {
-                if ((span.getSeconds() % bucketSpan.getSeconds() != 0L) || (span.compareTo(bucketSpan) <= 0)) {
-                    throw ExceptionsHelper.badRequestException(
-                            Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, span, bucketSpan));
-                }
-            }
-        }
-
-        private static void checkDetectorsHavePartitionFields(List<Detector> detectors) {
-            for (Detector detector : detectors) {
-                if (!Strings.isNullOrEmpty(detector.getPartitionFieldName())) {
-                    return;
-                }
-            }
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(
-                    Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD));
-        }
-
-        private static void checkNoInfluencersAreSet(List<String> influencers) {
-            if (!influencers.isEmpty()) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(
-                        Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS));
             }
         }
 

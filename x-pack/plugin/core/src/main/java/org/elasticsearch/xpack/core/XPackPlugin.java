@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -197,7 +197,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final MetaData metaData = clusterState.metaData();
         return metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MLMetadataField.TYPE) != null ||
+            metaData.custom(MlMetadata.TYPE) != null ||
             metaData.custom(WatcherMetaData.TYPE) != null ||
             clusterState.custom(TokenMetaData.TYPE) != null;
     }

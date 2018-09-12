@@ -74,7 +74,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         // since we can't be sure if the task was ever realized, we remove both the provider and the task
         TaskProvider<Test> oldTestProvider
         try {
-            oldTestProvider = tasks.getByNameLater(Test, 'test')
+            oldTestProvider = tasks.named('test')
         } catch (UnknownTaskException unused) {
             // no test task, ok, user will use testing task on their own
             return

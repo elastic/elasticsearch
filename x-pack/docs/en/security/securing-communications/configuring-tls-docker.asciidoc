@@ -1,12 +1,13 @@
 [role="xpack"]
 [[configuring-tls-docker]]
-=== Encrypting Communications in an {es} Docker Image
+=== Encrypting Communications in an {es} Docker Container
 
 Starting with version 6.0.0, {security} (Gold, Platinum or Enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS]
 encryption for the transport networking layer.
 
 This section demonstrates an easy path to get started with SSL/TLS for both
-HTTPS and transport using the `elasticsearch-platinum` docker image.
+HTTPS and transport using the {es} Docker image. The example uses
+Docker Compose to manage the containers.
 
 For further details, please refer to
 {xpack-ref}/encrypting-communications.html[Encrypting Communications] and
@@ -17,7 +18,7 @@ https://www.elastic.co/subscriptions[available subscriptions].
 
 <<docker,Install {es} with Docker>>.
 
-Inside a new, empty, directory create the following **four files**:
+Inside a new, empty directory, create the following four files:
 
 `instances.yml`:
 ["source","yaml"]
@@ -29,6 +30,7 @@ instances:
       - localhost
     ip:
       - 127.0.0.1
+
   - name: es02
     dns:
       - es02
@@ -60,6 +62,7 @@ ifeval::["{release-state}"!="unreleased"]
 ["source","yaml",subs="attributes"]
 ----
 version: '2.2'
+
 services:
   create_certs:
     container_name: create_certs
@@ -96,6 +99,7 @@ ifeval::["{release-state}"!="unreleased"]
 ["source","yaml",subs="attributes"]
 ----
 version: '2.2'
+
 services:
   es01:
     container_name: es01
@@ -105,9 +109,11 @@ services:
       - discovery.zen.minimum_master_nodes=2
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.license.self_generated.type=trial <2>
+      - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.verification_mode=certificate <2>
+      - xpack.security.transport.ssl.verification_mode=certificate <3>
       - xpack.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.ssl.key=$CERTS_DIR/es01/es01.key
@@ -119,15 +125,18 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
   es02:
     container_name: es02
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     environment:
       - node.name=es02
       - discovery.zen.minimum_master_nodes=2
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - discovery.zen.ping.unicast.hosts=es01
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.license.self_generated.type=trial
+      - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.transport.ssl.enabled=true
       - xpack.security.transport.ssl.verification_mode=certificate
@@ -135,16 +144,20 @@ services:
       - xpack.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.ssl.key=$CERTS_DIR/es02/es02.key
     volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
+
   wait_until_ready:
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     command: /usr/bin/true
     depends_on: {"es01": {"condition": "service_healthy"}}
+
 volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 ----
 
-<1> Bootstrap `elastic` with the password defined in `.env`. See 
+<1> Bootstrap `elastic` with the password defined in `.env`. See
 {stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
-<2> Disable verification of authenticity for inter-node communication. Allows
+<2> Automatically generate and apply a trial subscription, in order to enable
+{security}.
+<3> Disable verification of authenticity for inter-node communication. Allows
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]
 

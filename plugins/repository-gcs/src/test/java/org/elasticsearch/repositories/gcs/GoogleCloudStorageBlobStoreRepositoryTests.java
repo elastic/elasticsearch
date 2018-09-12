@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.AfterClass;
 
@@ -34,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -49,14 +51,20 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     @Override
-    protected void createTestRepository(String name) {
+    protected void createTestRepository(String name, boolean verify) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
                 .setType(GoogleCloudStorageRepository.TYPE)
+                .setVerify(verify)
                 .setSettings(Settings.builder()
                         .put("bucket", BUCKET)
                         .put("base_path", GoogleCloudStorageBlobStoreRepositoryTests.class.getSimpleName())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+    }
+
+    @Override
+    protected void afterCreationCheck(Repository repository) {
+        assertThat(repository, instanceOf(GoogleCloudStorageRepository.class));
     }
 
     @AfterClass

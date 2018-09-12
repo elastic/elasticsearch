@@ -267,7 +267,7 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-response2
-            Response response = restClient.performRequest("GET", "/");
+            Response response = restClient.performRequest(new Request("GET", "/"));
             RequestLine requestLine = response.getRequestLine(); // <1>
             HttpHost host = response.getHost(); // <2>
             int statusCode = response.getStatusLine().getStatusCode(); // <3>

@@ -55,6 +55,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
@@ -992,6 +993,16 @@ public abstract class StreamOutput extends OutputStream {
         writeVInt(list.size());
         for (Writeable obj: list) {
             obj.writeTo(this);
+        }
+    }
+
+    /**
+     * Writes a collection of generic objects via a {@link Writer}
+     */
+    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+        writeVInt(collection.size());
+        for (T val: collection) {
+            writer.write(this, val);
         }
     }
 

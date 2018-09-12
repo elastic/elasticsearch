@@ -21,9 +21,7 @@ package org.elasticsearch.action.resync;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +36,7 @@ public class ResyncReplicationRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
         final Translog.Index index = new Translog.Index("type", "id", 0, randomNonNegativeLong(),
-            Versions.MATCH_ANY, VersionType.INTERNAL, bytes, null, -1);
+            randomNonNegativeLong(), bytes, null, -1);
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
         final ResyncReplicationRequest before = new ResyncReplicationRequest(shardId, 42L, new Translog.Operation[]{index});
 

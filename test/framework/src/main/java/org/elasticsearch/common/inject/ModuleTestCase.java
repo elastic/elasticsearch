@@ -42,17 +42,17 @@ import java.util.function.Predicate;
 public abstract class ModuleTestCase extends ESTestCase {
 
     /** Configures the module and asserts "clazz" is bound to "to". */
-    public void assertBinding(Module module, Class to, Class clazz) {
+    public void assertBinding(Module module, Class<?> to, Class<?> clazz) {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
-                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                LinkedKeyBinding<?> binding = (LinkedKeyBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     assertSame(clazz, binding.getLinkedKey().getTypeLiteral().getType());
                     return;
                 }
             } else if (element instanceof UntargettedBinding) {
-                UntargettedBinding binding = (UntargettedBinding) element;
+                UntargettedBinding<?> binding = (UntargettedBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     assertSame(clazz, to);
                     return;
@@ -67,16 +67,16 @@ public abstract class ModuleTestCase extends ESTestCase {
     }
 
     /** Configures the module and asserts "clazz" is not bound to anything. */
-    public void assertNotBound(Module module, Class clazz) {
+    public void assertNotBound(Module module, Class<?> clazz) {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
-                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                LinkedKeyBinding<?> binding = (LinkedKeyBinding<?>) element;
                 if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
                     fail("Found binding for " + clazz.getName() + " to " + binding.getKey().getTypeLiteral().getType().getTypeName());
                 }
             } else if (element instanceof UntargettedBinding) {
-                UntargettedBinding binding = (UntargettedBinding) element;
+                UntargettedBinding<?> binding = (UntargettedBinding<?>) element;
                 if (clazz.equals(binding.getKey().getTypeLiteral().getType())) {
                     fail("Found binding for " + clazz.getName());
                 }
@@ -107,18 +107,18 @@ public abstract class ModuleTestCase extends ESTestCase {
      * Configures the module and checks a Map&lt;String, Class&gt; of the "to" class
      * is bound to "theClass".
      */
-    public void assertMapMultiBinding(Module module, Class to, Class theClass) {
+    public void assertMapMultiBinding(Module module, Class<?> to, Class<?> theClass) {
         List<Element> elements = Elements.getElements(module);
         Set<Type> bindings = new HashSet<>();
         boolean providerFound = false;
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
-                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                LinkedKeyBinding<?> binding = (LinkedKeyBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     bindings.add(binding.getLinkedKey().getTypeLiteral().getType());
                 }
             } else if (element instanceof ProviderInstanceBinding) {
-                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
                 String setType = binding.getKey().getTypeLiteral().getType().toString();
                 if (setType.equals("java.util.Map<java.lang.String, " + to.getName() + ">")) {
                     providerFound = true;
@@ -138,18 +138,18 @@ public abstract class ModuleTestCase extends ESTestCase {
      * is bound to "classes". There may be more classes bound
      * to "to" than just "classes".
      */
-    public void assertSetMultiBinding(Module module, Class to, Class... classes) {
+    public void assertSetMultiBinding(Module module, Class<?> to, Class<?>... classes) {
         List<Element> elements = Elements.getElements(module);
         Set<Type> bindings = new HashSet<>();
         boolean providerFound = false;
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
-                LinkedKeyBinding binding = (LinkedKeyBinding) element;
+                LinkedKeyBinding<?> binding = (LinkedKeyBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     bindings.add(binding.getLinkedKey().getTypeLiteral().getType());
                 }
             } else if (element instanceof ProviderInstanceBinding) {
-                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
                 String setType = binding.getKey().getTypeLiteral().getType().toString();
                 if (setType.equals("java.util.Set<" + to.getName() + ">")) {
                     providerFound = true;
@@ -157,7 +157,7 @@ public abstract class ModuleTestCase extends ESTestCase {
             }
         }
 
-        for (Class clazz : classes) {
+        for (Class<?> clazz : classes) {
             if (bindings.contains(clazz) == false) {
                 fail("Expected to find " + clazz.getName() + " as set binding to " + to.getName() + ", found these classes:\n" + bindings);
             }
@@ -180,12 +180,12 @@ public abstract class ModuleTestCase extends ESTestCase {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof InstanceBinding) {
-                InstanceBinding binding = (InstanceBinding) element;
+                InstanceBinding<?> binding = (InstanceBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     return to.cast(binding.getInstance());
                 }
             } else  if (element instanceof ProviderInstanceBinding) {
-                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     return to.cast(binding.getProviderInstance().get());
                 }
@@ -203,7 +203,7 @@ public abstract class ModuleTestCase extends ESTestCase {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof InstanceBinding) {
-                InstanceBinding binding = (InstanceBinding) element;
+                InstanceBinding<?> binding = (InstanceBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
                         assertTrue(tester.test(to.cast(binding.getInstance())));
@@ -211,7 +211,7 @@ public abstract class ModuleTestCase extends ESTestCase {
                     }
                 }
             } else  if (element instanceof ProviderInstanceBinding) {
-                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
                     return;
@@ -232,27 +232,27 @@ public abstract class ModuleTestCase extends ESTestCase {
     @SuppressWarnings("unchecked")
     public <K, V> void assertMapInstanceBinding(Module module, Class<K> keyType, Class<V> valueType, Map<K, V> expected) throws Exception {
         // this method is insane because java type erasure makes it incredibly difficult...
-        Map<K, Key> keys = new HashMap<>();
-        Map<Key, V> values = new HashMap<>();
+        Map<K, Key<?>> keys = new HashMap<>();
+        Map<Key<?>, V> values = new HashMap<>();
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
             if (element instanceof InstanceBinding) {
-                InstanceBinding binding = (InstanceBinding) element;
+                InstanceBinding<?> binding = (InstanceBinding<?>) element;
                 if (binding.getKey().getRawType().equals(valueType)) {
                     values.put(binding.getKey(), (V) binding.getInstance());
                 } else if (binding.getInstance() instanceof Map.Entry) {
-                    Map.Entry entry = (Map.Entry) binding.getInstance();
+                    Map.Entry<?, ?> entry = (Map.Entry<?, ?>) binding.getInstance();
                     Object key = entry.getKey();
                     Object providerValue = entry.getValue();
                     if (key.getClass().equals(keyType) && providerValue instanceof ProviderLookup.ProviderImpl) {
-                        ProviderLookup.ProviderImpl provider = (ProviderLookup.ProviderImpl) providerValue;
+                        ProviderLookup.ProviderImpl<?> provider = (ProviderLookup.ProviderImpl<?>) providerValue;
                         keys.put((K) key, provider.getKey());
                     }
                 }
             }
         }
         for (Map.Entry<K, V> entry : expected.entrySet()) {
-            Key valueKey = keys.get(entry.getKey());
+            Key<?> valueKey = keys.get(entry.getKey());
             assertNotNull("Could not find binding for key [" + entry.getKey() + "], found these keys:\n" + keys.keySet(), valueKey);
             V value = values.get(valueKey);
             assertNotNull("Could not find value for instance key [" + valueKey + "], found these bindings:\n" + elements);

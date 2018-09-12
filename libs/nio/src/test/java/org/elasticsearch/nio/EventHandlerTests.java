@@ -120,7 +120,6 @@ public class EventHandlerTests extends ESTestCase {
         verify(channelFactory, times(2)).acceptNioChannel(same(serverContext), same(selectorSupplier));
     }
 
-    @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
         SocketChannelContext childContext = mock(SocketChannelContext.class);

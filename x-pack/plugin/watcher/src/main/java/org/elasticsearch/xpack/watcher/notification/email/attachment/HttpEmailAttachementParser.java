@@ -34,13 +34,10 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
 
     public static final String TYPE = "http";
     private final HttpClient httpClient;
-    private HttpRequestTemplate.Parser requestTemplateParser;
     private final TextTemplateEngine templateEngine;
 
-    public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
-                                      TextTemplateEngine templateEngine) {
+    public HttpEmailAttachementParser(HttpClient httpClient, TextTemplateEngine templateEngine) {
         this.httpClient = httpClient;
-        this.requestTemplateParser = requestTemplateParser;
         this.templateEngine = templateEngine;
     }
 
@@ -65,7 +62,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
             } else if (Fields.INLINE.match(currentFieldName, parser.getDeprecationHandler())) {
                 inline = parser.booleanValue();
             } else if (Fields.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
-                requestTemplate = requestTemplateParser.parse(parser);
+                requestTemplate = HttpRequestTemplate.Parser.parse(parser);
             } else {
                 String msg = "Unknown field name [" + currentFieldName + "] in http request attachment configuration";
                 throw new ElasticsearchParseException(msg);

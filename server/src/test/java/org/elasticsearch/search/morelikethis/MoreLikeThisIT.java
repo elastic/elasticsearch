@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -335,6 +336,36 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[] {"int_value"}, new String[] {"42"}, null).minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
         assertHitCount(searchResponse, 0L);
+    }
+
+    public void testMoreLikeThisWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("text")
+                        .field("type", "text")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        ensureGreen();
+
+        index("test", "_doc", "1", "text", "lucene");
+        index("test", "_doc", "2", "text", "lucene release");
+        refresh();
+
+        Item item = new Item("test", "_doc", "1");
+        QueryBuilder query = QueryBuilders.moreLikeThisQuery(new String[] {"alias"}, null, new Item[] {item})
+            .minTermFreq(1)
+            .minDocFreq(1);
+        SearchResponse response = client().prepareSearch().setQuery(query).get();
+        assertHitCount(response, 1L);
     }
 
     public void testSimpleMoreLikeInclude() throws Exception {

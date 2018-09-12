@@ -45,8 +45,8 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
             assertNull(conversion.convert(null));
-            assertEquals(1, conversion.convert(true));
-            assertEquals(0, conversion.convert(false));
+            assertEquals(1L, conversion.convert(true));
+            assertEquals(0L, conversion.convert(false));
         }
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
@@ -142,11 +142,18 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(false, conversion.convert(0));
         }
         {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.LONG, DataType.BOOLEAN);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10L));
+            assertEquals(true, conversion.convert(-10L));
+            assertEquals(false, conversion.convert(0L));
+        }
+        {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(10.0));
-            assertEquals(true, conversion.convert(-10.0));
-            assertEquals(false, conversion.convert(0.0));
+            assertEquals(true, conversion.convert(10.0d));
+            assertEquals(true, conversion.convert(-10.0d));
+            assertEquals(false, conversion.convert(0.0d));
         }
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.BOOLEAN);

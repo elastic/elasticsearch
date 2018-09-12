@@ -20,9 +20,12 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.Pipeline;
@@ -31,7 +34,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.Objects;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
@@ -124,6 +130,27 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
+        assertTrue(execute(
+            putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync).isAcknowledged());
+    }
+
+    protected static void clusterUpdateSettings(Settings persistentSettings,
+                                                Settings transientSettings) throws IOException {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(persistentSettings);
+        request.transientSettings(transientSettings);
+        assertTrue(execute(
+            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        final String user = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
+        final String pass = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
+        final String token = "Basic " + Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
+        return Settings.builder()
+            .put(super.restClientSettings())
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

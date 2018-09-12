@@ -35,11 +35,8 @@ import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -70,8 +67,8 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      */
     public void testCancelRecoveryAndResume() throws Exception {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)))
-                .get().isAcknowledged());
+            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES)))
+            .get().isAcknowledged());
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -91,9 +88,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=text", "the_id", "type=text")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
+            .addMapping("type1", "field1", "type=text", "the_id", "type=text")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
 
         // index some docs and check if they are coming back
         int numDocs = randomIntBetween(100, 200);
@@ -116,11 +113,8 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                           TransportRequestOptions options) throws IOException {
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
@@ -129,16 +123,15 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                             throw new RuntimeException("Caused some truncated files for fun and profit");
                         }
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
-                }
-            });
+                    connection.sendRequest(requestId, action, request, options);
+                });
         }
 
         logger.info("--> bumping replicas to 1"); //
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName())).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
+                primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName())).get();
 
         latch.await();
 

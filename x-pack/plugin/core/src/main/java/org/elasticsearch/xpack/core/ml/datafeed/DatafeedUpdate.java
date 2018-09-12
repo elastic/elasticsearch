@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,7 +67,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return parsedScriptFields;
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
-        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.CONFIG_PARSER, DatafeedConfig.CHUNKING_CONFIG);
+        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
     }
 
     private final String id;
@@ -122,10 +121,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            // TODO for former _source param - remove in v7.0.0
-            in.readOptionalBoolean();
-        }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
     }
 
@@ -163,10 +158,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            // TODO for former _source param - remove in v7.0.0
-            out.writeOptionalBoolean(null);
-        }
         out.writeOptionalWriteable(chunkingConfig);
     }
 
@@ -350,6 +341,18 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    boolean isNoop(DatafeedConfig datafeed) {
+        return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
+                && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
+                && (indices == null || Objects.equals(indices, datafeed.getIndices()))
+                && (types == null || Objects.equals(types, datafeed.getTypes()))
+                && (query == null || Objects.equals(query, datafeed.getQuery()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
+                && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
+                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
     }
 
     public static class Builder {

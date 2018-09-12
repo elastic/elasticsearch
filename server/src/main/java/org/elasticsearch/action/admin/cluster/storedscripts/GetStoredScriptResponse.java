@@ -114,11 +114,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         super.readFrom(in);
 
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                source = new StoredScriptSource(in);
-            } else {
-                source = new StoredScriptSource(in.readString());
-            }
+            source = new StoredScriptSource(in);
         } else {
             source = null;
         }
@@ -136,12 +132,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-
-            if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                source.writeTo(out);
-            } else {
-                out.writeString(source.getSource());
-            }
+            source.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeString(id);

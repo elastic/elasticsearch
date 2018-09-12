@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,10 +33,6 @@ public enum JobState implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         JobState state = this;
-        // Pre v5.5 the OPENING state didn't exist
-        if (this == OPENING && out.getVersion().before(Version.V_5_5_0)) {
-            state = CLOSED;
-        }
         out.writeEnum(state);
     }
 

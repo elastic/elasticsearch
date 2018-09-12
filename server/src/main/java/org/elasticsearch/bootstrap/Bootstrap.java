@@ -216,6 +216,11 @@ final class Bootstrap {
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
+
+            @Override
+            protected void registerDerivedNodeNameWithLogger(String nodeName) {
+                LogConfigurator.setNodeName(nodeName);
+            }
         };
     }
 
@@ -287,6 +292,10 @@ final class Bootstrap {
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+
+        if (Node.NODE_NAME_SETTING.exists(environment.settings())) {
+            LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+        }
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -317,8 +326,7 @@ final class Bootstrap {
             // install the default uncaught exception handler; must be done before security is
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
-            Thread.setDefaultUncaughtExceptionHandler(
-                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
+            Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
             INSTANCE.setup(true, environment);
 
@@ -341,10 +349,7 @@ final class Bootstrap {
             if (foreground && maybeConsoleAppender != null) {
                 Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
-            Logger logger = Loggers.getLogger(Bootstrap.class);
-            if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
-            }
+            Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {
                 // guice: log the shortened exc to the log file

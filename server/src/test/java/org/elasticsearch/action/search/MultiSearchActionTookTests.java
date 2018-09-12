@@ -37,6 +37,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -128,10 +129,9 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
     private TransportMultiSearchAction createTransportMultiSearchAction(boolean controlledClock, AtomicLong expected) {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
-        TaskManager taskManager = mock(TaskManager.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
-            Collections.emptySet()) {
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(),
+            UUIDs.randomBase64UUID()), null, Collections.emptySet()) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;
@@ -140,7 +140,6 @@ public class MultiSearchActionTookTests extends ESTestCase {
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
-        IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
         AtomicInteger counter = new AtomicInteger();

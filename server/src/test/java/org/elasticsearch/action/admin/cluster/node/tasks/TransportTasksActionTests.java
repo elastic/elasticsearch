@@ -79,7 +79,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
-        private boolean enableTaskManager;
 
         public NodeRequest() {
             super();
@@ -88,82 +87,63 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         public NodeRequest(NodesRequest request, String nodeId) {
             super(nodeId);
             requestName = request.requestName;
-            enableTaskManager = request.enableTaskManager;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            enableTaskManager = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeBoolean(enableTaskManager);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodeRequest[" + requestName + ", " + enableTaskManager + "]";
+            return "CancellableNodeRequest[" + requestName + "]";
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId, headers);
-            } else {
-                return null;
-            }
+            return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
-        private boolean enableTaskManager;
 
         NodesRequest() {
             super();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
-            this(requestName, true, nodesIds);
-        }
-
-        public NodesRequest(String requestName, boolean enableTaskManager, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-            this.enableTaskManager = enableTaskManager;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            enableTaskManager = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeBoolean(enableTaskManager);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodesRequest[" + requestName + ", " + enableTaskManager + "]";
+            return "CancellableNodesRequest[" + requestName + "]";
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId, headers);
-            } else {
-                return null;
-            }
+            return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
@@ -296,7 +276,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
@@ -361,7 +341,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         int testNodeNum = randomIntBetween(0, testNodes.length - 1);
         TestNode testNode = testNodes[testNodeNum];
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction*"); // pick all test actions
+        listTasksRequest.setActions("internal:testAction*"); // pick all test actions
         logger.info("Listing currently running tasks using node [{}]", testNodeNum);
         ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         logger.info("Checking currently running tasks");
@@ -381,7 +361,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Check task counts using transport with filtering
         testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
         listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction[n]"); // only pick node actions
+        listTasksRequest.setActions("internal:testAction[n]"); // only pick node actions
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
@@ -400,11 +380,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
         }
 
         // Make sure that the main task on coordinating node is the task that was returned to us by execute()
-        listTasksRequest.setActions("testAction"); // only pick the main task
+        listTasksRequest.setActions("internal:testAction"); // only pick the main task
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(1, response.getTasks().size());
         assertEquals(mainTask.getId(), response.getTasks().get(0).getId());
@@ -432,7 +412,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Get the parent task
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction");
+        listTasksRequest.setActions("internal:testAction");
         ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(1, response.getTasks().size());
         String parentNode = response.getTasks().get(0).getTaskId().getNodeId();
@@ -444,31 +424,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getTasks().size());
         for (TaskInfo task : response.getTasks()) {
-            assertEquals("testAction[n]", task.getAction());
+            assertEquals("internal:testAction[n]", task.getAction());
             assertEquals(parentNode, task.getParentTaskId().getNodeId());
             assertEquals(parentTaskId, task.getParentTaskId().getId());
         }
-
-        // Release all tasks and wait for response
-        checkLatch.countDown();
-        NodesResponse responses = future.get();
-        assertEquals(0, responses.failureCount());
-    }
-
-    public void testTaskManagementOptOut() throws Exception {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        CountDownLatch checkLatch = new CountDownLatch(1);
-        // Starting actions that disable task manager
-        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request", false));
-
-        TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
-
-        // Get the parent task
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction*");
-        ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
-        assertEquals(0, response.getTasks().size());
 
         // Release all tasks and wait for response
         checkLatch.countDown();
@@ -487,7 +446,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Check task counts using transport with filtering
         TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction[n]"); // only pick node actions
+        listTasksRequest.setActions("internal:testAction[n]"); // only pick node actions
         ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
@@ -502,7 +461,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
             assertThat(entry.getValue().get(0).getStartTime(), greaterThanOrEqualTo(minimalStartTime));
             assertThat(entry.getValue().get(0).getRunningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
         }
@@ -529,7 +488,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 responseLatch.countDown();
             }
         });
-        String actionName = "testAction"; // only pick the main action
+        String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
         CancelTasksRequest request = new CancelTasksRequest();
@@ -579,10 +538,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         setupTestNodes(settings);
         connectNodes(testNodes);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
-        RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "testAction*");
+        RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "internal:testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
@@ -622,7 +581,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", testNodes[i].clusterService,
+            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction", testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
@@ -660,7 +619,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Run task action on node tasks that are currently running
         // should be successful on all nodes except one
         TestTasksRequest testTasksRequest = new TestTasksRequest();
-        testTasksRequest.setActions("testAction[n]"); // pick all test actions
+        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
         TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], testTasksRequest);
         assertThat(response.getTaskFailures(), hasSize(1)); // one task failed
         assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
@@ -701,7 +660,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction",
+            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction",
                 testNodes[i].clusterService, testNodes[i].transportService) {
 
                 @Override
@@ -730,7 +689,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Run task action on node tasks that are currently running
         // should be successful on all nodes except nodes that we filtered out
         TestTasksRequest testTasksRequest = new TestTasksRequest();
-        testTasksRequest.setActions("testAction[n]"); // pick all test actions
+        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
         TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[randomIntBetween(0, nodesCount - 1)], testTasksRequest);
 
         // Get successful responses from all nodes except nodes that we filtered out

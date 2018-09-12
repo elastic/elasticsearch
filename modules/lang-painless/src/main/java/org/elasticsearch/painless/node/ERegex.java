@@ -72,7 +72,7 @@ public final class ERegex extends AExpression {
         }
 
         constant = new Constant(
-            location, locals.getDefinition().PatternType.type, "regexAt$" + location.getOffset(), this::initializeConstant);
+            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
         actual = Pattern.class;
     }
 

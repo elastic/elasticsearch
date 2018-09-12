@@ -63,10 +63,10 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -170,6 +170,106 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHighlight(search, 0, "text", 0, equalTo("<em>text</em>"));
         }
     }
+
+    public void testFieldAlias() throws IOException {
+        XContentBuilder mappings = jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                            .field("store", true)
+                            .field("term_vector", "with_positions_offsets")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mappings));
+
+        client().prepareIndex("test", "type", "1").setSource("text", "foo").get();
+        refresh();
+
+        for (String type : ALL_TYPES) {
+            HighlightBuilder builder = new HighlightBuilder()
+                .field(new Field("alias").highlighterType(type))
+                .requireFieldMatch(randomBoolean());
+            SearchResponse search = client().prepareSearch()
+                .setQuery(matchQuery("alias", "foo"))
+                .highlighter(builder)
+                .get();
+            assertHighlight(search, 0, "alias", 0, equalTo("<em>foo</em>"));
+        }
+    }
+
+    public void testFieldAliasWithSourceLookup() throws IOException {
+        XContentBuilder mappings = jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "text")
+                            .field("analyzer", "whitespace")
+                            .field("store", false)
+                            .field("term_vector", "with_positions_offsets")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mappings));
+
+        client().prepareIndex("test", "type", "1").setSource("text", "foo bar").get();
+        refresh();
+
+        for (String type : ALL_TYPES) {
+            HighlightBuilder builder = new HighlightBuilder()
+                .field(new Field("alias").highlighterType(type))
+                .requireFieldMatch(randomBoolean());
+            SearchResponse search = client().prepareSearch()
+                .setQuery(matchQuery("alias", "bar"))
+                .highlighter(builder)
+                .get();
+            assertHighlight(search, 0, "alias", 0, equalTo("foo <em>bar</em>"));
+        }
+    }
+
+    public void testFieldAliasWithWildcardField() throws IOException {
+        XContentBuilder mappings = jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("keyword")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "keyword")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mappings));
+
+        client().prepareIndex("test", "type", "1").setSource("keyword", "foo").get();
+        refresh();
+
+        HighlightBuilder builder = new HighlightBuilder()
+            .field(new Field("al*"))
+            .requireFieldMatch(false);
+        SearchResponse search = client().prepareSearch()
+            .setQuery(matchQuery("alias", "foo"))
+            .highlighter(builder)
+            .get();
+        assertHighlight(search, 0, "alias", 0, equalTo("<em>foo</em>"));
+    }
+
 
     public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
         XContentBuilder mappings = jsonBuilder();
@@ -2865,7 +2965,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             "field", "type=text,store=true,term_vector=with_positions_offsets")
             .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
             .get());
-        DateTime now = new DateTime(ISOChronology.getInstanceUTC());
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now, "field", "hello world"),
             client().prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1), "field", "hello"),
             client().prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2), "field", "world"));

@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
@@ -100,7 +99,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             )
     };
 
-    protected static final String TESTNODE_KEYSTORE = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks";
+    protected static final String TESTNODE_KEY = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem";
+    protected static final String TESTNODE_CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
     protected static boolean useGlobalSSL;
@@ -122,7 +122,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
-        Path store = getDataPath(TESTNODE_KEYSTORE);
+        final Path nodeCert = getDataPath(TESTNODE_CERT);
+        final Path nodeKey = getDataPath(TESTNODE_KEY);
         Settings.Builder builder = Settings.builder();
         // don't use filter since it returns a prefixed secure setting instead of mock!
         Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
@@ -156,14 +157,15 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 }
             }
         }
-        addSslSettingsForStore(builder, store, "testnode");
-        builder.put(buildRealmSettings(realm, roleMappings, store));
+        addSslSettingsForKeyPair(builder, nodeKey, "testnode", nodeCert, getNodeTrustedCertificates());
+        builder.put(buildRealmSettings(realm, roleMappings, getNodeTrustedCertificates()));
         return builder.build();
     }
 
-    protected Settings buildRealmSettings(RealmConfig realm, List<RoleMappingEntry> roleMappingEntries, Path store) {
+    protected Settings buildRealmSettings(RealmConfig realm, List<RoleMappingEntry> roleMappingEntries, List<String>
+        certificateAuthorities) {
         Settings.Builder builder = Settings.builder();
-        builder.put(realm.buildSettings(store, "testnode"));
+        builder.put(realm.buildSettings(certificateAuthorities));
         configureFileRoleMappings(builder, roleMappingEntries);
         return builder.build();
     }
@@ -216,10 +218,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     protected Settings transportClientSettings() {
         if (useGlobalSSL) {
-            Path store = getDataPath(TESTNODE_KEYSTORE);
+            Path key = getDataPath(TESTNODE_KEY);
+            Path cert = getDataPath(TESTNODE_CERT);
             Settings.Builder builder = Settings.builder()
                     .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false));
-            addSslSettingsForStore(builder, store, "testnode");
+            addSslSettingsForKeyPair(builder, key, "testnode", cert, getNodeTrustedCertificates());
             return builder.build();
         } else {
             return super.transportClientSettings();
@@ -304,14 +307,33 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
     }
 
-    private void addSslSettingsForStore(Settings.Builder builder, Path store, String password) {
-        SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                secureSettings.setString("xpack.ssl.keystore.secure_password", password);
-                secureSettings.setString("xpack.ssl.truststore.secure_password", password);
-        });
-        builder.put("xpack.ssl.keystore.path", store)
-               .put("xpack.ssl.verification_mode", "certificate")
-               .put("xpack.ssl.truststore.path", store);
+    private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert,
+                                          List<String> certificateAuthorities) {
+        builder.put("xpack.ssl.key", key)
+            .put("xpack.ssl.key_passphrase", keyPassphrase)
+            .put("xpack.ssl.verification_mode", "certificate")
+            .put("xpack.ssl.certificate", cert)
+            .putList("xpack.ssl.certificate_authorities", certificateAuthorities);
+    }
+
+    /**
+     * Collects all the certificates that are normally trusted by the node ( contained in testnode.jks )
+     */
+    List<String> getNodeTrustedCertificates() {
+        Path testnodeCert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path testnodeClientProfileCert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt");
+        Path activedirCert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt");
+        Path testclientCert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt");
+        Path openldapCert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt");
+        Path samba4Cert =
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/samba4.crt");
+        return Arrays.asList(testnodeCert.toString(), testnodeClientProfileCert.toString(), activedirCert.toString(), testclientCert
+            .toString(), openldapCert.toString(), samba4Cert.toString());
     }
 
     static class RoleMappingEntry {
@@ -429,19 +451,19 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             this.mapGroupsAsRoles = randomBoolean();
         }
 
-        public Settings buildSettings(Path store, String password) {
-            return buildSettings(store, password, 1);
+        public Settings buildSettings(List<String> certificateAuthorities) {
+            return buildSettings(certificateAuthorities, 1);
         }
 
-        protected Settings buildSettings(Path store, String password, int order) {
+
+        protected Settings buildSettings(List<String> certificateAuthorities, int order) {
             Settings.Builder builder = Settings.builder()
-                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
-                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
-                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
-                    .put(this.settings);
+                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
+                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
+                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
+                .put(this.settings);
             if (useGlobalSSL == false) {
-                builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.path", store)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.password", password);
+                builder.putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.certificate_authorities", certificateAuthorities);
             }
 
             return builder.build();

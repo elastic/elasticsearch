@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
@@ -174,19 +174,19 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldPredicate, fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
+                for (Mapper fieldMapper : allFieldMappers) {
+                    addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldPredicate,  fieldMapper.fieldType().name(),
+                for (Mapper fieldMapper : allFieldMappers) {
+                    if (Regex.simpleMatch(field, fieldMapper.name())) {
+                        addFieldMapper(fieldPredicate,  fieldMapper.name(),
                                 fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
                 // not a pattern
-                FieldMapper fieldMapper = allFieldMappers.getMapper(field);
+                Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
@@ -198,7 +198,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     private static void addFieldMapper(Predicate<String> fieldPredicate,
-                                       String field, FieldMapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
+                                       String field, Mapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
                                        boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
@@ -207,7 +207,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             try {
                 BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
                         includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);
-                fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), bytes));
+                fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.name(), bytes));
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
             }

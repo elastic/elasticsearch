@@ -91,11 +91,12 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         store.execute((Operation<Void>) fileContext -> {
             Path blob = new Path(path, blobName);
             // we pass CREATE, which means it fails if a blob already exists.
-            EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
+            EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK) :
+                EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
             try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
                 int bytesRead;

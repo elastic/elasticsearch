@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -55,7 +55,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     /**
      * Assuming the docs are ranked in the following order:
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 | 7.0 | 
      * 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -76,13 +76,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -94,14 +94,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 14.595390756454922 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(EXPECTED_NDCG, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(EXPECTED_NDCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
     }
 
     /**
      * This tests metric when some documents in the search result don't have a
      * rating provided by the user.
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
      * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -127,14 +127,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
-        assertEquals(12.779642067948913, result.getQualityLevel(), DELTA);
-        assertEquals(2, filterUnknownDocuments(result.getHitsAndRatings()).size());
+        assertEquals(12.779642067948913, result.metricScore(), DELTA);
+        assertEquals(2, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ----------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -146,7 +146,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
     }
 
     /**
@@ -154,7 +154,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * documents than search hits because we restrict DCG to be calculated at the
      * fourth position
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
      * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -184,14 +184,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(12.392789260714371, result.getQualityLevel(), DELTA);
-        assertEquals(1, filterUnknownDocuments(result.getHitsAndRatings()).size());
+        assertEquals(12.392789260714371, result.metricScore(), DELTA);
+        assertEquals(1, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -204,7 +204,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), DELTA);
+        assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).metricScore(), DELTA);
     }
 
     /**
@@ -223,14 +223,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[0];
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0d, result.getQualityLevel(), DELTA);
-        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+        assertEquals(0.0d, result.metricScore(), DELTA);
+        assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
         // also check normalized
         dcg = new DiscountedCumulativeGain(true, null, 10);
         result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0d, result.getQualityLevel(), DELTA);
-        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+        assertEquals(0.0d, result.metricScore(), DELTA);
+        assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
     }
 
     public void testParseFromXContent() throws IOException {

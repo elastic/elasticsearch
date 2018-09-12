@@ -153,6 +153,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
     }
 
     public void testClusterRestartWithOldSignature() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM. We can't generate old licenses since PBEWithSHA1AndDESede is not available", inFipsJvm());
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();

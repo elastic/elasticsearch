@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -57,8 +58,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         Auditor auditor = new Auditor(client, clusterService.nodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
                 new ExpiredResultsRemover(client, clusterService, auditor),
-                new ExpiredForecastsRemover(client),
-                new ExpiredModelSnapshotsRemover(client, clusterService),
+                new ExpiredForecastsRemover(client, threadPool),
+                new ExpiredModelSnapshotsRemover(client, threadPool, clusterService),
                 new UnusedStateRemover(client, clusterService)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
@@ -69,9 +70,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    ActionListener<DeleteExpiredDataAction.Response> listener) {
         if (mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
-            remover.remove(ActionListener.wrap(
-                    booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener),
-                    listener::onFailure));
+            ActionListener<Boolean> nextListener = ActionListener.wrap(
+                    booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener), listener::onFailure);
+            // Removing expired ML data and artifacts requires multiple operations.
+            // These are queued up and executed sequentially in the action listener,
+            // the chained calls must all run the ML utility thread pool NOT the thread
+            // the previous action returned in which in the case of a transport_client_boss
+            // thread is a disaster.
+            remover.remove(new ThreadedActionListener<>(logger, threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME, nextListener,
+                    false));
         } else {
             logger.info("Completed deletion of expired data");
             listener.onResponse(new DeleteExpiredDataAction.Response(true));

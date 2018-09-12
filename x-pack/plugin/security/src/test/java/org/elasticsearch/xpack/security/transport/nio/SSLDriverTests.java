@@ -7,21 +7,21 @@ package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 
-import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.TrustManager;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 public class SSLDriverTests extends ESTestCase {
@@ -57,8 +57,15 @@ public class SSLDriverTests extends ESTestCase {
     public void testRenegotiate() throws Exception {
         SSLContext sslContext = getSSLContext();
 
-        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
-        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
+        SSLEngine serverEngine = sslContext.createSSLEngine();
+        SSLEngine clientEngine = sslContext.createSSLEngine();
+
+        String[] serverProtocols = {"TLSv1.2"};
+        serverEngine.setEnabledProtocols(serverProtocols);
+        String[] clientProtocols = {"TLSv1.2"};
+        clientEngine.setEnabledProtocols(clientProtocols);
+        SSLDriver clientDriver = getDriver(clientEngine, true);
+        SSLDriver serverDriver = getDriver(serverEngine, false);
 
         handshake(clientDriver, serverDriver);
 
@@ -119,16 +126,27 @@ public class SSLDriverTests extends ESTestCase {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
-        String[] serverProtocols = {"TLSv1.1", "TLSv1.2"};
+        String[] serverProtocols = {"TLSv1.2"};
         serverEngine.setEnabledProtocols(serverProtocols);
-        String[] clientProtocols = {"TLSv1"};
+        String[] clientProtocols = {"TLSv1.1"};
         clientEngine.setEnabledProtocols(clientProtocols);
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        assertEquals("Client requested protocol TLSv1 not enabled or not supported", sslException.getMessage());
-        failedCloseAlert(serverDriver, clientDriver);
+        String oldExpected = "Client requested protocol TLSv1.1 not enabled or not supported";
+        String jdk11Expected = "Received fatal alert: protocol_version";
+        boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage());
+        assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
+
+        // In JDK11 we need an non-application write
+        if (serverDriver.needsNonApplicationWrite()) {
+            serverDriver.nonApplicationWrite();
+        }
+        // Prior to JDK11 we still need to send a close alert
+        if (serverDriver.isClosed() == false) {
+            failedCloseAlert(serverDriver, clientDriver);
+        }
     }
 
     public void testHandshakeFailureBecauseNoCiphers() throws Exception {
@@ -144,11 +162,18 @@ public class SSLDriverTests extends ESTestCase {
         SSLDriver clientDriver = getDriver(clientEngine, true);
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
-        SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        assertEquals("no cipher suites in common", sslException.getMessage());
-        failedCloseAlert(serverDriver, clientDriver);
+        expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
+        // In JDK11 we need an non-application write
+        if (serverDriver.needsNonApplicationWrite()) {
+            serverDriver.nonApplicationWrite();
+        }
+        // Prior to JDK11 we still need to send a close alert
+        if (serverDriver.isClosed() == false) {
+            failedCloseAlert(serverDriver, clientDriver);
+        }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32144")
     public void testCloseDuringHandshake() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
@@ -205,19 +230,16 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private SSLContext getSSLContext() throws Exception {
-        String relativePath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks";
+        String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
+        String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
         SSLContext sslContext;
-        try (InputStream in = Files.newInputStream(getDataPath(relativePath))) {
-            KeyStore keyStore = KeyStore.getInstance("jks");
-            keyStore.load(in, "testclient".toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(keyStore);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "testclient".toCharArray());
-            sslContext = SSLContext.getInstance("TLSv1.2");
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
-            return sslContext;
-        }
+        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+            (certPath))));
+        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
+        sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
+        return sslContext;
     }
 
     private void normalClose(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {

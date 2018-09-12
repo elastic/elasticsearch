@@ -213,10 +213,11 @@ abstract class Verifier {
      * Check validity of Aggregate/GroupBy.
      * This rule is needed for multiple reasons:
      * 1. a user might specify an invalid aggregate (SELECT foo GROUP BY bar)
-     * 2. the order/having might contain a non-grouped attribute. This is typically
+     * 2. the ORDER BY/HAVING might contain a non-grouped attribute. This is typically
      * caught by the Analyzer however if wrapped in a function (ABS()) it gets resolved
      * (because the expression gets resolved little by little without being pushed down,
      * without the Analyzer modifying anything.
+     * 2a. HAVING also requires an Aggregate function
      * 3. composite agg (used for GROUP BY) allows ordering only on the group keys
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
@@ -244,7 +245,7 @@ abstract class Verifier {
                     }
 
                     // make sure to compare attributes directly
-                    if (Expressions.anyMatch(a.groupings(), 
+                    if (Expressions.anyMatch(a.groupings(),
                             g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
                         return;
                     }
@@ -278,19 +279,71 @@ abstract class Verifier {
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
                 Expression condition = f.condition();
-                condition.collectFirstChildren(c -> checkGroupMatch(c, condition, a.groupings(), missing, functions));
+                // variation of checkGroupMatch customized for HAVING, which requires just aggregations
+                condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, condition, missing, functions));
 
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
-                    localFailures.add(fail(condition, "Cannot filter by non-grouped column" + plural + " %s, expected %s",
-                            Expressions.names(missing.keySet()),
-                            Expressions.names(a.groupings())));
+                    localFailures.add(
+                            fail(condition, "Cannot filter HAVING on non-aggregate" + plural + " %s; consider using WHERE instead",
+                            Expressions.names(missing.keySet())));
                     groupingFailures.add(a);
                     return false;
                 }
             }
         }
         return true;
+    }
+
+
+    private static boolean checkGroupByHavingHasOnlyAggs(Expression e, Node<?> source,
+            Map<Expression, Node<?>> missing, Map<String, Function> functions) {
+
+        // resolve FunctionAttribute to backing functions
+        if (e instanceof FunctionAttribute) {
+            FunctionAttribute fa = (FunctionAttribute) e;
+            Function function = functions.get(fa.functionId());
+            // TODO: this should be handled by a different rule
+            if (function == null) {
+                return false;
+            }
+            e = function;
+        }
+
+        // scalar functions can be a binary tree
+        // first test the function against the grouping
+        // and if that fails, start unpacking hoping to find matches
+        if (e instanceof ScalarFunction) {
+            ScalarFunction sf = (ScalarFunction) e;
+
+            // unwrap function to find the base
+            for (Expression arg : sf.arguments()) {
+                arg.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, source, missing, functions));
+            }
+            return true;
+
+        } else if (e instanceof Score) {
+            // Score can't be used for having
+            missing.put(e, source);
+            return true;
+        }
+
+        // skip literals / foldable
+        if (e.foldable()) {
+            return true;
+        }
+        // skip aggs (allowed to refer to non-group columns)
+        if (Functions.isAggregate(e)) {
+            return true;
+        }
+
+        // left without leaves which have to match; that's a failure since everything should be based on an agg
+        if (e instanceof Attribute) {
+            missing.put(e, source);
+            return true;
+        }
+
+        return false;
     }
 
 

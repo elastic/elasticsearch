@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -52,7 +53,7 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Add/remove aliases action
  */
-public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexAliasesService indexAliasesService;
 
@@ -71,8 +72,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected IndicesAliasesResponse newResponse() {
-        return new IndicesAliasesResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
@@ -85,7 +86,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) {
+    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();
@@ -95,7 +96,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
-            Collections.addAll(aliases, action.aliases());
+            Collections.addAll(aliases, action.getOriginalAliases());
             for (String index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
@@ -127,7 +128,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override
@@ -142,7 +143,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         if (action.expandAliasesWildcards()) {
             //for DELETE we expand the aliases
             String[] indexAsArray = {concreteIndex};
-            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action.aliases(), indexAsArray);
+            ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
             for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
                 for (AliasMetaData aliasMeta: curAliases.value) {

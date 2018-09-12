@@ -30,7 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -116,6 +116,8 @@ public class BucketScriptIT extends ESIntegTestCase {
                 double value2 = (double) vars.get("_value2");
                 return value0 + value1 + value2;
             });
+
+            scripts.put("return null", vars -> null);
 
             return scripts;
         }
@@ -475,6 +477,33 @@ public class BucketScriptIT extends ESIntegTestCase {
                 double seriesArithmeticValue = seriesArithmetic.value();
                 assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue + field4SumValue));
             }
+        }
+    }
+
+    public void testInlineScriptReturnNull() {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .addAggregation(
+                histogram("histo")
+                    .field(FIELD_1_NAME).interval(interval)
+                    .subAggregation(
+                        bucketScript(
+                            "nullField",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap())
+                        )
+                    )
+            ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertNull(bucket.getAggregations().get("nullField"));
         }
     }
 

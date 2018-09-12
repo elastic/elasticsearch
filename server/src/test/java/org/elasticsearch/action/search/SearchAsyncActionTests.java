@@ -96,7 +96,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
             new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
                 logger,
@@ -190,7 +190,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numResponses = new AtomicInteger(0);
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
             new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
                 logger,
@@ -296,7 +296,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
                 new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                         "test",
                         logger,
@@ -346,6 +346,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                             sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
+                        if (latch.getCount() == 0) {
+                            throw new AssertionError("Running a search phase after the latch has reached 0 !!!!");
+                        }
                         latch.countDown();
                     }
                 };
@@ -374,7 +377,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ArrayList<ShardRouting> unassigned = new ArrayList<>();
 
             ShardRouting routing = ShardRouting.newUnassigned(new ShardId(new Index(index, "_na_"), i), true,
-                RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
             routing = routing.initialize(primaryNode.getId(), i + "p", 0);
             routing.started();
             started.add(routing);
@@ -443,7 +446,17 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void addCloseListener(ActionListener<Void> listener) {
+
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
+        public void close() {
             throw new UnsupportedOperationException();
         }
     }

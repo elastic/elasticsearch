@@ -32,6 +32,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.UUIDs;
@@ -112,8 +113,8 @@ public class DocValuesSliceQueryTests extends ESTestCase {
                 }
 
                 @Override
-                public boolean needsScores() {
-                    return false;
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
                 }
             });
         }

@@ -13,12 +13,11 @@ This API enables you to check the status of your trial license.
 [float]
 ==== Description
 
-If a license is not already registered for the cluster, one is generated when
-the nodes start. By default, this is a 30-day trial license that gives access
-to all {xpack} features.
+If you want to try the features that are included in a platinum license, you can 
+start a 30-day trial. 
 
 NOTE: You are allowed to initiate a trial license only if your cluster has not
-already activated a trial license for the current major X-Pack version. For
+already activated a trial license for the current major product version. For
 example, if you have already activated a trial for v6.0, you cannot start a new
 trial until v7.0. You can, however, contact `info@elastic.co` to request an
 extended trial license.

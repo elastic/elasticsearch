@@ -90,14 +90,14 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         final Iterator<String> it = lines.iterator();
 
-        boolean fatalErrorOnTheNetworkLayer = false;
+        boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
 
-        while (it.hasNext() && (fatalErrorOnTheNetworkLayer == false || fatalErrorInThreadExiting == false)) {
+        while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
             final String line = it.next();
-            if (line.contains("fatal error on the network layer")) {
-                fatalErrorOnTheNetworkLayer = true;
-            } else if (line.matches(".*\\[ERROR\\]\\[o.e.b.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
+            if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.ExceptionsHelper\\s*\\] \\[node-0\\] fatal error")) {
+                fatalError = true;
+            } else if (line.matches(".*\\[ERROR\\]\\[o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
                     + " fatal error in thread \\[Thread-\\d+\\], exiting$")) {
                 fatalErrorInThreadExiting = true;
                 assertTrue(it.hasNext());
@@ -105,7 +105,7 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         }
 
-        assertTrue(fatalErrorOnTheNetworkLayer);
+        assertTrue(fatalError);
         assertTrue(fatalErrorInThreadExiting);
     }
 

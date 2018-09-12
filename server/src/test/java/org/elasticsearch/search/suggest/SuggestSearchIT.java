@@ -687,7 +687,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -748,7 +748,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -977,6 +977,35 @@ public class SuggestSearchIT extends ESIntegTestCase {
         long total = System.currentTimeMillis() - start;
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
+    }
+
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "mango"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "papaya"));
+        indexRandom(true, false, builders);
+
+        TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
+
+        Suggest searchSuggest = searchSuggest("suggestion", termSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", "apple");
     }
 
     @Override

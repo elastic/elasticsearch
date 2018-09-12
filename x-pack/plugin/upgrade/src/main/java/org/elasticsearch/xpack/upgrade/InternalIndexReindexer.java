@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -109,17 +107,17 @@ public class InternalIndexReindexer<T> {
     }
 
     private void removeReadOnlyBlock(ParentTaskAssigningClient parentAwareClient, String index,
-                                     ActionListener<UpdateSettingsResponse> listener) {
+                                     ActionListener<AcknowledgedResponse> listener) {
         Settings settings = Settings.builder().put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), false).build();
         parentAwareClient.admin().indices().prepareUpdateSettings(index).setSettings(settings).execute(listener);
     }
 
     private void reindex(ParentTaskAssigningClient parentAwareClient, String index, String newIndex,
                          ActionListener<BulkByScrollResponse> listener) {
-        SearchRequest sourceRequest = new SearchRequest(index);
-        sourceRequest.types(types);
-        IndexRequest destinationRequest = new IndexRequest(newIndex);
-        ReindexRequest reindexRequest = new ReindexRequest(sourceRequest, destinationRequest);
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices(index);
+        reindexRequest.setSourceDocTypes(types);
+        reindexRequest.setDestIndex(newIndex);
         reindexRequest.setRefresh(true);
         reindexRequest.setScript(transformScript);
         parentAwareClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);

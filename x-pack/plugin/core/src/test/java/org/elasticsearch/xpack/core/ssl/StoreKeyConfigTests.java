@@ -22,10 +22,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StoreKeyConfigTests extends ESTestCase {
 
     public void testCreateKeyManagerUsingJKS() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         tryReadPrivateKeyFromKeyStore("jks", ".jks");
     }
 
     public void testCreateKeyManagerUsingPKCS12() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         tryReadPrivateKeyFromKeyStore("PKCS12", ".p12");
     }
 

@@ -19,24 +19,22 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -528,7 +526,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
                 .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
+                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "lowercase", "my_synonyms")
                 .put("analysis.filter.my_synonyms.type", "synonym")
                 .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
         completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
@@ -562,7 +560,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "text")
@@ -742,7 +740,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion").field("analyzer", "simple")
@@ -806,7 +804,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
@@ -1111,35 +1109,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    // see issue #6399
-    public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = Strings
-                .toString(jsonBuilder()
-                        .startObject()
-                        .startObject(TYPE)
-                        .startObject("properties")
-                        .startObject(FIELD)
-                        .field("type", "completion")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject());
-
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
-        ensureGreen();
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
-            fail("Expected MapperParsingException for null value");
-        } catch (MapperParsingException e) {
-            // make sure that the exception has the name of the field causing the error
-            assertTrue(e.getDetailedMessage().contains(FIELD));
-        }
-    }
-
     public void testMultiDocSuggestions() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
@@ -1161,6 +1130,32 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggester10", "suggester9", "suggester8", "suggester7", "suggester6");
     }
 
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject(TYPE)
+                    .startObject("properties")
+                        .startObject(FIELD)
+                            .field("type", "completion")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", FIELD)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "apple"));
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "mango"));
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "papaya"));
+        indexRandom(true, false, builders);
+
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("alias").text("app");
+        assertSuggestions("suggestion", suggestionBuilder, "apple");
+    }
 
     public static boolean isReservedChar(char c) {
         switch (c) {

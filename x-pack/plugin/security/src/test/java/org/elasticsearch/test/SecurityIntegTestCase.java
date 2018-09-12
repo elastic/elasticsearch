@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +41,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -87,7 +89,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -242,6 +243,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
+        builder.put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
@@ -262,6 +265,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
                 .put(customSecuritySettingsSource.transportClientSettings())
                 .build();
     }
@@ -416,14 +420,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         createIndex(indices);
 
         if (frequently()) {
+            boolean aliasAdded = false;
             IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     //one alias per index with prefix "alias-"
                     builder.addAlias(index, "alias-" + index);
+                    aliasAdded = true;
                 }
             }
-            if (randomBoolean()) {
+            // If we get to this point and we haven't added an alias to the request we need to add one 
+            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");
@@ -521,5 +529,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected boolean isTransportSSLEnabled() {
         return customSecuritySettingsSource.isSslEnabled();
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
     }
 }

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,16 +65,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Standard {@link ParseField} for outer level of stored script source.
      */
     public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");
-
-    /**
-     * Standard {@link ParseField} for outer level of stored script source.
-     */
-    public static final ParseField TEMPLATE_PARSE_FIELD = new ParseField("template");
-
-    /**
-     * Standard {@link ParseField} for query on the inner field.
-     */
-    public static final ParseField TEMPLATE_NO_WRAPPER_PARSE_FIELD = new ParseField("query");
 
     /**
      * Standard {@link ParseField} for lang on the inner level.
@@ -194,26 +181,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
     }
 
-    private static StoredScriptSource parseRemaining(Token token, XContentParser parser) throws IOException {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            if (token != Token.START_OBJECT) {
-                builder.startObject();
-                builder.copyCurrentStructure(parser);
-                builder.endObject();
-            } else {
-                builder.copyCurrentStructure(parser);
-            }
-
-            String source = Strings.toString(builder);
-
-            if (source == null || source.isEmpty()) {
-                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
-            }
-
-            return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
-        }
-    }
-
     /**
      * This will parse XContent into a {@link StoredScriptSource}.  The following formats can be parsed:
      *
@@ -271,27 +238,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      * }
      *
-     * The simple template format:
-     *
-     * {@code
-     * {
-     *     "query" : ...
-     * }
-     * }
-     *
-     * The complex template format:
-     *
-     * {@code
-     * {
-     *     "template": {
-     *         "query" : ...
-     *     }
-     * }
-     * }
-     *
-     * Note that templates can be handled as both strings and complex JSON objects.
-     * Also templates may be part of the 'source' parameter in a script.  The Parser
-     * can handle this case as well.
+     * Note that the "source" parameter can also handle template parsing including from
+     * a complex JSON object.
      *
      * @param content The content from the request to be parsed as described above.
      * @return        The parsed {@link StoredScriptSource}.
@@ -316,7 +264,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
             if (token != Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + ", expected [" +
-                    SCRIPT_PARSE_FIELD.getPreferredName() + ", " + TEMPLATE_PARSE_FIELD.getPreferredName());
+                    SCRIPT_PARSE_FIELD.getPreferredName() + "]");
             }
 
             String name = parser.currentName();
@@ -329,28 +277,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
-            } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
-
-                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
-
-                token = parser.nextToken();
-                if (token == Token.VALUE_STRING) {
-                    String source = parser.text();
-
-                    if (source == null || source.isEmpty()) {
-                        DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
-                    }
-
-                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, source, Collections.emptyMap());
-                } else {
-                    return parseRemaining(token, parser);
-                }
-            } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
-                DEPRECATION_LOGGER.deprecated("the template context is now deprecated. Specify templates in a \"script\" element.");
-                return parseRemaining(token, parser);
             } else {
-                DEPRECATION_LOGGER.deprecated("scripts should not be stored without a context. Specify them in a \"script\" element.");
-                return parseRemaining(token, parser);
+                throw new ParsingException(parser.getTokenLocation(), "unexpected field [" + name + "], expected [" +
+                    SCRIPT_PARSE_FIELD.getPreferredName() + "]");
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -398,16 +327,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     private final Map<String, String> options;
 
     /**
-     * Constructor for use with {@link GetStoredScriptResponse}
-     * to support the deprecated stored script namespace.
-     */
-    public StoredScriptSource(String source) {
-        this.lang = null;
-        this.source = Objects.requireNonNull(source);
-        this.options = null;
-    }
-
-    /**
      * Standard StoredScriptSource constructor.
      * @param lang    The language to compile the script with.  Must not be {@code null}.
      * @param source  The source source to compile with.  Must not be {@code null}.
@@ -426,35 +345,24 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * only the source parameter will be read in as a bytes reference.
      */
     public StoredScriptSource(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            this.lang = in.readString();
-            this.source = in.readString();
-            @SuppressWarnings("unchecked")
-            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
-            this.options = options;
-        } else {
-            this.lang = null;
-            this.source = in.readBytesReference().utf8ToString();
-            this.options = null;
-        }
+        this.lang = in.readString();
+        this.source = in.readString();
+        @SuppressWarnings("unchecked")
+        Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+        this.options = options;
     }
 
     /**
-     * Writes a {@link StoredScriptSource} to a stream.  Version 5.3+ will write
-     * all of the lang, source, and options parameters.  For versions prior to 5.3,
-     * only the source parameter will be read in as a bytes reference.
+     * Writes a {@link StoredScriptSource} to a stream. Will write
+     * all of the lang, source, and options parameters.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeString(lang);
-            out.writeString(source);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
-            out.writeMap(options);
-        } else {
-            out.writeBytesReference(new BytesArray(source));
-        }
+        out.writeString(lang);
+        out.writeString(source);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> options = (Map<String, Object>)(Map)this.options;
+        out.writeMap(options);
     }
 
     /**

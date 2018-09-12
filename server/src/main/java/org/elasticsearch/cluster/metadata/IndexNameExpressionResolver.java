@@ -42,7 +42,6 @@ import org.joda.time.format.DateTimeFormatter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -103,7 +102,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return concreteIndexNames(context, indexExpressions);
     }
 
-     /**
+    /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
@@ -117,7 +116,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options);
+        Context context = new Context(state, options, false, false);
         return concreteIndices(context, indexExpressions);
     }
 
@@ -193,30 +192,40 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
             }
 
-            Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
-            if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
-                String[] indexNames = new String[resolvedIndices.size()];
-                int i = 0;
-                for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex().getName();
+            if (aliasOrIndex.isAlias() && context.isResolveToWriteIndex()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                IndexMetaData writeIndex = alias.getWriteIndex();
+                if (writeIndex == null) {
+                    throw new IllegalArgumentException("no write index is defined for alias [" + alias.getAliasName() + "]." +
+                        " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+                        " indices without one being designated as a write index");
                 }
-                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
-                        Arrays.toString(indexNames) + "], can't execute a single index op");
-            }
-
-            for (IndexMetaData index : resolvedIndices) {
-                if (index.getState() == IndexMetaData.State.CLOSE) {
-                    if (failClosed) {
-                        throw new IndexClosedException(index.getIndex());
-                    } else {
-                        if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex());
-                        }
+                concreteIndices.add(writeIndex.getIndex());
+            } else {
+                if (aliasOrIndex.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
+                    String[] indexNames = new String[aliasOrIndex.getIndices().size()];
+                    int i = 0;
+                    for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
+                        indexNames[i++] = indexMetaData.getIndex().getName();
                     }
-                } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex());
-                } else {
-                    throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+                    throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
+                        Arrays.toString(indexNames) + "], can't execute a single index op");
+                }
+
+                for (IndexMetaData index : aliasOrIndex.getIndices()) {
+                    if (index.getState() == IndexMetaData.State.CLOSE) {
+                        if (failClosed) {
+                            throw new IndexClosedException(index.getIndex());
+                        } else {
+                            if (options.forbidClosedIndices() == false) {
+                                concreteIndices.add(index.getIndex());
+                            }
+                        }
+                    } else if (index.getState() == IndexMetaData.State.OPEN) {
+                        concreteIndices.add(index.getIndex());
+                    } else {
+                        throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+                    }
                 }
             }
         }
@@ -251,6 +260,28 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
             throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+        }
+        return indices[0];
+    }
+
+    /**
+     * Utility method that allows to resolve an index expression to its corresponding single write index.
+     *
+     * @param state             the cluster state containing all the data to resolve to expression to a concrete index
+     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     *                          and the expression that can be resolved to an alias or an index name.
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
+     * @return the write index obtained as a result of the index resolution
+     */
+    public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
+        if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
+            throw new IllegalArgumentException("indices request must specify a single index expression");
+        }
+        Context context = new Context(state, request.indicesOptions(), false, true);
+        Index[] indices = concreteIndices(context, request.indices()[0]);
+        if (indices.length != 1) {
+            throw new IllegalArgumentException("The index expression [" + request.indices()[0] +
+                "] and options provided did not point to a single write-index");
         }
         return indices[0];
     }
@@ -292,7 +323,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                  String... expressions) {
         // expand the aliases wildcard
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true);
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -512,24 +543,26 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final IndicesOptions options;
         private final long startTime;
         private final boolean preserveAliases;
+        private final boolean resolveToWriteIndex;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
         }
 
-        Context(ClusterState state, IndicesOptions options, boolean preserveAliases) {
-            this(state, options, System.currentTimeMillis(), preserveAliases);
+        Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex) {
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex);
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime) {
-           this(state, options, startTime, false);
+           this(state, options, startTime, false, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
+            this.resolveToWriteIndex = resolveToWriteIndex;
         }
 
         public ClusterState getState() {
@@ -551,6 +584,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
          */
         boolean isPreserveAliases() {
             return preserveAliases;
+        }
+
+        /**
+         * This is used to require that aliases resolve to their write-index. It is currently not used in conjunction
+         * with <code>preserveAliases</code>.
+         */
+        boolean isResolveToWriteIndex() {
+            return resolveToWriteIndex;
         }
     }
 

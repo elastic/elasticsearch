@@ -238,3 +238,30 @@ teardown:
         repository: repository-file
         snapshot: snapshot-one
 
+---
+"Get a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.get:
+        repository: repository-url
+        snapshot: missing
+
+---
+"Delete a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.delete:
+        repository: repository-url
+        snapshot: missing
+
+---
+"Restore a non existing snapshot":
+
+  - do:
+      catch: /snapshot_restore_exception/
+      snapshot.restore:
+        repository: repository-url
+        snapshot: missing
+        wait_for_completion: true

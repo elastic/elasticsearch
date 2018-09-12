@@ -37,7 +37,7 @@ xpack:
           domain_name: ad.example.com
           url: ldaps://ad.example.com:636
           ssl:
-            certificate_authorities: [ "CONFIG_DIR/cacert.pem" ]
+            certificate_authorities: [ "ES_PATH_CONF/cacert.pem" ]
 --------------------------------------------------
 
 The CA cert must be a PEM encoded certificate.

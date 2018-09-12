@@ -37,7 +37,7 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
 
         result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
                 Collections.singletonList("id1"), Collections.singletonList(
-                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.OPENED, null, null, null)));
+                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, null, JobState.OPENED, null, null, null)));
         assertEquals(0, result.size());
 
         result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
@@ -49,7 +49,7 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
 
         result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
                 Arrays.asList("id1", "id2", "id3"),
-                Collections.singletonList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null,
+                Collections.singletonList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, null,
                         JobState.CLOSED, null, null, null))
         );
         assertEquals(2, result.size());
@@ -58,17 +58,16 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
 
         result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
                 Arrays.asList("id1", "id2", "id3"), Arrays.asList(
-                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.OPENED, null, null, null),
-                new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.OPENED, null, null, null)
+                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, null, JobState.OPENED, null, null, null),
+                new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, null, JobState.OPENED, null, null, null)
         ));
         assertEquals(1, result.size());
         assertEquals("id2", result.get(0));
 
-        result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata, Arrays.asList("id1", "id2", "id3"),
-                Arrays.asList(
-                        new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.OPENED, null, null, null),
-                        new GetJobsStatsAction.Response.JobStats("id2", new DataCounts("id2"), null, JobState.OPENED, null, null, null),
-                        new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.OPENED, null, null, null)));
+        result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata, Arrays.asList("id1", "id2", "id3"), Arrays.asList(
+                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, null, JobState.OPENED, null, null, null),
+                new GetJobsStatsAction.Response.JobStats("id2", new DataCounts("id2"), null, null, JobState.OPENED, null, null, null),
+                new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, null, JobState.OPENED, null, null, null)));
         assertEquals(0, result.size());
 
         // No jobs running, but job 4 is being deleted

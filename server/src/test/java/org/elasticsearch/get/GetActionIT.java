@@ -19,7 +19,6 @@
 
 package org.elasticsearch.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
@@ -51,6 +52,7 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,7 +72,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addAlias(new Alias("alias")));
+                .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
 
         GetResponse response = client().prepareGet(indexOrAlias(), "type1", "1").get();
@@ -192,12 +194,31 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
     }
 
-    private static String indexOrAlias() {
+    public void testGetWithAliasPointingToMultipleIndices() {
+        client().admin().indices().prepareCreate("index1")
+            .addAlias(new Alias("alias1").indexRouting("0")).get();
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("index2")
+                .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null))).get();
+        } else {
+            client().admin().indices().prepareCreate("index3")
+                .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
+        }
+        IndexResponse indexResponse = client().prepareIndex("index1", "type", "id")
+            .setSource(Collections.singletonMap("foo", "bar")).get();
+        assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client().prepareGet("alias1", "type", "_alias_id").get());
+        assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
+    }
+
+    static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
     }
 
     public void testSimpleMultiGet() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
                 .addMapping("type1", "field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
@@ -500,41 +521,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
-    }
-
-    public void testGetFieldsMetaDataWithRouting() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", "field1", "type=keyword,store=true")
-            .addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
-            // multi types in 5.6
-
-        client().prepareIndex("test", "_doc", "1")
-            .setRouting("1")
-            .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-            .get();
-
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
-            .setRouting("1")
-            .setStoredFields("field1")
-            .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-
-        flush();
-
-        getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
-            .setStoredFields("field1")
-            .setRouting("1")
-            .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
     }
 
     public void testGetFieldsNonLeafField() throws Exception {

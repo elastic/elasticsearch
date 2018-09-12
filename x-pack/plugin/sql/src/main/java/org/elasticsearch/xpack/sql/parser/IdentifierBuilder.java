@@ -17,25 +17,15 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
         Location source = source(ctx);
         ParseTree tree = ctx.name != null ? ctx.name : ctx.TABLE_IDENTIFIER();
         String index = tree.getText();
 
-        validateIndex(index, source);
         return new TableIdentifier(source, visitIdentifier(ctx.catalog), index);
-    }
-
-    // see https://github.com/elastic/elasticsearch/issues/6736
-    static void validateIndex(String index, Location source) {
-        for (int i = 0; i < index.length(); i++) {
-            char c = index.charAt(i);
-            if (Character.isUpperCase(c)) {
-                throw new ParsingException(source, "Invalid index name (needs to be lowercase) {}", index);
-            }
-            if (c == '\\' || c == '/' || c == '<' || c == '>' || c == '|' || c == ',' || c == ' ') {
-                throw new ParsingException(source, "Invalid index name (illegal character {}) {}", c, index);
-            }
-        }
     }
 
     @Override

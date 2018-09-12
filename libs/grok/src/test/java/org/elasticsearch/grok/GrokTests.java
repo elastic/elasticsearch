@@ -412,10 +412,10 @@ public class GrokTests extends ESTestCase {
         expected.put("num", "1");
         assertThat(grok.captures("12"), equalTo(expected));
     }
-    
+
     public void testExponentialExpressions() {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-        
+
         String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
             "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
         String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
@@ -438,5 +438,51 @@ public class GrokTests extends ESTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
+    }
+
+    public void testAtInFieldName() {
+        assertGrokedField("@metadata");
+    }
+
+    public void assertNonAsciiLetterInFieldName() {
+        assertGrokedField("metädata");
+    }
+
+    public void assertSquareBracketInFieldName() {
+        assertGrokedField("metadat[a]");
+        assertGrokedField("metad[a]ta");
+        assertGrokedField("[m]etadata");
+    }
+
+    public void testUnderscoreInFieldName() {
+        assertGrokedField("meta_data");
+    }
+
+    public void testDotInFieldName() {
+        assertGrokedField("meta.data");
+    }
+
+    public void testMinusInFieldName() {
+        assertGrokedField("meta-data");
+    }
+
+    public void testAlphanumericFieldName() {
+        assertGrokedField(randomAlphaOfLengthBetween(1, 5));
+        assertGrokedField(randomAlphaOfLengthBetween(1, 5) + randomIntBetween(0, 100));
+        assertGrokedField(randomIntBetween(0, 100) + randomAlphaOfLengthBetween(1, 5));
+        assertGrokedField(String.valueOf(randomIntBetween(0, 100)));
+    }
+
+    public void testUnsupportedBracketsInFieldName() {
+        Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}");
+        Map<String, Object> matches = grok.captures("line");
+        assertNull(matches);
+    }
+
+    private void assertGrokedField(String fieldName) {
+        String line = "foo";
+        Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}");
+        Map<String, Object> matches = grok.captures(line);
+        assertEquals(line, matches.get(fieldName));
     }
 }

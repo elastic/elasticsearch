@@ -18,3 +18,8 @@ See {plugins}/repository-azure-repository-settings.html#repository-azure-reposit
 must now be specified in the client settings instead.
 
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
+
+==== Analysis Plugin changes
+
+* The misspelled helper method `requriesAnalysisSettings(AnalyzerProvider<T> provider)` has been
+renamed to `requiresAnalysisSettings`

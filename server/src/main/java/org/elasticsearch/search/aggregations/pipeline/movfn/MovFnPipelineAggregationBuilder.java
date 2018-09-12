@@ -62,7 +62,6 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     private static final Function<String, ConstructingObjectParser<MovFnPipelineAggregationBuilder, Void>> PARSER
         = name -> {
 
-        @SuppressWarnings("unchecked")
         ConstructingObjectParser<MovFnPipelineAggregationBuilder, Void> parser = new ConstructingObjectParser<>(
             MovFnPipelineAggregationBuilder.NAME,
             false,

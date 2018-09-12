@@ -32,7 +32,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
     }
 
     @Override

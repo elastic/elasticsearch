@@ -30,20 +30,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -72,10 +64,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -84,6 +72,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -92,7 +81,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -102,6 +91,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -121,17 +114,6 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
-    }
-
-    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
-        Params params = new Params(request);
-        params.withTimeout(cancelTasksRequest.getTimeout())
-            .withTaskId(cancelTasksRequest.getTaskId())
-            .withNodes(cancelTasksRequest.getNodes())
-            .withParentTaskId(cancelTasksRequest.getParentTaskId())
-            .withActions(cancelTasksRequest.getActions());
-        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -411,8 +393,14 @@ final class RequestConverters {
                 BytesReference indexSource = indexRequest.source();
                 XContentType indexXContentType = indexRequest.getContentType();
 
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
+                try (XContentParser parser = XContentHelper.createParser(
+                        /*
+                         * EMPTY and THROW are fine here because we just call
+                         * copyCurrentStructure which doesn't touch the
+                         * registry or deprecation.
+                         */
+                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = BytesReference.bytes(builder).toBytesRef();
@@ -605,7 +593,7 @@ final class RequestConverters {
         request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
-    
+
     static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
 
@@ -619,7 +607,7 @@ final class RequestConverters {
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
         return request;
-    }    
+    }
 
     static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
@@ -698,93 +686,71 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_cluster/settings");
+    static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRefresh(reindexRequest.isRefresh())
+            .withTimeout(reindexRequest.getTimeout())
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
 
-        Params parameters = new Params(request);
-        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
-        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(putPipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(putPipelineRequest.timeout());
-        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
-
-        request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ingest/pipeline")
-            .addPathPart(deletePipelineRequest.getId())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withTimeout(deletePipelineRequest.timeout());
-        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
-
-        return request;
-    }
-
-    static Request listTasks(ListTasksRequest listTaskRequest) {
-        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
-            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
+        if (reindexRequest.getScrollTime() != null) {
+            params.putParam("scroll", reindexRequest.getScrollTime());
         }
-        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
-        Params params = new Params(request);
-        params.withTimeout(listTaskRequest.getTimeout())
-            .withDetailed(listTaskRequest.getDetailed())
-            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
-            .withParentTaskId(listTaskRequest.getParentTaskId())
-            .withNodes(listTaskRequest.getNodes())
-            .withActions(listTaskRequest.getActions())
-            .putParam("group_by", "none");
+        request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
-    static Request clusterHealth(ClusterHealthRequest healthRequest) {
-        String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_cluster/health")
-            .addCommaSeparatedPathParts(indices)
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(updateByQueryRequest.indices(), updateByQueryRequest.getDocTypes(), "_update_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(updateByQueryRequest.getRouting())
+            .withPipeline(updateByQueryRequest.getPipeline())
+            .withRefresh(updateByQueryRequest.isRefresh())
+            .withTimeout(updateByQueryRequest.getTimeout())
+            .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(updateByQueryRequest.indicesOptions());
+        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(updateByQueryRequest.getBatchSize()));
+        }
+        if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", updateByQueryRequest.getScrollTime());
+        }
+        if (updateByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
 
-        new Params(request)
-            .withWaitForStatus(healthRequest.waitForStatus())
-            .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
-            .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
-            .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
-            .withWaitForNodes(healthRequest.waitForNodes())
-            .withWaitForEvents(healthRequest.waitForEvents())
-            .withTimeout(healthRequest.timeout())
-            .withMasterTimeout(healthRequest.masterNodeTimeout())
-            .withLocal(healthRequest.local())
-            .withLevel(healthRequest.level());
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        String endpoint =
+            endpoint(deleteByQueryRequest.indices(), deleteByQueryRequest.getDocTypes(), "_delete_by_query");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request)
+            .withRouting(deleteByQueryRequest.getRouting())
+            .withRefresh(deleteByQueryRequest.isRefresh())
+            .withTimeout(deleteByQueryRequest.getTimeout())
+            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
+            .withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
+            params.putParam("conflicts", "proceed");
+        }
+        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
+            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
+        }
+        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
+            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
+        }
+        if (deleteByQueryRequest.getSize() > 0) {
+            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        }
+        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -821,6 +787,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getIndex(GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
@@ -848,98 +830,6 @@ final class RequestConverters {
         parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
 
         request.setEntity(createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
-        String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
-        parameters.withLocal(getRepositoriesRequest.local());
-        return request;
-    }
-
-    static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_snapshot").addPathPart(putRepositoryRequest.name()).build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(putRepositoryRequest.timeout());
-        parameters.withVerify(putRepositoryRequest.verify());
-
-        request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(deleteRepositoryRequest.timeout());
-        return request;
-    }
-
-    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(verifyRepositoryRequest.name())
-            .addPathPartAsIs("_verify")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
-        parameters.withTimeout(verifyRepositoryRequest.timeout());
-        return request;
-    }
-
-    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_snapshot")
-            .addPathPart(createSnapshotRequest.repository())
-            .addPathPart(createSnapshotRequest.snapshot())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
-        params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
-        request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
-        EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(getSnapshotsRequest.repository());
-        String endpoint;
-        if (getSnapshotsRequest.snapshots().length == 0) {
-            endpoint = endpointBuilder.addPathPart("_all").build();
-        } else {
-            endpoint = endpointBuilder.addCommaSeparatedPathParts(getSnapshotsRequest.snapshots()).build();
-        }
-
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
-        parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
-        parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
-
-        return request;
-    }
-
-    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(deleteSnapshotRequest.repository())
-            .addPathPart(deleteSnapshotRequest.snapshot())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params(request);
-        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
         return request;
     }
 
@@ -972,20 +862,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
-        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
-            builder.addPathPart(simulatePipelineRequest.getId());
-        }
-        builder.addPathPartAsIs("_simulate");
-        String endpoint = builder.build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
-        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request getAlias(GetAliasesRequest getAliasesRequest) {
         String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
         String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
@@ -1007,6 +883,31 @@ final class RequestConverters {
         return request;
     }
 
+    static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withTimeout(putStoredScriptRequest.timeout());
+        params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
+        if (Strings.hasText(putStoredScriptRequest.context())) {
+            params.putParam("context", putStoredScriptRequest.context());
+        }
+        request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request analyze(AnalyzeRequest request) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder();
+        String index = request.index();
+        if (index != null) {
+            builder.addPathPart(index);
+        }
+        builder.addPathPartAsIs("_analyze");
+        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
+        req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
+        return req;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -1024,7 +925,7 @@ final class RequestConverters {
         return request;
     }
 
-    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
@@ -1145,13 +1046,25 @@ final class RequestConverters {
 
         Params withRefresh(boolean refresh) {
             if (refresh) {
-                return withRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                return withRefreshPolicy(RefreshPolicy.IMMEDIATE);
             }
             return this;
         }
 
+        /**
+         *  @deprecated If creating a new HLRC ReST API call, use {@link RefreshPolicy}
+         *  instead of {@link WriteRequest.RefreshPolicy} from the server project
+         */
+        @Deprecated
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                return putParam("refresh", refreshPolicy.getValue());
+            }
+            return this;
+        }
+
+        Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
+            if (refreshPolicy != RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
             }
             return this;
@@ -1205,7 +1118,7 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
@@ -1221,6 +1134,12 @@ final class RequestConverters {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withIgnoreUnavailable(boolean ignoreUnavailable) {
+            // Always explicitly place the ignore_unavailable value.
+            putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
         }
 

@@ -41,7 +41,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        FuzzyQueryBuilder query = new FuzzyQueryBuilder(STRING_FIELD_NAME, getRandomValueForFieldName(STRING_FIELD_NAME));
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldName, getRandomValueForFieldName(fieldName));
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));
         }
@@ -76,6 +77,11 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(FuzzyQuery.class));
+
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+        String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+        String actualFieldName = fuzzyQuery.getTerm().field();
+        assertThat(actualFieldName, equalTo(expectedFieldName));
     }
 
     public void testIllegalArguments() {
@@ -99,7 +105,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringField() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
                 "        \"" + STRING_FIELD_NAME + "\":{\n" +
@@ -122,7 +127,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
@@ -145,7 +149,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String queryMissingFuzzinessUpLimit = "{\n" +
             "    \"fuzzy\":{\n" +
             "        \"" + STRING_FIELD_NAME + "\":{\n" +
@@ -208,7 +211,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithNumericField() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
                 "        \"" + INT_FIELD_NAME + "\":{\n" +
@@ -293,7 +295,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithTranspositions() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text").toQuery(createShardContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
         assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery)query).getTranspositions());

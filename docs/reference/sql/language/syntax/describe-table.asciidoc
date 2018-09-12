@@ -6,17 +6,22 @@
 .Synopsis
 [source, sql]
 ----
-DESCRIBE table
+DESCRIBE [table identifier<1>|[LIKE pattern<2>]]
 ----
 
 or 
 
 [source, sql]
 ----
-DESC table
+DESC [table identifier<1>|[LIKE pattern<2>]]
 ----
 
 
 .Description
 
 `DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[describeTable]
+----

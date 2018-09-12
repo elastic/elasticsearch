@@ -20,18 +20,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -200,7 +198,9 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
                         loadAuthorizedAliases(authorizedIndices.get(), metaData));
-                aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
+                //it may be that we replace aliases with an empty array, in case there are no authorized aliases for the action.
+                //MetaData#findAliases will return nothing when some alias was originally requested, which was replaced with empty.
+                aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {
@@ -240,8 +240,7 @@ class IndicesAndAliasesResolver {
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            ImmutableOpenMap<String, List<AliasMetaData>> foundAliases =
-                metaData.findAliases(Strings.EMPTY_ARRAY, new String[] { concreteIndexName });
+            ImmutableOpenMap<String, List<AliasMetaData>> foundAliases = metaData.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetaData> aliasMetaData = foundAliases.get(concreteIndexName);
             if (aliasMetaData != null) {
                 Optional<String> foundAlias = aliasMetaData.stream()
@@ -279,14 +278,12 @@ class IndicesAndAliasesResolver {
         List<String> finalAliases = new ArrayList<>();
 
         //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
-        boolean matchAllAliases = aliases.length == 0;
-        if (matchAllAliases) {
+        if (aliases.length == 0) {
             finalAliases.addAll(authorizedAliases);
         }
 
         for (String aliasPattern : aliases) {
             if (aliasPattern.equals(MetaData.ALL)) {
-                matchAllAliases = true;
                 finalAliases.addAll(authorizedAliases);
             } else if (Regex.isSimpleMatchPattern(aliasPattern)) {
                 for (String authorizedAlias : authorizedAliases) {
@@ -297,16 +294,6 @@ class IndicesAndAliasesResolver {
             } else {
                 finalAliases.add(aliasPattern);
             }
-        }
-
-        //Throw exception if the wildcards expansion to authorized aliases resulted in no indices.
-        //We always need to replace wildcards for security reasons, to make sure that the operation is executed on the aliases that we
-        //authorized it to execute on. Empty set gets converted to _all by es core though, and unlike with indices, here we don't have
-        //a special expression to replace empty set with, which gives us the guarantee that nothing will be returned.
-        //This is because existing aliases can contain all kinds of special characters, they are only validated since 5.1.
-        if (finalAliases.isEmpty()) {
-            String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
-            throw new IndexNotFoundException(indexName);
         }
         return finalAliases;
     }
@@ -431,7 +418,7 @@ class IndicesAndAliasesResolver {
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
-            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersSeeds(settings).keySet());
+            clusters = new CopyOnWriteArraySet<>(buildRemoteClustersDynamicConfig(settings).keySet());
             listenForUpdates(clusterSettings);
         }
 
@@ -441,7 +428,7 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {

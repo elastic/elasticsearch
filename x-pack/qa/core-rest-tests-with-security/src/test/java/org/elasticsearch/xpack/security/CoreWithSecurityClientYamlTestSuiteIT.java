@@ -39,6 +39,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
+                .put(super.restClientSettings())
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }

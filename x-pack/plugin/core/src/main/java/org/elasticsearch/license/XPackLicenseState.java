@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
@@ -52,6 +55,9 @@ public class XPackLicenseState {
         messages.put(XPackField.LOGSTASH, new String[] {
             "Logstash will continue to poll centrally-managed pipelines"
         });
+        messages.put(XPackField.BEATS, new String[] {
+            "Beats will continue to poll centrally-managed configuration"
+        });
         messages.put(XPackField.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
         });
@@ -81,6 +87,7 @@ public class XPackLicenseState {
         messages.put(XPackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
+        messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
@@ -205,12 +212,19 @@ public class XPackLicenseState {
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                switch (currentMode) {
-                    case TRIAL:
-                    case STANDARD:
-                    case GOLD:
-                    case PLATINUM:
-                        return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                if (isBasic(currentMode) == false) {
+                    return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+                if (isBasic(currentMode) == false) {
+                    return new String[] { "Beats will no longer be able to use centrally-managed configuration" };
                 }
                 break;
         }
@@ -232,6 +246,10 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
+    private static boolean isBasic(OperationMode mode) {
+        return mode == OperationMode.BASIC;
+    }
+
     /** A wrapper for the license mode and state, to allow atomically swapping. */
     private static class Status {
 
@@ -251,6 +269,7 @@ public class XPackLicenseState {
     private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
+    private volatile boolean isSecurityEnabledByTrialVersion;
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
@@ -259,11 +278,30 @@ public class XPackLicenseState {
         // setting is not explicitly set
         this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
             (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
+        this.isSecurityEnabledByTrialVersion = false;
     }
 
-    /** Updates the current state of the license, which will change what features are available. */
-    void update(OperationMode mode, boolean active) {
+    /**
+     * Updates the current state of the license, which will change what features are available.
+     *
+     * @param mode   The mode (type) of the current license.
+     * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
+     * @param mostRecentTrialVersion If this cluster has, at some point commenced a trial, the most recent version on which they did that.
+     *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
+     *                               trial was prior to this metadata being tracked (6.1)
+     */
+    void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
         status = new Status(mode, active);
+        if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL
+            && isSecurityEnabledByTrialVersion == false) {
+            // Before 6.3, Trial licenses would default having security enabled.
+            // If this license was generated before that version, then treat it as if security is explicitly enabled
+            if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
+                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
+                    mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
+                isSecurityEnabledByTrialVersion = true;
+            }
+        }
         listeners.forEach(Runnable::run);
     }
 
@@ -372,8 +410,18 @@ public class XPackLicenseState {
      */
     public boolean isCustomRoleProvidersAllowed() {
         final Status localStatus = status;
-        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL )
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
                 && localStatus.active;
+    }
+
+    /**
+     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
+     */
+    public boolean isAuthorizationRealmAllowed() {
+        final Status localStatus = status;
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
+            && localStatus.active;
     }
 
     /**
@@ -476,13 +524,13 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isMachineLearningAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        OperationMode operationMode = localStatus.mode;
+        // one-time volatile read as status could be updated on us while performing this check
+        final Status currentStatus = status;
+        return currentStatus.active && isMachineLearningAllowedForOperationMode(currentStatus.mode);
+    }
 
-        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
-
-        return licensed && localStatus.active;
+    public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
+        return isPlatinumOrTrialOperationMode(operationMode);
     }
 
     /**
@@ -500,20 +548,17 @@ public class XPackLicenseState {
      */
     public boolean isLogstashAllowed() {
         Status localStatus = status;
+        return localStatus.active && (isBasic(localStatus.mode) == false);
+    }
 
-        if (localStatus.active == false) {
-            return false;
-        }
+    /**
+     * Beats is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
+     * @return {@code true} as long as there is a valid license
+     */
+    public boolean isBeatsAllowed() {
+        Status localStatus = status;
+        return localStatus.active && (isBasic(localStatus.mode) == false);
 
-        switch (localStatus.mode) {
-            case TRIAL:
-            case GOLD:
-            case PLATINUM:
-            case STANDARD:
-                return true;
-            default:
-                return false;
-        }
     }
 
     /**
@@ -575,6 +620,32 @@ public class XPackLicenseState {
 
     public boolean isSecurityEnabled() {
         final OperationMode mode = status.mode;
-        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+        return mode == OperationMode.TRIAL ? (isSecurityExplicitlyEnabled || isSecurityEnabledByTrialVersion) : isSecurityEnabled;
     }
+
+    /**
+     * Determine if cross-cluster replication should be enabled.
+     * <p>
+     * Cross-cluster replication is only disabled when the license has expired or if the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return true is the license is compatible, otherwise false
+     */
+    public boolean isCcrAllowed() {
+        // one-time volatile read as status could be updated on us while performing this check
+        final Status currentStatus = status;
+        return currentStatus.active && isCcrAllowedForOperationMode(currentStatus.mode);
+    }
+
+    public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
+        return isPlatinumOrTrialOperationMode(operationMode);
+    }
+
+    public static boolean isPlatinumOrTrialOperationMode(final OperationMode operationMode) {
+        return operationMode == OperationMode.PLATINUM || operationMode == OperationMode.TRIAL;
+    }
+
 }

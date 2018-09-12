@@ -112,7 +112,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceAggsWithStats(),
                 new PromoteStatsToExtendedStats(),
                 new ReplaceAggsWithPercentiles(),
-                new ReplceAggsWithPercentileRanks()
+                new ReplaceAggsWithPercentileRanks()
                 );
 
         Batch operators = new Batch("Operator Optimization",
@@ -132,7 +132,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneFilters(),
                 new PruneOrderBy(),
                 new PruneOrderByNestedFields(),
-                new PruneCast()
+                new PruneCast(),
+                // order by alignment of the aggs
+                new SortAggregateOnOrderBy()
                 // requires changes in the folding
                 // since the exact same function, with the same ID can appear in multiple places
                 // see https://github.com/elastic/x-pack-elasticsearch/issues/3527
@@ -612,7 +614,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class ReplceAggsWithPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
+    static class ReplaceAggsWithPercentileRanks extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
@@ -822,6 +824,46 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }).collect(toList());
 
                     return nonAgg.isEmpty() ? ob.child() : new OrderBy(ob.location(), ob.child(), nonAgg);
+                }
+            }
+            return ob;
+        }
+    }
+
+    /**
+     * Align the order in aggregate based on the order by.
+     */
+    static class SortAggregateOnOrderBy extends OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            List<Order> order = ob.order();
+
+            // remove constants
+            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+
+            // if the sort points to an agg, change the agg order based on the order
+            if (ob.child() instanceof Aggregate) {
+                Aggregate a = (Aggregate) ob.child();
+                List<Expression> groupings = new ArrayList<>(a.groupings());
+                boolean orderChanged = false;
+
+                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
+                    Order o = nonConstant.get(orderIndex);
+                    Expression fieldToOrder = o.child();
+                    for (Expression group : a.groupings()) {
+                        if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
+                            // move grouping in front
+                            groupings.remove(group);
+                            groupings.add(orderIndex, group);
+                            orderChanged = true;
+                        }
+                    }
+                }
+
+                if (orderChanged) {
+                    Aggregate newAgg = new Aggregate(a.location(), a.child(), groupings, a.aggregates());
+                    return new OrderBy(ob.location(), newAgg, ob.order());
                 }
             }
             return ob;

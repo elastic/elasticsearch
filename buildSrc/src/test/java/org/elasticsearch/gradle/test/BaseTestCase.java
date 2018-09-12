@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test;
 import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 
@@ -29,5 +30,6 @@ import org.junit.runner.RunWith;
     JUnit4MethodProvider.class,
     JUnit3MethodProvider.class
 })
+@ThreadLeakLingering(linger = 5000) // wait for "Connection worker" to die
 public abstract class BaseTestCase extends Assert {
 }

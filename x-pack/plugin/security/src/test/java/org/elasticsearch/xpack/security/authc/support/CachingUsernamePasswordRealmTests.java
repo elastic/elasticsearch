@@ -19,7 +19,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.support.BCrypt;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -29,8 +28,10 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -61,12 +63,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testSettings() throws Exception {
-        String hashAlgo = randomFrom("bcrypt", "bcrypt4", "bcrypt5", "bcrypt6", "bcrypt7", "bcrypt8", "bcrypt9",
-                "sha1", "ssha256", "md5", "clear_text", "noop");
+        String cachingHashAlgo = Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         Settings settings = Settings.builder()
-                .put(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.getKey(), hashAlgo)
+                .put(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.getKey(), cachingHashAlgo)
                 .put(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsers)
                 .put(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.getKey(), ttl)
                 .build();
@@ -84,8 +85,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
         };
-
-        assertThat(realm.hasher, sameInstance(Hasher.resolve(hashAlgo)));
+        assertThat(realm.cacheHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
     }
 
     public void testAuthCache() {
@@ -343,12 +343,39 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("lookup exception"));
     }
 
+    public void testReturnDifferentObjectFromCache() throws Exception {
+        final AtomicReference<User> userArg = new AtomicReference<>();
+        final AtomicReference<AuthenticationResult> result = new AtomicReference<>();
+        Realm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool) {
+            @Override
+            protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+                userArg.set(user);
+                listener.onResponse(result.get());
+            }
+        };
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
+        final AuthenticationResult result1 = future.actionGet();
+        assertThat(result1, notNullValue());
+        assertThat(result1.getUser(), notNullValue());
+        assertThat(result1.getUser().principal(), equalTo("user"));
+
+        final AuthenticationResult result2 = AuthenticationResult.success(new User("user"));
+        result.set(result2);
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
+        final AuthenticationResult result3 = future.actionGet();
+        assertThat(result3, sameInstance(result2));
+        assertThat(userArg.get(), sameInstance(result1.getUser()));
+    }
+
     public void testSingleAuthPerUserLimit() throws Exception {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-
-        final String passwordHash = new String(Hasher.BCRYPT.hash(password));
+        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String passwordHash = new String(pwdHasher.hash(password));
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config, threadPool) {
@@ -356,7 +383,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 authCounter.incrementAndGet();
                 // do something slow
-                if (BCrypt.checkpw(token.credentials(), passwordHash)) {
+                if (pwdHasher.verify(token.credentials(), passwordHash.toCharArray())) {
                     listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
                 } else {
                     listener.onFailure(new IllegalStateException("password auth should never fail"));
@@ -413,15 +440,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-
-        final String passwordHash = new String(Hasher.BCRYPT.hash(password));
+        final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final String passwordHash = new String(localHasher.hash(password));
         RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
                 // do something slow
-                if (BCrypt.checkpw(token.credentials(), passwordHash)) {
+                if (localHasher.verify(token.credentials(), passwordHash.toCharArray())) {
                     listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
                 } else {
                     listener.onResponse(AuthenticationResult.unsuccessful("Incorrect password", null));

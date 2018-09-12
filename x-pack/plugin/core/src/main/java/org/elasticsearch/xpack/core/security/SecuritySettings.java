@@ -19,9 +19,10 @@ public final class SecuritySettings {
         final Settings.Builder builder = Settings.builder();
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
             final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
-            if (SecurityField.NAME4.equals(transportType) == false) {
+            if (SecurityField.NAME4.equals(transportType) == false && SecurityField.NIO.equals(transportType) == false) {
                 throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY
-                        + "] must be [" + SecurityField.NAME4 + "] but is [" + transportType + "]");
+                    + "] must be [" + SecurityField.NAME4 + "] or [" + SecurityField.NIO + "]" + " but is ["
+                    + transportType + "]");
             }
         } else {
             // default to security4
@@ -39,7 +40,7 @@ public final class SecuritySettings {
                 final int i = userSetting.indexOf(":");
                 if (i < 0 || i == userSetting.length() - 1) {
                     throw new IllegalArgumentException("invalid [" + SecurityField.USER_SETTING.getKey()
-                            + "] setting. must be in the form of \"<username>:<password>\"");
+                        + "] setting. must be in the form of \"<username>:<password>\"");
                 }
                 String username = userSetting.substring(0, i);
                 String password = userSetting.substring(i + 1);

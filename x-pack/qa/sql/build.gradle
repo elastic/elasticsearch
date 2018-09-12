@@ -1,15 +1,17 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RunTask
 
 description = 'Integration tests for SQL'
 apply plugin: 'elasticsearch.build'
 archivesBaseName = 'qa-sql'
+group = "org.elasticsearch.x-pack.qa.sql"
 
 dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
   // JDBC testing dependencies
   compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+
+  compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
   // CLI testing dependencies
@@ -26,8 +28,7 @@ dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
+  replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
 thirdPartyAudit.excludes = [
@@ -76,6 +77,7 @@ thirdPartyAudit.excludes = [
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
+    
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress

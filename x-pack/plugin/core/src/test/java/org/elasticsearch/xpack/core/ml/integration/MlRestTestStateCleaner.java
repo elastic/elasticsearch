@@ -37,7 +37,6 @@ public class MlRestTestStateCleaner {
         final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
         datafeedsRequest.addParameter("filter_path", "datafeeds");
         final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
-        @SuppressWarnings("unchecked")
         final List<Map<String, Object>> datafeeds =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", ESRestTestCase.entityAsMap(datafeedsResponse));
         if (datafeeds == null) {
@@ -45,20 +44,11 @@ public class MlRestTestStateCleaner {
         }
 
         try {
-            int statusCode = adminClient.performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop")
-                    .getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when stopping datafeeds");
-            }
+            adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop"));
         } catch (Exception e1) {
             logger.warn("failed to stop all datafeeds. Forcing stop", e1);
             try {
-                int statusCode = adminClient
-                        .performRequest("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true")
-                        .getStatusLine().getStatusCode();
-                if (statusCode != 200) {
-                    logger.error("Got status code " + statusCode + " when stopping datafeeds");
-                }
+                adminClient.performRequest(new Request("POST", "/_xpack/ml/datafeeds/_all/_stop?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all data feeds failed", e2);
             }
@@ -68,10 +58,7 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> datafeed : datafeeds) {
             String datafeedId = (String) datafeed.get("datafeed_id");
-            int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/datafeeds/" + datafeedId).getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when deleting datafeed " + datafeedId);
-            }
+            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/datafeeds/" + datafeedId));
         }
     }
 
@@ -87,17 +74,11 @@ public class MlRestTestStateCleaner {
         }
 
         try {
-            int statusCode = adminClient
-                    .performRequest("POST", "/_xpack/ml/anomaly_detectors/_all/_close")
-                    .getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when closing all jobs");
-            }
+            adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close"));
         } catch (Exception e1) {
             logger.warn("failed to close all jobs. Forcing closed", e1);
             try {
-                adminClient.performRequest("POST",
-                        "/_xpack/ml/anomaly_detectors/_all/_close?force=true");
+                adminClient.performRequest(new Request("POST", "/_xpack/ml/anomaly_detectors/_all/_close?force=true"));
             } catch (Exception e2) {
                 logger.warn("Force-closing all jobs failed", e2);
             }
@@ -107,10 +88,7 @@ public class MlRestTestStateCleaner {
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
-            int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId).getStatusLine().getStatusCode();
-            if (statusCode != 200) {
-                logger.error("Got status code " + statusCode + " when deleting job " + jobId);
-            }
+            adminClient.performRequest(new Request("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId));
         }
     }
 }

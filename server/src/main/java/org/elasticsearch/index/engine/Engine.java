@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -97,6 +99,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -132,7 +135,7 @@ public abstract class Engine implements Closeable {
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
-                engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
+                engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
 
@@ -304,6 +307,7 @@ public abstract class Engine implements Closeable {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
         private final long version;
+        private final long term;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
@@ -311,19 +315,21 @@ public abstract class Engine implements Closeable {
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
+            this.term = term;
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
+            this.term = term;
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
@@ -333,6 +339,7 @@ public abstract class Engine implements Closeable {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.term = 0L;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
@@ -355,6 +362,10 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        public long getTerm() {
+            return term;
         }
 
         /**
@@ -415,20 +426,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created) {
+            super(Operation.TYPE.INDEX, version, term, seqNo);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
-        public IndexResult(Exception failure, long version, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
             this.created = false;
         }
 
@@ -447,20 +458,20 @@ public abstract class Engine implements Closeable {
 
         private final boolean found;
 
-        public DeleteResult(long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, version, term, seqNo);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version) {
-            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term) {
+            this(failure, version, term, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
             this.found = found;
         }
 
@@ -477,12 +488,12 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, seqNo);
+        NoOpResult(long term, long seqNo) {
+            super(Operation.TYPE.NO_OP, term, 0, seqNo);
         }
 
-        NoOpResult(long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        NoOpResult(long term, long seqNo, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
         }
 
     }
@@ -559,7 +570,31 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
+    public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        Releasable releasable = store::decRef;
+        try {
+            EngineSearcher engineSearcher = new EngineSearcher(source, getReferenceManager(scope), store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("acquire_searcher", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -577,18 +612,32 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
-     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
-     * The caller has to close the returned snapshot after finishing the reading.
+     * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive)
      */
-    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     * Creates a new history snapshot for reading operations since {@code startingSeqNo} (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
+     */
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     public abstract TranslogStats getTranslogStats();
 
@@ -800,6 +849,8 @@ public abstract class Engine implements Closeable {
                     } catch (IOException e) {
                         logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
+                    segment.segmentSort = info.info.getIndexSort();
+                    segment.attributes = info.info.getAttributes();
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;
@@ -1168,6 +1219,7 @@ public abstract class Engine implements Closeable {
         public Index(Term uid, ParsedDocument doc, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin,
                      long startTime, long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.doc = doc;
             this.isRetry = isRetry;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
@@ -1245,6 +1297,7 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
         }
@@ -1611,10 +1664,13 @@ public abstract class Engine implements Closeable {
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
 
     /**
-     * Performs recovery from the transaction log.
+     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
+     *
+     * @param translogRecoveryRunner the translog recovery runner
+     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
      */
-    public abstract Engine recoverFromTranslog() throws IOException;
+    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
 
     /**
      * Do not replay translog operations, but make the engine be ready.
@@ -1632,4 +1688,9 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
+
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -122,6 +123,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadContext threadContext;
     private boolean includeRequestBody;
+    private String opaqueId;
 
     @Before
     public void init() throws Exception {
@@ -145,6 +147,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         prefix = LoggingAuditTrail.LocalNodeInfo.resolvePrefix(settings, localNode);
         threadContext = new ThreadContext(Settings.EMPTY);
+        if (randomBoolean()) {
+            String id = randomAlphaOfLength(10);
+            threadContext.putHeader(Task.X_OPAQUE_ID, id);
+            opaqueId = ", opaque_id=[" + id + "]";
+        } else {
+            opaqueId = "";
+        }
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {
@@ -155,10 +164,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.anonymousAccessDenied("_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [anonymous_access_denied]\t"  + origins +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [anonymous_access_denied]\t"  + origins +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -179,10 +188,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.anonymousAccessDenied(request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO, prefix + "[rest] [anonymous_access_denied]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri], request_body=[" + expectedMessage + "]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId + ", request_body=[" + expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO, prefix + "[rest] [anonymous_access_denied]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId);
         }
 
         // test disabled
@@ -202,10 +211,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
                     ", principal=[_principal], action=[_action], indices=[" + indices(message) +
-                    "], request=[MockIndicesRequest]");
+                    "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
-                    ", principal=[_principal], action=[_action], request=[MockMessage]");
+                    ", principal=[_principal], action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -224,10 +233,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationFailed("_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -248,11 +257,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationFailed(new MockToken(), request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO, prefix + "[rest] [authentication_failed]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri], request_body=[" +
+                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]" + opaqueId + ", request_body=[" +
                     expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO, prefix + "[rest] [authentication_failed]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]");
+                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]" + opaqueId);
         }
 
         // test disabled
@@ -273,10 +282,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationFailed(request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO, prefix + "[rest] [authentication_failed]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri], request_body=[" + expectedMessage + "]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId + ", request_body=[" + expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO, prefix + "[rest] [authentication_failed]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId);
         }
 
         // test disabled
@@ -303,10 +312,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [realm_authentication_failed]\trealm=[_realm], " + origins +
                     ", principal=[_principal], action=[_action], indices=[" + indices(message) + "], " +
-                    "request=[MockIndicesRequest]");
+                    "request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [realm_authentication_failed]\trealm=[_realm], " + origins +
-                    ", principal=[_principal], action=[_action], request=[MockMessage]");
+                    ", principal=[_principal], action=[_action], request=[MockMessage]" + opaqueId);
         }
     }
 
@@ -327,11 +336,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationFailed("_realm", new MockToken(), request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO, prefix + "[rest] [realm_authentication_failed]\trealm=[_realm], origin_address=[" +
-                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri], request_body=[" +
+                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]" + opaqueId + ", request_body=[" +
                     expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO, prefix + "[rest] [realm_authentication_failed]\trealm=[_realm], origin_address=[" +
-                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]");
+                    NetworkAddress.format(address) + "], principal=[_principal], uri=[_uri]" + opaqueId);
         }
     }
 
@@ -353,10 +362,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -384,11 +393,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" +
                     SystemUser.INSTANCE.principal()
                     + "], realm=[authRealm], roles=[" + role + "], action=[internal:_action], indices=[" + indices(message)
-                    + "], request=[MockIndicesRequest]");
+                    + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" +
                     SystemUser.INSTANCE.principal() + "], realm=[authRealm], roles=[" + role
-                    + "], action=[internal:_action], request=[MockMessage]");
+                    + "], action=[internal:_action], request=[MockMessage]" + opaqueId);
         }
     }
 
@@ -410,10 +419,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo +
-                    ", action=[internal:_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[internal:_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]"  + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", " + userInfo +
-                    ", action=[internal:_action], request=[MockMessage]");
+                    ", action=[internal:_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -442,10 +451,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_denied]\t" + origins + ", " + userInfo +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -466,10 +475,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.tamperedRequest(request);
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO, prefix + "[rest] [tampered_request]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri], request_body=[" + expectedMessage + "]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId + ", request_body=[" + expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO, prefix + "[rest] [tampered_request]\torigin_address=[" +
-                    NetworkAddress.format(address) + "], uri=[_uri]");
+                    NetworkAddress.format(address) + "], uri=[_uri]" + opaqueId);
         }
 
         // test disabled
@@ -489,10 +498,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.tamperedRequest(action, message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -516,10 +525,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.tamperedRequest(user, action, message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo +
-                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    ", action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]" + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo +
-                    ", action=[_action], request=[MockMessage]");
+                    ", action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -537,7 +546,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
         auditTrail.connectionDenied(inetAddress, "default", rule);
         assertMsg(logger, Level.INFO, String.format(Locale.ROOT, prefix +
-                        "[ip_filter] [connection_denied]\torigin_address=[%s], transport_profile=[%s], rule=[deny %s]",
+                        "[ip_filter] [connection_denied]\torigin_address=[%s], transport_profile=[%s], rule=[deny %s]" + opaqueId,
                 NetworkAddress.format(inetAddress), "default", "_all"));
 
         // test disabled
@@ -562,7 +571,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.connectionGranted(inetAddress, "default", rule);
         assertMsg(logger, Level.INFO, String.format(Locale.ROOT, prefix + "[ip_filter] [connection_granted]\torigin_address=[%s], " +
-                "transport_profile=[default], rule=[allow default:accept_all]", NetworkAddress.format(inetAddress)));
+                    "transport_profile=[default], rule=[allow default:accept_all]" + opaqueId,
+                NetworkAddress.format(inetAddress)));
     }
 
     public void testRunAsGranted() throws Exception {
@@ -577,12 +587,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_granted]\t" + origins
                             + ", principal=[_username], realm=[authRealm], run_as_principal=[running as], run_as_realm=[lookRealm], roles=["
-                            + role + "], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                            + role + "], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]"  + opaqueId);
         } else {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_granted]\t" + origins
                             + ", principal=[_username], realm=[authRealm], run_as_principal=[running as], run_as_realm=[lookRealm], roles=["
-                            + role + "], action=[_action], request=[MockMessage]");
+                            + role + "], action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -605,12 +615,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_denied]\t" + origins
                             + ", principal=[_username], realm=[authRealm], run_as_principal=[running as], run_as_realm=[lookRealm], roles=["
-                            + role + "], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                            + role + "], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]"  + opaqueId);
         } else {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_denied]\t" + origins
                             + ", principal=[_username], realm=[authRealm], run_as_principal=[running as], run_as_realm=[lookRealm], roles=["
-                            + role + "], action=[_action], request=[MockMessage]");
+                            + role + "], action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled
@@ -667,10 +677,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (includeRequestBody) {
             assertMsg(logger, Level.INFO,
                     prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params
-                    + "], request_body=[" + expectedMessage + "]");
+                    + "]" + opaqueId + ", request_body=[" + expectedMessage + "]");
         } else {
             assertMsg(logger, Level.INFO,
-                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params + "]");
+                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params
+                    + "]" + opaqueId);
         }
 
         // test disabled
@@ -701,10 +712,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationSuccess(realm, user, "_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_success]\t" + origins + ", " + userInfo
-                    + ", realm=[_realm], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]");
+                    + ", realm=[_realm], action=[_action], indices=[" + indices(message) + "], request=[MockIndicesRequest]"  + opaqueId);
         } else {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_success]\t" + origins + ", " + userInfo
-                    + ", realm=[_realm], action=[_action], request=[MockMessage]");
+                    + ", realm=[_realm], action=[_action], request=[MockMessage]" + opaqueId);
         }
 
         // test disabled

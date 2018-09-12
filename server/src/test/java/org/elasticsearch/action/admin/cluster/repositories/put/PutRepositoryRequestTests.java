@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PutRepositoryRequestTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testCreateRepositoryToXContent() throws IOException {
         Map<String, String> mapParams = new HashMap<>();
         PutRepositoryRequest request = new PutRepositoryRequest();
@@ -62,11 +63,11 @@ public class PutRepositoryRequestTests extends ESTestCase {
         assertThat(outputMap.get("name"), equalTo(request.name()));
         assertThat(outputMap.get("verify"), equalTo(request.verify()));
         assertThat(outputMap.get("type"), equalTo(request.type()));
-        Map settings = (Map) outputMap.get("settings");
+        Map<String, Object> settings = (Map<String, Object>) outputMap.get("settings");
         if (addSettings) {
             assertThat(settings.get(FsRepository.LOCATION_SETTING.getKey()), equalTo("."));
         } else {
-            assertTrue(((Map) outputMap.get("settings")).isEmpty());
+            assertTrue(((Map<String, Object>) outputMap.get("settings")).isEmpty());
         }
     }
 }

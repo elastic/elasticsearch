@@ -100,3 +100,6 @@ ${error.file}
 # due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise
 # time/date parsing will break in an incompatible way for some date patterns and locals
 9-:-Djava.locale.providers=COMPAT
+
+# temporary workaround for C2 bug with JDK 10 on hardware with AVX-512
+10-:-XX:UseAVX=2

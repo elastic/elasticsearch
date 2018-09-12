@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SqlParserTests extends ESTestCase {
+
     public void testSelectStar() {
         singleProjection(project(parseStatement("SELECT * FROM foo")), UnresolvedStar.class);
     }
@@ -42,6 +43,11 @@ public class SqlParserTests extends ESTestCase {
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
         assertEquals("SCORE", f.functionName());
+    }
+
+    public void testSelectRightFunction() {
+        UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
+        assertEquals("RIGHT", f.functionName());
     }
 
     public void testOrderByField() {

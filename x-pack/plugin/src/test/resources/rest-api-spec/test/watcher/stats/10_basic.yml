@@ -1,17 +1,11 @@
 ---
 "Test watcher stats output":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30298"
   - do: {xpack.watcher.stats: {}}
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }
 
 ---
 "Test watcher stats supports emit_stacktraces parameter":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30298"
   - do:
       xpack.watcher.stats:
         metric: "all"

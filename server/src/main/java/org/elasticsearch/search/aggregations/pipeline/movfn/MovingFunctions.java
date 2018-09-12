@@ -85,7 +85,7 @@ public class MovingFunctions {
      * The average is based on the count of non-null, non-NaN values.
      */
     public static double stdDev(double[] values, double avg) {
-        if (avg == Double.NaN) {
+        if (Double.isNaN(avg)) {
             return Double.NaN;
         } else {
             long count = 0;

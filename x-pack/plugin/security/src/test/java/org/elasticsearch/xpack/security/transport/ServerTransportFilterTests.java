@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -37,12 +36,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -218,47 +215,6 @@ public class ServerTransportFilterTests extends ESTestCase {
         verify(authzService, times(2)).roles(eq(authentication.getUser()), any(ActionListener.class));
         verify(authzService).authorize(authentication, nodeOrShardAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
         verifyNoMoreInteractions(authcService, authzService);
-    }
-
-    public void testHandlesKibanaUserCompatibility() throws Exception {
-        TransportRequest request = mock(TransportRequest.class);
-        User user = new User("kibana", "kibana");
-        Authentication authentication = mock(Authentication.class);
-        final Version version = Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID - 100));
-        when(authentication.getVersion()).thenReturn(version);
-        when(authentication.getUser()).thenReturn(user);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
-            callback.onResponse(authentication);
-            return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq((User)null), any(ActionListener.class));
-        AtomicReference<String[]> rolesRef = new AtomicReference<>();
-        final Role empty = Role.EMPTY;
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            rolesRef.set(((User) i.getArguments()[0]).roles());
-            callback.onResponse(empty);
-            return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
-        ServerTransportFilter filter = getClientOrNodeFilter();
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        when(channel.getVersion()).thenReturn(version);
-        filter.inbound("_action", request, channel, future);
-        assertNotNull(rolesRef.get());
-        assertThat(rolesRef.get(), arrayContaining("kibana_system"));
-
-        // test with a version that doesn't need changing
-        filter = getClientOrNodeFilter();
-        rolesRef.set(null);
-        user = new KibanaUser(true);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getVersion()).thenReturn(Version.V_5_2_0);
-        future = new PlainActionFuture<>();
-        filter.inbound("_action", request, channel, future);
-        assertNotNull(rolesRef.get());
-        assertThat(rolesRef.get(), arrayContaining("kibana_system"));
     }
 
     private ServerTransportFilter getClientOrNodeFilter() throws IOException {

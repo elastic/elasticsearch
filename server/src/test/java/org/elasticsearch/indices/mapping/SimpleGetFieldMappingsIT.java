@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,10 +69,26 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     }
 
     private XContentBuilder getMappingForType(String type) throws IOException {
-        return jsonBuilder().startObject().startObject(type).startObject("properties")
-                .startObject("field1").field("type", "text").endObject()
-                .startObject("obj").startObject("properties").startObject("subfield").field("type", "keyword").endObject().endObject().endObject()
-                .endObject().endObject().endObject();
+        return jsonBuilder().startObject()
+            .startObject(type)
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "text")
+                    .endObject()
+                   .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "field1")
+                    .endObject()
+                    .startObject("obj")
+                        .startObject("properties")
+                            .startObject("subfield")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
     }
 
     public void testGetFieldMappings() throws Exception {
@@ -138,8 +155,23 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("index", Boolean.TRUE));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("type", (Object) "text"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "keyword"));
+    }
 
+    @SuppressWarnings("unchecked")
+    public void testGetFieldMappingsWithFieldAlias() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
 
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
+            .setFields("alias", "field1").get();
+
+        FieldMappingMetaData aliasMapping = response.fieldMappings("test", "type", "alias");
+        assertThat(aliasMapping.fullName(), equalTo("alias"));
+        assertThat(aliasMapping.sourceAsMap(), hasKey("alias"));
+        assertThat((Map<String, Object>) aliasMapping.sourceAsMap().get("alias"), hasEntry("type", "alias"));
+
+        FieldMappingMetaData field1Mapping = response.fieldMappings("test", "type", "field1");
+        assertThat(field1Mapping.fullName(), equalTo("field1"));
+        assertThat(field1Mapping.sourceAsMap(), hasKey("field1"));
     }
 
     //fix #6552

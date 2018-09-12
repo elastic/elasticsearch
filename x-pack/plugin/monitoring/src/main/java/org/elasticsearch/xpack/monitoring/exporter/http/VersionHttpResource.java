@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.Loggers;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -26,11 +26,6 @@ import java.util.Objects;
 public class VersionHttpResource extends HttpResource {
 
     private static final Logger logger = Loggers.getLogger(VersionHttpResource.class);
-
-    /**
-     * The parameters to pass with every version request to limit the output to just the version number.
-     */
-    public static final Map<String, String> PARAMETERS = Collections.singletonMap("filter_path", "version.number");
 
     /**
      * The minimum supported version of Elasticsearch.
@@ -59,7 +54,9 @@ public class VersionHttpResource extends HttpResource {
         logger.trace("checking [{}] to ensure that it supports the minimum version [{}]", resourceOwnerName, minimumVersion);
 
         try {
-            return validateVersion(client.performRequest("GET", "/", PARAMETERS));
+            Request request = new Request("GET", "/");
+            request.addParameter("filter_path", "version.number");
+            return validateVersion(client.performRequest(request));
         } catch (IOException | RuntimeException e) {
             logger.error(
                     (Supplier<?>)() ->

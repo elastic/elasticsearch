@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -38,8 +37,6 @@ public final class ENewArray extends AExpression {
     private final List<AExpression> arguments;
     private final boolean initialize;
 
-    private Class<?> array;
-
     public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
         super(location);
 
@@ -57,30 +54,26 @@ public final class ENewArray extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-         if (!read) {
-            throw createError(new IllegalArgumentException("A newly created array must be read from."));
+        if (!read) {
+             throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
-        Class<?> clazz;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = initialize ? clazz : int.class;
+            expression.expected = initialize ? clazz.getComponentType() : int.class;
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = Definition.TypeToClass(locals.getDefinition().getType(
-            locals.getDefinition().ClassToType(clazz).struct, initialize ? 1 : arguments.size()));
-        array = Definition.defClassToObjectClass(actual);
+        actual = clazz;
     }
 
     @Override
@@ -89,7 +82,7 @@ public final class ENewArray extends AExpression {
 
         if (initialize) {
             writer.push(arguments.size());
-            writer.newArray(MethodWriter.getType(array.getComponentType()));
+            writer.newArray(MethodWriter.getType(actual.getComponentType()));
 
             for (int index = 0; index < arguments.size(); ++index) {
                 AExpression argument = arguments.get(index);
@@ -97,7 +90,7 @@ public final class ENewArray extends AExpression {
                 writer.dup();
                 writer.push(index);
                 argument.write(writer, globals);
-                writer.arrayStore(MethodWriter.getType(array.getComponentType()));
+                writer.arrayStore(MethodWriter.getType(actual.getComponentType()));
             }
         } else {
             for (AExpression argument : arguments) {
@@ -105,9 +98,9 @@ public final class ENewArray extends AExpression {
             }
 
             if (arguments.size() > 1) {
-                writer.visitMultiANewArrayInsn(MethodWriter.getType(array).getDescriptor(), arguments.size());
+                writer.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
             } else {
-                writer.newArray(MethodWriter.getType(array.getComponentType()));
+                writer.newArray(MethodWriter.getType(actual.getComponentType()));
             }
         }
     }

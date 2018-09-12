@@ -21,8 +21,12 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -35,14 +39,20 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -50,10 +60,18 @@ import static org.mockito.Mockito.verify;
 
 public class GlobalCheckpointListenersTests extends ESTestCase {
 
-    final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+    private final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+    private final ScheduledThreadPoolExecutor scheduler =
+            new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(Settings.EMPTY, "scheduler"));
+
+    @After
+    public void shutdownScheduler() {
+        scheduler.shutdown();
+    }
 
     public void testGlobalCheckpointUpdated() throws IOException {
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         final int numberOfListeners = randomIntBetween(0, 16);
         final long[] globalCheckpoints = new long[numberOfListeners];
@@ -69,7 +87,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         assert e == null;
                         globalCheckpoints[index] = g;
                     };
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener);
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener, null);
         }
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
@@ -92,7 +110,8 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     }
 
     public void testListenersReadyToBeNotified() throws IOException {
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED + 1, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
         final int numberOfListeners = randomIntBetween(0, 16);
@@ -109,7 +128,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         assert e == null;
                         globalCheckpoints[index] = g;
                     };
-            globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener);
+            globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener, null);
             // the listener should be notified immediately
             assertThat(globalCheckpoints[index], equalTo(globalCheckpoint));
         }
@@ -130,7 +149,8 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
 
     public void testFailingListenerReadyToBeNotified() {
         final Logger mockLogger = mock(Logger.class);
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, mockLogger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED + 1, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
         final int numberOfListeners = randomIntBetween(0, 16);
@@ -149,7 +169,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                             globalCheckpoints[index] = globalCheckpoint;
                         }
                     };
-            globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener);
+            globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1), listener, null);
             // the listener should be notified immediately
             if (failure) {
                 assertThat(globalCheckpoints[i], equalTo(Long.MIN_VALUE));
@@ -172,10 +192,11 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     }
 
     public void testClose() throws IOException {
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         final int numberOfListeners = randomIntBetween(0, 16);
-        final IndexShardClosedException[] exceptions = new IndexShardClosedException[numberOfListeners];
+        final Exception[] exceptions = new Exception[numberOfListeners];
         for (int i = 0; i < numberOfListeners; i++) {
             final int index = i;
             final AtomicBoolean invoked = new AtomicBoolean();
@@ -188,12 +209,13 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         assert e != null;
                         exceptions[index] = e;
                     };
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener);
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener, null);
         }
         globalCheckpointListeners.close();
         for (int i = 0; i < numberOfListeners; i++) {
             assertNotNull(exceptions[i]);
-            assertThat(exceptions[i].getShardId(), equalTo(shardId));
+            assertThat(exceptions[i], instanceOf(IndexShardClosedException.class));
+            assertThat(((IndexShardClosedException)exceptions[i]).getShardId(), equalTo(shardId));
         }
 
         // test the listeners are not invoked twice
@@ -207,7 +229,8 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     }
 
     public void testAddAfterClose() throws InterruptedException, IOException {
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         globalCheckpointListeners.close();
         final AtomicBoolean invoked = new AtomicBoolean();
@@ -221,14 +244,15 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             }
             latch.countDown();
         };
-        globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE), listener);
+        globalCheckpointListeners.add(randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE), listener, null);
         latch.await();
         assertTrue(invoked.get());
     }
 
     public void testFailingListenerOnUpdate() {
         final Logger mockLogger = mock(Logger.class);
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, mockLogger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         final int numberOfListeners = randomIntBetween(0, 16);
         final boolean[] failures = new boolean[numberOfListeners];
@@ -248,7 +272,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                             globalCheckpoints[index] = g;
                         }
                     };
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener);
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener, null);
         }
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
@@ -282,11 +306,12 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
 
     public void testFailingListenerOnClose() throws IOException {
         final Logger mockLogger = mock(Logger.class);
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, Runnable::run, mockLogger);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         final int numberOfListeners = randomIntBetween(0, 16);
         final boolean[] failures = new boolean[numberOfListeners];
-        final IndexShardClosedException[] exceptions = new IndexShardClosedException[numberOfListeners];
+        final Exception[] exceptions = new Exception[numberOfListeners];
         for (int i = 0; i < numberOfListeners; i++) {
             final int index = i;
             final boolean failure = randomBoolean();
@@ -301,7 +326,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                             exceptions[index] = e;
                         }
                     };
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener);
+            globalCheckpointListeners.add(NO_OPS_PERFORMED, listener, null);
         }
         globalCheckpointListeners.close();
         for (int i = 0; i < numberOfListeners; i++) {
@@ -309,7 +334,8 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                 assertNull(exceptions[i]);
             } else {
                 assertNotNull(exceptions[i]);
-                assertThat(exceptions[i].getShardId(), equalTo(shardId));
+                assertThat(exceptions[i], instanceOf(IndexShardClosedException.class));
+                assertThat(((IndexShardClosedException)exceptions[i]).getShardId(), equalTo(shardId));
             }
         }
         int failureCount = 0;
@@ -334,17 +360,20 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             count.incrementAndGet();
             command.run();
         };
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
         globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
         final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE);
         final AtomicInteger notified = new AtomicInteger();
         final int numberOfListeners = randomIntBetween(0, 16);
         for (int i = 0; i < numberOfListeners; i++) {
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {
-                notified.incrementAndGet();
-                assertThat(g, equalTo(globalCheckpoint));
-                assertNull(e);
-            });
+            globalCheckpointListeners.add(
+                    NO_OPS_PERFORMED,
+                    (g, e) -> {
+                        notified.incrementAndGet();
+                        assertThat(g, equalTo(globalCheckpoint));
+                        assertNull(e);
+                    },
+                    null);
         }
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
         assertThat(notified.get(), equalTo(numberOfListeners));
@@ -357,17 +386,21 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             count.incrementAndGet();
             command.run();
         };
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
         globalCheckpointListeners.close();
         final AtomicInteger notified = new AtomicInteger();
         final int numberOfListeners = randomIntBetween(0, 16);
         for (int i = 0; i < numberOfListeners; i++) {
-            globalCheckpointListeners.add(NO_OPS_PERFORMED, (g, e) -> {
-                notified.incrementAndGet();
-                assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                assertNotNull(e);
-                assertThat(e.getShardId(), equalTo(shardId));
-            });
+            globalCheckpointListeners.add(
+                    NO_OPS_PERFORMED,
+                    (g, e) -> {
+                        notified.incrementAndGet();
+                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                        assertNotNull(e);
+                        assertThat(e, instanceOf(IndexShardClosedException.class));
+                        assertThat(((IndexShardClosedException) e).getShardId(), equalTo(shardId));
+                    },
+                    null);
         }
         assertThat(notified.get(), equalTo(numberOfListeners));
         assertThat(count.get(), equalTo(numberOfListeners));
@@ -379,17 +412,19 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             count.incrementAndGet();
             command.run();
         };
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
         final long globalCheckpoint = randomNonNegativeLong();
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
         final AtomicInteger notified = new AtomicInteger();
         final int numberOfListeners = randomIntBetween(0, 16);
         for (int i = 0; i < numberOfListeners; i++) {
-            globalCheckpointListeners.add(randomLongBetween(0, globalCheckpoint), (g, e) -> {
-                notified.incrementAndGet();
-                assertThat(g, equalTo(globalCheckpoint));
-                assertNull(e);
-            });
+            globalCheckpointListeners.add(
+                    randomLongBetween(0, globalCheckpoint),
+                    (g, e) -> {
+                        notified.incrementAndGet();
+                        assertThat(g, equalTo(globalCheckpoint));
+                        assertNull(e);
+                    }, null);
         }
         assertThat(notified.get(), equalTo(numberOfListeners));
         assertThat(count.get(), equalTo(numberOfListeners));
@@ -397,18 +432,18 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
 
     public void testConcurrency() throws BrokenBarrierException, InterruptedException {
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, 8));
-        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, logger);
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
         final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.get());
         // we are going to synchronize the actions of three threads: the updating thread, the listener thread, and the main test thread
         final CyclicBarrier barrier = new CyclicBarrier(3);
-        final int numberOfIterations = randomIntBetween(1, 1024);
+        final int numberOfIterations = randomIntBetween(1, 4096);
         final AtomicBoolean closed = new AtomicBoolean();
         final Thread updatingThread = new Thread(() -> {
             // synchronize starting with the listener thread and the main test thread
             awaitQuietly(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
-                if (rarely() && closed.get() == false) {
+                if (i > numberOfIterations / 2 && rarely() && closed.get() == false) {
                     closed.set(true);
                     try {
                         globalCheckpointListeners.close();
@@ -416,7 +451,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                         throw new UncheckedIOException(e);
                     }
                 }
-                if (closed.get() == false) {
+                if (rarely() && closed.get() == false) {
                     globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
                 }
             }
@@ -438,7 +473,8 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                             if (invocation.compareAndSet(false, true) == false) {
                                 throw new IllegalStateException("listener invoked twice");
                             }
-                        });
+                        },
+                        randomBoolean() ? null : TimeValue.timeValueNanos(randomLongBetween(1, TimeUnit.MICROSECONDS.toNanos(1))));
             }
             // synchronize ending with the updating thread and the main test thread
             awaitQuietly(barrier);
@@ -461,6 +497,107 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }
         updatingThread.join();
         listenersThread.join();
+    }
+
+    public void testTimeout() throws InterruptedException {
+        final Logger mockLogger = mock(Logger.class);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
+        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
+        final AtomicBoolean notified = new AtomicBoolean();
+        final CountDownLatch latch = new CountDownLatch(1);
+        globalCheckpointListeners.add(
+                NO_OPS_PERFORMED,
+                (g, e) -> {
+                    try {
+                        notified.set(true);
+                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                        assertThat(e, instanceOf(TimeoutException.class));
+                        assertThat(e, hasToString(containsString(timeout.getStringRep())));
+                        final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+                        final ArgumentCaptor<TimeoutException> t = ArgumentCaptor.forClass(TimeoutException.class);
+                        verify(mockLogger).trace(message.capture(), t.capture());
+                        assertThat(message.getValue(), equalTo("global checkpoint listener timed out"));
+                        assertThat(t.getValue(), hasToString(containsString(timeout.getStringRep())));
+                    } catch (Exception caught) {
+                        fail(e.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                },
+                timeout);
+        latch.await();
+
+        assertTrue(notified.get());
+    }
+
+    public void testTimeoutNotificationUsesExecutor() throws InterruptedException {
+        final AtomicInteger count = new AtomicInteger();
+        final Executor executor = command -> {
+            count.incrementAndGet();
+            command.run();
+        };
+        final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
+        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
+        final AtomicBoolean notified = new AtomicBoolean();
+        final CountDownLatch latch = new CountDownLatch(1);
+        globalCheckpointListeners.add(
+                NO_OPS_PERFORMED,
+                (g, e) -> {
+                    try {
+                        notified.set(true);
+                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
+                        assertThat(e, instanceOf(TimeoutException.class));
+                    } finally {
+                        latch.countDown();
+                    }
+                },
+                timeout);
+        latch.await();
+        // ensure the listener notification occurred on the executor
+        assertTrue(notified.get());
+        assertThat(count.get(), equalTo(1));
+    }
+
+    public void testFailingListenerAfterTimeout() throws InterruptedException {
+        final Logger mockLogger = mock(Logger.class);
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
+        globalCheckpointListeners.add(
+                NO_OPS_PERFORMED,
+                (g, e) -> {
+                    try {
+                        throw new RuntimeException("failure");
+                    } finally {
+                        latch.countDown();
+                    }
+                },
+                timeout);
+        latch.await();
+        final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);
+        verify(mockLogger).warn(message.capture(), t.capture());
+        assertThat(message.getValue(), equalTo("error notifying global checkpoint listener of timeout"));
+        assertNotNull(t.getValue());
+        assertThat(t.getValue(), instanceOf(RuntimeException.class));
+        assertThat(t.getValue().getMessage(), equalTo("failure"));
+    }
+
+    public void testTimeoutCancelledAfterListenerNotified() {
+        final GlobalCheckpointListeners globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
+        final TimeValue timeout = TimeValue.timeValueNanos(Long.MAX_VALUE);
+        final GlobalCheckpointListeners.GlobalCheckpointListener globalCheckpointListener = (g, e) -> {
+            assertThat(g, equalTo(NO_OPS_PERFORMED));
+            assertNull(e);
+        };
+        globalCheckpointListeners.add(NO_OPS_PERFORMED, globalCheckpointListener, timeout);
+        final ScheduledFuture<?> future = globalCheckpointListeners.getTimeoutFuture(globalCheckpointListener);
+        assertNotNull(future);
+        globalCheckpointListeners.globalCheckpointUpdated(NO_OPS_PERFORMED);
+        assertTrue(future.isCancelled());
     }
 
     private void awaitQuietly(final CyclicBarrier barrier) {

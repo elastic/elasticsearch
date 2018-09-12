@@ -80,7 +80,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
                     }
 
                     // Merge cluster state and index configs
-                    List<DatafeedConfig> datafeeds = new ArrayList<>();
+                    List<DatafeedConfig> datafeeds = new ArrayList<>(datafeedBuilders.size() + clusterStateConfigs.values().size());
                     for (DatafeedConfig.Builder builder: datafeedBuilders) {
                         datafeeds.add(builder.build());
                     }

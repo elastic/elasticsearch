@@ -152,7 +152,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         };
 
         CheckedConsumer<Boolean, Exception> jobOk = ok ->
-            validateDatafeedAgainstJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));;
+            validateDatafeedAgainstJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));
 
         checkJobDoesNotHaveADatafeed(jobId, ActionListener.wrap(jobOk, listener::onFailure));
     }

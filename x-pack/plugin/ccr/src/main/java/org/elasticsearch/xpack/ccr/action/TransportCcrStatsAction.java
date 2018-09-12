@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.io.IOException;
 import java.util.Arrays;

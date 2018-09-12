@@ -13,6 +13,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +46,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private List<List<Translog.Operation>> bulkShardOperationRequests;
     private BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> task.run();
 
-    private Consumer<ShardFollowNodeTask.Status> beforeSendShardChangesRequest = status -> {};
+    private Consumer<ShardFollowNodeTaskStatus> beforeSendShardChangesRequest = status -> {};
 
     private AtomicBoolean simulateResponse = new AtomicBoolean();
 
@@ -67,7 +68,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests, contains(new long[][]{
             {6L, 8L}, {14L, 8L}, {22L, 8L}, {30L, 8L}, {38L, 8L}, {46L, 8L}, {54L, 7L}}
         ));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(7));
         assertThat(status.lastRequestedSeqNo(), equalTo(60L));
     }
@@ -87,7 +88,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.innerHandleReadResponse(0L, 63L, generateShardChangesResponse(0, 63, 0L, 128L));
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because write buffer is full
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(0));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -103,7 +104,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(8L));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(7L));
     }
@@ -141,7 +142,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because task has been cancelled
         assertThat(bulkShardOperationRequests.size(), equalTo(0)); // no more writes, because task has been cancelled
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(0));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(15L));
@@ -165,7 +166,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.size(), equalTo(0)); // no more reads, because task has been cancelled
         assertThat(bulkShardOperationRequests.size(), equalTo(0)); // no more writes, because task has been cancelled
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(0));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -212,7 +213,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         }
 
         assertFalse("task is not stopped", task.isStopped());
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.numberOfFailedFetches(), equalTo((long)max));
@@ -247,7 +248,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         assertTrue("task is stopped", task.isStopped());
         assertThat(fatalError, sameInstance(failure));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.numberOfFailedFetches(), equalTo(1L));
@@ -274,7 +275,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
@@ -301,7 +302,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(21L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(43L));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -324,7 +325,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         assertThat(shardChangesRequests.size(), equalTo(0));
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(0));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -347,7 +348,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -389,7 +390,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
@@ -414,7 +415,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(mappingUpdateFailures.size(), equalTo(0));
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(task.isStopped(), equalTo(false));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.mappingVersion(), equalTo(1L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
@@ -434,7 +435,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         assertThat(bulkShardOperationRequests.size(), equalTo(0));
         assertThat(task.isStopped(), equalTo(true));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.mappingVersion(), equalTo(0L));
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
@@ -458,7 +459,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
@@ -476,7 +477,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations()).subList(0, 64)));
         assertThat(bulkShardOperationRequests.get(1), equalTo(Arrays.asList(response.getOperations()).subList(64, 128)));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentWrites(), equalTo(2));
 
         task = createShardFollowTask(64, 1, 4, Integer.MAX_VALUE, Long.MAX_VALUE);
@@ -506,7 +507,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             assertThat(bulkShardOperationRequests.get(i), equalTo(Arrays.asList(response.getOperations()).subList(offset, offset + 8)));
         }
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentWrites(), equalTo(32));
     }
 
@@ -533,7 +534,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             assertThat(operations, equalTo(Arrays.asList(response.getOperations())));
         }
         assertThat(task.isStopped(), equalTo(false));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
@@ -555,7 +556,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(bulkShardOperationRequests.size(), equalTo(1));
         assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
         assertThat(task.isStopped(), equalTo(true));
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentWrites(), equalTo(1));
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
@@ -599,7 +600,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[0], equalTo(64L));
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
-        ShardFollowNodeTask.Status status = task.getStatus();
+        ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.numberOfConcurrentReads(), equalTo(1));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));

@@ -56,9 +56,10 @@ public final class SimilarityProvider {
         if (o == null || getClass() != o.getClass()) return false;
         SimilarityProvider that = (SimilarityProvider) o;
         /**
-         * We check name only because the <code>similarity</code> is
+         * We check <code>name</code> only because the <code>similarity</code> is
          * re-created for each new instance and they don't implement equals.
-         * This is safe though because each similarity name is unique within an index.
+         * This is not entirely correct though but we only use equality checks
+         * for similarities inside the same index and names are unique in this case.
          **/
         return Objects.equals(name, that.name);
     }
@@ -66,9 +67,10 @@ public final class SimilarityProvider {
     @Override
     public int hashCode() {
         /**
-         * We use name only because the <code>similarity</code> is
+         * We use <code>name</code> only because the <code>similarity</code> is
          * re-created for each new instance and they don't implement equals.
-         * This is safe though because each similarity name is unique within an index.
+         * This is not entirely correct though but we only use equality checks
+         * for similarities a single index and names are unique in this case.
          **/
         return Objects.hash(name);
     }

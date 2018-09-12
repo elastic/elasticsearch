@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -1169,6 +1170,49 @@ public class ScopedSettingsTests extends ESTestCase {
                     remainingSetting.getConcreteSettingForNamespace(concrete).get(upgradedSettings),
                     equalTo(remainingSetting.getConcreteSettingForNamespace(concrete).get(settings)));
         }
+    }
+
+    public void testUpgradeListSetting() {
+        final Setting<List<String>> oldSetting =
+                Setting.listSetting("foo.old", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        final Setting<List<String>> newSetting =
+                Setting.listSetting("foo.new", Collections.emptyList(), Function.identity(), Property.NodeScope);
+
+        final AbstractScopedSettings service =
+                new ClusterSettings(
+                        Settings.EMPTY,
+                        new HashSet<>(Arrays.asList(oldSetting, newSetting)),
+                        Collections.singleton(new SettingUpgrader<List<String>>() {
+
+                            @Override
+                            public Setting<List<String>> getSetting() {
+                                return oldSetting;
+                            }
+
+                            @Override
+                            public String getKey(final String key) {
+                                return "foo.new";
+                            }
+
+                            @Override
+                            public List<String> getListValue(final List<String> value) {
+                                return value.stream().map(s -> "new." + s).collect(Collectors.toList());
+                            }
+                        }));
+
+        final int length = randomIntBetween(0, 16);
+        final List<String> values = length == 0 ? Collections.emptyList() : new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            values.add(randomAlphaOfLength(8));
+        }
+
+        final Settings settings = Settings.builder().putList("foo.old", values).build();
+        final Settings upgradedSettings = service.upgradeSettings(settings);
+        assertFalse(oldSetting.exists(upgradedSettings));
+        assertTrue(newSetting.exists(upgradedSettings));
+        assertThat(
+                newSetting.get(upgradedSettings),
+                equalTo(oldSetting.get(settings).stream().map(s -> "new." + s).collect(Collectors.toList())));
     }
 
 }

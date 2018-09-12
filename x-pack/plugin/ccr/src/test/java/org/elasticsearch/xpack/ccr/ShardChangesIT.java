@@ -40,13 +40,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
-import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -338,7 +338,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
             randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
-            ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+            FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
@@ -505,7 +505,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                     }
                 }
                 assertThat(taskInfo, notNullValue());
-                ShardFollowNodeTask.Status status = (ShardFollowNodeTask.Status) taskInfo.getStatus();
+                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.getStatus();
                 assertThat(status, notNullValue());
                 assertThat("incorrect global checkpoint " + shardFollowTaskParams,
                     status.followerGlobalCheckpoint(),
@@ -663,9 +663,9 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {
-        return new FollowIndexAction.Request(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
-            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
-            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE,
+        return new FollowIndexAction.Request(leaderIndex, followIndex, FollowIndexAction.DEFAULT_MAX_BATCH_OPERATION_COUNT,
+            FollowIndexAction.DEFAULT_MAX_CONCURRENT_READ_BATCHES, FollowIndexAction.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            FollowIndexAction.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES, FollowIndexAction.DEFAULT_MAX_WRITE_BUFFER_SIZE,
             TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10));
     }
 }

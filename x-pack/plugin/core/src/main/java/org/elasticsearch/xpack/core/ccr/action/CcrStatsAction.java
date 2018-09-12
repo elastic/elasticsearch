@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ccr.action;
+package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,7 +52,7 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             this(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
 
-        TasksResponse(
+        public TasksResponse(
                 final List<TaskOperationFailure> taskFailures,
                 final List<? extends FailedNodeException> nodeFailures,
                 final List<TaskResponse> taskResponses) {
@@ -151,20 +152,20 @@ public class CcrStatsAction extends Action<CcrStatsAction.TasksResponse> {
             return followerShardId;
         }
 
-        private final ShardFollowNodeTask.Status status;
+        private final ShardFollowNodeTaskStatus status;
 
-        ShardFollowNodeTask.Status status() {
+        ShardFollowNodeTaskStatus status() {
             return status;
         }
 
-        TaskResponse(final ShardId followerShardId, final ShardFollowNodeTask.Status status) {
+        public TaskResponse(final ShardId followerShardId, final ShardFollowNodeTaskStatus status) {
             this.followerShardId = followerShardId;
             this.status = status;
         }
 
-        TaskResponse(final StreamInput in) throws IOException {
+        public TaskResponse(final StreamInput in) throws IOException {
             this.followerShardId = ShardId.readShardId(in);
-            this.status = new ShardFollowNodeTask.Status(in);
+            this.status = new ShardFollowNodeTaskStatus(in);
         }
 
         @Override

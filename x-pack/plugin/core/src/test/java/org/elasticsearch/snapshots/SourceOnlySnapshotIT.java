@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -33,8 +34,10 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -95,10 +98,15 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
         assertHits(sourceIdx, builders.length);
         assertMappings(sourceIdx, requireRouting, useNested);
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-            .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
-        // ensure we can not find hits it's a minimal restore
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
+                .addIds("" + randomIntBetween(0, builders.length))).get();
+        });
+        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+
+        e = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
+        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)
@@ -118,10 +126,12 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
         assertHits(sourceIdx, builders.length);
         assertMappings(sourceIdx, requireRouting, true);
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-            .addIds("" + randomIntBetween(0, builders.length))).get(), 0);
-        // ensure we can not find hits it's a minimal restore
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get(), 0);
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get());
+        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+        e = expectThrows(SearchPhaseExecutionException.class, () ->
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
+        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, "_doc", idToDelete)

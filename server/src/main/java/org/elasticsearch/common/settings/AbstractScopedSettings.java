@@ -788,7 +788,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } else {
                 // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
                 changed = true;
-                if (setting.isListSetting()) {
+                // noinspection ConstantConditions
+                if (setting.getConcreteSetting(key).isListSetting()) {
                     final List<String> value = settings.getAsList(key);
                     final String upgradedKey = upgrader.getKey(key);
                     final List<String> upgradedValue = upgrader.getListValue(value);

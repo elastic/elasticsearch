@@ -13,7 +13,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowIndexAction;
 
 import java.util.Objects;
@@ -67,6 +69,30 @@ public class CcrClient {
     public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowIndexAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(UnfollowIndexAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void putAutoFollowPattern(
+            final PutAutoFollowPatternAction.Request request,
+            final ActionListener<AcknowledgedResponse> listener) {
+        client.execute(PutAutoFollowPatternAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<AcknowledgedResponse> putAutoFollowPattern(final PutAutoFollowPatternAction.Request request) {
+        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        client.execute(PutAutoFollowPatternAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void deleteAutoFollowPattern(
+            final DeleteAutoFollowPatternAction.Request request,
+            final ActionListener<AcknowledgedResponse> listener) {
+        client.execute(DeleteAutoFollowPatternAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<AcknowledgedResponse> deleteAutoFollowPattern(final DeleteAutoFollowPatternAction.Request request) {
+        final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
+        client.execute(DeleteAutoFollowPatternAction.INSTANCE, request, listener);
         return listener;
     }
 

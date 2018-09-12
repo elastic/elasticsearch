@@ -47,7 +47,7 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
+        if (licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
                 Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;

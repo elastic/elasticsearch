@@ -63,7 +63,7 @@ public class GlobalCheckpointListeners implements Closeable {
 
     // guarded by this
     private boolean closed;
-    private volatile Map<GlobalCheckpointListener, ScheduledFuture<?>> listeners;
+    private Map<GlobalCheckpointListener, ScheduledFuture<?>> listeners;
     private long lastKnownGlobalCheckpoint = UNASSIGNED_SEQ_NO;
 
     private final ShardId shardId;

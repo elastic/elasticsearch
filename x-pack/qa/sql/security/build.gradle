@@ -1,5 +1,5 @@
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 Project mainProject = project
@@ -20,7 +20,7 @@ subprojects {
   }
 
   dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   }
 
   integTestCluster {

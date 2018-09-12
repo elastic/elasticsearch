@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -105,13 +105,7 @@ public class RefreshListenersTests extends ESTestCase {
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
-        DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE);
@@ -130,9 +124,10 @@ public class RefreshListenersTests extends ESTestCase {
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm);
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
+            EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
-        engine.recoverFromTranslog();
+        engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 

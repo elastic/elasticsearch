@@ -120,7 +120,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;
-        this.scheduler = new SchedulerEngine(clock);
+        this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,

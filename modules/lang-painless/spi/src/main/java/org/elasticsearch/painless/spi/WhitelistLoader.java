@@ -133,6 +133,8 @@ public final class WhitelistLoader {
      */
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
+        List<WhitelistMethod> whitelistStatics = new ArrayList<>();
+        List<WhitelistBinding> whitelistBindings = new ArrayList<>();
 
         // Execute a single pass through the whitelist text files.  This will gather all the
         // constructors, methods, augmented methods, and fields for each whitelisted class.
@@ -141,8 +143,9 @@ public final class WhitelistLoader {
             int number = -1;
 
             try (LineNumberReader reader = new LineNumberReader(
-                new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8))) {
+                    new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8))) {
 
+                String parseType = null;
                 String whitelistClassOrigin = null;
                 String javaClassName = null;
                 boolean noImport = false;
@@ -165,7 +168,11 @@ public final class WhitelistLoader {
                         // Ensure the final token of the line is '{'.
                         if (line.endsWith("{") == false) {
                             throw new IllegalArgumentException(
-                                "invalid class definition: failed to parse class opening bracket [" + line + "]");
+                                    "invalid class definition: failed to parse class opening bracket [" + line + "]");
+                        }
+
+                        if (parseType != null) {
+                            throw new IllegalArgumentException("invalid definition: cannot embed class definition [" + line + "]");
                         }
 
                         // Parse the Java class name.
@@ -178,6 +185,7 @@ public final class WhitelistLoader {
                             throw new IllegalArgumentException("invalid class definition: failed to parse class name [" + line + "]");
                         }
 
+                        parseType = "class";
                         whitelistClassOrigin = "[" + filepath + "]:[" + number + "]";
                         javaClassName = tokens[0];
 
@@ -185,35 +193,116 @@ public final class WhitelistLoader {
                         whitelistConstructors = new ArrayList<>();
                         whitelistMethods = new ArrayList<>();
                         whitelistFields = new ArrayList<>();
-
-                    // Handle the end of a class, by creating a new WhitelistClass with all the previously gathered
-                    // constructors, methods, augmented methods, and fields, and adding it to the list of whitelisted classes.
-                    // Expects the following format: '}' '\n'
-                    } else if (line.equals("}")) {
-                        if (javaClassName == null) {
-                            throw new IllegalArgumentException("invalid class definition: extraneous closing bracket");
+                    } else if (line.startsWith("static_import ")) {
+                        // Ensure the final token of the line is '{'.
+                        if (line.endsWith("{") == false) {
+                            throw new IllegalArgumentException(
+                                    "invalid static import definition: failed to parse static import opening bracket [" + line + "]");
                         }
 
-                        whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
-                            whitelistConstructors, whitelistMethods, whitelistFields));
+                        if (parseType != null) {
+                            throw new IllegalArgumentException("invalid definition: cannot embed static import definition [" + line + "]");
+                        }
 
-                        // Set all the variables to null to ensure a new class definition is found before other parsable values.
-                        whitelistClassOrigin = null;
-                        javaClassName = null;
-                        noImport = false;
-                        whitelistConstructors = null;
-                        whitelistMethods = null;
-                        whitelistFields = null;
+                        parseType = "static_import";
 
-                    // Handle all other valid cases.
-                    } else {
+                    // Handle the end of a definition and reset all previously gathered values.
+                    // Expects the following format: '}' '\n'
+                    } else if (line.equals("}")) {
+                        if (parseType == null) {
+                            throw new IllegalArgumentException("invalid definition: extraneous closing bracket");
+                        }
+
+                        // Create a new WhitelistClass with all the previously gathered constructors, methods,
+                        // augmented methods, and fields, and add it to the list of whitelisted classes.
+                        if ("class".equals(parseType)) {
+                            whitelistClasses.add(new WhitelistClass(whitelistClassOrigin, javaClassName, noImport,
+                                    whitelistConstructors, whitelistMethods, whitelistFields));
+
+                            whitelistClassOrigin = null;
+                            javaClassName = null;
+                            noImport = false;
+                            whitelistConstructors = null;
+                            whitelistMethods = null;
+                            whitelistFields = null;
+                        }
+
+                        // Reset the parseType.
+                        parseType = null;
+
+                    // Handle static import definition types.
+                    // Expects the following format: ID ID '(' ( ID ( ',' ID )* )? ')' ( 'from_class' | 'bound_to' ) ID '\n'
+                    } else if ("static_import".equals(parseType)) {
                         // Mark the origin of this parsable object.
                         String origin = "[" + filepath + "]:[" + number + "]";
 
-                        // Ensure we have a defined class before adding any constructors, methods, augmented methods, or fields.
-                        if (javaClassName == null) {
-                            throw new IllegalArgumentException("invalid object definition: expected a class name [" + line + "]");
+                        // Parse the tokens prior to the method parameters.
+                        int parameterStartIndex = line.indexOf('(');
+
+                        if (parameterStartIndex == -1) {
+                            throw new IllegalArgumentException(
+                                    "illegal static import definition: start of method parameters not found [" + line + "]");
                         }
+
+                        String[] tokens = line.substring(0, parameterStartIndex).trim().split("\\s+");
+
+                        String methodName;
+
+                        // Based on the number of tokens, look up the Java method name.
+                        if (tokens.length == 2) {
+                            methodName = tokens[1];
+                        } else {
+                            throw new IllegalArgumentException("invalid method definition: unexpected format [" + line + "]");
+                        }
+
+                        String returnCanonicalTypeName = tokens[0];
+
+                        // Parse the method parameters.
+                        int parameterEndIndex = line.indexOf(')');
+
+                        if (parameterEndIndex == -1) {
+                            throw new IllegalArgumentException(
+                                    "illegal static import definition: end of method parameters not found [" + line + "]");
+                        }
+
+                        String[] canonicalTypeNameParameters =
+                                line.substring(parameterStartIndex + 1, parameterEndIndex).replaceAll("\\s+", "").split(",");
+
+                        // Handle the case for a method with no parameters.
+                        if ("".equals(canonicalTypeNameParameters[0])) {
+                            canonicalTypeNameParameters = new String[0];
+                        }
+
+                        // Parse the static import type and class.
+                        tokens = line.substring(parameterEndIndex + 1).trim().split("\\s+");
+
+                        String staticImportType;
+                        String targetJavaClassName;
+
+                        // Based on the number of tokens, look up the type and class.
+                        if (tokens.length == 2) {
+                            staticImportType = tokens[0];
+                            targetJavaClassName = tokens[1];
+                        } else {
+                            throw new IllegalArgumentException("invalid static import definition: unexpected format [" + line + "]");
+                        }
+
+                        // Add a static import method or binding depending on the static import type.
+                        if ("from_class".equals(staticImportType)) {
+                            whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                        } else if ("bound_to".equals(staticImportType)) {
+                            whitelistBindings.add(new WhitelistBinding(origin, targetJavaClassName,
+                                    methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
+                        } else {
+                            throw new IllegalArgumentException("invalid static import definition: " +
+                                    "unexpected static import type [" + staticImportType + "] [" + line + "]");
+                        }
+
+                    // Handle class definition types.
+                    } else if ("class".equals(parseType)) {
+                        // Mark the origin of this parsable object.
+                        String origin = "[" + filepath + "]:[" + number + "]";
 
                         // Handle the case for a constructor definition.
                         // Expects the following format: '(' ( ID ( ',' ID )* )? ')' '\n'
@@ -221,7 +310,7 @@ public final class WhitelistLoader {
                             // Ensure the final token of the line is ')'.
                             if (line.endsWith(")") == false) {
                                 throw new IllegalArgumentException(
-                                    "invalid constructor definition: expected a closing parenthesis [" + line + "]");
+                                        "invalid constructor definition: expected a closing parenthesis [" + line + "]");
                             }
 
                             // Parse the constructor parameters.
@@ -234,34 +323,34 @@ public final class WhitelistLoader {
 
                             whitelistConstructors.add(new WhitelistConstructor(origin, Arrays.asList(tokens)));
 
-                        // Handle the case for a method or augmented method definition.
-                        // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' '\n'
+                            // Handle the case for a method or augmented method definition.
+                            // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' '\n'
                         } else if (line.contains("(")) {
                             // Ensure the final token of the line is ')'.
                             if (line.endsWith(")") == false) {
                                 throw new IllegalArgumentException(
-                                    "invalid method definition: expected a closing parenthesis [" + line + "]");
+                                        "invalid method definition: expected a closing parenthesis [" + line + "]");
                             }
 
                             // Parse the tokens prior to the method parameters.
                             int parameterIndex = line.indexOf('(');
-                            String[] tokens = line.trim().substring(0, parameterIndex).split("\\s+");
+                            String[] tokens = line.substring(0, parameterIndex).trim().split("\\s+");
 
-                            String javaMethodName;
+                            String methodName;
                             String javaAugmentedClassName;
 
                             // Based on the number of tokens, look up the Java method name and if provided the Java augmented class.
                             if (tokens.length == 2) {
-                                javaMethodName = tokens[1];
+                                methodName = tokens[1];
                                 javaAugmentedClassName = null;
                             } else if (tokens.length == 3) {
-                                javaMethodName = tokens[2];
+                                methodName = tokens[2];
                                 javaAugmentedClassName = tokens[1];
                             } else {
                                 throw new IllegalArgumentException("invalid method definition: unexpected format [" + line + "]");
                             }
 
-                            String painlessReturnTypeName = tokens[0];
+                            String returnCanonicalTypeName = tokens[0];
 
                             // Parse the method parameters.
                             tokens = line.substring(parameterIndex + 1, line.length() - 1).replaceAll("\\s+", "").split(",");
@@ -271,11 +360,11 @@ public final class WhitelistLoader {
                                 tokens = new String[0];
                             }
 
-                            whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, javaMethodName,
-                                painlessReturnTypeName, Arrays.asList(tokens)));
+                            whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, methodName,
+                                    returnCanonicalTypeName, Arrays.asList(tokens)));
 
-                        // Handle the case for a field definition.
-                        // Expects the following format: ID ID '\n'
+                            // Handle the case for a field definition.
+                            // Expects the following format: ID ID '\n'
                         } else {
                             // Parse the field tokens.
                             String[] tokens = line.split("\\s+");
@@ -287,20 +376,23 @@ public final class WhitelistLoader {
 
                             whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0]));
                         }
+                    } else {
+                        throw new IllegalArgumentException("invalid definition: unable to parse line [" + line + "]");
                     }
                 }
 
                 // Ensure all classes end with a '}' token before the end of the file.
                 if (javaClassName != null) {
-                    throw new IllegalArgumentException("invalid class definition: expected closing bracket");
+                    throw new IllegalArgumentException("invalid definition: expected closing bracket");
                 }
             } catch (Exception exception) {
                 throw new RuntimeException("error in [" + filepath + "] at line [" + number + "]", exception);
             }
         }
+
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistClasses);
+        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistBindings);
     }
 
     private WhitelistLoader() {}

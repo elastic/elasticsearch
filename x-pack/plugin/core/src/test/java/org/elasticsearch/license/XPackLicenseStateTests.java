@@ -229,7 +229,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testOldTrialDefaultsSecurityOn() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(TRIAL, true, rarely() ? null : VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_2_4));
+        licenseState.update(TRIAL, true, rarely() ? null : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_2_4));
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.isAuthAllowed(), is(true));

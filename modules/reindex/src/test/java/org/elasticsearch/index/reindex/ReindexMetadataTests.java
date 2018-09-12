@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -73,7 +72,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest(new SearchRequest(), new IndexRequest());
+        return new ReindexRequest();
     }
 
     private class TestAction extends TransportReindexAction.AsyncIndexBySearchAction {

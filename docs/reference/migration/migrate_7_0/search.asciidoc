@@ -54,6 +54,13 @@ Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
 has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
 
+==== Scroll queries cannot use `rescore`  anymore
+Including a rescore clause on a query that creates a scroll (`scroll=1m`) has
+been deprecated in 6.5 and will now return a `400 - Bad request`.  Allowing
+rescore on scroll queries would break the scroll sort.  In the 6.x line, the
+rescore clause was silently ignored (for scroll queries), and it was allowed in
+the 5.x line.
+
 ==== Term Suggesters supported distance algorithms
 
 The following string distance algorithms were given additional names in 6.2 and
@@ -100,3 +107,8 @@ and the context is only accepted if `path` points to a field with `geo_point` ty
 `max_concurrent_shard_requests` used to limit the total number of concurrent shard
 requests a single high level search request can execute. In 7.0 this changed to be the
 max number of concurrent shard requests per node. The default is now `5`.
+
+==== `max_score` set to `null` when scores are not tracked
+
+`max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
+instead which is a more appropriate value for a scenario where scores are not available.

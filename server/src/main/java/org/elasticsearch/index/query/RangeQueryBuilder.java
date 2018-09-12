@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -108,14 +107,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (formatString != null) {
             format = Joda.forPattern(formatString);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            String relationString = in.readOptionalString();
-            if (relationString != null) {
-                relation = ShapeRelation.getRelationByName(relationString);
-                if (relation != null && !isRelationAllowed(relation)) {
-                    throw new IllegalArgumentException(
-                        "[range] query does not support relation [" + relationString + "]");
-                }
+        String relationString = in.readOptionalString();
+        if (relationString != null) {
+            relation = ShapeRelation.getRelationByName(relationString);
+            if (relation != null && !isRelationAllowed(relation)) {
+                throw new IllegalArgumentException(
+                    "[range] query does not support relation [" + relationString + "]");
             }
         }
     }
@@ -139,13 +136,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             formatString = this.format.format();
         }
         out.writeOptionalString(formatString);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            String relationString = null;
-            if (this.relation != null) {
-                relationString = this.relation.getRelationName();
-            }
-            out.writeOptionalString(relationString);
+        String relationString = null;
+        if (this.relation != null) {
+            relationString = this.relation.getRelationName();
         }
+        out.writeOptionalString(relationString);
     }
 
     /**

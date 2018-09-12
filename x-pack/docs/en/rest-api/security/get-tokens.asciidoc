@@ -38,16 +38,19 @@ The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
 
 `grant_type`::
-(string) The type of grant. Valid grant types are: `password` and `refresh_token`.
+(string) The type of grant. Supported grant types are: `password`,
+`client_credentials` and `refresh_token`.
 
 `password`::
 (string) The user's password. If you specify the `password` grant type, this 
-parameter is required. 
+parameter is required. This parameter is not valid with any other supported
+grant type.
 
 `refresh_token`::
 (string) If you specify the `refresh_token` grant type, this parameter is 
 required. It contains the string that was returned when you created the token 
-and enables you to extend its life.
+and enables you to extend its life. This parameter is not valid with any other
+supported grant type.
 
 `scope`::
 (string) The scope of the token. Currently tokens are only issued for a scope of
@@ -55,11 +58,48 @@ and enables you to extend its life.
 
 `username`::
 (string) The username that identifies the user. If you specify the `password` 
-grant type, this parameter is required. 
+grant type, this parameter is required. This parameter is not valid with any
+other supported grant type.
 
 ==== Examples
 
-The following example obtains a token for the `test_admin` user:
+The following example obtains a token using the `client_credentials` grant type,
+which simply creates a token as the authenticated user:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/oauth2/token
+{
+  "grant_type" : "client_credentials"
+}
+--------------------------------------------------
+// CONSOLE
+
+The following example output contains the access token, the amount of time (in
+seconds) that the token expires in, and the type:
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+
+The token returned by this API can be used by sending a request with a
+`Authorization` header with a value having the prefix `Bearer ` followed
+by the value of the `access_token`.
+
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
+--------------------------------------------------
+// NOTCONSOLE
+
+The following example obtains a token for the `test_admin` user using the
+`password` grant type:
 
 [source,js]
 --------------------------------------------------
@@ -73,7 +113,7 @@ POST /_xpack/security/oauth2/token
 // CONSOLE
 
 The following example output contains the access token, the amount of time (in
-seconds) that the token expires in, and the type:
+seconds) that the token expires in, the type, and the refresh token:
 
 [source,js]
 --------------------------------------------------
@@ -87,19 +127,10 @@ seconds) that the token expires in, and the type:
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 
-The token returned by this API can be used by sending a request with a
-`Authorization` header with a value having the prefix `Bearer ` followed
-by the value of the `access_token`.
-
-[source,shell]
---------------------------------------------------
-curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
---------------------------------------------------
-// NOTCONSOLE
-
 [[security-api-refresh-token]]
-To extend the life of an existing token, you can call the API again with the 
-refresh token within 24 hours of the token's creation. For example:
+To extend the life of an existing token obtained using the `password` grant type,
+you can call the API again with the refresh token within 24 hours of the token's
+creation. For example:
 
 [source,js]
 --------------------------------------------------

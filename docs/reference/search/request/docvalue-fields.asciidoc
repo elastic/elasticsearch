@@ -30,6 +30,27 @@ GET /_search
 
 Doc value fields can work on fields that are not stored.
 
+`*` can be used as a wild card, for example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match_all": {}
+    },
+    "docvalue_fields" : [
+        {
+            "field": "*field", <1>
+            "format": "use_field_mapping" <2>
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> Match all fields ending with `field`
+<2> Format to be applied to all matching fields.
+
 Note that if the fields parameter specifies fields without docvalues it will try to load the value from the fielddata cache
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
 

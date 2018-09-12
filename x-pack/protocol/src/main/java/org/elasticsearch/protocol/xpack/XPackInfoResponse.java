@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -412,8 +411,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(),
-                        in.getVersion().onOrAfter(Version.V_5_4_0) ? in.readMap() : null);
+                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(), in.readMap());
             }
 
             @Override
@@ -422,9 +420,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 out.writeOptionalString(description);
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-                    out.writeMap(nativeCodeInfo);
-                }
+                out.writeMap(nativeCodeInfo);
             }
 
             public String name() {

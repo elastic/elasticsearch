@@ -39,6 +39,7 @@ setup:
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
   - match: {hits.hits.0._score: 1}
 
   - do:
@@ -52,6 +53,7 @@ setup:
               boost: 2
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 2}
   - match: {hits.hits.0._score: 2}
 
   - do:
@@ -61,6 +63,7 @@ setup:
         df: text
 
   - match: {hits.total: 1}
+  - match: {hits.max_score: 1}
   - match: {hits.hits.0._score: 1}
 
 ---

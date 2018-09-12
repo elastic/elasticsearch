@@ -270,7 +270,7 @@ include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-heal
  helper requires the content type of the response to be passed as an argument and returns
  a `Map` of objects. Values in the map can be of any type, including inner `Map` that are
  used to represent the JSON object hierarchy.
-<5> Retrieve the value of the `status` field in the response map, casts it as a a `String`
+<5> Retrieve the value of the `status` field in the response map, casts it as a `String`
 object and use the `ClusterHealthStatus.fromString()` method to convert it as a `ClusterHealthStatus`
 object. This method throws an exception if the value does not corresponds to a valid cluster
 health status.

@@ -155,6 +155,11 @@ the kernel allows a process to have at least 262,144 memory-mapped areas
 and is enforced on Linux only. To pass the maximum map count check, you
 must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
+Alternatively, the maximum map count check is only needed if you are using
+`mmapfs` as the <<index-modules-store,store type>> for your indices. If you
+<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
+not be enforced.
+
 === Client JVM check
 
 There are two different JVMs provided by OpenJDK-derived JVMs: the

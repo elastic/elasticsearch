@@ -613,10 +613,58 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(STRING_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
+        Query expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "quick")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "quick"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "fox"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 

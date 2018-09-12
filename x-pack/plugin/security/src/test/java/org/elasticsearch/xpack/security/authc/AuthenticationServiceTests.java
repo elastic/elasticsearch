@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -896,7 +896,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
+            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         mockGetTokenFromId(tokenFuture.get().v1(), client);
@@ -975,7 +975,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap());
+            tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
         mockGetTokenFromId(tokenFuture.get().v1(), client);

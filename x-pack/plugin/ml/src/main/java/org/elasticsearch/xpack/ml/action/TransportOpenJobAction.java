@@ -179,14 +179,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            if (nodeSupportsJobVersion(node.getVersion()) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
-                        + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
-                logger.trace(reason);
-                reasons.add(reason);
-                continue;
-            }
-
             if (nodeSupportsModelSnapshotVersion(node, job) == false) {
                 String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
                         + "], because the job's model snapshot requires a node of version ["
@@ -383,10 +375,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
         }
         return unavailableIndices;
-    }
-
-    private static boolean nodeSupportsJobVersion(Version nodeVersion) {
-        return nodeVersion.onOrAfter(Version.V_5_5_0);
     }
 
     private static boolean nodeSupportsModelSnapshotVersion(DiscoveryNode node, Job job) {

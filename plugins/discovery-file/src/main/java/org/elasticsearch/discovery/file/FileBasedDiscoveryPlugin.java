@@ -19,39 +19,33 @@
 
 package org.elasticsearch.discovery.file;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/**
- * Plugin for providing file-based unicast hosts discovery. The list of unicast hosts
- * is obtained by reading the {@link FileBasedUnicastHostsProvider#UNICAST_HOSTS_FILE} in
- * the {@link Environment#configFile()}/discovery-file directory.
- */
 public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
-    private final Settings settings;
-    private final Path configPath;
+    private final DeprecationLogger deprecationLogger;
+    static final String DEPRECATION_MESSAGE
+        = "File-based discovery is now built into Elasticsearch and does not require the discovery-file plugin";
 
-    public FileBasedDiscoveryPlugin(Settings settings, Path configPath) {
-        this.settings = settings;
-        this.configPath = configPath;
+    public FileBasedDiscoveryPlugin(Settings settings) {
+        deprecationLogger = new DeprecationLogger(Loggers.getLogger(this.getClass(), settings));
     }
 
     @Override
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
-        return Collections.singletonMap(
-            "file",
-            () -> new FileBasedUnicastHostsProvider(new Environment(settings, configPath)));
+        deprecationLogger.deprecated(DEPRECATION_MESSAGE);
+        return Collections.emptyMap();
     }
 }

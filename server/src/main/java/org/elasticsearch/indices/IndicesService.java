@@ -228,12 +228,20 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache,  logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
+
+        // do not allow any plugin-provided index store type to conflict with a built-in type
+        for (final String indexStoreType : indexStoreFactories.keySet()) {
+            if (IndexModule.isBuiltinType(indexStoreType)) {
+                throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
+            }
+        }
+
         this.indexStoreFactories = indexStoreFactories;
     }
 
     @Override
     protected void doStop() {
-        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
+        ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());

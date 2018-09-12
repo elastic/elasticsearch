@@ -36,10 +36,10 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -307,20 +307,21 @@ public class SearchActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Rollup search does not support explaining."));
     }
 
-    public void testNoAgg() {
-        String[] normalIndices = new String[]{randomAlphaOfLength(10)};
+    public void testNoRollupAgg() {
+        String[] normalIndices = new String[]{};
         String[] rollupIndices = new String[]{randomAlphaOfLength(10)};
         TransportRollupSearchAction.RollupSearchContext ctx
                 = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(new MatchAllQueryBuilder());
         source.size(0);
-        SearchRequest request = new SearchRequest(normalIndices, source);
+        SearchRequest request = new SearchRequest(rollupIndices, source);
         NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.createMSearchRequest(request, registry, ctx));
-        assertThat(e.getMessage(), equalTo("Rollup requires at least one aggregation to be set."));
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, registry, ctx);
+        assertThat(msearch.requests().size(), equalTo(1));
+        assertThat(msearch.requests().get(0), equalTo(request));
     }
+
 
     public void testNoLiveNoRollup() {
         String[] normalIndices = new String[0];

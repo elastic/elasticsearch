@@ -81,6 +81,11 @@ public class FilterAllocationDecider extends AllocationDecider {
         Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
             Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
 
+    public static final boolean CLUSTER_ROUTING_REQUIRE_GROUP_SETTING_OMIT_DEFAULTS = true;
+    // do not omit default values for exclude filters to allow removing all exclusions with null JSON attribute value
+    public static final boolean CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS = false;
+    public static final boolean CLUSTER_ROUTING_INCLUDE_GROUP_SETTING_OMIT_DEFAULTS = true;
+
     /**
      * The set of {@link RecoverySource.Type} values for which the
      * {@link IndexMetaData#INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING} should apply.
@@ -101,9 +106,9 @@ public class FilterAllocationDecider extends AllocationDecider {
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, true);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, true);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, CLUSTER_ROUTING_REQUIRE_GROUP_SETTING_OMIT_DEFAULTS);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, CLUSTER_ROUTING_INCLUDE_GROUP_SETTING_OMIT_DEFAULTS);
     }
 
     @Override

@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,10 +34,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -887,6 +892,41 @@ public class SettingTests extends ESTestCase {
             assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
             assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
         }
+    }
+
+    public void testExclusionFilterDefaultsNotOmitted() {
+        final Setting.AffixSetting<String> setting = CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
+        final boolean omitDefaults = CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS;
+
+        final Consumer<Map<String, String>> consumer = (map) -> {
+        };
+        final BiConsumer<String, String> validator = (s1, s2) -> {
+        };
+        final SettingUpdater<Map<String, String>> updater = setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults);
+
+        final Settings current = Settings.builder()
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
+            .put("cluster.routing.allocation.exclude._ip", "10.0.2.55")
+            .put("cluster.routing.allocation.exclude._host", (String) null)
+            .build();
+
+        final Settings previous = Settings.builder()
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
+            .put("cluster.routing.allocation.exclude._ip", "10.0.2.55")
+            .put("cluster.routing.allocation.exclude._host", "json5x60-3.ip.es.io")
+            .build();
+
+        assertTrue(updater.hasChanged(current, previous));
+
+        final Map<String, String> updatedSettings = updater.getValue(current, previous);
+        assertNotNull(updatedSettings);
+        assertEquals(1, updatedSettings.size());
+
+        final String key = updatedSettings.keySet().iterator().next();
+        final String value = updatedSettings.get(key);
+
+        assertEquals("_host", key);
+        assertEquals("", value);
     }
 
 }

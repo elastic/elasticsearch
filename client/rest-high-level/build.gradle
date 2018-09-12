@@ -77,6 +77,27 @@ forbiddenApisMain {
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
 
+integTestRunner {
+  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+}
+
 integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setupCommand 'setupDummyUser',
+          'bin/elasticsearch-users',
+          'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
+          '-p', System.getProperty('tests.rest.cluster.password', 'test-password'),
+          '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: System.getProperty('tests.rest.cluster.username', 'test_user'),
+            password: System.getProperty('tests.rest.cluster.password', 'test-password'),
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
 }

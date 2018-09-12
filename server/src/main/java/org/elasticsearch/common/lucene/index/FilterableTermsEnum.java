@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.index;
 
+import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
@@ -80,7 +82,7 @@ public class FilterableTermsEnum extends TermsEnum {
         } else {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            weight = searcher.createNormalizedWeight(filter, false);
+            weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
         for (LeafReaderContext context : leaves) {
             Terms terms = context.reader().terms(field);
@@ -204,6 +206,11 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
+    }
+
+    @Override
+    public ImpactsEnum impacts(int flags) throws IOException {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 

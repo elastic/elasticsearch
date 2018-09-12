@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessBinding;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
@@ -45,6 +46,7 @@ public final class ECallLocal extends AExpression {
     private final List<AExpression> arguments;
 
     private LocalMethod method = null;
+    private PainlessMethod imported = null;
     private PainlessBinding binding = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
@@ -65,16 +67,33 @@ public final class ECallLocal extends AExpression {
     void analyze(Locals locals) {
         method = locals.getMethod(name, arguments.size());
 
-
         if (method == null) {
-            binding = locals.getPainlessLookup().lookupPainlessBinding(name, arguments.size());
+            imported = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
 
-            if (binding == null) {
-                throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+            if (imported == null) {
+                binding = locals.getPainlessLookup().lookupPainlessBinding(name, arguments.size());
+
+                if (binding == null) {
+                    throw createError(
+                            new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                }
             }
         }
 
-        List<Class<?>> typeParameters = new ArrayList<>(method == null ? binding.typeParameters : method.typeParameters);
+        List<Class<?>> typeParameters;
+
+        if (method != null) {
+            typeParameters = new ArrayList<>(method.typeParameters);
+            actual = method.returnType;
+        } else if (imported != null) {
+            typeParameters = new ArrayList<>(imported.typeParameters);
+            actual = imported.returnType;
+        } else if (binding != null) {
+            typeParameters = new ArrayList<>(binding.typeParameters);
+            actual = binding.returnType;
+        } else {
+            throw new IllegalStateException("Illegal tree structure.");
+        }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -86,14 +105,26 @@ public final class ECallLocal extends AExpression {
         }
 
         statement = true;
-        actual = method == null ? binding.returnType : method.returnType;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (method == null) {
+        if (method != null) {
+            for (AExpression argument : arguments) {
+                argument.write(writer, globals);
+            }
+
+            writer.invokeStatic(CLASS_TYPE, new Method(method.name, method.methodType.toMethodDescriptorString()));
+        } else if (imported != null) {
+            for (AExpression argument : arguments) {
+                argument.write(writer, globals);
+            }
+
+            writer.invokeStatic(Type.getType(imported.targetClass),
+                    new Method(imported.javaMethod.getName(), imported.methodType.toMethodDescriptorString()));
+        } else if (binding != null) {
             String name = globals.addBinding(binding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(binding.javaConstructor.getDeclaringClass());
             int javaConstructorParameterCount = binding.javaConstructor.getParameterCount();
@@ -124,11 +155,7 @@ public final class ECallLocal extends AExpression {
 
             writer.invokeVirtual(type, Method.getMethod(binding.javaMethod));
         } else {
-            for (AExpression argument : arguments) {
-                argument.write(writer, globals);
-            }
-
-            writer.invokeStatic(CLASS_TYPE, new Method(method.name, method.methodType.toMethodDescriptorString()));
+            throw new IllegalStateException("Illegal tree structure.");
         }
     }
 

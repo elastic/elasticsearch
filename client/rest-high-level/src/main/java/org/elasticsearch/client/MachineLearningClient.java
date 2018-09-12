@@ -19,30 +19,44 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.ml.FlushJobRequest;
-import org.elasticsearch.client.ml.FlushJobResponse;
-import org.elasticsearch.client.ml.GetJobStatsRequest;
-import org.elasticsearch.client.ml.GetJobStatsResponse;
-import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
+import org.elasticsearch.client.ml.FlushJobRequest;
+import org.elasticsearch.client.ml.FlushJobResponse;
+import org.elasticsearch.client.ml.ForecastJobRequest;
+import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetInfluencersRequest;
+import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
+import org.elasticsearch.client.ml.GetJobStatsRequest;
+import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
+import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
 import java.util.Collections;
+
 
 /**
  * Machine Learning API client wrapper for the {@link RestHighLevelClient}
@@ -317,6 +331,7 @@ public final class MachineLearningClient {
      *
      * @param request  The {@link FlushJobRequest} object enclosing the `jobId` and additional request options
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public FlushJobResponse flushJob(FlushJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
@@ -355,6 +370,171 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Creates a forecast of an existing, opened Machine Learning Job
+     *
+     * This predicts the future behavior of a time series by using its historical behavior.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-forecast.html">Forecast ML Job Documentation</a>
+     * </p>
+     * @param request ForecastJobRequest with forecasting options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing forecast acknowledgement and new forecast's ID
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public ForecastJobResponse forecastJob(ForecastJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::forecastJob,
+            options,
+            ForecastJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job}
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-job.html"></a>
+     * </p>
+     *
+     * @param request the {@link UpdateJobRequest} object enclosing the desired updates
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return a PutJobResponse object containing the updated job object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutJobResponse updateJob(UpdateJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateJob,
+            options,
+            PutJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a forecast of an existing, opened Machine Learning Job asynchronously
+     *
+     * This predicts the future behavior of a time series by using its historical behavior.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-forecast.html">Forecast ML Job Documentation</a>
+     * </p>
+     * @param request ForecastJobRequest with forecasting options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void forecastJobAsync(ForecastJobRequest request, RequestOptions options, ActionListener<ForecastJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::forecastJob,
+            options,
+            ForecastJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning {@link org.elasticsearch.client.ml.job.config.Job} asynchronously
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-job.html"></a>
+     * </p>
+     * @param request the {@link UpdateJobRequest} object enclosing the desired updates
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateJobAsync(UpdateJobRequest request, RequestOptions options, ActionListener<PutJobResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateJob,
+            options,
+            PutJobResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
+     *
+     * @param request The PutDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutDatafeedResponse with enclosed {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDatafeedResponse putDatafeed(PutDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::putDatafeed,
+                options,
+                PutDatafeedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Datafeed asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
+     *
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putDatafeedAsync(PutDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::putDatafeed,
+                options,
+                PutDatafeedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Job Forecasts
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
+     * </p>
+     *
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return a AcknowledgedResponse object indicating request success
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteForecast(DeleteForecastRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteForecast,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes Machine Learning Job Forecasts asynchronously
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"></a>
+     * </p>
+     *
+     * @param request the {@link DeleteForecastRequest} object enclosing the desired jobId, forecastIDs, and other options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteForecastAsync(DeleteForecastRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteForecast,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets the buckets for a Machine Learning Job.
      * <p>
      * For additional info
@@ -389,6 +569,45 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
      }
+
+    /**
+     * Gets the categories for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">
+     *     ML GET categories documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetCategoriesResponse getCategories(GetCategoriesRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getCategories,
+            options,
+            GetCategoriesResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the categories for a Machine Learning Job, notifies listener once the requested buckets are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html">
+     *     ML GET categories documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getCategoriesAsync(GetCategoriesRequest request, RequestOptions options, ActionListener<GetCategoriesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getCategories,
+            options,
+            GetCategoriesResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 
     /**
      * Gets overall buckets for a set of Machine Learning Jobs.
@@ -461,6 +680,91 @@ public final class MachineLearningClient {
                 MLRequestConverters::getRecords,
                 options,
                 GetRecordsResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Sends data to an anomaly detection job for analysis.
+     *
+     * NOTE: The job must have a state of open to receive and process the data.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html">ML POST Data documentation</a>
+     * </p>
+     *
+     * @param request PostDataRequest containing the data to post and some additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return response containing operational progress about the job
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PostDataResponse postData(PostDataRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::postData,
+            options,
+            PostDataResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Sends data to an anomaly detection job for analysis, asynchronously
+     *
+     * NOTE: The job must have a state of open to receive and process the data.
+     *
+     * <p>
+     *     For additional info
+     *     see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html">ML POST Data documentation</a>
+     * </p>
+     *
+     * @param request PostDataRequest containing the data to post and some additional options
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void postDataAsync(PostDataRequest request, RequestOptions options, ActionListener<PostDataResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::postData,
+            options,
+            PostDataResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the influencers for a Machine Learning Job.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html">
+     *     ML GET influencers documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public GetInfluencersResponse getInfluencers(GetInfluencersRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getInfluencers,
+                options,
+                GetInfluencersResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets the influencers for a Machine Learning Job, notifies listener once the requested influencers are retrieved.
+     * <p>
+     * For additional info
+     * * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html">
+     *     ML GET influencers documentation</a>
+     *
+     * @param request  the request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getInfluencersAsync(GetInfluencersRequest request, RequestOptions options,
+                                    ActionListener<GetInfluencersResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getInfluencers,
+                options,
+                GetInfluencersResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

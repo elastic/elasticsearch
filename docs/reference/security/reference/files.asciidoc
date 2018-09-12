@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-files]]
 === Security Files
 

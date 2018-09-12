@@ -22,9 +22,11 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class FollowIndexIT extends ESRestTestCase {
 
@@ -75,6 +77,7 @@ public class FollowIndexIT extends ESRestTestCase {
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName));
         }
     }
 
@@ -104,6 +107,7 @@ public class FollowIndexIT extends ESRestTestCase {
             ensureYellow("logs-20190101");
             verifyDocuments("logs-20190101", 5);
         });
+        assertBusy(() -> verifyCcrMonitoring("logs-20190101"));
     }
 
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
@@ -153,6 +157,39 @@ public class FollowIndexIT extends ESRestTestCase {
             int value = (int) XContentMapValues.extractValue("_source.field", (Map<?, ?>) hits.get(i));
             assertThat(i, equalTo(value));
         }
+    }
+
+    private static void verifyCcrMonitoring(String expectedLeaderIndex) throws IOException {
+        ensureYellow(".monitoring-*");
+
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_stats\"}}}");
+        Map<String, ?> response = toMap(client().performRequest(request));
+
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertThat(numDocs, greaterThanOrEqualTo(1));
+
+        int numberOfOperationsReceived = 0;
+        int numberOfOperationsIndexed = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        for (int i = 0; i < numDocs; i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+            String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
+            if (leaderIndex.endsWith(expectedLeaderIndex) == false) {
+                continue;
+            }
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);
+            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
+            int foundNumberOfOperationsIndexed =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.number_of_operations_indexed", hit);
+            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+        }
+
+        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
+        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

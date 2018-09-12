@@ -1506,7 +1506,7 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("configuring discovery with {} at {}", discoveryFileContents, configPaths);
             for (final Path configPath : configPaths) {
                 Files.createDirectories(configPath);
-                Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents); // TODO do we need to do this atomically?
+                Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);
             }
         } catch (IOException e) {
             throw new AssertionError("failed to configure file-based discovery", e);

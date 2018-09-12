@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.common.Strings;
@@ -178,6 +180,38 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(updateJobRequest.getJobUpdate(), REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request putDatafeed(PutDatafeedRequest putDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("ml")
+                .addPathPartAsIs("datafeeds")
+                .addPathPart(putDatafeedRequest.getDatafeed().getId())
+                .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(deleteForecastRequest.getJobId())
+            .addPathPartAsIs("_forecast")
+            .addPathPart(Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()))
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (deleteForecastRequest.isAllowNoForecasts() != null) {
+            params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.isAllowNoForecasts()));
+        }
+        if (deleteForecastRequest.timeout() != null) {
+            params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());
+        }
         return request;
     }
 

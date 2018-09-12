@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public final class TransportCreateAndFollowIndexAction
         extends TransportMasterNodeAction<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response> {
@@ -118,8 +119,12 @@ public final class TransportCreateAndFollowIndexAction
             final ClusterState state,
             final ActionListener<CreateAndFollowIndexAction.Response> listener) {
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getFollowRequest().getLeaderIndex());
-        createFollowerIndex(leaderIndexMetadata, request, listener);
+        final String leaderIndex = request.getFollowRequest().getLeaderIndex();
+        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
+        Consumer<String[]> handler = historyUUIDs -> {
+            createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
+        };
+        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, handler);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
@@ -127,16 +132,17 @@ public final class TransportCreateAndFollowIndexAction
             final String clusterAlias,
             final String leaderIndex,
             final ActionListener<CreateAndFollowIndexAction.Response> listener) {
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
                 clusterAlias,
                 leaderIndex,
                 listener::onFailure,
-                leaderIndexMetaData -> createFollowerIndex(leaderIndexMetaData, request, listener));
+                (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
     }
 
     private void createFollowerIndex(
             final IndexMetaData leaderIndexMetaData,
+            final String[] historyUUIDs,
             final CreateAndFollowIndexAction.Request request,
             final ActionListener<CreateAndFollowIndexAction.Response> listener) {
         if (leaderIndexMetaData == null) {
@@ -174,7 +180,9 @@ public final class TransportCreateAndFollowIndexAction
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 IndexMetaData.Builder imdBuilder = IndexMetaData.builder(followIndex);
 
+                // Adding the leader index uuid for each shard as custom metadata:
                 Map<String, String> metadata = new HashMap<>();
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 

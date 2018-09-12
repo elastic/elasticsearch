@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ccr.ShardChangesIT;
 import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -30,18 +31,22 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportFollowIndexActionTests extends ESTestCase {
 
     public void testValidation() throws IOException {
-        final Map<String, String> customMetaData = singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
+        final Map<String, String> customMetaData = new HashMap<>();
+        customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
+        customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
         FollowIndexAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
+        String[] UUIDs = new String[]{"uuid"};
         {
             // should fail, because leader index does not exist
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not exist"));
         }
         {
             // should fail, because follow index does not exist
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, null, null));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> validate(request, leaderIMD, null, null, null));
             assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
         }
         {
@@ -50,33 +55,45 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY,
                 singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "another-value"));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> validate(request, leaderIMD, followIMD, null));
+                () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("follow index [index2] should reference [_na_] as leader index but " +
                 "instead reference [another-value] as leader index"));
         }
         {
+            // should fail because the recorded leader index history uuid is not equal to the leader actual index history uuid:
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
+            Map<String, String> anotherCustomMetaData = new HashMap<>();
+            anotherCustomMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
+            anotherCustomMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "another-uuid");
+            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, anotherCustomMetaData);
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> validate(request, leaderIMD, followIMD, UUIDs, null));
+            assertThat(e.getMessage(), equalTo("leader shard [index2][0] should reference [another-uuid] as history uuid but " +
+                "instead reference [uuid] as history uuid"));
+        }
+        {
             // should fail because leader index does not have soft deletes enabled
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, customMetaData);
+            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the number of primary shards between leader and follow index are not equal
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", 4, Settings.EMPTY, customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(),
                 equalTo("leader index primary shards [5] does not match with the number of shards of the follow index [4]"));
         }
         {
             // should fail, because leader index is closed
             IndexMetaData leaderIMD = createIMD("index1", State.CLOSE, "{}", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader and follow index must be open"));
         }
         {
@@ -86,19 +103,20 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             IndexMetaData followIMD = createIMD("index2", 1, Settings.EMPTY, customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, mapperService));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(e.getMessage(), equalTo("the following index [index2] is not ready to follow; " +
                 "the setting [index.xpack.ccr.following_index] must be enabled."));
         }
         {
             // should fail, because leader has a field with the same name mapped as keyword and follower as text
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"keyword\"}}}", 5,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5,
                 Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(), customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, mapperService));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(e.getMessage(), equalTo("mapper [field] of different type, current_type [text], merged_type [keyword]"));
         }
         {
@@ -107,18 +125,18 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, mapping, 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace").build(), customMetaData);
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
         }
         {
             // should fail because the following index does not have the following_index settings
             IndexMetaData leaderIMD = createIMD("index1", 5,
-                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), emptyMap());
             Settings followingIndexSettings = randomBoolean() ? Settings.EMPTY :
                 Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), false).build();
             IndexMetaData followIMD = createIMD("index2", 5, followingIndexSettings, customMetaData);
@@ -126,19 +144,19 @@ public class TransportFollowIndexActionTests extends ESTestCase {
                 followingIndexSettings, "index2");
             mapperService.updateMapping(null, followIMD);
             IllegalArgumentException error =
-                    expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, mapperService));
+                    expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
             assertThat(error.getMessage(), equalTo("the following index [index2] is not ready to follow; " +
                 "the setting [index.xpack.ccr.following_index] must be enabled."));
         }
         {
             // should succeed
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), customMetaData);
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(), customMetaData);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
-            validate(request, leaderIMD, followIMD, mapperService);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
         {
             // should succeed, index settings are identical
@@ -146,7 +164,7 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, mapping, 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
@@ -154,7 +172,7 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
             mapperService.updateMapping(null, followIMD);
-            validate(request, leaderIMD, followIMD, mapperService);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
         {
             // should succeed despite whitelisted settings being different
@@ -163,7 +181,7 @@ public class TransportFollowIndexActionTests extends ESTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.analysis.analyzer.my_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), emptyMap());
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5, Settings.builder()
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
@@ -172,7 +190,7 @@ public class TransportFollowIndexActionTests extends ESTestCase {
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
             mapperService.updateMapping(null, followIMD);
-            validate(request, leaderIMD, followIMD, mapperService);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
     }
 

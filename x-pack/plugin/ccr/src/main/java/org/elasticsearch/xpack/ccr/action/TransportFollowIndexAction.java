@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -111,11 +112,16 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-        try {
-            start(request, null, leaderIndexMetadata, followerIndexMetadata, listener);
-        } catch (final IOException e) {
-            listener.onFailure(e);
+        if (leaderIndexMetadata == null) {
+            throw new IndexNotFoundException(request.getFollowerIndex());
         }
+        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
+            try {
+                start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
+            } catch (final IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void followRemoteIndex(
@@ -125,14 +131,14 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadata(
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
                 clusterAlias,
                 leaderIndex,
                 listener::onFailure,
-                leaderIndexMetadata -> {
+                (leaderHistoryUUID, leaderIndexMetadata) -> {
                     try {
-                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, listener);
+                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
                     } catch (final IOException e) {
                         listener.onFailure(e);
                     }
@@ -154,18 +160,23 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             String clusterNameAlias,
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
+            String[] leaderIndexHistoryUUIDs,
             ActionListener<AcknowledgedResponse> handler) throws IOException {
 
         MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
-        validate(request, leaderIndexMetadata, followIndexMetadata, mapperService);
+        validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final AtomicInteger counter = new AtomicInteger(numShards);
         final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        for (int i = 0; i < numShards; i++) {
             final int shardId = i;
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
+            String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndexMetadata);
+            String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
             ShardFollowTask shardFollowTask = new ShardFollowTask(
                     clusterNameAlias,
@@ -178,6 +189,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
                     request.getMaxWriteBufferSize(),
                     request.getMaxRetryDelay(),
                     request.getIdleShardRetryDelay(),
+                    recordedLeaderShardHistoryUUID,
                     filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                     new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
@@ -225,6 +237,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             final FollowIndexAction.Request request,
             final IndexMetaData leaderIndex,
             final IndexMetaData followIndex,
+            final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
         if (leaderIndex == null) {
             throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist");
@@ -240,6 +253,19 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" + leaderIndexUUID +
                     "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
+
+        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndex);
+        assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;
+        for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
+            String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
+            String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
+            if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
+                throw new IllegalArgumentException("leader shard [" + request.getFollowerIndex() + "][" + i + "] should reference [" +
+                    recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
+                    "] as history uuid");
+            }
+        }
+
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled");
         }
@@ -268,6 +294,12 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         // Validates if the current follower mapping is mergable with the leader mapping.
         // This also validates for example whether specific mapper plugins have been installed
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
+    }
+
+    private static String[] extractIndexShardHistoryUUIDs(IndexMetaData followIndexMetadata) {
+        String historyUUIDs = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
+            .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+        return historyUUIDs.split(",");
     }
 
     private static final Set<Setting<?>> WHITE_LISTED_SETTINGS;

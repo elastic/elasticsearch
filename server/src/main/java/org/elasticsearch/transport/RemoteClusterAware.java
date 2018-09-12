@@ -52,6 +52,11 @@ import java.util.stream.Stream;
  */
 public abstract class RemoteClusterAware extends AbstractComponent {
 
+    static {
+        // remove search.remote.* settings in 8.0.0
+        assert Version.CURRENT.major < 8;
+    }
+
     public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS =
             Setting.affixKeySetting(
                     "search.remote.",

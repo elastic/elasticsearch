@@ -185,6 +185,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat("some usages are populated", info.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
 
+
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);

@@ -705,7 +705,6 @@ public abstract class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
-
         final MetaData onDiskMetadata;
         try {
             // we load the global state here (the persistent part of the cluster state stored on disk) to

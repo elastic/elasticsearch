@@ -79,7 +79,8 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
 
     private Float checkWeight(Float weight) {
         if (weight != null && Float.compare(weight, 0) < 0) {
-            DEPRECATION_LOGGER.deprecated("[weight] cannot be negative for a filtering function");
+            DEPRECATION_LOGGER.deprecated("Setting a negative [weight] in Function Score Query is deprecated "
+                + "and will throw an error in the next major version");
         }
         return weight;
     }

@@ -289,7 +289,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     public void testDeprecatedArgumanets() {
         float weight = -1 * randomFloat();
         new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(weight));
-        assertWarnings("[weight] cannot be negative for a filtering function");
+        assertWarnings("Setting a negative [weight] in Function Score Query is deprecated "
+            + "and will throw an error in the next major version");
     }
 
     public void testParseFunctionsArray() throws IOException {

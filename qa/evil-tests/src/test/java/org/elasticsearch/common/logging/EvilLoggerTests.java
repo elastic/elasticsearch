@@ -27,7 +27,9 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
@@ -56,6 +58,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
@@ -297,8 +300,8 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
-        final Logger logger = Loggers.getLogger("prefix", prefix);
+        final String prefix = randomAlphaOfLength(16);
+        final Logger logger = new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix_test"), "prefix_test", prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
@@ -318,11 +321,8 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            if (prefix == null) {
-                assertThat(events.get(i), startsWith("test"));
-            } else {
-                assertThat(events.get(i), startsWith("[" + prefix + "] test"));
-            }
+            assertThat("Contents of [" + path + "] are wrong",
+                    events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
     }
 
@@ -331,8 +331,8 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
-
+            // this has the side effect of caching a marker with this prefix
+            new PrefixLogger((ExtendedLogger) LogManager.getLogger("prefix" + i), "prefix" + i, "prefix" + i);
         }
 
         System.gc(); // this will free the weakly referenced keys in the marker cache
@@ -354,6 +354,28 @@ public class EvilLoggerTests extends ESTestCase {
             assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
         } else {
             assertNull(System.getProperty("es.logs.node_name"));
+        }
+    }
+
+    public void testNoNodeNameInPatternWarning() throws IOException, UserException {
+        setupLogging("no_node_name");
+
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") + ".log";
+        final List<String> events = Files.readAllLines(PathUtils.get(path));
+        assertThat(events.size(), equalTo(2));
+        final String location = "org.elasticsearch.common.logging.LogConfigurator";
+        // the first message is a warning for unsupported configuration files
+        assertLogLine(events.get(0), Level.WARN, location, "\\[unknown\\] Some logging configurations have %marker but don't "
+                + "have %node_name. We will automatically add %node_name to the pattern to ease the migration for users "
+                + "who customize log4j2.properties but will stop this behavior in 7.0. You should manually replace "
+                + "`%node_name` with `\\[%node_name\\]%marker ` in these locations:");
+        if (Constants.WINDOWS) {
+            assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
+        } else {
+            assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
         }
     }
 

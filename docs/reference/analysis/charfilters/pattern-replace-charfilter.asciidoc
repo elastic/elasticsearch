@@ -87,7 +87,7 @@ The above example produces the following term:
 
 [source,text]
 ---------------------------
-[ My, credit, card, is 123_456_789 ]
+[ My, credit, card, is, 123_456_789 ]
 ---------------------------
 
 WARNING: Using a replacement string that changes the length of the original

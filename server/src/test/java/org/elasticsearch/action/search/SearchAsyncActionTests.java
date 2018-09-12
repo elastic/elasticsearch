@@ -256,7 +256,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(10, numRequests.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29242")
     public void testFanOutAndCollect() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
@@ -347,6 +346,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                             sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
+                        if (latch.getCount() == 0) {
+                            throw new AssertionError("Running a search phase after the latch has reached 0 !!!!");
+                        }
                         latch.countDown();
                     }
                 };
@@ -375,7 +377,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ArrayList<ShardRouting> unassigned = new ArrayList<>();
 
             ShardRouting routing = ShardRouting.newUnassigned(new ShardId(new Index(index, "_na_"), i), true,
-                RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
             routing = routing.initialize(primaryNode.getId(), i + "p", 0);
             routing.started();
             started.add(routing);
@@ -444,7 +446,17 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void addCloseListener(ActionListener<Void> listener) {
+
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
+        public void close() {
             throw new UnsupportedOperationException();
         }
     }

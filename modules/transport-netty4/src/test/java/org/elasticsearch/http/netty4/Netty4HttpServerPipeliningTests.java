@@ -29,6 +29,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -98,8 +99,12 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
-                Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
-                assertThat(responseBodies, contains(requests.toArray()));
+                try {
+                    Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
+                    assertThat(responseBodies, contains(requests.toArray()));
+                } finally {
+                    responses.forEach(ReferenceCounted::release);
+                }
             }
         }
     }

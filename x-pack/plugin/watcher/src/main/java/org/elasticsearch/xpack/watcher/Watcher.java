@@ -92,12 +92,7 @@ import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
-import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpSettings;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -264,12 +259,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
 
         // http client
-        Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
-        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
-        // TODO: add more auth types, or remove this indirection
-        HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
-        HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
-        httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
+        httpClient = new HttpClient(settings, getSslService(), cryptoService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
@@ -286,11 +276,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser,
-                templateEngine));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine,
-                httpAuthRegistry));
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
@@ -310,9 +298,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
+        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
@@ -324,7 +312,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, client, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
-        inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
+        inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
         inputFactories.put(TransformInput.TYPE, new TransformInputFactory(settings, transformRegistry));
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
@@ -547,7 +535,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -614,7 +602,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     }
 
     @Override
-    public List<ScriptContext> getContexts() {
+    public List<ScriptContext<?>> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 

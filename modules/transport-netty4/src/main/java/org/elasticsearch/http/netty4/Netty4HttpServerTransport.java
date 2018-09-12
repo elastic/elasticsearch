@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
@@ -338,7 +339,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
         }
     }
@@ -354,7 +355,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            Netty4Utils.maybeDie(cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
                 transport.onServerException(httpServerChannel, new Exception(cause));

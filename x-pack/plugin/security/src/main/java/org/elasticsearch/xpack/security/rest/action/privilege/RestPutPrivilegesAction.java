@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index
@@ -37,6 +38,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestPutPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
+        controller.registerHandler(PUT, "/_xpack/security/privilege/", this);
         controller.registerHandler(POST, "/_xpack/security/privilege/", this);
     }
 

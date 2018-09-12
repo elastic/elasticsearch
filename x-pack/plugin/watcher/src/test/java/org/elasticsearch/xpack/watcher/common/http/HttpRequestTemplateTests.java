@@ -14,22 +14,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 public class HttpRequestTemplateTests extends ESTestCase {
 
@@ -87,8 +82,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
 
-        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
-        HttpRequestTemplate parsedTemplate = parser.parse(xContentParser);
+        HttpRequestTemplate parsedTemplate = HttpRequestTemplate.Parser.parse(xContentParser);
         assertThat(parsedTemplate.proxy().getPort(), is(proxyPort));
         assertThat(parsedTemplate.proxy().getHost(), is(proxyHost));
     }
@@ -134,14 +128,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
         HttpRequestTemplate template = builder.build();
 
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE,
-                new BasicAuthFactory(null)));
-        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
-
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), WatcherParams.builder().hideSecrets(false).build());
         XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
-        HttpRequestTemplate parsed = parser.parse(xContentParser);
+        HttpRequestTemplate parsed = HttpRequestTemplate.Parser.parse(xContentParser);
 
         assertEquals(template, parsed);
     }
@@ -194,13 +184,12 @@ public class HttpRequestTemplateTests extends ESTestCase {
         XContentParser urlContentParser = createParser(urlContentBuilder);
         urlContentParser.nextToken();
 
-        HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
-        HttpRequestTemplate urlParsedTemplate = parser.parse(urlContentParser);
+        HttpRequestTemplate urlParsedTemplate = HttpRequestTemplate.Parser.parse(urlContentParser);
 
         XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
-        HttpRequestTemplate parsedTemplate = parser.parse(xContentParser);
+        HttpRequestTemplate parsedTemplate = HttpRequestTemplate.Parser.parse(xContentParser);
 
         assertThat(parsedTemplate, is(urlParsedTemplate));
     }

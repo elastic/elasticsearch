@@ -257,6 +257,9 @@ and there are multiple indices referenced by an alias, then writes will not be a
 It is possible to specify an index associated with an alias as a write index using both the aliases API
 and index creation API.
 
+Setting an index to be the write index with an alias also affects how the alias is manipulated during
+Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
+
 [source,js]
 --------------------------------------------------
 POST /_aliases

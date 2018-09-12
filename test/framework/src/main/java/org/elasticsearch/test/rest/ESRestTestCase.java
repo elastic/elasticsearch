@@ -148,7 +148,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 String host = stringUrl.substring(0, portSeparator);
                 int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-                hosts.add(new HttpHost(host, port, getProtocol()));
+                hosts.add(buildHttpHost(host, port));
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
@@ -158,6 +158,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
+    }
+
+    /**
+     * Construct a HttpHost from the given host and port
+     */
+    protected HttpHost buildHttpHost(String host, int port) {
+        return new HttpHost(host, port, getProtocol());
     }
 
     /**
@@ -230,6 +237,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Controls whether or not to preserve cluster settings upon completion of the test. The default implementation is to remove all cluster
+     * settings.
+     *
+     * @return true if cluster settings should be preserved and otherwise false
+     */
+    protected boolean preserveClusterSettings() {
+        return false;
+    }
+
+    /**
      * Returns whether to preserve the repositories on completion of this test.
      * Defaults to not preserving repos. See also
      * {@link #preserveSnapshotsUponCompletion()}.
@@ -288,7 +305,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         wipeSnapshots();
-        wipeClusterSettings();
+
+        // wipe cluster settings
+        if (preserveClusterSettings() == false) {
+            wipeClusterSettings();
+        }
     }
 
     /**

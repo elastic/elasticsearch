@@ -28,9 +28,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -74,8 +74,7 @@ final class BootstrapChecks {
         combinedChecks.addAll(additionalChecks);
         check(  context,
                 enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings)),
-                Collections.unmodifiableList(combinedChecks),
-                Node.NODE_NAME_SETTING.get(context.settings));
+                Collections.unmodifiableList(combinedChecks));
     }
 
     /**
@@ -86,14 +85,12 @@ final class BootstrapChecks {
      * @param context        the current node boostrap context
      * @param enforceLimits {@code true} if the checks should be enforced or otherwise warned
      * @param checks        the checks to execute
-     * @param nodeName      the node name to be used as a logging prefix
      */
     static void check(
         final BootstrapContext context,
         final boolean enforceLimits,
-        final List<BootstrapCheck> checks,
-        final String nodeName) throws NodeValidationException {
-        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class, nodeName));
+        final List<BootstrapCheck> checks) throws NodeValidationException {
+        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class));
     }
 
     /**
@@ -397,17 +394,22 @@ final class BootstrapChecks {
 
     static class MaxMapCountCheck implements BootstrapCheck {
 
-        private static final long LIMIT = 1 << 18;
+        static final long LIMIT = 1 << 18;
 
         @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
-               final String message = String.format(
-                        Locale.ROOT,
-                        "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
-                        getMaxMapCount(),
-                        LIMIT);
-               return BootstrapCheckResult.failure(message);
+        public BootstrapCheckResult check(final BootstrapContext context) {
+            // we only enforce the check if mmapfs is an allowed store type
+            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings)) {
+                if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
+                            getMaxMapCount(),
+                            LIMIT);
+                    return BootstrapCheckResult.failure(message);
+                } else {
+                    return BootstrapCheckResult.success();
+                }
             } else {
                 return BootstrapCheckResult.success();
             }

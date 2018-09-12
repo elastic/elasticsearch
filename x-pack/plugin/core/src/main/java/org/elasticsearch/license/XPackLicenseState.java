@@ -410,8 +410,18 @@ public class XPackLicenseState {
      */
     public boolean isCustomRoleProvidersAllowed() {
         final Status localStatus = status;
-        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL )
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
                 && localStatus.active;
+    }
+
+    /**
+     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
+     */
+    public boolean isAuthorizationRealmAllowed() {
+        final Status localStatus = status;
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
+            && localStatus.active;
     }
 
     /**
@@ -514,13 +524,13 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isMachineLearningAllowed() {
-        // status is volatile
-        Status localStatus = status;
-        OperationMode operationMode = localStatus.mode;
+        // one-time volatile read as status could be updated on us while performing this check
+        final Status currentStatus = status;
+        return currentStatus.active && isMachineLearningAllowedForOperationMode(currentStatus.mode);
+    }
 
-        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
-
-        return licensed && localStatus.active;
+    public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
+        return isPlatinumOrTrialOperationMode(operationMode);
     }
 
     /**
@@ -612,4 +622,30 @@ public class XPackLicenseState {
         final OperationMode mode = status.mode;
         return mode == OperationMode.TRIAL ? (isSecurityExplicitlyEnabled || isSecurityEnabledByTrialVersion) : isSecurityEnabled;
     }
+
+    /**
+     * Determine if cross-cluster replication should be enabled.
+     * <p>
+     * Cross-cluster replication is only disabled when the license has expired or if the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return true is the license is compatible, otherwise false
+     */
+    public boolean isCcrAllowed() {
+        // one-time volatile read as status could be updated on us while performing this check
+        final Status currentStatus = status;
+        return currentStatus.active && isCcrAllowedForOperationMode(currentStatus.mode);
+    }
+
+    public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
+        return isPlatinumOrTrialOperationMode(operationMode);
+    }
+
+    public static boolean isPlatinumOrTrialOperationMode(final OperationMode operationMode) {
+        return operationMode == OperationMode.PLATINUM || operationMode == OperationMode.TRIAL;
+    }
+
 }

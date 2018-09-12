@@ -119,9 +119,10 @@ public class SearchHitTests extends ESTestCase {
             hit.setInnerHits(innerHits);
         }
         if (randomBoolean()) {
+            String index = randomAlphaOfLengthBetween(5, 10);
+            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt()), null,
-                    OriginalIndices.NONE));
+                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE));
         }
         return hit;
     }

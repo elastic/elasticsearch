@@ -20,8 +20,9 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeletePipelineAction extends Action<WritePipelineResponse> {
+public class DeletePipelineAction extends Action<AcknowledgedResponse> {
 
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/delete";
@@ -31,7 +32,7 @@ public class DeletePipelineAction extends Action<WritePipelineResponse> {
     }
 
     @Override
-    public WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

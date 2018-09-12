@@ -50,6 +50,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ManageApplicationPrivilegesTests extends ESTestCase {
 
@@ -140,6 +141,19 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         assertThat(cloudAndSwiftypePredicate, not(predicateMatches(putKibana)));
     }
 
+    public void testSecurityForGetAllApplicationPrivileges() {
+        final GetPrivilegesRequest getAll = new GetPrivilegesRequest();
+        getAll.application(null);
+        getAll.privileges(new String[0]);
+
+        assertThat(getAll.validate(), nullValue());
+
+        final ManageApplicationPrivileges kibanaOnly = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*"));
+        final ManageApplicationPrivileges allApps = new ManageApplicationPrivileges(Sets.newHashSet("*"));
+
+        assertThat(kibanaOnly.getRequestPredicate(), not(predicateMatches(getAll)));
+        assertThat(allApps.getRequestPredicate(), predicateMatches(getAll));
+    }
 
     private ManageApplicationPrivileges clone(ManageApplicationPrivileges original) {
         return new ManageApplicationPrivileges(new LinkedHashSet<>(original.getApplicationNames()));

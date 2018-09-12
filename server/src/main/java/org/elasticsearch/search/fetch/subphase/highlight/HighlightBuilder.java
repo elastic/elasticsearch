@@ -220,7 +220,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     /**
      * Set encoder for the highlighting
-     * are {@code styled} and {@code default}.
+     * are {@code html} and {@code default}.
      *
      * @param encoder name
      */

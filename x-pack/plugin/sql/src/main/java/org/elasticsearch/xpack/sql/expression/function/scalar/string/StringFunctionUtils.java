@@ -5,7 +5,32 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.sql.type.DataType;
+
 abstract class StringFunctionUtils {
+
+    /**
+     * Extract a substring from the given string, using start index and length of the extracted substring.
+     *
+     * @param s       the original String
+     * @param start   starting position for the substring within the original string. 0-based index position
+     * @param length  length in characters of the substracted substring
+     * @return the resulting String
+     */
+    static String substring(String s, int start, int length) {
+        if (!hasLength(s)) {
+            return s;
+        }
+        
+        if (start < 0)
+            start = 0;
+        
+        if (start + 1 > s.length() || length < 0)
+            return "";
+        
+        return (start + length > s.length()) ? s.substring(start) : s.substring(start, start + length);
+    }
 
     /**
      * Trims the trailing whitespace characters from the given String. Uses {@link Character#isWhitespace(char)}
@@ -47,5 +72,17 @@ abstract class StringFunctionUtils {
 
     private static boolean hasLength(String s) {
         return (s != null && s.length() > 0);
+    }
+    
+    static TypeResolution resolveStringInputType(DataType inputType, String functionName) {
+        return inputType.isString() ? 
+                TypeResolution.TYPE_RESOLVED : 
+                new TypeResolution("'%s' requires a string type, received %s", functionName, inputType.esType);
+    }
+    
+    static TypeResolution resolveNumericInputType(DataType inputType, String functionName) {
+        return inputType.isNumeric() ? 
+                TypeResolution.TYPE_RESOLVED : 
+                new TypeResolution("'%s' requires a numeric type, received %s", functionName, inputType.esType);
     }
 }

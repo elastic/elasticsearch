@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
@@ -28,6 +28,7 @@ import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Iterator;
 
@@ -91,6 +92,8 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
         } else if (o instanceof ReadableInstant) {
             // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
             return ((ReadableInstant) o).getMillis();
+        } else if (o instanceof ZonedDateTime) {
+            return ((ZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean
@@ -103,7 +106,7 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         script.setScorer(scorer);
     }
 }

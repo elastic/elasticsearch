@@ -50,7 +50,7 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.singleton(application);
+        return application == null ? Collections.emptySet() : Collections.singleton(application);
     }
 
     public void privileges(String... privileges) {

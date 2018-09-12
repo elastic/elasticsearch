@@ -40,11 +40,6 @@ public interface ClusterApplier {
     void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener);
 
     /**
-     * Creates a new cluster state builder that is initialized with the cluster name and all initial cluster state customs.
-     */
-    ClusterState.Builder newClusterStateBuilder();
-
-    /**
      * Listener for results of cluster state application
      */
     interface ClusterApplyListener {

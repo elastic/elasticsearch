@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,8 +35,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest,
-        DeleteStoredScriptResponse> {
+public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
 
@@ -54,13 +54,13 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected DeleteStoredScriptResponse newResponse() {
-        return new DeleteStoredScriptResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(Task task, DeleteStoredScriptRequest request, ClusterState state,
-                                   ActionListener<DeleteStoredScriptResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);
     }
 

@@ -24,6 +24,21 @@ import java.util.function.Function;
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
 public class FeatureTest {
+    /** static method that returns true */
+    public static boolean overloadedStatic() {
+        return true;
+    }
+
+    /** static method that returns what you ask it */
+    public static boolean overloadedStatic(boolean whatToReturn) {
+        return whatToReturn;
+    }
+
+    /** static method only whitelisted as a static */
+    public static float staticAddFloatsTest(float x, float y) {
+        return x + y;
+    }
+
     private int x;
     private int y;
     public int z;
@@ -58,21 +73,12 @@ public class FeatureTest {
         this.y = y;
     }
 
-    /** static method that returns true */
-    public static boolean overloadedStatic() {
-        return true;
-    }
-
-    /** static method that returns what you ask it */
-    public static boolean overloadedStatic(boolean whatToReturn) {
-        return whatToReturn;
-    }
-
     /** method taking two functions! */
     public Object twoFunctionsOfX(Function<Object,Object> f, Function<Object,Object> g) {
         return f.apply(g.apply(x));
     }
 
+    /** method to take in a list */
     public void listInput(List<Object> list) {
 
     }

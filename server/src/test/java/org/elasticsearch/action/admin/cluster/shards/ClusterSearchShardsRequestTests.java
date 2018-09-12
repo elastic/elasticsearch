@@ -54,7 +54,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             request.writeTo(out);

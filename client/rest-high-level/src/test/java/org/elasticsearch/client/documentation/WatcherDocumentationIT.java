@@ -26,6 +26,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 
@@ -34,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testPutWatch() throws Exception {
+    public void testWatcher() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -47,7 +49,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
                 "}");
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
-            PutWatchResponse response = client.xpack().watcher().putWatch(request, RequestOptions.DEFAULT);
+            PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
             //end::x-pack-put-watch-execute
 
             //tag::x-pack-put-watch-response
@@ -83,10 +85,51 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-put-watch-execute-async
-            client.xpack().watcher().putWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.watcher().putWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-put-watch-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+
+        {
+            //tag::x-pack-delete-watch-execute
+            DeleteWatchRequest request = new DeleteWatchRequest("my_watch_id");
+            DeleteWatchResponse response = client.watcher().deleteWatch(request, RequestOptions.DEFAULT);
+            //end::x-pack-delete-watch-execute
+
+            //tag::x-pack-delete-watch-response
+            String watchId = response.getId(); // <1>
+            boolean found = response.isFound(); // <2>
+            long version = response.getVersion(); // <3>
+            //end::x-pack-delete-watch-response
+        }
+
+        {
+            DeleteWatchRequest request = new DeleteWatchRequest("my_other_watch_id");
+            // tag::x-pack-delete-watch-execute-listener
+            ActionListener<DeleteWatchResponse> listener = new ActionListener<DeleteWatchResponse>() {
+                @Override
+                public void onResponse(DeleteWatchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-delete-watch-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-delete-watch-execute-async
+            client.watcher().deleteWatchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-delete-watch-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
+
 }

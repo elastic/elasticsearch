@@ -126,7 +126,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
+            if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
                 return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
@@ -139,14 +139,14 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
             for (Object value : values) {
-                if (isSameIndex(value, context.getFullyQualifiedIndexName())) {
+                if (isSameIndex(value, context.getFullyQualifiedIndex().getName())) {
                     // No need to OR these clauses - we can only logically be
                     // running in the context of just one of these index names.
                     return Queries.newMatchAllQuery();
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndexName()
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.getFullyQualifiedIndex().getName()
                 + " vs. " + values);
         }
 
@@ -189,5 +189,4 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     protected void doMerge(Mapper mergeWith) {
         // nothing to do
     }
-
 }

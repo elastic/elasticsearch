@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
@@ -67,8 +66,8 @@ class SpnegoClient implements AutoCloseable {
      * @param password password for client
      * @param servicePrincipalName Service principal name with whom this client
      *            interacts with.
-     * @throws PrivilegedActionException
-     * @throws GSSException
+     * @throws PrivilegedActionException when privileged action threw exception
+     * @throws GSSException thrown when GSS API error occurs
      */
     SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
             throws PrivilegedActionException, GSSException {
@@ -99,7 +98,7 @@ class SpnegoClient implements AutoCloseable {
      * base64 encoded token to be sent to server.
      *
      * @return Base64 encoded token
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
         final byte[] outToken = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
@@ -114,7 +113,7 @@ class SpnegoClient implements AutoCloseable {
      *            gss negotiation
      * @return Base64 encoded token to be sent to server. May return {@code null} if
      *         nothing to be sent.
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException when privileged action threw exception
      */
     String handleResponse(final String base64Token) throws PrivilegedActionException {
         if (gssContext.isEstablished()) {
@@ -160,10 +159,9 @@ class SpnegoClient implements AutoCloseable {
      *
      * @param principal Principal name
      * @param password {@link SecureString}
-     * @param settings {@link Settings}
      * @return authenticated {@link LoginContext} instance. Note: This needs to be
      *         closed {@link LoginContext#logout()} after usage.
-     * @throws LoginException
+     * @throws LoginException thrown if problem with login configuration or when login fails
      */
     private static LoginContext loginUsingPassword(final String principal, final SecureString password) throws LoginException {
         final Set<Principal> principals = Collections.singleton(new KerberosPrincipal(principal));
@@ -182,8 +180,8 @@ class SpnegoClient implements AutoCloseable {
      * Instead of an additional file setting as we do not want the options to be
      * customizable we are constructing it in memory.
      * <p>
-     * As we are uing this instead of jaas.conf, this requires refresh of
-     * {@link Configuration} and reqires appropriate security permissions to do so.
+     * As we are using this instead of jaas.conf, this requires refresh of
+     * {@link Configuration} and requires appropriate security permissions to do so.
      */
     static class PasswordJaasConf extends Configuration {
         private final String principal;

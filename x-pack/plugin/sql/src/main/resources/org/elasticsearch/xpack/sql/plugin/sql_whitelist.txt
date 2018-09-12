@@ -9,6 +9,9 @@
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
   
   Integer dateTimeChrono(long, String, String)
+  String dayName(long, String)
+  String monthName(long, String)
+  Integer quarter(long, String)
   Integer ascii(String)
   Integer bitLength(String)
   String character(Number)
@@ -19,4 +22,14 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String rtrim(String)
   String ltrim(String)
   String space(Number)
+  String left(String, int)
+  String right(String, int)
+  String concat(String, String)
+  String repeat(String, int)
+  Integer position(String, String)
+  String insert(String, int, int, String)
+  String substring(String, int, int)
+  String replace(String, String, String)
+  Integer locate(String, String)
+  Integer locate(String, String, Integer)
 }

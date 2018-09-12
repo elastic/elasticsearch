@@ -90,7 +90,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         };
         if (totalNumRequest == 0) {
-            listener.onResponse(new FieldCapabilitiesResponse());
+            listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyMap()));
         } else {
             ActionListener<FieldCapabilitiesIndexResponse> innerListener = new ActionListener<FieldCapabilitiesIndexResponse>() {
                 @Override

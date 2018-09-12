@@ -54,15 +54,13 @@ public final class ENewArray extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-         if (!read) {
-            throw createError(new IllegalArgumentException("A newly created array must be read from."));
+        if (!read) {
+             throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
-        Class<?> clazz;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 

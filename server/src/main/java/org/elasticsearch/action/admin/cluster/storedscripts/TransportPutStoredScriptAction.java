@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,7 +35,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, PutStoredScriptResponse> {
+public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
 
@@ -53,13 +54,13 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected PutStoredScriptResponse newResponse() {
-        return new PutStoredScriptResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(Task task, PutStoredScriptRequest request, ClusterState state,
-                                   ActionListener<PutStoredScriptResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }
 

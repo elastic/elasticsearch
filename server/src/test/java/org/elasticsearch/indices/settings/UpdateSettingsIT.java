@@ -68,7 +68,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
@@ -102,12 +101,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(DummySettingPlugin.class, FinalSettingPlugin.class, InternalIndexSettingsPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(InternalIndexSettingsPlugin.class);
+        return Arrays.asList(
+                DummySettingPlugin.class, FinalSettingPlugin.class);
     }
 
     public static class DummySettingPlugin extends Plugin {
@@ -301,18 +296,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).setPersistentSettings(Settings.builder()
             .put("cluster.acc.test.user", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         if (randomBoolean()) {
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -321,7 +316,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
                 .putNull("cluster.acc.test.user")).get();
@@ -333,7 +328,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
@@ -345,7 +340,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testUpdateDependentIndexSettings() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             prepareCreate("test",  Settings.builder().put("index.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
         createIndex("test");
         for (int i = 0; i < 2; i++) {
@@ -364,7 +359,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .put("index.acc.test.pw", "asdf"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // user has no dependency
             client()
@@ -399,7 +394,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .putNull("index.acc.test.user"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // now we are consistent
             client()
@@ -645,37 +640,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 disableIndexBlock("test", blockSetting);
             }
         }
-    }
-
-    public void testUpdateInternalIndexSettingViaSettingsAPI() {
-        final Settings settings = Settings.builder().put("index.internal", "internal").build();
-        createIndex("test", settings);
-        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
-        // we can not update the setting via the update settings API
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put("index.internal", "internal-update"))
-                        .get());
-        final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
-        assertThat(e, hasToString(containsString(message)));
-        final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(responseAfterAttemptedUpdate.getSetting("test", "index.internal"), equalTo("internal"));
-    }
-
-    public void testUpdateInternalIndexSettingViaDedicatedAPI() {
-        final Settings settings = Settings.builder().put("index.internal", "internal").build();
-        createIndex("test", settings);
-        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
-        client().execute(
-                InternalIndexSettingsPlugin.UpdateInternalIndexAction.INSTANCE,
-                new InternalIndexSettingsPlugin.UpdateInternalIndexAction.Request("test", "internal-update"))
-                .actionGet();
-        final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(responseAfterUpdate.getSetting("test", "index.internal"), equalTo("internal-update"));
     }
 
 }

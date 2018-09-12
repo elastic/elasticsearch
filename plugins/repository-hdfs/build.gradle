@@ -564,7 +564,6 @@ thirdPartyAudit.excludes = [
   // we are not pulling in slf4j-ext, this is okay, Log4j will fallback gracefully
   'org.slf4j.ext.EventData',
 
-  'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation',
@@ -583,6 +582,25 @@ thirdPartyAudit.excludes = [
   'com.squareup.okhttp.ResponseBody'
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
+}
+
+if (project.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += [
+          // TODO: Why is this needed ?
+          'com.sun.javadoc.AnnotationDesc',
+          'com.sun.javadoc.AnnotationTypeDoc',
+          'com.sun.javadoc.ClassDoc',
+          'com.sun.javadoc.ConstructorDoc',
+          'com.sun.javadoc.Doc',
+          'com.sun.javadoc.DocErrorReporter',
+          'com.sun.javadoc.FieldDoc',
+          'com.sun.javadoc.LanguageVersion',
+          'com.sun.javadoc.MethodDoc',
+          'com.sun.javadoc.PackageDoc',
+          'com.sun.javadoc.ProgramElementDoc',
+          'com.sun.javadoc.RootDoc',
+          'com.sun.tools.doclets.standard.Standard'
+  ]
 }

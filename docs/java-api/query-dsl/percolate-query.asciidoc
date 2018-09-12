@@ -49,7 +49,7 @@ XContentBuilder docBuilder = XContentFactory.jsonBuilder().startObject();
 docBuilder.field("content", "This is amazing!");
 docBuilder.endObject(); //End of the JSON root object
 
-PercolateQueryBuilder percolateQuery = new PercolateQueryBuilder("query", "docs", docBuilder.bytes());
+PercolateQueryBuilder percolateQuery = new PercolateQueryBuilder("query", "docs", BytesReference.bytes(docBuilder));
 
 // Percolate, by executing the percolator query in the query dsl:
 SearchResponse response = client().prepareSearch("myIndexName")

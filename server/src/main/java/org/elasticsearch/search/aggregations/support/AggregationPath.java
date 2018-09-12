@@ -288,11 +288,14 @@ public class AggregationPath {
     public void validate(Aggregator root) throws AggregationExecutionException {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
-            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(pathElements.get(i).name));
+            String name = pathElements.get(i).name;
+            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(name));
             if (aggregator == null) {
-                throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. Unknown aggregation ["
-                        + pathElements.get(i).name + "]");
+                throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. The " +
+                    "provided aggregation [" + name + "] either does not exist, or is a pipeline aggregation " +
+                    "and cannot be used to sort the buckets.");
             }
+
             if (i < pathElements.size() - 1) {
 
                 // we're in the middle of the path, so the aggregator can only be a single-bucket aggregator

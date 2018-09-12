@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -65,6 +66,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -197,11 +199,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     static {
-        System.setProperty("log4j.shutdownHookEnabled", "false");
-        System.setProperty("log4j2.disable.jmx", "true");
+        setTestSysProps();
+        LogConfigurator.loadLog4jPlugins();
 
-        // Enable Netty leak detection and monitor logger for logged leak errors
-        System.setProperty("io.netty.leakDetection.level", "paranoid");
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
         Appender leakAppender = new AbstractAppender(leakLoggerName, null,
@@ -239,6 +239,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<String> javaZoneIds = new ArrayList<>(ZoneId.getAvailableZoneIds());
         Collections.sort(javaZoneIds);
         JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
+    }
+    @SuppressForbidden(reason = "force log4j and netty sysprops")
+    private static void setTestSysProps() {
+        System.setProperty("log4j.shutdownHookEnabled", "false");
+        System.setProperty("log4j2.disable.jmx", "true");
+
+        // Enable Netty leak detection and monitor logger for logged leak errors
+        System.setProperty("io.netty.leakDetection.level", "paranoid");
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
@@ -321,7 +329,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before()  {
-        logger.info("[{}]: before test", getTestName());
+        logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -350,7 +358,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
-        logger.info("[{}]: after test", getTestName());
+        logger.info("{}after test", getTestParamsForLogging());
+    }
+
+    private String getTestParamsForLogging() {
+        String name = getTestName();
+        int start = name.indexOf('{');
+        if (start < 0) return "";
+        int end = name.lastIndexOf('}');
+        if (end < 0) return "";
+        return "[" + name.substring(start + 1, end) + "] ";
     }
 
     private void ensureNoWarnings() throws IOException {
@@ -917,7 +934,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
     }
 
     /** Return consistent index settings for the provided index version. */

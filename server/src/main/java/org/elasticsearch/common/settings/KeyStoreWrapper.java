@@ -359,7 +359,7 @@ public class KeyStoreWrapper implements SecureSettings {
             if (input.read() != -1) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
-        } catch (EOFException e) {
+        } catch (IOException e) {
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }

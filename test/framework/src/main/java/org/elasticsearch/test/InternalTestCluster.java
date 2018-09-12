@@ -221,8 +221,6 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
-    private final Object discoveryFileMutex = new Object();
-
     public InternalTestCluster(
             final long clusterSeed,
             final Path baseDir,
@@ -1465,6 +1463,8 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
     }
+
+    private final Object discoveryFileMutex = new Object();
 
     private void rebuildUnicastHostFiles(Collection<NodeAndClient> newNodes) {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()

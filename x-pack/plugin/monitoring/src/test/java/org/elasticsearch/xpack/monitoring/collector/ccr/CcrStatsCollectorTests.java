@@ -12,14 +12,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
-import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsMonitoringDoc;
+import org.mockito.ArgumentMatcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -31,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -143,7 +145,7 @@ public class CcrStatsCollectorTests extends BaseCollectorTestCase {
 
         final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
         request.setIndices(Strings.EMPTY_ARRAY);
-        when(client.stats(eq(request))).thenReturn(future);
+        when(client.stats(statsRequestEq(request))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(responses);
 
         final long interval = randomNonNegativeLong();
@@ -164,9 +166,9 @@ public class CcrStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(document.getIntervalMillis(), equalTo(interval));
             assertThat(document.getNode(), equalTo(node));
             assertThat(document.getSystem(), is(MonitoredSystem.ES));
-            assertThat(document.getType(), is(JobStatsMonitoringDoc.TYPE));
+            assertThat(document.getType(), is(CcrStatsMonitoringDoc.TYPE));
             assertThat(document.getId(), nullValue());
-            assertThat(document.status(), is(status));
+            assertThat(document.status(), is(status.status()));
         }
     }
 
@@ -175,7 +177,10 @@ public class CcrStatsCollectorTests extends BaseCollectorTestCase {
         final List<CcrStatsAction.StatsResponse> statuses = new ArrayList<>(count);
 
         for (int i = 0; i < count; ++i) {
-            statuses.add(mock(CcrStatsAction.StatsResponse.class));
+            CcrStatsAction.StatsResponse statsResponse = mock(CcrStatsAction.StatsResponse.class);
+            ShardFollowNodeTaskStatus status = mock(ShardFollowNodeTaskStatus.class);
+            when(statsResponse.status()).thenReturn(status);
+            statuses.add(statsResponse);
         }
 
         return statuses;
@@ -188,6 +193,25 @@ public class CcrStatsCollectorTests extends BaseCollectorTestCase {
 
     private Settings ccrDisabledSettings() {
         return Settings.builder().put(XPackSettings.CCR_ENABLED_SETTING.getKey(), false).build();
+    }
+
+    private static CcrStatsAction.StatsRequest statsRequestEq(CcrStatsAction.StatsRequest expected) {
+        return argThat(new StatsRequestMatches(expected));
+    }
+
+    private static class StatsRequestMatches extends ArgumentMatcher<CcrStatsAction.StatsRequest> {
+
+        private final CcrStatsAction.StatsRequest expected;
+
+        private StatsRequestMatches(CcrStatsAction.StatsRequest expected) {
+            this.expected = expected;
+        }
+
+        @Override
+        public boolean matches(Object o) {
+            CcrStatsAction.StatsRequest actual = (CcrStatsAction.StatsRequest) o;
+            return Arrays.equals(expected.indices(), actual.indices());
+        }
     }
 
 }

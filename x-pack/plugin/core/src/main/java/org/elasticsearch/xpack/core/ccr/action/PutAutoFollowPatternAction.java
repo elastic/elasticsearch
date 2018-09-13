@@ -94,10 +94,25 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (leaderClusterAlias == null) {
-                validationException = addValidationError("leaderClusterAlias is missing", validationException);
+                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+                    "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                validationException = addValidationError("leaderIndexPatterns is missing", validationException);
+                validationException = addValidationError("[" + LEADER_INDEX_PATTERNS_FIELD.getPreferredName() +
+                    "] is missing", validationException);
+            }
+            if (maxRetryDelay != null) {
+                if (maxRetryDelay.millis() <= 0) {
+                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be positive but was [" +
+                        maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
+                if (maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be less than [" +
+                        FollowIndexAction.MAX_RETRY_DELAY +
+                        "] but was [" + maxRetryDelay.getStringRep() + "]";
+                    validationException = addValidationError(message, validationException);
+                }
             }
             return validationException;
         }

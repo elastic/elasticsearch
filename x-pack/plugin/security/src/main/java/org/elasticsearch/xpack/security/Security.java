@@ -1065,8 +1065,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (indicesAdminFilteredFields == false || getLicenseState().isSecurityEnabled() == false ||
-                        getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (indicesAdminFilteredFields == false || getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get()

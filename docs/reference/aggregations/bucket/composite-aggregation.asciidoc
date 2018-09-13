@@ -348,7 +348,7 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
-====== Missing bucket
+==== Missing bucket
 
 By default documents without a value for a given source are ignored.
 It is possible to include them in the response by setting `missing_bucket` to

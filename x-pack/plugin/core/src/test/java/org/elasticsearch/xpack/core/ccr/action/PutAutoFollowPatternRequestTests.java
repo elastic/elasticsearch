@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ccr.action;
+package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,7 +41,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setRetryTimeout(TimeValue.timeValueMillis(500));
+            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));

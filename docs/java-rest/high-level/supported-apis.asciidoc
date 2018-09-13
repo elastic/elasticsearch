@@ -220,12 +220,15 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-flush-job>>
 * <<java-rest-high-x-pack-ml-update-job>>
 * <<java-rest-high-x-pack-ml-get-job-stats>>
+* <<java-rest-high-x-pack-ml-put-datafeed>>
 * <<java-rest-high-x-pack-ml-forecast-job>>
+* <<java-rest-high-x-pack-ml-delete-forecast>>
 * <<java-rest-high-x-pack-ml-get-buckets>>
 * <<java-rest-high-x-pack-ml-get-overall-buckets>>
 * <<java-rest-high-x-pack-ml-get-records>>
 * <<java-rest-high-x-pack-ml-post-data>>
 * <<java-rest-high-x-pack-ml-get-influencers>>
+* <<java-rest-high-x-pack-ml-get-categories>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -234,13 +237,16 @@ include::ml/open-job.asciidoc[]
 include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
+include::ml/put-datafeed.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
+include::ml/delete-forecast.asciidoc[]
 include::ml/get-buckets.asciidoc[]
 include::ml/get-overall-buckets.asciidoc[]
 include::ml/get-records.asciidoc[]
 include::ml/post-data.asciidoc[]
 include::ml/get-influencers.asciidoc[]
+include::ml/get-categories.asciidoc[]
 
 == Migration APIs
 

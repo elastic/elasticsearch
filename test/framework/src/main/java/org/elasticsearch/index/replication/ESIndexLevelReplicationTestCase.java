@@ -443,6 +443,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return primary;
         }
 
+        public synchronized void reinitPrimaryShard() throws IOException {
+            primary = reinitShard(primary);
+        }
+
         public void syncGlobalCheckpoint() {
             PlainActionFuture<ReplicationResponse> listener = new PlainActionFuture<>();
             try {

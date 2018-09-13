@@ -164,7 +164,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -305,7 +304,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
         final String aId = shardRouting.allocationId().getId();
-        this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), logger);
+        this.globalCheckpointListeners =
+                new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
         this.replicationTracker =
                 new ReplicationTracker(shardId, aId, indexSettings, UNASSIGNED_SEQ_NO, globalCheckpointListeners::globalCheckpointUpdated);
 
@@ -1306,16 +1306,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    // package-private for testing
-    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot) throws IOException {
-        recoveryState.getTranslog().totalOperations(snapshot.totalOperations());
-        recoveryState.getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+    /**
+     * Replays translog operations from the provided translog {@code snapshot} to the current engine using the given {@code origin}.
+     * The callback {@code onOperationRecovered} is notified after each translog operation is replayed successfully.
+     */
+    int runTranslogRecovery(Engine engine, Translog.Snapshot snapshot, Engine.Operation.Origin origin,
+                            Runnable onOperationRecovered) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
         while ((operation = snapshot.next()) != null) {
             try {
                 logger.trace("[translog] recover op {}", operation);
-                Engine.Result result = applyTranslogOperation(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY);
+                Engine.Result result = applyTranslogOperation(operation, origin);
                 switch (result.getResultType()) {
                     case FAILURE:
                         throw result.getFailure();
@@ -1328,7 +1330,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 opsRecovered++;
-                recoveryState.getTranslog().incrementRecoveredOperations();
+                onOperationRecovered.run();
             } catch (Exception e) {
                 if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
@@ -1346,8 +1348,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
+        final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
+        final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
+            translogRecoveryStats.totalOperations(snapshot.totalOperations());
+            translogRecoveryStats.totalOperationsOnStart(snapshot.totalOperations());
+            return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                translogRecoveryStats::incrementRecoveredOperations);
+        };
         innerOpenEngineAndTranslog();
-        getEngine().recoverFromTranslog(this::runTranslogRecovery, Long.MAX_VALUE);
+        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
     /**
@@ -1385,11 +1394,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-
-        assertMaxUnsafeAutoIdInCommit();
-
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
+        trimUnsafeCommits();
 
         createNewEngine(config);
         verifyNotClosed();
@@ -1398,6 +1403,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         active.set(true);
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
+    }
+
+    private void trimUnsafeCommits() throws IOException {
+        assert currentEngineReference.get() == null : "engine is running";
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        assertMaxUnsafeAutoIdInCommit();
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -1500,7 +1514,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 assert assertPrimaryMode();
             } else {
-                assert origin == Engine.Operation.Origin.REPLICA;
+                assert origin == Engine.Operation.Origin.REPLICA || origin == Engine.Operation.Origin.LOCAL_RESET;
                 assert assertReplicationTarget();
             }
             if (writeAllowedStates.contains(state) == false) {
@@ -1805,15 +1819,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Add a global checkpoint listener. If the global checkpoint is above the current global checkpoint known to the listener then the
-     * listener will fire immediately on the calling thread.
+     * listener will fire immediately on the calling thread. If the specified timeout elapses before the listener is notified, the listener
+     * will be notified with an {@link TimeoutException}. A caller may pass null to specify no timeout.
      *
      * @param currentGlobalCheckpoint the current global checkpoint known to the listener
      * @param listener                the listener
+     * @param timeout                 the timeout
      */
     public void addGlobalCheckpointListener(
             final long currentGlobalCheckpoint,
-            final GlobalCheckpointListeners.GlobalCheckpointListener listener) {
-        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener);
+            final GlobalCheckpointListeners.GlobalCheckpointListener listener,
+            final TimeValue timeout) {
+        this.globalCheckpointListeners.add(currentGlobalCheckpoint, listener, timeout);
     }
 
     /**
@@ -2203,9 +2220,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
-            if (state == IndexShardState.CLOSED) {
-                throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
-            }
+            verifyNotClosed();
             assert this.currentEngineReference.get() == null;
             Engine engine = newEngine(config);
             onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
@@ -2351,19 +2366,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         bumpPrimaryTerm(opPrimaryTerm, () -> {
                                 updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                                 final long currentGlobalCheckpoint = getGlobalCheckpoint();
-                                final long localCheckpoint;
-                                if (currentGlobalCheckpoint == UNASSIGNED_SEQ_NO) {
-                                    localCheckpoint = NO_OPS_PERFORMED;
+                                final long maxSeqNo = seqNoStats().getMaxSeqNo();
+                                logger.info("detected new primary with primary term [{}], global checkpoint [{}], max_seq_no [{}]",
+                                             opPrimaryTerm, currentGlobalCheckpoint, maxSeqNo);
+                                if (currentGlobalCheckpoint < maxSeqNo) {
+                                    resetEngineToGlobalCheckpoint();
                                 } else {
-                                    localCheckpoint = currentGlobalCheckpoint;
+                                    getEngine().rollTranslogGeneration();
                                 }
-                                logger.trace(
-                                    "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
-                                    opPrimaryTerm,
-                                    getLocalCheckpoint(),
-                                    localCheckpoint);
-                                getEngine().resetLocalCheckpoint(localCheckpoint);
-                                getEngine().rollTranslogGeneration();
                         });
                     }
                 }
@@ -2658,5 +2668,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), reason);
             }
         };
+    }
+
+    /**
+     * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
+     */
+    void resetEngineToGlobalCheckpoint() throws IOException {
+        assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
+        sync(); // persist the global checkpoint to disk
+        final long globalCheckpoint = getGlobalCheckpoint();
+        final Engine newEngine;
+        synchronized (mutex) {
+            verifyNotClosed();
+            IOUtils.close(currentEngineReference.getAndSet(null));
+            trimUnsafeCommits();
+            newEngine = createNewEngine(newEngineConfig());
+            active.set(true);
+        }
+        final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
+            engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                // TODO: add a dedicate recovery stats for the reset translog
+            });
+        newEngine.recoverFromTranslog(translogRunner, globalCheckpoint);
     }
 }

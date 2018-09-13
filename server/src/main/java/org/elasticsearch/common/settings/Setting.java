@@ -345,6 +345,11 @@ public class Setting<T> implements ToXContentObject {
         return false;
     }
 
+
+    final boolean isListSetting() {
+        return this instanceof ListSetting;
+    }
+
     boolean hasComplexMatcher() {
         return isGroupSetting();
     }
@@ -453,7 +458,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
-        return settings.get(getKey(), defaultValue.apply(settings));
+        return settings.get(getKey(), defaultValue.apply(settings), isListSetting());
     }
 
     /** Logs a deprecation warning if the setting is deprecated and used. */
@@ -1305,7 +1310,6 @@ public class Setting<T> implements ToXContentObject {
                 }
             }
         }
-
     }
 
     static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {

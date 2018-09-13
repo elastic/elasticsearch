@@ -11,7 +11,7 @@ Can be executed as follows:
 ---------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-datafeed-request]
 ---------------------------------------------------
-<1> Use to forcefully delete an started datafeed;
+<1> Use to forcefully delete a started datafeed;
 this method is quicker than stopping and deleting the datafeed.
 Defaults to `false`.
 

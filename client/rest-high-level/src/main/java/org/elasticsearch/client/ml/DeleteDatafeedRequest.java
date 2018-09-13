@@ -44,10 +44,10 @@ public class DeleteDatafeedRequest extends ActionRequest {
     }
 
     /**
-     * Used to forcefully delete an started datafeed.
+     * Used to forcefully delete a started datafeed.
      * This method is quicker than stopping and deleting the datafeed.
      *
-     * @param force When {@code true} forcefully delete an started datafeed. Defaults to {@code false}
+     * @param force When {@code true} forcefully delete a started datafeed. Defaults to {@code false}
      */
     public void setForce(boolean force) {
         this.force = force;

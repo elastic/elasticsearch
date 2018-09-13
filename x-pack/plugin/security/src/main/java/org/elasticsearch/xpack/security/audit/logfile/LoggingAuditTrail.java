@@ -88,7 +88,6 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String NODE_ID_FIELD_NAME = "node.id";
     public static final String HOST_ADDRESS_FIELD_NAME = "host.ip";
     public static final String HOST_NAME_FIELD_NAME = "host.name";
-    public static final String EVENT_CATEGORY_FIELD_NAME = "event.category";
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
@@ -961,7 +960,6 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             this.settings = settings;
             this.localNode = newLocalNode;
             final Map<String, String> commonFields = new HashMap<>();
-            commonFields.put(EVENT_CATEGORY_FIELD_NAME, "elasticsearch-audit");
             if (EMIT_NODE_NAME_SETTING.get(settings)) {
                 final String nodeName = Node.NODE_NAME_SETTING.get(settings);
                 if (Strings.hasLength(nodeName)) {

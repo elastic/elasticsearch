@@ -66,6 +66,11 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
+    static {
+        // remove search.remote.* settings in 8.0.0
+        assert Version.CURRENT.major < 8;
+    }
+
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
 

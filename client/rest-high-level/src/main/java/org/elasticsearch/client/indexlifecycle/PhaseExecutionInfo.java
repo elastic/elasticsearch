@@ -124,9 +124,9 @@ public class PhaseExecutionInfo implements ToXContentObject {
         builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
         builder.field(VERSION_FIELD.getPreferredName(), version);
         if (builder.humanReadable()) {
-            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
-        } else {
             builder.field(MODIFIED_DATE_FIELD.getPreferredName(), getModifiedDateString());
+        } else {
+            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
         }
         builder.endObject();
         return builder;

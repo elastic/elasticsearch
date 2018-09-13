@@ -682,10 +682,11 @@ public abstract class StreamOutput extends OutputStream {
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
-            o.writeByte((byte) 24);
-            final ZonedDateTime zonedDateTime = ((JodaCompatibleZonedDateTime) v).getZonedDateTime();
-            zonedDateTime.getZone().getId();
-            o.writeString(zonedDateTime.getZone().getId());
+            // write the joda compatibility datetime as joda datetime
+            o.writeByte((byte) 13);
+            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
+            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
+            o.writeString(DateTimeZone.UTC.getID());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         WRITERS = Collections.unmodifiableMap(writers);

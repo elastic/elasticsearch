@@ -800,8 +800,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        ZonedDateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
-        assertThat(dateField.toInstant().toEpochMilli(), equalTo(date.toInstant().toEpochMilli()));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(DateFormatters.forPattern("dateOptionalTime").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
@@ -825,13 +825,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
-        assertThat(dateField.toInstant().toEpochMilli(), equalTo(date.toInstant().toEpochMilli()));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(DateFormatters.forPattern("dateOptionalTime").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
-            equalTo(new BytesRef(new byte[] {42, 100})));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -996,9 +995,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
-
-        ZonedDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate, equalTo(date));
+        assertThat(dateField.getValue(), equalTo("1990-12-29"));
     }
 
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
@@ -1061,8 +1058,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
 
-        ZonedDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate, equalTo(date));
+        assertThat(dateField.getValue(), equalTo("1990-12-29"));
     }
 
 

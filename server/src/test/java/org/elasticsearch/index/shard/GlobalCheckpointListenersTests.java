@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -42,7 +43,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -512,10 +512,11 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                     try {
                         notified.set(true);
                         assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                        assertThat(e, instanceOf(TimeoutException.class));
+                        assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
                         assertThat(e, hasToString(containsString(timeout.getStringRep())));
                         final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
-                        final ArgumentCaptor<TimeoutException> t = ArgumentCaptor.forClass(TimeoutException.class);
+                        final ArgumentCaptor<ElasticsearchTimeoutException> t =
+                                ArgumentCaptor.forClass(ElasticsearchTimeoutException.class);
                         verify(mockLogger).trace(message.capture(), t.capture());
                         assertThat(message.getValue(), equalTo("global checkpoint listener timed out"));
                         assertThat(t.getValue(), hasToString(containsString(timeout.getStringRep())));
@@ -547,7 +548,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                     try {
                         notified.set(true);
                         assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                        assertThat(e, instanceOf(TimeoutException.class));
+                        assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
                     } finally {
                         latch.countDown();
                     }

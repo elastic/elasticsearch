@@ -283,6 +283,7 @@ public class CoordinatorTests extends ESTestCase {
                         @Override
                         protected void onCompletion(boolean committed) {
                             if (committed) {
+                                currentState.set(event.state());
                                 publishListener.onResponse(null);
                             } else {
                                 publishListener.onFailure(new FailedToCommitClusterStateException("not committed"));
@@ -353,7 +354,7 @@ public class CoordinatorTests extends ESTestCase {
                                 });
                         }
                     };
-                    currentState.set(event.state());
+                    publication.start(emptySet());
                 });
                 masterService.start();
 

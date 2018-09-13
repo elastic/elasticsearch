@@ -163,7 +163,7 @@ public class FunctionRegistry {
             def(Ascii.class, Ascii::new),
             def(Char.class, Char::new),
             def(BitLength.class, BitLength::new),
-            def(CharLength.class, CharLength::new),
+            def(CharLength.class, CharLength::new, "CHARACTER_LENGTH"),
             def(LCase.class, LCase::new),
             def(Length.class, Length::new),
             def(LTrim.class, LTrim::new),

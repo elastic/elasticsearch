@@ -256,7 +256,8 @@ TAN             |SCALAR
 ASCII           |SCALAR         
 CHAR            |SCALAR         
 BIT_LENGTH      |SCALAR         
-CHAR_LENGTH     |SCALAR         
+CHAR_LENGTH     |SCALAR
+CHARACTER_LENGTH|SCALAR
 LCASE           |SCALAR         
 LENGTH          |SCALAR         
 LTRIM           |SCALAR         

@@ -19,7 +19,6 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -36,19 +34,26 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig> {
 
     @Override
     protected DatafeedConfig createTestInstance() {
+        return createRandom();
+    }
+
+    public static DatafeedConfig createRandom() {
         long bucketSpanMillis = 3600000;
         DatafeedConfig.Builder builder = constructBuilder();
         builder.setIndices(randomStringList(1, 10));
         builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
-            builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            try {
+                builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to serialize query", e);
+            }
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
@@ -72,7 +77,11 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
             aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
                 .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
-            builder.setAggregations(aggs);
+            try {
+                builder.setAggregations(aggs);
+            } catch (IOException e) {
+                throw new RuntimeException("failed to serialize aggs", e);
+            }
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
@@ -91,12 +100,6 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
         return builder.build();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     public static List<String> randomStringList(int min, int max) {
@@ -148,21 +151,6 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
 
     public void testCheckValid_GivenNullJobId() {
         expectThrows(NullPointerException.class, () -> new DatafeedConfig.Builder(randomValidDatafeedId(), null));
-    }
-
-    public void testCheckValid_GivenNullIndices() {
-        DatafeedConfig.Builder conf = constructBuilder();
-        expectThrows(NullPointerException.class, () -> conf.setIndices(null));
-    }
-
-    public void testCheckValid_GivenNullType() {
-        DatafeedConfig.Builder conf = constructBuilder();
-        expectThrows(NullPointerException.class, () -> conf.setTypes(null));
-    }
-
-    public void testCheckValid_GivenNullQuery() {
-        DatafeedConfig.Builder conf = constructBuilder();
-        expectThrows(NullPointerException.class, () -> conf.setQuery(null));
     }
 
     public static String randomValidDatafeedId() {

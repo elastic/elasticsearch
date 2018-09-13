@@ -172,7 +172,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private ShardRouting createShardRouting(String nodeId, boolean primary) {
             return TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
-                primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
+                primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         }
 
         protected EngineFactory getEngineFactory(ShardRouting routing) {
@@ -441,6 +441,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public IndexShard getPrimary() {
             return primary;
+        }
+
+        public synchronized void reinitPrimaryShard() throws IOException {
+            primary = reinitShard(primary);
         }
 
         public void syncGlobalCheckpoint() {

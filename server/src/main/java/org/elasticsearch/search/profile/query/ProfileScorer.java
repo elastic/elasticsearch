@@ -71,7 +71,7 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public Collection<ChildScorer> getChildren() throws IOException {
+    public Collection<ChildScorable> getChildren() throws IOException {
         return scorer.getChildren();
     }
 

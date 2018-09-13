@@ -26,7 +26,7 @@ import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
@@ -336,7 +336,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                     }
 
                     @Override
-                    public void setScorer(Scorer scorer) {
+                    public void setScorer(Scorable scorer) {
                         script.setScorer(scorer);
                     }
 

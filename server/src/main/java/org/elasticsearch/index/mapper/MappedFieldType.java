@@ -111,17 +111,6 @@ public abstract class MappedFieldType extends FieldType {
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
-        // check similarity first because we need to check the name, and it might be null
-        // TODO: SimilarityProvider should have equals?
-        if (similarity == null || fieldType.similarity == null) {
-            if (similarity != fieldType.similarity) {
-                return false;
-            }
-        } else {
-            if (Objects.equals(similarity.name(), fieldType.similarity.name()) == false) {
-                return false;
-            }
-        }
 
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
@@ -131,7 +120,8 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
-            Objects.equals(nullValueAsString, fieldType.nullValueAsString);
+            Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
+            Objects.equals(similarity, fieldType.similarity);
     }
 
     @Override

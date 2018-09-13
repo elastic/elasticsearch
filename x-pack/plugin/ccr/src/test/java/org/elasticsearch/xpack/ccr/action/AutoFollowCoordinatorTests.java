@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,9 +67,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, nullValue());
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, currentState) {
+        AutoFollower autoFollower = new AutoFollower(handler, currentState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
@@ -113,9 +114,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
 
@@ -161,9 +162,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
@@ -211,9 +212,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             invoked[0] = true;
             assertThat(e, sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower(client, handler, followerState) {
+        AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 

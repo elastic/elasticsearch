@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,7 +27,7 @@ import java.util.TreeMap;
 /**
  * Stores the file format determined by Machine Learning.
  */
-public class FileStructure implements ToXContentObject {
+public class FileStructure implements ToXContentObject, Writeable {
 
     public enum Format {
 
@@ -79,6 +82,8 @@ public class FileStructure implements ToXContentObject {
         }
     }
 
+    public static final String EXPLAIN = "explain";
+
     static final ParseField NUM_LINES_ANALYZED = new ParseField("num_lines_analyzed");
     static final ParseField NUM_MESSAGES_ANALYZED = new ParseField("num_messages_analyzed");
     static final ParseField SAMPLE_START = new ParseField("sample_start");
@@ -87,7 +92,7 @@ public class FileStructure implements ToXContentObject {
     static final ParseField STRUCTURE = new ParseField("format");
     static final ParseField MULTILINE_START_PATTERN = new ParseField("multiline_start_pattern");
     static final ParseField EXCLUDE_LINES_PATTERN = new ParseField("exclude_lines_pattern");
-    static final ParseField INPUT_FIELDS = new ParseField("input_fields");
+    static final ParseField COLUMN_NAMES = new ParseField("column_names");
     static final ParseField HAS_HEADER_ROW = new ParseField("has_header_row");
     static final ParseField DELIMITER = new ParseField("delimiter");
     static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
@@ -110,7 +115,7 @@ public class FileStructure implements ToXContentObject {
         PARSER.declareString((p, c) -> p.setFormat(Format.fromString(c)), STRUCTURE);
         PARSER.declareString(Builder::setMultilineStartPattern, MULTILINE_START_PATTERN);
         PARSER.declareString(Builder::setExcludeLinesPattern, EXCLUDE_LINES_PATTERN);
-        PARSER.declareStringArray(Builder::setInputFields, INPUT_FIELDS);
+        PARSER.declareStringArray(Builder::setColumnNames, COLUMN_NAMES);
         PARSER.declareBoolean(Builder::setHasHeaderRow, HAS_HEADER_ROW);
         PARSER.declareString((p, c) -> p.setDelimiter(c.charAt(0)), DELIMITER);
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
@@ -137,7 +142,7 @@ public class FileStructure implements ToXContentObject {
     private final Format format;
     private final String multilineStartPattern;
     private final String excludeLinesPattern;
-    private final List<String> inputFields;
+    private final List<String> columnNames;
     private final Boolean hasHeaderRow;
     private final Character delimiter;
     private final Boolean shouldTrimFields;
@@ -150,7 +155,7 @@ public class FileStructure implements ToXContentObject {
     private final List<String> explanation;
 
     public FileStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
-                         Format format, String multilineStartPattern, String excludeLinesPattern, List<String> inputFields,
+                         Format format, String multilineStartPattern, String excludeLinesPattern, List<String> columnNames,
                          Boolean hasHeaderRow, Character delimiter, Boolean shouldTrimFields, String grokPattern, String timestampField,
                          List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
                          Map<String, FieldStats> fieldStats, List<String> explanation) {
@@ -163,7 +168,7 @@ public class FileStructure implements ToXContentObject {
         this.format = Objects.requireNonNull(format);
         this.multilineStartPattern = multilineStartPattern;
         this.excludeLinesPattern = excludeLinesPattern;
-        this.inputFields = (inputFields == null) ? null : Collections.unmodifiableList(new ArrayList<>(inputFields));
+        this.columnNames = (columnNames == null) ? null : Collections.unmodifiableList(new ArrayList<>(columnNames));
         this.hasHeaderRow = hasHeaderRow;
         this.delimiter = delimiter;
         this.shouldTrimFields = shouldTrimFields;
@@ -174,6 +179,66 @@ public class FileStructure implements ToXContentObject {
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
         this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
+    }
+
+    public FileStructure(StreamInput in) throws IOException {
+        numLinesAnalyzed = in.readVInt();
+        numMessagesAnalyzed = in.readVInt();
+        sampleStart = in.readString();
+        charset = in.readString();
+        hasByteOrderMarker = in.readOptionalBoolean();
+        format = in.readEnum(Format.class);
+        multilineStartPattern = in.readOptionalString();
+        excludeLinesPattern = in.readOptionalString();
+        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        hasHeaderRow = in.readOptionalBoolean();
+        delimiter = in.readBoolean() ? (char) in.readVInt() : null;
+        shouldTrimFields = in.readOptionalBoolean();
+        grokPattern = in.readOptionalString();
+        timestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        timestampField = in.readOptionalString();
+        needClientTimezone = in.readBoolean();
+        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
+        explanation = Collections.unmodifiableList(in.readList(StreamInput::readString));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(numLinesAnalyzed);
+        out.writeVInt(numMessagesAnalyzed);
+        out.writeString(sampleStart);
+        out.writeString(charset);
+        out.writeOptionalBoolean(hasByteOrderMarker);
+        out.writeEnum(format);
+        out.writeOptionalString(multilineStartPattern);
+        out.writeOptionalString(excludeLinesPattern);
+        if (columnNames == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeCollection(columnNames, StreamOutput::writeString);
+        }
+        out.writeOptionalBoolean(hasHeaderRow);
+        if (delimiter == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(delimiter);
+        }
+        out.writeOptionalBoolean(shouldTrimFields);
+        out.writeOptionalString(grokPattern);
+        if (timestampFormats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeCollection(timestampFormats, StreamOutput::writeString);
+        }
+        out.writeOptionalString(timestampField);
+        out.writeBoolean(needClientTimezone);
+        out.writeMap(mappings);
+        out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeCollection(explanation, StreamOutput::writeString);
     }
 
     public int getNumLinesAnalyzed() {
@@ -208,8 +273,8 @@ public class FileStructure implements ToXContentObject {
         return excludeLinesPattern;
     }
 
-    public List<String> getInputFields() {
-        return inputFields;
+    public List<String> getColumnNames() {
+        return columnNames;
     }
 
     public Boolean getHasHeaderRow() {
@@ -270,8 +335,8 @@ public class FileStructure implements ToXContentObject {
         if (excludeLinesPattern != null && excludeLinesPattern.isEmpty() == false) {
             builder.field(EXCLUDE_LINES_PATTERN.getPreferredName(), excludeLinesPattern);
         }
-        if (inputFields != null && inputFields.isEmpty() == false) {
-            builder.field(INPUT_FIELDS.getPreferredName(), inputFields);
+        if (columnNames != null && columnNames.isEmpty() == false) {
+            builder.field(COLUMN_NAMES.getPreferredName(), columnNames);
         }
         if (hasHeaderRow != null) {
             builder.field(HAS_HEADER_ROW.getPreferredName(), hasHeaderRow.booleanValue());
@@ -300,7 +365,9 @@ public class FileStructure implements ToXContentObject {
             }
             builder.endObject();
         }
-        builder.field(EXPLANATION.getPreferredName(), explanation);
+        if (params.paramAsBoolean(EXPLAIN, false)) {
+            builder.field(EXPLANATION.getPreferredName(), explanation);
+        }
         builder.endObject();
 
         return builder;
@@ -310,7 +377,7 @@ public class FileStructure implements ToXContentObject {
     public int hashCode() {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-            multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern, timestampField,
+            multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, shouldTrimFields, grokPattern, timestampField,
             timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
     }
 
@@ -335,7 +402,7 @@ public class FileStructure implements ToXContentObject {
             Objects.equals(this.format, that.format) &&
             Objects.equals(this.multilineStartPattern, that.multilineStartPattern) &&
             Objects.equals(this.excludeLinesPattern, that.excludeLinesPattern) &&
-            Objects.equals(this.inputFields, that.inputFields) &&
+            Objects.equals(this.columnNames, that.columnNames) &&
             Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
             Objects.equals(this.delimiter, that.delimiter) &&
             Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
@@ -357,7 +424,7 @@ public class FileStructure implements ToXContentObject {
         private Format format;
         private String multilineStartPattern;
         private String excludeLinesPattern;
-        private List<String> inputFields;
+        private List<String> columnNames;
         private Boolean hasHeaderRow;
         private Character delimiter;
         private Boolean shouldTrimFields;
@@ -417,8 +484,8 @@ public class FileStructure implements ToXContentObject {
             return this;
         }
 
-        public Builder setInputFields(List<String> inputFields) {
-            this.inputFields = inputFields;
+        public Builder setColumnNames(List<String> columnNames) {
+            this.columnNames = columnNames;
             return this;
         }
 
@@ -506,6 +573,9 @@ public class FileStructure implements ToXContentObject {
                     }
                     // $FALL-THROUGH$
                 case XML:
+                    if (columnNames != null) {
+                        throw new IllegalArgumentException("Column names may not be specified for [" + format + "] structures.");
+                    }
                     if (hasHeaderRow != null) {
                         throw new IllegalArgumentException("Has header row may not be specified for [" + format + "] structures.");
                     }
@@ -517,8 +587,8 @@ public class FileStructure implements ToXContentObject {
                     }
                     break;
                 case DELIMITED:
-                    if (inputFields == null || inputFields.isEmpty()) {
-                        throw new IllegalArgumentException("Input fields must be specified for [" + format + "] structures.");
+                    if (columnNames == null || columnNames.isEmpty()) {
+                        throw new IllegalArgumentException("Column names must be specified for [" + format + "] structures.");
                     }
                     if (hasHeaderRow == null) {
                         throw new IllegalArgumentException("Has header row must be specified for [" + format + "] structures.");
@@ -531,8 +601,8 @@ public class FileStructure implements ToXContentObject {
                     }
                     break;
                 case SEMI_STRUCTURED_TEXT:
-                    if (inputFields != null) {
-                        throw new IllegalArgumentException("Input fields may not be specified for [" + format + "] structures.");
+                    if (columnNames != null) {
+                        throw new IllegalArgumentException("Column names may not be specified for [" + format + "] structures.");
                     }
                     if (hasHeaderRow != null) {
                         throw new IllegalArgumentException("Has header row may not be specified for [" + format + "] structures.");
@@ -568,7 +638,7 @@ public class FileStructure implements ToXContentObject {
             }
 
             return new FileStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-                multilineStartPattern, excludeLinesPattern, inputFields, hasHeaderRow, delimiter, shouldTrimFields, grokPattern,
+                multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, shouldTrimFields, grokPattern,
                 timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
         }
     }

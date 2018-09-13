@@ -408,6 +408,14 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
     }
 
+    public ClusterState getLastAcceptedState() {
+        return coordinationState.get().getLastAcceptedState();
+    }
+
+    public Optional<ClusterState> getLastCommittedState() {
+        return lastCommittedState;
+    }
+
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
     }

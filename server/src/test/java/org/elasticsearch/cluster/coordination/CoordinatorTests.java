@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,10 +66,12 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.Coordinator.COMMIT_STATE_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_STATE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -112,7 +115,13 @@ public class CoordinatorTests extends ESTestCase {
         void stabilise() {
             final long stabilisationStartTime = deterministicTaskQueue.getCurrentTimeMillis();
             while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + DEFAULT_STABILISATION_TIME) {
-                deterministicTaskQueue.runAllRunnableTasks(random());
+
+                while (deterministicTaskQueue.hasRunnableTasks()) {
+                    deterministicTaskQueue.runRandomTask(random());
+                    for (final ClusterNode clusterNode : clusterNodes) {
+                        clusterNode.coordinator.invariant();
+                    }
+                }
 
                 if (deterministicTaskQueue.hasDeferredTasks() == false) {
                     break; // TODO when fault detection is enabled this should be removed, as there should _always_ be deferred tasks
@@ -127,6 +136,10 @@ public class CoordinatorTests extends ESTestCase {
         private void assertUniqueLeaderAndExpectedModes() {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
+            Matcher<Optional<Long>> isPresentAndEqualToLeaderVersion
+                = equalTo(Optional.of(leader.coordinator.getLastAcceptedState().getVersion()));
+
+            assertThat(leader.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 if (clusterNode == leader) {
@@ -137,6 +150,12 @@ public class CoordinatorTests extends ESTestCase {
                 assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
                 assertTrue("leader should have received a vote from " + nodeId,
                     leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
+
+                assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
+                assertThat(nodeId + " is at the same accepted version as the leader",
+                    Optional.of(clusterNode.coordinator.getLastAcceptedState().getVersion()), isPresentAndEqualToLeaderVersion);
+                assertThat(nodeId + " is at the same committed version as the leader",
+                    clusterNode.coordinator.getLastCommittedState().map(ClusterState::getVersion), isPresentAndEqualToLeaderVersion);
             }
         }
 

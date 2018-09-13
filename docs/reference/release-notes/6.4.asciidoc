@@ -55,8 +55,12 @@ coming[6.4.1]
 //[float]
 //=== Enhancements
 
-//[float]
-//=== Bug Fixes
+[float]
+=== Bug Fixes
+
+Rollover::
+{es} can once again start if any shards on the node have been
+<<indices-rollover-index, rolled over>>. {pull}33394[#33394]
 
 //[float]
 //=== Regressions
@@ -67,8 +71,27 @@ coming[6.4.1]
 [[release-notes-6.4.0]]
 == {es} version 6.4.0
 
+[IMPORTANT]
+.Known issue with Elasticsearch 6.4.0 and rollover
+======================================================
+{es} can't start if any of the shards on the node have been
+<<indices-rollover-index, rolled over>>. (issue: {issue}33316[#33316])
+
+The error message looks like:
+
+[source,txt]
+----
+[2018-08-31T09:00:35,520][ERROR][o.e.b.Bootstrap ] Exception
+org.elasticsearch.ElasticsearchException: java.io.IOException: failed to read [id:##, file:path_to_index/_state/state-##.st]
+...
+Caused by: org.elasticsearch.common.xcontent.XContentParseException: [-1:####] [rollover_info] failed to parse field [some_name]
+----
+
+======================================================
+
 [float]
 === Known issues
+See the important section above.
 
 {es} 6.4.0 fails to start when PEM encoded private key files that have been exported from `PKCS#12`
 keystores are in use. These files can be identified by the existence of lines that start with either

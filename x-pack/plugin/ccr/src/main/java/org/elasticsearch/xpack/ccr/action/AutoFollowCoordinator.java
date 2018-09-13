@@ -218,7 +218,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         new FollowIndexAction.Request(leaderIndexNameWithClusterAliasPrefix, followIndexName,
                             autoFollowPattern.getMaxBatchOperationCount(), autoFollowPattern.getMaxConcurrentReadBatches(),
                             autoFollowPattern.getMaxOperationSizeInBytes(), autoFollowPattern.getMaxConcurrentWriteBatches(),
-                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getRetryTimeout(),
+                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getMaxRetryDelay(),
                             autoFollowPattern.getIdleShardRetryDelay());
 
                     // Execute if the create and follow api call succeeds:

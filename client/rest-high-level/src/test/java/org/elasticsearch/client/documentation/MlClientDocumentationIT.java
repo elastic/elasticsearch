@@ -59,20 +59,24 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
+import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.CategoryDefinition;
@@ -82,6 +86,9 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
 
 import java.io.IOException;
@@ -97,6 +104,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -188,8 +196,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetJob() throws Exception {
         RestHighLevelClient client = highLevelClient();
-
-        String jobId = "get-machine-learning-job1";
 
         Job job = MachineLearningIT.buildJob("get-machine-learning-job1");
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
@@ -476,6 +482,106 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-update-job-execute-async
             client.machineLearning().updateJobAsync(updateJobRequest, RequestOptions.DEFAULT, listener); //<1>
             // end::x-pack-ml-update-job-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testPutDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // We need to create a job for the datafeed request to be valid
+            String jobId = "put-datafeed-job-1";
+            Job job = MachineLearningIT.buildJob(jobId);
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+            String id = "datafeed-1";
+
+            //tag::x-pack-ml-create-datafeed-config
+            DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder(id, jobId) // <1>
+                    .setIndices("index_1", "index_2");  // <2>
+            //end::x-pack-ml-create-datafeed-config
+
+            AggregatorFactories.Builder aggs = AggregatorFactories.builder();
+
+            //tag::x-pack-ml-create-datafeed-config-set-aggregations
+            datafeedBuilder.setAggregations(aggs); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-aggregations
+
+            // Clearing aggregation to avoid complex validation rules
+            datafeedBuilder.setAggregations((String) null);
+
+            //tag::x-pack-ml-create-datafeed-config-set-chunking-config
+            datafeedBuilder.setChunkingConfig(ChunkingConfig.newAuto()); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-chunking-config
+
+            //tag::x-pack-ml-create-datafeed-config-set-frequency
+            datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(30)); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-frequency
+
+            //tag::x-pack-ml-create-datafeed-config-set-query
+            datafeedBuilder.setQuery(QueryBuilders.matchAllQuery()); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-query
+
+            //tag::x-pack-ml-create-datafeed-config-set-query-delay
+            datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-query-delay
+
+            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            //tag::x-pack-ml-create-datafeed-config-set-script-fields
+            datafeedBuilder.setScriptFields(scriptFields); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-script-fields
+
+            //tag::x-pack-ml-create-datafeed-config-set-scroll-size
+            datafeedBuilder.setScrollSize(1000); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-scroll-size
+
+            //tag::x-pack-ml-put-datafeed-request
+            PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
+            //end::x-pack-ml-put-datafeed-request
+
+            //tag::x-pack-ml-put-datafeed-execute
+            PutDatafeedResponse response = client.machineLearning().putDatafeed(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-put-datafeed-execute
+
+            //tag::x-pack-ml-put-datafeed-response
+            DatafeedConfig datafeed = response.getResponse(); // <1>
+            //end::x-pack-ml-put-datafeed-response
+            assertThat(datafeed.getId(), equalTo("datafeed-1"));
+        }
+        {
+            // We need to create a job for the datafeed request to be valid
+            String jobId = "put-datafeed-job-2";
+            Job job = MachineLearningIT.buildJob(jobId);
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+            String id = "datafeed-2";
+
+            DatafeedConfig datafeed = new DatafeedConfig.Builder(id, jobId).setIndices("index_1", "index_2").build();
+
+            PutDatafeedRequest request = new PutDatafeedRequest(datafeed);
+            // tag::x-pack-ml-put-datafeed-execute-listener
+            ActionListener<PutDatafeedResponse> listener = new ActionListener<PutDatafeedResponse>() {
+                @Override
+                public void onResponse(PutDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-put-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-put-datafeed-execute-async
+            client.machineLearning().putDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-put-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -33,7 +33,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final CcrStatsAction.TasksRequest request = new CcrStatsAction.TasksRequest();
+        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
         request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         request.setIndicesOptions(IndicesOptions.fromRequest(restRequest, request.indicesOptions()));
         return channel -> client.execute(CcrStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));

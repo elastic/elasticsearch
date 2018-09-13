@@ -77,7 +77,7 @@ public class FollowIndexIT extends ESRestTestCase {
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
-            assertBusy(() -> verifyCcrMonitoring(leaderIndexName));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName));
         }
     }
 
@@ -107,7 +107,7 @@ public class FollowIndexIT extends ESRestTestCase {
             ensureYellow("logs-20190101");
             verifyDocuments("logs-20190101", 5);
         });
-        assertBusy(() -> verifyCcrMonitoring("logs-20190101"));
+        assertBusy(() -> verifyCcrMonitoring("logs-20190101", "logs-20190101"));
     }
 
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
@@ -159,7 +159,7 @@ public class FollowIndexIT extends ESRestTestCase {
         }
     }
 
-    private static void verifyCcrMonitoring(String expectedLeaderIndex) throws IOException {
+    private static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         ensureYellow(".monitoring-*");
 
         Request request = new Request("GET", "/.monitoring-*/_search");
@@ -175,7 +175,10 @@ public class FollowIndexIT extends ESRestTestCase {
         for (int i = 0; i < hits.size(); i++) {
             Map<?, ?> hit = (Map<?, ?>) hits.get(i);
             String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
-            assertThat(leaderIndex, endsWith(leaderIndex));
+            assertThat(leaderIndex, endsWith(expectedLeaderIndex));
+
+            final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
+            assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
             int foundNumberOfOperationsReceived =
                 (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);

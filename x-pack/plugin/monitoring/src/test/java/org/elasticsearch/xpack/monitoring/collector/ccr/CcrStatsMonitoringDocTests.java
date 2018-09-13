@@ -98,6 +98,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
         final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "cluster_alias:leader_index",
+                "follower_index",
                 shardId,
                 leaderGlobalCheckpoint,
                 leaderMaxSeqNo,
@@ -139,6 +140,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                                 + "},"
                                 + "\"ccr_stats\":{"
                                         + "\"leader_index\":\"cluster_alias:leader_index\","
+                                        + "\"follower_index\":\"follower_index\","
                                         + "\"shard_id\":" + shardId + ","
                                         + "\"leader_global_checkpoint\":" + leaderGlobalCheckpoint + ","
                                         + "\"leader_max_seq_no\":" + leaderMaxSeqNo + ","

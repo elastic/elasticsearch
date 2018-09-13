@@ -418,6 +418,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         return new ShardFollowNodeTaskStatus(
                 leaderIndex,
+                params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
                 leaderMaxSeqNo,

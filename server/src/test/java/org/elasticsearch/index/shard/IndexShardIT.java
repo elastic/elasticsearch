@@ -412,7 +412,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
+    @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
     public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
         createIndex("test");
         ensureGreen();

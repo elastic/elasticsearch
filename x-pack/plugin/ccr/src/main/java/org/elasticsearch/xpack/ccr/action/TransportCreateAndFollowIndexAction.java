@@ -183,6 +183,7 @@ public final class TransportCreateAndFollowIndexAction
                 // Adding the leader index uuid for each shard as custom metadata:
                 Map<String, String> metadata = new HashMap<>();
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.

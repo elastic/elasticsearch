@@ -83,7 +83,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex));
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -272,7 +272,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
-    private static void verifyCcrMonitoring(String expectedLeaderIndex) throws IOException {
+    private static void verifyCcrMonitoring(String expectedLeaderIndex, String expectedFollowerIndex) throws IOException {
         ensureYellow(".monitoring-*");
 
         Request request = new Request("GET", "/.monitoring-*/_search");
@@ -288,7 +288,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         for (int i = 0; i < hits.size(); i++) {
             Map<?, ?> hit = (Map<?, ?>) hits.get(i);
             String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
-            assertThat(leaderIndex, endsWith(leaderIndex));
+            assertThat(leaderIndex, endsWith(expectedLeaderIndex));
+
+            final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
+            assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
             int foundNumberOfOperationsReceived =
                 (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);

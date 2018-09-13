@@ -116,9 +116,9 @@ public class FunctionRegistry {
             def(Kurtosis.class, Kurtosis::new),
         // Scalar functions
             // Date
-            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
-            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
-            def(DayOfYear.class, DayOfYear::new, "DOY"),
+            def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
+            def(DayOfWeek.class, DayOfWeek::new, "DAYOFWEEK", "DOW"),
+            def(DayOfYear.class, DayOfYear::new, "DAYOFYEAR", "DOY"),
             def(HourOfDay.class, HourOfDay::new, "HOUR"),
             def(MinuteOfDay.class, MinuteOfDay::new),
             def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),

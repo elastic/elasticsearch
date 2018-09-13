@@ -49,10 +49,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -561,19 +564,19 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     }
 
     public void testFailingListenerAfterTimeout() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
         final Logger mockLogger = mock(Logger.class);
+        doAnswer(invocationOnMock -> {
+            latch.countDown();
+            return null;
+        }).when(mockLogger).warn(argThat(any(String.class)), argThat(any(RuntimeException.class)));
         final GlobalCheckpointListeners globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, mockLogger);
-        final CountDownLatch latch = new CountDownLatch(1);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
         globalCheckpointListeners.add(
                 NO_OPS_PERFORMED,
                 (g, e) -> {
-                    try {
-                        throw new RuntimeException("failure");
-                    } finally {
-                        latch.countDown();
-                    }
+                    throw new RuntimeException("failure");
                 },
                 timeout);
         latch.await();

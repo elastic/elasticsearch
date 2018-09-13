@@ -112,7 +112,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             "disk space than the maximum allowed [90.0%]"));
     }
 
-    public void testCannotAllocate() {
+    public void testCannotAllocateDueToLackOfDiskResources() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
@@ -141,7 +141,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .add(node_1)
         ).build();
 
-        //
+        // actual test -- after all that bloat :)
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsages = ImmutableOpenMap.builder();
         leastAvailableUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full

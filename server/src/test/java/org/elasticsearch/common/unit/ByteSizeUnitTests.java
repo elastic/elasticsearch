@@ -82,7 +82,7 @@ public class ByteSizeUnitTests extends ESTestCase {
     }
 
     public void testToString() {
-        int v = randomIntBetween(1, 1000);
+        int v = randomIntBetween(1, 1023);
         assertThat(new ByteSizeValue(PB.toBytes(v)).toString(), equalTo(v + "pb"));
         assertThat(new ByteSizeValue(TB.toBytes(v)).toString(), equalTo(v + "tb"));
         assertThat(new ByteSizeValue(GB.toBytes(v)).toString(), equalTo(v + "gb"));

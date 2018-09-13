@@ -286,6 +286,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /**
      * creates a new initializing shard. The shard will will be put in its proper path under the
      * current node id the shard is assigned to.
+     *
+     * @param routing       shard routing to use
+     * @param indexMetaData indexMetaData for the shard, including any mapping
+     * @param listeners     an optional set of listeners to add to the shard
+     */
+    protected IndexShard newShard(
+        ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory, IndexingOperationListener... listeners)
+        throws IOException {
+        return newShard(routing, indexMetaData, null, engineFactory, () -> {}, listeners);
+    }
+
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
      * @param routing                shard routing to use
      * @param indexMetaData          indexMetaData for the shard, including any mapping
      * @param indexSearcherWrapper   an optional wrapper to be used during searchers

@@ -44,20 +44,20 @@ import static java.util.Collections.emptyList;
 public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
 
     public static final String NAME = "umsigterms";
-    private boolean delegatedReduction = false;
+
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
         private Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
-                DocValueFormat format) {
+                       DocValueFormat format) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
         }
     }
 
     public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+                                    Map<String, Object> metaData) {
         super(name, requiredSize, minDocCount, pipelineAggregators, metaData);
     }
 
@@ -102,7 +102,6 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation aggregation : aggregations) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                delegatedReduction = true;
                 return aggregation.reduce(aggregations, reduceContext);
             }
         }
@@ -110,14 +109,8 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
-                                                ReduceContext reduceContext) {
-        // If we delegated away the reduction, another aggregation has already run
-        // pipeline aggs and we should just return the current tree
-        if (delegatedReduction) {
-            return reducedAggregations;
-        }
-        return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
+    public boolean isMapped() {
+        return false;
     }
 
     @Override

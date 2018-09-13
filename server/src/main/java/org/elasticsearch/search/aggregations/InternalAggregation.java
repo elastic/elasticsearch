@@ -134,19 +134,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
         if (reduceContext.isFinalReduce()) {
-            aggResult = doPipelineReduce(aggResult, aggregations, reduceContext);
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+            }
         }
         return aggResult;
     }
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
-    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
-                                                ReduceContext reduceContext) {
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            reducedAggregations = pipelineAggregator.reduce(reducedAggregations, reduceContext);
-        }
-        return reducedAggregations;
+    public boolean isMapped() {
+        return true;
     }
 
     /**

@@ -39,7 +39,6 @@ import static java.util.Collections.emptyList;
  */
 public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bucket> {
     public static final String NAME = "umterms";
-    private boolean delegatedReduction = false;
 
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
@@ -98,7 +97,6 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (!(agg instanceof UnmappedTerms)) {
-                delegatedReduction = true;
                 return agg.reduce(aggregations, reduceContext);
             }
         }
@@ -106,14 +104,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public InternalAggregation doPipelineReduce(InternalAggregation reducedAggregations, List<InternalAggregation> aggregations,
-                                                ReduceContext reduceContext) {
-        // If we delegated away the reduction, another aggregation has already run
-        // pipeline aggs and we should just return the current tree
-        if (delegatedReduction) {
-            return reducedAggregations;
-        }
-        return super.doPipelineReduce(reducedAggregations, aggregations, reduceContext);
+    public boolean isMapped() {
+        return false;
     }
 
     @Override

@@ -150,7 +150,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         {
             final Settings settings = Settings.builder().put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "10001ms").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_INITIAL_TIMEOUT_SETTING.get(settings));
-            assertThat(e.getMessage(), is("failed to parse value [10001ms] for setting [cluster.election.initial_timeout], must be <= [10s]"));
+            assertThat(e.getMessage(),
+                is("failed to parse value [10001ms] for setting [cluster.election.initial_timeout], must be <= [10s]"));
         }
 
         {
@@ -162,7 +163,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         {
             final Settings settings = Settings.builder().put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), "60001ms").build();
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ELECTION_BACK_OFF_TIME_SETTING.get(settings));
-            assertThat(e.getMessage(), is("failed to parse value [60001ms] for setting [cluster.election.back_off_time], must be <= [60s]"));
+            assertThat(e.getMessage(),
+                is("failed to parse value [60001ms] for setting [cluster.election.back_off_time], must be <= [60s]"));
         }
 
         {

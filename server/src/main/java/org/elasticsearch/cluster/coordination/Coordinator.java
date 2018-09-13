@@ -22,7 +22,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
@@ -314,7 +313,8 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     private PreVoteResponse getPreVoteResponse() {
-        return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(), coordinationState.get().getLastAcceptedVersion());
+        return new PreVoteResponse(getCurrentTerm(), coordinationState.get().getLastAcceptedTerm(),
+            coordinationState.get().getLastAcceptedVersion());
     }
 
     // package-visible for testing

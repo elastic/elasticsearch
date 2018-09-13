@@ -90,7 +90,7 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode leader = cluster.getAnyLeader();
         long finalValue = randomLong();
         leader.submitValue(finalValue);
-        cluster.stabilise();
+        cluster.stabilise(); // TODO this should only need a short stabilisation
 
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();
@@ -105,7 +105,7 @@ public class CoordinatorTests extends ESTestCase {
 
     class Cluster {
 
-        static final long DEFAULT_STABILISATION_TIME = 3000L;
+        static final long DEFAULT_STABILISATION_TIME = 3000L; // TODO use a real stabilisation time - needs fault detection and disruption
 
         final List<ClusterNode> clusterNodes;
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -423,7 +423,8 @@ public class CoordinatorTests extends ESTestCase {
                             deterministicTaskQueue.scheduleNow(new Runnable() {
                                 @Override
                                 public void run() {
-                                    listener.onFailure(new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes));
+                                    listener.onFailure(
+                                        new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes));
                                 }
 
                                 @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -19,11 +20,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -47,6 +48,9 @@ import static org.mockito.Mockito.when;
 
 public class RollupJobTaskTests extends ESTestCase {
 
+    private static final Settings SETTINGS = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "test")
+            .build();
     private static ThreadPool pool = new TestThreadPool("test");
 
     @AfterClass
@@ -58,11 +62,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusStopped() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
@@ -71,11 +75,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusAborting() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.ABORTING, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
@@ -84,11 +88,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusStopping() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPING, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
@@ -97,11 +101,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusStarted() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STARTED, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
@@ -110,11 +114,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusIndexingOldID() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.INDEXING, Collections.singletonMap("foo", "bar"), false);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
@@ -124,11 +128,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testInitialStatusIndexingNewID() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.INDEXING, Collections.singletonMap("foo", "bar"), true);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
@@ -138,10 +142,10 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testNoInitialStatus() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             null, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
@@ -150,11 +154,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStartWhenStarted() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STARTED, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
@@ -179,7 +183,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStartWhenStopping() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.threadPool()).thenReturn(pool);
@@ -258,7 +262,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStartWhenStopped() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -296,7 +300,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testTriggerUnrelated() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, Collections.singletonMap("foo", "bar"), randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -337,7 +341,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testTrigger() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.threadPool()).thenReturn(pool);
@@ -380,7 +384,7 @@ public class RollupJobTaskTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTriggerWithoutHeaders() throws InterruptedException {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
@@ -465,7 +469,7 @@ public class RollupJobTaskTests extends ESTestCase {
         Map<String, String> headers = new HashMap<>(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), headers);
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
@@ -553,7 +557,7 @@ public class RollupJobTaskTests extends ESTestCase {
         Map<String, String> headers = new HashMap<>(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), headers);
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
@@ -637,11 +641,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStopWhenStopped() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null, randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         RollupJobTask task = new RollupJobTask(1, "type", "action", new TaskId("node", 123), job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
@@ -663,7 +667,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStopWhenStopping() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         when(client.threadPool()).thenReturn(pool);
@@ -744,11 +748,11 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     public void testStopWhenAborting() throws InterruptedException {
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null, randomBoolean());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        SchedulerEngine schedulerEngine = new SchedulerEngine(Clock.systemUTC());
+        SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
 
         CountDownLatch latch = new CountDownLatch(2);
 

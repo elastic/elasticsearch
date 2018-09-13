@@ -29,6 +29,7 @@
               query_weight: 5
               rescore_query_weight: 10
 
+  - match: {hits.max_score: 15}
   - match: { hits.hits.0._score: 15 }
   - match: { hits.hits.0._explanation.value: 15 }
 

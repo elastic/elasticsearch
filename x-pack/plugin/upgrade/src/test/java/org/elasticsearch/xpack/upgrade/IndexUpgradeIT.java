@@ -14,12 +14,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
-import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Response;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -41,7 +41,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         // Testing only negative case here, the positive test is done in bwcTests
         assertAcked(client().admin().indices().prepareCreate("test").get());
         ensureYellow("test");
-        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
+        IndexUpgradeInfoResponse response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(response.getActions().entrySet(), empty());
     }
 
@@ -57,7 +57,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
                 () -> new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get());
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [upgrade]"));
         enableLicensing();
-        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
+        IndexUpgradeInfoResponse response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(response.getActions().entrySet(), empty());
     }
 
@@ -132,7 +132,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
     public void testIndexUpgradeInfoOnEmptyCluster() {
         // On empty cluster asking for all indices shouldn't fail since no indices means nothing needs to be upgraded
-        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("_all").get();
+        IndexUpgradeInfoResponse response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("_all").get();
         assertThat(response.getActions().entrySet(), empty());
 
         // but calling on a particular index should fail

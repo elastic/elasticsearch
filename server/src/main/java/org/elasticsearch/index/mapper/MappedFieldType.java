@@ -35,6 +35,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -110,17 +111,6 @@ public abstract class MappedFieldType extends FieldType {
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
         MappedFieldType fieldType = (MappedFieldType) o;
-        // check similarity first because we need to check the name, and it might be null
-        // TODO: SimilarityProvider should have equals?
-        if (similarity == null || fieldType.similarity == null) {
-            if (similarity != fieldType.similarity) {
-                return false;
-            }
-        } else {
-            if (Objects.equals(similarity.name(), fieldType.similarity.name()) == false) {
-                return false;
-            }
-        }
 
         return boost == fieldType.boost &&
             docValues == fieldType.docValues &&
@@ -130,7 +120,8 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
-            Objects.equals(nullValueAsString, fieldType.nullValueAsString);
+            Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
+            Objects.equals(similarity, fieldType.similarity);
     }
 
     @Override
@@ -314,7 +305,13 @@ public abstract class MappedFieldType extends FieldType {
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.
-     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
+     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
+     *      due to the way it is configured (eg. not indexed)
+     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+     *  @throws UnsupportedOperationException if the field is not searchable regardless of options
+     *  @throws QueryShardException if the field is not searchable regardless of options
+     */
+    // TODO: Standardize exception types
     public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a

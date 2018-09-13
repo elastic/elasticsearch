@@ -20,10 +20,10 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 
@@ -40,7 +40,7 @@ public class Netty4HttpServerChannel implements HttpServerChannel {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     closeContext.completeExceptionally(new Exception(cause));
                 } else {
                     closeContext.completeExceptionally((Exception) cause);

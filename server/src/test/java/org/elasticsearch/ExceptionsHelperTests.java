@@ -174,36 +174,13 @@ public class ExceptionsHelperTests extends ESTestCase {
         return new ShardSearchFailure(queryShardException, null);
     }
 
-    public void testGroupByNullCause() {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
-            new ShardSearchFailure("error", createSearchShardTarget("node0", 0, "index", null)),
-            new ShardSearchFailure("error", createSearchShardTarget("node1", 1, "index", null)),
-            new ShardSearchFailure("error", createSearchShardTarget("node1", 1, "index2", null)),
-            new ShardSearchFailure("error", createSearchShardTarget("node2", 2, "index", "cluster1")),
-            new ShardSearchFailure("error", createSearchShardTarget("node1", 1, "index", "cluster1")),
-            new ShardSearchFailure("a different error", createSearchShardTarget("node3", 3, "index", "cluster1"))
-        };
-
-        ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
-        assertThat(groupBy.length, equalTo(4));
-        String[] expectedIndices = new String[]{"index", "index2", "cluster1:index", "cluster1:index"};
-        String[] expectedErrors = new String[]{"error", "error", "error", "a different error"};
-
-        int i = 0;
-        for (ShardOperationFailedException shardOperationFailedException : groupBy) {
-            assertThat(shardOperationFailedException.reason(), equalTo(expectedErrors[i]));
-            assertThat(shardOperationFailedException.index(), equalTo(expectedIndices[i++]));
-        }
-    }
-
     public void testGroupByNullIndex() {
         ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
-            new ShardSearchFailure("error", null),
             new ShardSearchFailure(new IllegalArgumentException("error")),
             new ShardSearchFailure(new ParsingException(0, 0, "error", null)),
         };
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
-        assertThat(groupBy.length, equalTo(3));
+        assertThat(groupBy.length, equalTo(2));
     }
 }

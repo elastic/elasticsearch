@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,8 +35,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.util.concurrent.TimeoutException;
@@ -41,7 +42,7 @@ import java.util.concurrent.TimeoutException;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, DeleteJobAction.Response> {
+public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, AcknowledgedResponse> {
 
     private final Client client;
     private final JobManager jobManager;
@@ -65,13 +66,13 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     @Override
-    protected DeleteJobAction.Response newResponse() {
-        return new DeleteJobAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
     protected void masterOperation(Task task, DeleteJobAction.Request request, ClusterState state,
-                                   ActionListener<DeleteJobAction.Response> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
 
         ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
                 response -> {
@@ -110,7 +111,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
     @Override
     protected void masterOperation(DeleteJobAction.Request request, ClusterState state,
-                                   ActionListener<DeleteJobAction.Response> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         throw new UnsupportedOperationException("the Task parameter is required");
     }
 
@@ -120,12 +121,12 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     private void normalDeleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
-                                 ActionListener<DeleteJobAction.Response> listener) {
+                                 ActionListener<AcknowledgedResponse> listener) {
         jobManager.deleteJob(request, task, listener);
     }
 
     private void forceDeleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
-                                ActionListener<DeleteJobAction.Response> listener) {
+                                ActionListener<AcknowledgedResponse> listener) {
 
         final ClusterState state = clusterService.state();
         final String jobId = request.getJobId();
@@ -219,17 +220,17 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         });
     }
 
-    void waitForDeletingJob(String jobId, TimeValue timeout, ActionListener<DeleteJobAction.Response> listener) {
+    void waitForDeletingJob(String jobId, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
         ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
 
         ClusterState clusterState = stateObserver.setAndGetObservedState();
         if (jobIsDeletedFromState(jobId, clusterState)) {
-            listener.onResponse(new DeleteJobAction.Response(true));
+            listener.onResponse(new AcknowledgedResponse(true));
         } else {
             stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(new DeleteJobAction.Response(true));
+                    listener.onResponse(new AcknowledgedResponse(true));
                 }
 
                 @Override

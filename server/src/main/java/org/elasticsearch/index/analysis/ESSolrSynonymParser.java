@@ -20,19 +20,18 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 
 public class ESSolrSynonymParser extends SolrSynonymParser {
+    private static final Logger logger = LogManager.getLogger(ESSolrSynonymParser.class);
 
     private final boolean lenient;
-    private static final Logger logger =
-        Loggers.getLogger(ESSolrSynonymParser.class, "ESSolrSynonymParser");
 
     public ESSolrSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
         super(dedup, expand, analyzer);

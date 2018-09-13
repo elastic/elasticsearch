@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -62,7 +63,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
@@ -108,7 +110,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected DirectoryReader wrap(DirectoryReader reader) {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
 
@@ -139,6 +141,13 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         Query roleQuery = queryShardContext.toFilter(queryBuilder).query();
                         filter.add(roleQuery, SHOULD);
                         if (queryShardContext.getMapperService().hasNested()) {
+                            NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                            if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
+                                roleQuery = new BooleanQuery.Builder()
+                                    .add(roleQuery, FILTER)
+                                    .add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()), FILTER)
+                                    .build();
+                            }
                             // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
                             BitSetProducer rootDocs = queryShardContext.bitsetFilter(
                                     Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
@@ -162,7 +171,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return searcher;
         }
 
@@ -174,7 +183,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             IndexSearcher indexSearcher = new IndexSearcherWrapper((DocumentSubsetDirectoryReader) directoryReader);
             indexSearcher.setQueryCache(indexSearcher.getQueryCache());
             indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
+            indexSearcher.setSimilarity(indexSearcher.getSimilarity());
             return indexSearcher;
         }
         return searcher;

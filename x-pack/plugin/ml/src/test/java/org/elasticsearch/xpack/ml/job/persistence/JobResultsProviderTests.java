@@ -10,12 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
@@ -128,7 +128,7 @@ public class JobResultsProviderTests extends ESTestCase {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo"),
                 AnomalyDetectorsIndex.jobResultsAliasedName("foo123"), jobFilter);
-        clientBuilder.preparePutMapping(mock(PutMappingResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
 
         GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
         ImmutableOpenMap<String, MappingMetaData> typeMappings = ImmutableOpenMap.<String, MappingMetaData>of();
@@ -197,7 +197,7 @@ public class JobResultsProviderTests extends ESTestCase {
         clientBuilder.createIndexRequest(captor, indexName);
         clientBuilder.prepareAlias(indexName, readAliasName, jobFilter);
         clientBuilder.prepareAlias(indexName, writeAliasName);
-        clientBuilder.preparePutMapping(mock(PutMappingResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
 
         Job.Builder job = buildJobBuilder("foo");
         job.setResultsIndexName("bar");

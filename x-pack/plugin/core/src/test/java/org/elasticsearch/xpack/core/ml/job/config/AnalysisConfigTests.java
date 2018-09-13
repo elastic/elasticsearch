@@ -97,11 +97,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setResultFinalizationWindow(randomNonNegativeLong());
         }
 
-        boolean usePerPartitionNormalisation = randomBoolean();
-        builder.setUsePerPartitionNormalization(usePerPartitionNormalisation);
-        if (!usePerPartitionNormalisation) { // influencers can't be used with per partition normalisation
-            builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
-        }
+        builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
+
         return builder;
     }
 
@@ -690,38 +687,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY), e.getMessage());
     }
 
-
-    public void testCheckDetectorsHavePartitionFields() {
-        AnalysisConfig.Builder config = createValidConfig();
-        config.setUsePerPartitionNormalization(true);
-
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
-
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD), e.getMessage());
-    }
-
     public void testCheckDetectorsHavePartitionFields_doesntThrowWhenValid() {
         AnalysisConfig.Builder config = createValidConfig();
         Detector.Builder builder = new Detector.Builder(config.build().getDetectors().get(0));
         builder.setPartitionFieldName("pField");
         config.build().getDetectors().set(0, builder.build());
-        config.setUsePerPartitionNormalization(true);
 
         config.build();
-    }
-
-    public void testCheckNoInfluencersAreSet() {
-
-        AnalysisConfig.Builder config = createValidConfig();
-        Detector.Builder builder = new Detector.Builder(config.build().getDetectors().get(0));
-        builder.setPartitionFieldName("pField");
-        config.build().getDetectors().set(0, builder.build());
-        config.setInfluencers(Arrays.asList("inf1", "inf2"));
-        config.setUsePerPartitionNormalization(true);
-
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
-
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS), e.getMessage());
     }
 
     public void testVerify_GivenCategorizationFiltersContainInvalidRegex() {
@@ -756,7 +728,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     @Override
     protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 11)) {
+        switch (between(0, 10)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -832,7 +804,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             List<String> influencers = new ArrayList<>(instance.getInfluencers());
             influencers.add(randomAlphaOfLengthBetween(5, 10));
             builder.setInfluencers(influencers);
-            builder.setUsePerPartitionNormalization(false);
             break;
         case 8:
             if (instance.getOverlappingBuckets() == null) {
@@ -853,13 +824,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 builder.setMultivariateByFields(randomBoolean());
             } else {
                 builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
-            }
-            break;
-        case 11:
-            boolean usePerPartitionNormalization = instance.getUsePerPartitionNormalization() == false;
-            builder.setUsePerPartitionNormalization(usePerPartitionNormalization);
-            if (usePerPartitionNormalization) {
-                builder.setInfluencers(Collections.emptyList());
             }
             break;
         default:

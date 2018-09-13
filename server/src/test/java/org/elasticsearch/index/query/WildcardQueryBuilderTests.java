@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -143,7 +142,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testIndexWildcard() throws IOException {
         QueryShardContext context = createShardContext();
-        String index = context.getFullyQualifiedIndexName();
+        String index = context.getFullyQualifiedIndex().getName();
 
         Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));

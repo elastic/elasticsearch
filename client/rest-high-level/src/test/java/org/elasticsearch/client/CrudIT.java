@@ -36,17 +36,24 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -622,6 +629,181 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         assertEquals(nbItems, bulkResponse.getItems().length);
 
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+    }
+
+    public void testReindex() throws IOException {
+        final String sourceIndex = "source1";
+        final String destinationIndex = "dest";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            createIndex(destinationIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "type", "1")
+                            .source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "type", "2")
+                            .source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test1: create one doc in dest
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            reindexRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+            assertEquals(1, bulkResponse.getCreated());
+            assertEquals(1, bulkResponse.getTotal());
+            assertEquals(0, bulkResponse.getDeleted());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // test2: create 1 and update 1
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setSourceIndices(sourceIndex);
+            reindexRequest.setDestIndex(destinationIndex);
+            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+            assertEquals(1, bulkResponse.getCreated());
+            assertEquals(2, bulkResponse.getTotal());
+            assertEquals(1, bulkResponse.getUpdated());
+            assertEquals(0, bulkResponse.getDeleted());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+    }
+
+    public void testUpdateByQuery() throws IOException {
+        final String sourceIndex = "source1";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "type", "1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "type", "2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test1: create one doc in dest
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+            updateByQueryRequest.indices(sourceIndex);
+            updateByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            updateByQueryRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse =
+                execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
+            assertEquals(1, bulkResponse.getTotal());
+            assertEquals(1, bulkResponse.getUpdated());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+        }
+        {
+            // test2: update using script
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
+            updateByQueryRequest.indices(sourceIndex);
+            updateByQueryRequest.setScript(new Script("if (ctx._source.foo == 2) ctx._source.foo++;"));
+            updateByQueryRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse =
+                execute(updateByQueryRequest, highLevelClient()::updateByQuery, highLevelClient()::updateByQueryAsync);
+            assertEquals(2, bulkResponse.getTotal());
+            assertEquals(2, bulkResponse.getUpdated());
+            assertEquals(0, bulkResponse.getDeleted());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+            assertEquals(
+                3,
+                (int) (highLevelClient().get(new GetRequest(sourceIndex, "type", "2"), RequestOptions.DEFAULT)
+                    .getSourceAsMap().get("foo"))
+            );
+        }
+    }
+
+    public void testDeleteByQuery() throws IOException {
+        final String sourceIndex = "source1";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "type", "1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "type", "2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test1: delete one doc
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+            deleteByQueryRequest.indices(sourceIndex);
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1").types("type"));
+            deleteByQueryRequest.setRefresh(true);
+            BulkByScrollResponse bulkResponse =
+                execute(deleteByQueryRequest, highLevelClient()::deleteByQuery, highLevelClient()::deleteByQueryAsync);
+            assertEquals(1, bulkResponse.getTotal());
+            assertEquals(1, bulkResponse.getDeleted());
+            assertEquals(0, bulkResponse.getNoops());
+            assertEquals(0, bulkResponse.getVersionConflicts());
+            assertEquals(1, bulkResponse.getBatches());
+            assertTrue(bulkResponse.getTook().getMillis() > 0);
+            assertEquals(1, bulkResponse.getBatches());
+            assertEquals(0, bulkResponse.getBulkFailures().size());
+            assertEquals(0, bulkResponse.getSearchFailures().size());
+            assertEquals(
+                1,
+                highLevelClient().search(new SearchRequest(sourceIndex), RequestOptions.DEFAULT).getHits().totalHits
+            );
+        }
     }
 
     public void testBulkProcessorIntegration() throws IOException {

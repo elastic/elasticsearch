@@ -20,19 +20,18 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 
 public class ESWordnetSynonymParser extends WordnetSynonymParser {
+    private static final Logger logger = LogManager.getLogger(ESWordnetSynonymParser.class);
 
     private final boolean lenient;
-    private static final Logger logger =
-        Loggers.getLogger(ESSolrSynonymParser.class, "ESWordnetSynonymParser");
 
     public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
         super(dedup, expand, analyzer);

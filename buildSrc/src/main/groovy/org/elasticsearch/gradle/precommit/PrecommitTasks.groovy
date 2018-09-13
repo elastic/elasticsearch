@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
-
 /**
  * Validation tasks which should be run before committing. These run before tests.
  */
@@ -32,15 +31,21 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
+        project.configurations.create("forbiddenApisCliJar")
+        project.dependencies {
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+        }
+
         List<Task> precommitTasks = [
-            configureForbiddenApis(project),
             configureCheckstyle(project),
+            configureForbiddenApisCli(project),
             configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class),
-            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
+            configureJarHell(project),
+            configureThirdPartyAudit(project)
+        ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
         // the task optional
@@ -75,28 +80,66 @@ class PrecommitTasks {
         return project.tasks.create(precommitOptions)
     }
 
-    private static Task configureForbiddenApis(Project project) {
-        project.pluginManager.apply(ForbiddenApisPlugin.class)
-        project.forbiddenApis {
-            failOnUnsupportedJava = false
-            bundledSignatures = ['jdk-unsafe', 'jdk-deprecated', 'jdk-non-portable', 'jdk-system-out']
-            signaturesURLs = [getClass().getResource('/forbidden/jdk-signatures.txt'),
-                              getClass().getResource('/forbidden/es-all-signatures.txt')]
-            suppressAnnotations = ['**.SuppressForbidden']
+    private static Task configureJarHell(Project project) {
+        Task task = project.tasks.create('jarHell', JarHellTask.class)
+        task.classpath = project.sourceSets.test.runtimeClasspath
+        return task
+    }
+
+    private static Task configureThirdPartyAudit(Project project) {
+        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        thirdPartyAuditTask.configure {
+            dependsOn(buildResources)
+            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            javaHome = project.runtimeJavaHome
+            targetCompatibility = project.runtimeJavaVersion
         }
-        project.tasks.withType(CheckForbiddenApis) {
-            // we do not use the += operator to add signatures, as conventionMappings of Gradle do not work when it's configured using withType:
-            if (name.endsWith('Test')) {
-                signaturesURLs = project.forbiddenApis.signaturesURLs +
-                    [ getClass().getResource('/forbidden/es-test-signatures.txt'), getClass().getResource('/forbidden/http-signatures.txt') ]
-            } else {
-                signaturesURLs = project.forbiddenApis.signaturesURLs +
-                    [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
-            }
+        return thirdPartyAuditTask
+    }
+
+    private static Task configureForbiddenApisCli(Project project) {
+        Task forbiddenApisCli = project.tasks.create('forbiddenApis')
+        project.sourceSets.all { sourceSet ->
+            forbiddenApisCli.dependsOn(
+                project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
+                    ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+                    dependsOn(buildResources)
+                    it.sourceSet = sourceSet
+                    javaHome = project.runtimeJavaHome
+                    targetCompatibility = project.compilerJavaVersion
+                    bundledSignatures = [
+                       "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
+                    ]
+                    signaturesFiles = project.files(
+                            buildResources.copy("forbidden/jdk-signatures.txt"),
+                            buildResources.copy("forbidden/es-all-signatures.txt")
+                    )
+                    suppressAnnotations = ['**.SuppressForbidden']
+                    if (sourceSet.name == 'test') {
+                        signaturesFiles += project.files(
+                                buildResources.copy("forbidden/es-test-signatures.txt"),
+                                buildResources.copy("forbidden/http-signatures.txt")
+                        )
+                    } else {
+                        signaturesFiles += project.files(buildResources.copy("forbidden/es-server-signatures.txt"))
+                    }
+                    dependsOn sourceSet.classesTaskName
+                    classesDirs = sourceSet.output.classesDirs
+                    ext.replaceSignatureFiles = { String... names ->
+                        signaturesFiles = project.files(
+                                names.collect { buildResources.copy("forbidden/${it}.txt") }
+                        )
+                    }
+                    ext.addSignatureFiles = { String... names ->
+                        signaturesFiles += project.files(
+                                names.collect { buildResources.copy("forbidden/${it}.txt") }
+                        )
+                    }
+                }
+            )
         }
-        Task forbiddenApis = project.tasks.findByName('forbiddenApis')
-        forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
-        return forbiddenApis
+        return forbiddenApisCli
     }
 
     private static Task configureCheckstyle(Project project) {

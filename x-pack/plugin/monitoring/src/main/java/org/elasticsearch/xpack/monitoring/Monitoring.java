@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
+import org.elasticsearch.xpack.monitoring.collector.ccr.CcrStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
@@ -142,6 +143,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         collectors.add(new NodeStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new IndexRecoveryCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new CcrStatsCollector(settings, clusterService, getLicenseState(), client));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
@@ -179,6 +181,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         settings.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
         settings.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
         settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
+        settings.add(CcrStatsCollector.CCR_STATS_TIMEOUT);
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         return Collections.unmodifiableList(settings);

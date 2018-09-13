@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -144,7 +142,7 @@ public class RestReindexActionTests extends ESTestCase {
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
+            ReindexRequest r = new ReindexRequest();
             RestReindexAction.PARSER.parse(p, r, null);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());

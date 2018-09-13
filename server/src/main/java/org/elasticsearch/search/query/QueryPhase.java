@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.EarlyTerminatingSortingCollector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -35,9 +34,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -94,8 +95,8 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
-            searchContext.queryResult().topDocs(
-                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
             return;
         }
@@ -138,7 +139,7 @@ public class QueryPhase implements SearchPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
-                if (scrollContext.totalHits == -1) {
+                if (scrollContext.totalHits == null) {
                     // first round
                     assert scrollContext.lastEmittedDoc == null;
                     // there is not much that we can optimize here since we want to collect all
@@ -268,7 +269,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(true);
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-                
+
                 if (searchContext.request().allowPartialSearchResults() == false) {
                     // Can't rethrow TimeExceededException because not serializable
                     throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
@@ -327,7 +328,7 @@ public class QueryPhase implements SearchPhase {
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
             Sort indexSort = ctx.reader().getMetaData().getSort();
-            if (indexSort == null || EarlyTerminatingSortingCollector.canEarlyTerminate(sort, indexSort) == false) {
+            if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }
         }

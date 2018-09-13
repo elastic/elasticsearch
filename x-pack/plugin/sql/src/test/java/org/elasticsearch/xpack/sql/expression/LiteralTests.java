@@ -61,7 +61,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     @Override
     protected Literal copy(Literal instance) {
-        return new Literal(instance.location(), instance.value(), instance.dataType());
+        return new Literal(instance.location(), instance.name(), instance.value(), instance.dataType());
     }
 
     @Override

@@ -306,7 +306,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
-
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
                 assert request.getFromSeqNo() == 1 + seqNoStats.getGlobalCheckpoint();
                 indexShard.addGlobalCheckpointListener(
@@ -332,7 +331,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                         },
                         request.getPollTimeout());
             } else {
-                listener.onResponse(shardOperation(request, shardId));
+                super.asyncShardOperation(request, shardId, listener);
             }
         }
 

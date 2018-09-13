@@ -50,11 +50,6 @@ public class UnmappedSampler extends InternalSampler {
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        for (InternalAggregation agg : aggregations) {
-            if (!(agg instanceof UnmappedSampler)) {
-                return agg.reduce(aggregations, reduceContext);
-            }
-        }
         return this;
     }
 

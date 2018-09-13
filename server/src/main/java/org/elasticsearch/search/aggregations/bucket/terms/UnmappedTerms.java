@@ -95,11 +95,6 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        for (InternalAggregation agg : aggregations) {
-            if (!(agg instanceof UnmappedTerms)) {
-                return agg.reduce(aggregations, reduceContext);
-            }
-        }
         return this;
     }
 

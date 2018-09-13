@@ -100,11 +100,6 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        for (InternalAggregation aggregation : aggregations) {
-            if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                return aggregation.reduce(aggregations, reduceContext);
-            }
-        }
         return this;
     }
 

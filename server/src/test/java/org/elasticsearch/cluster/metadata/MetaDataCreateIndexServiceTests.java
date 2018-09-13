@@ -261,6 +261,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .put("index.version.upgraded", upgraded)
                         .put("index.similarity.default.type", "BM25")
                         .put("index.analysis.analyzer.default.tokenizer", "keyword")
+                        .put("index.soft_deletes.enabled", "true")
                         .build();
         runPrepareResizeIndexSettingsTest(
                 indexSettings,
@@ -277,6 +278,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                     assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
                     assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
                     assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
+                    assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
                 });
     }
 
@@ -335,6 +337,15 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 settings ->
                         assertThat("similarity settings are not overwritten", settings.get("index.similarity.sim.type"), equalTo("DFR")));
 
+    }
+
+    public void testDoNotOverrideSoftDeletesSettingOnResize() {
+        runPrepareResizeIndexSettingsTest(
+            Settings.builder().put("index.soft_deletes.enabled", "false").build(),
+            Settings.builder().put("index.soft_deletes.enabled", "true").build(),
+            Collections.emptyList(),
+            randomBoolean(),
+            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true")));
     }
 
     private void runPrepareResizeIndexSettingsTest(

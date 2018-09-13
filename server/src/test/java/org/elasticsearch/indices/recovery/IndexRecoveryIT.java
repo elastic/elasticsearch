@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -186,7 +185,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         RecoveryState recoveryState = recoveryStates.get(0);
 
-        assertRecoveryState(recoveryState, 0, StoreRecoverySource.EXISTING_STORE_INSTANCE, true, Stage.DONE, null, node);
+        assertRecoveryState(recoveryState, 0, RecoverySource.ExistingStoreRecoverySource.INSTANCE, true, Stage.DONE, null, node);
 
         validateIndexRecoveryState(recoveryState.getIndex());
     }
@@ -239,7 +238,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         // validate node A recovery
         RecoveryState nodeARecoveryState = nodeAResponses.get(0);
-        assertRecoveryState(nodeARecoveryState, 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
+        assertRecoveryState(nodeARecoveryState, 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
@@ -295,7 +294,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
         assertThat(nodeBRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeARecoveryStates.get(0), 0, StoreRecoverySource.EMPTY_STORE_INSTANCE, true, Stage.DONE, null, nodeA);
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true, Stage.DONE, null, nodeA);
         validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
         assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, nodeA, nodeB);

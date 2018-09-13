@@ -257,9 +257,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
-            s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-            Function.identity(), Property.NodeScope);
+                Function.identity(),
+                s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
+                        ? Collections.emptyList()
+                        : Collections.singletonList(LoggingAuditTrail.NAME),
+                Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;
@@ -969,7 +971,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (getLicenseState().isSecurityEnabled() == false || getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(

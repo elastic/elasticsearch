@@ -661,7 +661,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public CommitStats commitStats() {
+    public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -677,12 +677,6 @@ public abstract class Engine implements Closeable {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
-
-    /**
-     * Reset the local checkpoint in the tracker to the given local checkpoint
-     * @param localCheckpoint the new checkpoint to be set
-     */
-    public abstract void resetLocalCheckpoint(long localCheckpoint);
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -951,7 +945,9 @@ public abstract class Engine implements Closeable {
      *
      * @return the commit Id for the resulting commit
      */
-    public abstract CommitId flush() throws EngineException;
+    public final CommitId flush() throws EngineException {
+        return flush(false, false);
+    }
 
 
     /**
@@ -1163,10 +1159,15 @@ public abstract class Engine implements Closeable {
             PRIMARY,
             REPLICA,
             PEER_RECOVERY,
-            LOCAL_TRANSLOG_RECOVERY;
+            LOCAL_TRANSLOG_RECOVERY,
+            LOCAL_RESET;
 
             public boolean isRecovery() {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+            }
+
+            boolean isFromTranslog() {
+                return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
 
@@ -1593,7 +1594,7 @@ public abstract class Engine implements Closeable {
         private final CheckedRunnable<IOException> onClose;
         private final IndexCommit indexCommit;
 
-        IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
+        public IndexCommitRef(IndexCommit indexCommit, CheckedRunnable<IOException> onClose) {
             this.indexCommit = indexCommit;
             this.onClose = onClose;
         }

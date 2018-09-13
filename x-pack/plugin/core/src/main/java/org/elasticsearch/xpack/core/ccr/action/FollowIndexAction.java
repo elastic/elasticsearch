@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public final class FollowIndexAction extends Action<
         FollowIndexAction.Request,
         AcknowledgedResponse,
@@ -38,8 +40,9 @@ public final class FollowIndexAction extends Action<
     public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
-    public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
-    public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
+    static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
+    static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
+    static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
 
     private FollowIndexAction() {
         super(NAME);
@@ -59,7 +62,7 @@ public final class FollowIndexAction extends Action<
         private static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
         private static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         private static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        private static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
+        private static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
         private static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(NAME, true,
             (args, followerIndex) -> {
@@ -80,8 +83,8 @@ public final class FollowIndexAction extends Action<
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
-                    MAX_RETRY_DELAY,
+                    (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
+                MAX_RETRY_DELAY_FIELD,
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
@@ -207,7 +210,7 @@ public final class FollowIndexAction extends Action<
                 throw new IllegalArgumentException(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0");
             }
 
-            final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_RETRY_TIMEOUT : maxRetryDelay;
+            final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_MAX_RETRY_DELAY : maxRetryDelay;
             final TimeValue actualIdleShardRetryDelay = idleShardRetryDelay == null ? DEFAULT_IDLE_SHARD_RETRY_DELAY : idleShardRetryDelay;
 
             this.leaderIndex = leaderIndex;
@@ -227,7 +230,20 @@ public final class FollowIndexAction extends Action<
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+
+            if (maxRetryDelay.millis() <= 0) {
+                String message = "[" + MAX_RETRY_DELAY_FIELD.getPreferredName() + "] must be positive but was [" +
+                    maxRetryDelay.getStringRep() + "]";
+                validationException = addValidationError(message, validationException);
+            }
+            if (maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+                String message = "[" + MAX_RETRY_DELAY_FIELD.getPreferredName() + "] must be less than [" + MAX_RETRY_DELAY +
+                    "] but was [" + maxRetryDelay.getStringRep() + "]";
+                validationException = addValidationError(message, validationException);
+            }
+
+            return validationException;
         }
 
         @Override
@@ -269,7 +285,7 @@ public final class FollowIndexAction extends Action<
                 builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
+                builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), maxRetryDelay.getStringRep());
                 builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
             }
             builder.endObject();

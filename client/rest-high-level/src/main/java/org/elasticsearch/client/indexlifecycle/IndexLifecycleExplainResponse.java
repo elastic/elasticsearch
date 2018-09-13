@@ -126,7 +126,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             }
         } else {
             if (policyName != null || lifecycleDate >= 0 || phase != null || action != null || step != null || failedStep != null
-                || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null) {
+                || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
                     "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
             }

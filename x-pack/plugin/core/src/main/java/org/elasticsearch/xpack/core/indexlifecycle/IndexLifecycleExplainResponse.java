@@ -115,7 +115,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             }
         } else {
             if (policyName != null || lifecycleDate >= 0 || phase != null || action != null || step != null || failedStep != null
-                    || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null) {
+                    || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
                         "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
             }
@@ -151,7 +151,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             actionTime = in.readZLong();
             stepTime = in.readZLong();
             stepInfo = in.readOptionalBytesReference();
-            phaseExecutionInfo = new PhaseExecutionInfo(in);
+            phaseExecutionInfo = in.readOptionalWriteable(PhaseExecutionInfo::new);
         } else {
             policyName = null;
             skip = false;
@@ -184,7 +184,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeZLong(actionTime);
             out.writeZLong(stepTime);
             out.writeOptionalBytesReference(stepInfo);
-            phaseExecutionInfo.writeTo(out);
+            out.writeOptionalWriteable(phaseExecutionInfo);
         }
     }
 

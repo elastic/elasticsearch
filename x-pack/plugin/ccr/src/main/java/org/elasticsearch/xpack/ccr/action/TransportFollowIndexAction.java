@@ -245,6 +245,14 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
         }
+        String leaderIndexUUID = leaderIndex.getIndex().getUUID();
+        String recordedLeaderIndexUUID = followIndex
+                .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
+                .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
+            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" + leaderIndexUUID +
+                    "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
+        }
 
         String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndex);
         assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;

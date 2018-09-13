@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.not;
 @TestLogging("org.elasticsearch.cluster.coordination:TRACE,org.elasticsearch.cluster.discovery:TRACE")
 public class CoordinatorTests extends ESTestCase {
 
-    public void testCanStabilise() {
+    public void testCanUpdateClusterStateAfterStabilisation() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.stabilise();
 

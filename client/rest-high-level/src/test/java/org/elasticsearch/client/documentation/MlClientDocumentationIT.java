@@ -21,8 +21,11 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.MachineLearningGetResultsIT;
 import org.elasticsearch.client.MachineLearningIT;
@@ -31,6 +34,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -39,6 +43,8 @@ import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -53,28 +59,36 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
+import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
+import org.elasticsearch.client.ml.job.results.CategoryDefinition;
 import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
 
 import java.io.IOException;
@@ -90,6 +104,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -181,8 +196,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetJob() throws Exception {
         RestHighLevelClient client = highLevelClient();
-
-        String jobId = "get-machine-learning-job1";
 
         Job job = MachineLearningIT.buildJob("get-machine-learning-job1");
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
@@ -473,7 +486,107 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
-    
+
+    public void testPutDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // We need to create a job for the datafeed request to be valid
+            String jobId = "put-datafeed-job-1";
+            Job job = MachineLearningIT.buildJob(jobId);
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+            String id = "datafeed-1";
+
+            //tag::x-pack-ml-create-datafeed-config
+            DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder(id, jobId) // <1>
+                    .setIndices("index_1", "index_2");  // <2>
+            //end::x-pack-ml-create-datafeed-config
+
+            AggregatorFactories.Builder aggs = AggregatorFactories.builder();
+
+            //tag::x-pack-ml-create-datafeed-config-set-aggregations
+            datafeedBuilder.setAggregations(aggs); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-aggregations
+
+            // Clearing aggregation to avoid complex validation rules
+            datafeedBuilder.setAggregations((String) null);
+
+            //tag::x-pack-ml-create-datafeed-config-set-chunking-config
+            datafeedBuilder.setChunkingConfig(ChunkingConfig.newAuto()); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-chunking-config
+
+            //tag::x-pack-ml-create-datafeed-config-set-frequency
+            datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(30)); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-frequency
+
+            //tag::x-pack-ml-create-datafeed-config-set-query
+            datafeedBuilder.setQuery(QueryBuilders.matchAllQuery()); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-query
+
+            //tag::x-pack-ml-create-datafeed-config-set-query-delay
+            datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-query-delay
+
+            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            //tag::x-pack-ml-create-datafeed-config-set-script-fields
+            datafeedBuilder.setScriptFields(scriptFields); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-script-fields
+
+            //tag::x-pack-ml-create-datafeed-config-set-scroll-size
+            datafeedBuilder.setScrollSize(1000); // <1>
+            //end::x-pack-ml-create-datafeed-config-set-scroll-size
+
+            //tag::x-pack-ml-put-datafeed-request
+            PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
+            //end::x-pack-ml-put-datafeed-request
+
+            //tag::x-pack-ml-put-datafeed-execute
+            PutDatafeedResponse response = client.machineLearning().putDatafeed(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-put-datafeed-execute
+
+            //tag::x-pack-ml-put-datafeed-response
+            DatafeedConfig datafeed = response.getResponse(); // <1>
+            //end::x-pack-ml-put-datafeed-response
+            assertThat(datafeed.getId(), equalTo("datafeed-1"));
+        }
+        {
+            // We need to create a job for the datafeed request to be valid
+            String jobId = "put-datafeed-job-2";
+            Job job = MachineLearningIT.buildJob(jobId);
+            client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+            String id = "datafeed-2";
+
+            DatafeedConfig datafeed = new DatafeedConfig.Builder(id, jobId).setIndices("index_1", "index_2").build();
+
+            PutDatafeedRequest request = new PutDatafeedRequest(datafeed);
+            // tag::x-pack-ml-put-datafeed-execute-listener
+            ActionListener<PutDatafeedResponse> listener = new ActionListener<PutDatafeedResponse>() {
+                @Override
+                public void onResponse(PutDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-ml-put-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-put-datafeed-execute-async
+            client.machineLearning().putDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-put-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGetBuckets() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -636,8 +749,85 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+    
+    public void testDeleteForecast() throws Exception {
+        RestHighLevelClient client = highLevelClient();
 
+        Job job = MachineLearningIT.buildJob("deleting-forecast-for-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        client.machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+        PostDataRequest.JsonBuilder builder = new PostDataRequest.JsonBuilder();
+        for(int i = 0; i < 30; i++) {
+            Map<String, Object> hashMap = new HashMap<>();
+            hashMap.put("total", randomInt(1000));
+            hashMap.put("timestamp", (i+1)*1000);
+            builder.addDoc(hashMap);
+        }
 
+        PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
+        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
+        ForecastJobResponse forecastJobResponse = client.machineLearning().
+            forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
+        String forecastId = forecastJobResponse.getForecastId();
+
+        GetRequest request = new GetRequest(".ml-anomalies-" + job.getId());
+        request.id(job.getId() + "_model_forecast_request_stats_" + forecastId);
+        assertBusy(() -> {
+            GetResponse getResponse = highLevelClient().get(request, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertTrue(getResponse.getSourceAsString().contains("finished"));
+        }, 30, TimeUnit.SECONDS);
+
+        {
+            //tag::x-pack-ml-delete-forecast-request
+            DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest("deleting-forecast-for-job"); //<1>
+            //end::x-pack-ml-delete-forecast-request
+
+            //tag::x-pack-ml-delete-forecast-request-options
+            deleteForecastRequest.setForecastIds(forecastId); //<1>
+            deleteForecastRequest.timeout("30s"); //<2>
+            deleteForecastRequest.setAllowNoForecasts(true); //<3>
+            //end::x-pack-ml-delete-forecast-request-options
+
+            //tag::x-pack-ml-delete-forecast-execute
+            AcknowledgedResponse deleteForecastResponse = client.machineLearning().deleteForecast(deleteForecastRequest,
+                RequestOptions.DEFAULT);
+            //end::x-pack-ml-delete-forecast-execute
+
+            //tag::x-pack-ml-delete-forecast-response
+            boolean isAcknowledged = deleteForecastResponse.isAcknowledged(); //<1>
+            //end::x-pack-ml-delete-forecast-response
+        }
+        {
+            //tag::x-pack-ml-delete-forecast-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse DeleteForecastResponse) {
+                    //<1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-ml-delete-forecast-listener
+            DeleteForecastRequest deleteForecastRequest = DeleteForecastRequest.deleteAllForecasts(job.getId());
+            deleteForecastRequest.setAllowNoForecasts(true);
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-delete-forecast-execute-async
+            client.machineLearning().deleteForecastAsync(deleteForecastRequest, RequestOptions.DEFAULT, listener); //<1>
+            // end::x-pack-ml-delete-forecast-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+    
     public void testGetJobStats() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1110,5 +1300,75 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testGetCategories() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-get-categories";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a category
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
+            " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::x-pack-ml-get-categories-request
+            GetCategoriesRequest request = new GetCategoriesRequest(jobId); // <1>
+            // end::x-pack-ml-get-categories-request
+
+            // tag::x-pack-ml-get-categories-category-id
+            request.setCategoryId(1L); // <1>
+            // end::x-pack-ml-get-categories-category-id
+
+            // tag::x-pack-ml-get-categories-page
+            request.setPageParams(new PageParams(100, 200)); // <1>
+            // end::x-pack-ml-get-categories-page
+
+            // Set page params back to null so the response contains the category we indexed
+            request.setPageParams(null);
+
+            // tag::x-pack-ml-get-categories-execute
+            GetCategoriesResponse response = client.machineLearning().getCategories(request, RequestOptions.DEFAULT);
+            // end::x-pack-ml-get-categories-execute
+
+            // tag::x-pack-ml-get-categories-response
+            long count = response.count(); // <1>
+            List<CategoryDefinition> categories = response.categories(); // <2>
+            // end::x-pack-ml-get-categories-response
+            assertEquals(1, categories.size());
+        }
+        {
+            GetCategoriesRequest request = new GetCategoriesRequest(jobId);
+
+            // tag::x-pack-ml-get-categories-listener
+            ActionListener<GetCategoriesResponse> listener =
+                new ActionListener<GetCategoriesResponse>() {
+                    @Override
+                    public void onResponse(GetCategoriesResponse getcategoriesResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::x-pack-ml-get-categories-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-categories-execute-async
+            client.machineLearning().getCategoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-categories-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+         }
     }
 }

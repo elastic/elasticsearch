@@ -519,18 +519,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
+            try (Translog.Snapshot snapshot = replica3.getHistoryOperations("test", 0)) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);
                 assertThat(snapshot, containsOperationsInAnyOrder(expectedOps));
                 assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
             }
-            // TODO: We should assert the content of shards in the ReplicationGroup.
-            // Without rollback replicas(current implementation), we don't have the same content across shards:
-            // - replica1 has {doc1}
-            // - replica2 has {doc1, doc2}
-            // - replica3 can have either {doc2} only if operation-based recovery or {doc1, doc2} if file-based recovery
+            shards.assertAllEqual(initDocs + 1);
         }
     }
 

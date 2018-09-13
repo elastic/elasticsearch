@@ -831,6 +831,9 @@ class BuildPlugin implements Plugin<Project> {
             // TODO: remove this once ctx isn't added to update script params in 7.0
             systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
+            //TODO: remove this once the cname is prepended to the address by default in 7.0
+            systemProperty 'es.http.cname_in_publish_address', 'true'
+
             // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
             if (project.inFipsJvm) {
                 systemProperty 'javax.net.ssl.trustStorePassword', 'password'

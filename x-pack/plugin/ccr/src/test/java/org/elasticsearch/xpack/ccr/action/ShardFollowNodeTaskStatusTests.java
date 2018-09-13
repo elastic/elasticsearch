@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,17 +22,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<ShardFollowNodeTask.Status> {
+public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<ShardFollowNodeTaskStatus> {
 
     @Override
-    protected ShardFollowNodeTask.Status doParseInstance(XContentParser parser) throws IOException {
-        return ShardFollowNodeTask.Status.fromXContent(parser);
+    protected ShardFollowNodeTaskStatus doParseInstance(XContentParser parser) throws IOException {
+        return ShardFollowNodeTaskStatus.fromXContent(parser);
     }
 
     @Override
-    protected ShardFollowNodeTask.Status createTestInstance() {
+    protected ShardFollowNodeTaskStatus createTestInstance() {
         // if you change this constructor, reflect the changes in the hand-written assertions below
-        return new ShardFollowNodeTask.Status(
+        return new ShardFollowNodeTaskStatus(
+                randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
@@ -57,9 +59,10 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected void assertEqualInstances(final ShardFollowNodeTask.Status expectedInstance, final ShardFollowNodeTask.Status newInstance) {
+    protected void assertEqualInstances(final ShardFollowNodeTaskStatus expectedInstance, final ShardFollowNodeTaskStatus newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.leaderIndex(), equalTo(expectedInstance.leaderIndex()));
+        assertThat(newInstance.followerIndex(), equalTo(expectedInstance.followerIndex()));
         assertThat(newInstance.getShardId(), equalTo(expectedInstance.getShardId()));
         assertThat(newInstance.leaderGlobalCheckpoint(), equalTo(expectedInstance.leaderGlobalCheckpoint()));
         assertThat(newInstance.leaderMaxSeqNo(), equalTo(expectedInstance.leaderMaxSeqNo()));
@@ -108,8 +111,8 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected Writeable.Reader<ShardFollowNodeTask.Status> instanceReader() {
-        return ShardFollowNodeTask.Status::new;
+    protected Writeable.Reader<ShardFollowNodeTaskStatus> instanceReader() {
+        return ShardFollowNodeTaskStatus::new;
     }
 
 }

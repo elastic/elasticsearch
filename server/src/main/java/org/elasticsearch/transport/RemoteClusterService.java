@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import java.util.Collection;
-import java.util.function.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -35,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -43,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -64,6 +65,11 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
  * Basic service for accessing remote clusters via gateway nodes
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+
+    static {
+        // remove search.remote.* settings in 8.0.0
+        assert Version.CURRENT.major < 8;
+    }
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
@@ -131,6 +137,20 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     "skip_unavailable",
                     key -> boolSetting(key, false, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope),
                     REMOTE_CLUSTERS_SEEDS);
+
+    public static final SettingUpgrader<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER = new SettingUpgrader<Boolean>() {
+
+        @Override
+        public Setting<Boolean> getSetting() {
+            return SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
+        }
+
+        @Override
+        public String getKey(final String key) {
+            return key.replaceFirst("^search", "cluster");
+        }
+
+    };
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
             Setting.affixKeySetting(

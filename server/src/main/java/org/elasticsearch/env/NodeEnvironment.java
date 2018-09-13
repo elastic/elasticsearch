@@ -30,7 +30,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -182,7 +182,7 @@ public final class NodeEnvironment  implements Closeable {
 
         public NodeLock(final int nodeId, final Logger logger,
                         final Environment environment,
-                        final CheckedConsumer<Path, IOException> consumer) throws IOException {
+                        final CheckedFunction<Path, Boolean, IOException> pathFunction) throws IOException {
             this.nodeId = nodeId;
             nodePaths = new NodePath[environment.dataWithClusterFiles().length];
             locks = new Lock[nodePaths.length];
@@ -191,8 +191,9 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
                     Path dataDir = dataPaths[dirIndex];
                     Path dir = resolveNodePath(dataDir, nodeId);
-                    consumer.accept(dir);
-
+                    if (pathFunction.apply(dir) == false) {
+                        continue;
+                    }
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                         logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
@@ -262,6 +263,7 @@ public final class NodeEnvironment  implements Closeable {
                                 onCreateDirectoriesException.set(e);
                                 throw e;
                             }
+                            return true;
                         });
                     break;
                 } catch (LockObtainFailedException e) {

@@ -74,6 +74,30 @@ SELECT SUM(salary) FROM test_emp;
 4824855
 ;
 
+aggregateWithCastPruned
+SELECT CAST(SUM(salary) AS INTEGER) FROM test_emp;
+
+  SUM(salary)
+-------------
+4824855
+;
+
+aggregateWithUpCast
+SELECT CAST(SUM(salary) AS DOUBLE) FROM test_emp;
+
+  CAST(SUM(salary) AS DOUBLE)
+-----------------------------
+4824855.0
+;
+
+aggregateWithCastNumericToString
+SELECT CAST(AVG(salary) AS VARCHAR) FROM test_emp;
+
+  CAST(AVG(salary) AS VARCHAR):s
+--------------------------------
+48248.55
+;
+
 kurtosisAndSkewnessNoGroup
 SELECT KURTOSIS(emp_no) k, SKEWNESS(salary) s FROM test_emp;
 

@@ -37,7 +37,6 @@ public class PhaseExecutionInfo implements ToXContentObject {
     private static final ParseField PHASE_DEFINITION_FIELD = new ParseField("phase_definition");
     private static final ParseField VERSION_FIELD = new ParseField("version");
     private static final ParseField MODIFIED_DATE_FIELD = new ParseField("modified_date");
-    private static final ParseField MODIFIED_DATE_STRING_FIELD = new ParseField("modified_date_string");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
         "phase_execution_info", false,
@@ -47,7 +46,6 @@ public class PhaseExecutionInfo implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_STRING_FIELD);
     }
 
     public static PhaseExecutionInfo parse(XContentParser parser, String name) {
@@ -125,8 +123,11 @@ public class PhaseExecutionInfo implements ToXContentObject {
         builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
         builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.field(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
-        builder.field(MODIFIED_DATE_STRING_FIELD.getPreferredName(), getModifiedDateString());
+        if (builder.humanReadable()) {
+            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
+        } else {
+            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), getModifiedDateString());
+        }
         builder.endObject();
         return builder;
     }

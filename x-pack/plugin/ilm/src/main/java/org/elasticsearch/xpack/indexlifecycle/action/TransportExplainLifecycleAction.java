@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
@@ -44,7 +43,8 @@ public class TransportExplainLifecycleAction
 
     @Inject
     public TransportExplainLifecycleAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           ThreadPool threadPool, ActionFilters actionFilters,
+                                           IndexNameExpressionResolver indexNameExpressionResolver,
                                            NamedXContentRegistry xContentRegistry) {
         super(settings, ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 ExplainLifecycleRequest::new, indexNameExpressionResolver);

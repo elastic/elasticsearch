@@ -37,7 +37,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
     static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
-    static final TimeValue MAX_MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
+    static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
 
     private FollowIndexAction() {
         super(NAME);
@@ -57,7 +57,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
         private static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
         private static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         private static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        private static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
+        private static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
         private static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(NAME, true,
             (args, followerIndex) -> {
@@ -78,8 +78,8 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
-                    MAX_RETRY_DELAY,
+                    (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
+                MAX_RETRY_DELAY_FIELD,
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
@@ -228,11 +228,12 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             ActionRequestValidationException validationException = null;
 
             if (maxRetryDelay.millis() <= 0) {
-                String message = "maxRetryDelay must be positive but was [" + maxRetryDelay.getStringRep() + "]";
+                String message = "[" + MAX_RETRY_DELAY_FIELD.getPreferredName() + "] must be positive but was [" +
+                    maxRetryDelay.getStringRep() + "]";
                 validationException = addValidationError(message, validationException);
             }
-            if (maxRetryDelay.millis() > MAX_MAX_RETRY_DELAY.millis()) {
-                String message = "maxRetryDelay must be less than [" + FollowIndexAction.MAX_MAX_RETRY_DELAY +
+            if (maxRetryDelay.millis() > FollowIndexAction.MAX_RETRY_DELAY.millis()) {
+                String message = "[" + MAX_RETRY_DELAY_FIELD.getPreferredName() + "] must be less than [" + MAX_RETRY_DELAY +
                     "] but was [" + maxRetryDelay.getStringRep() + "]";
                 validationException = addValidationError(message, validationException);
             }
@@ -279,7 +280,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                 builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
+                builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), maxRetryDelay.getStringRep());
                 builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
             }
             builder.endObject();

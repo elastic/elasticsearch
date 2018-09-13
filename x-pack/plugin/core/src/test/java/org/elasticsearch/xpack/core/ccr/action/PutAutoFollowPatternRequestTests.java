@@ -71,17 +71,17 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("leaderClusterAlias is missing"));
+        assertThat(validationException.getMessage(), containsString("[leader_cluster_alias] is missing"));
 
         request.setLeaderClusterAlias("_alias");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("leaderIndexPatterns is missing"));
+        assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
 
         request.setLeaderIndexPatterns(Collections.emptyList());
         validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("leaderIndexPatterns is missing"));
+        assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
 
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         validationException = request.validate();
@@ -90,12 +90,12 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         request.setMaxRetryDelay(TimeValue.ZERO);
         validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("maxRetryDelay must be positive but was [0ms]"));
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
         request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("maxRetryDelay must be less than [5m] but was [10m]"));
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
         request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();

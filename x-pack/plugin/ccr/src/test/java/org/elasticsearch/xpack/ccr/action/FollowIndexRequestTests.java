@@ -50,12 +50,12 @@ public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<
             null, TimeValue.ZERO, null);
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("maxRetryDelay must be positive but was [0ms]"));
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
         request = new FollowIndexAction.Request("index1", "index2", null, null, null, null, null, TimeValue.timeValueMinutes(10), null);
         validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("maxRetryDelay must be less than [5m] but was [10m]"));
+        assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
         request = new FollowIndexAction.Request("index1", "index2", null, null, null, null, null, TimeValue.timeValueMinutes(1), null);
         validationException = request.validate();

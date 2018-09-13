@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.CoordinatorTests.Cluster.ClusterNode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.MasterService;
@@ -65,6 +68,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.setValue;
+import static org.elasticsearch.cluster.coordination.CoordinationStateTests.value;
 import static org.elasticsearch.cluster.coordination.Coordinator.COMMIT_STATE_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_STATE_ACTION_NAME;
@@ -81,6 +86,17 @@ public class CoordinatorTests extends ESTestCase {
     public void testCanStabilise() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        long finalValue = randomLong();
+        leader.submitValue(finalValue);
+        cluster.stabilise();
+
+        for (final ClusterNode clusterNode : cluster.clusterNodes) {
+            final String nodeId = clusterNode.getId();
+            final ClusterState committedState = clusterNode.coordinator.getLastCommittedState().get();
+            assertThat(nodeId + " has the committed value", value(committedState), is(finalValue));
+        }
     }
 
     private static String nodeIdFromIndex(int nodeIndex) {
@@ -443,9 +459,23 @@ public class CoordinatorTests extends ESTestCase {
             boolean isLeader() {
                 return coordinator.getMode() == Coordinator.Mode.LEADER;
             }
+
+            void submitValue(final long value) {
+                masterService.submitStateUpdateTask("new value [" + value + "]", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return setValue(currentState, value);
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.debug(() -> new ParameterizedMessage("failed to publish: [{}]", source), e);
+                    }
+                });
+            }
         }
 
-        private List<TransportAddress> provideUnicastHosts(HostsResolver hostsResolver) {
+        private List<TransportAddress> provideUnicastHosts(HostsResolver ignored) {
             final List<TransportAddress> unicastHosts = new ArrayList<>(clusterNodes.size());
             clusterNodes.forEach(n -> unicastHosts.add(n.getLocalNode().getAddress()));
             return unmodifiableList(unicastHosts);

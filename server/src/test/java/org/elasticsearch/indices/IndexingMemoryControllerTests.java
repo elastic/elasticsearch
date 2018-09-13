@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -348,6 +349,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     }
 
     // #10312
+    @TestLogging("org.elasticsearch.indices.IndexingMemoryController:TRACE")
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         createIndex("index",
                     Settings.builder().put("index.number_of_shards", 1)

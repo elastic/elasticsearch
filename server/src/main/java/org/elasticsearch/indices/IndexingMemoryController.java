@@ -318,53 +318,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
             // throttle the top shards to send back-pressure to ongoing indexing:
             boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.getBytes();
 
-            if (totalBytesUsed > indexingBuffer.getBytes()) {
-                // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
-                PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
-
-                for (IndexShard shard : availableShards()) {
-                    // How many bytes this shard is currently (async'd) moving from heap to disk:
-                    long shardWritingBytes = getShardWritingBytes(shard);
-
-                    // How many heap bytes this shard is currently using
-                    long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
-
-                    // Only count up bytes not already being refreshed:
-                    shardBytesUsed -= shardWritingBytes;
-
-                    // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
-                    // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
-                    if (shardBytesUsed < 0) {
-                        continue;
-                    }
-
-                    if (shardBytesUsed > 0) {
-                        if (logger.isTraceEnabled()) {
-                            if (shardWritingBytes != 0) {
-                                logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed, shardWritingBytes);
-                            } else {
-                                logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
-                            }
-                        }
-                        queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
-                    }
-                }
-
-                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
-
-                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
-                    ShardAndBytesUsed largest = queue.poll();
-                    logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
-                    writeIndexingBufferAsync(largest.shard);
-                    totalBytesUsed -= largest.bytesUsed;
-                    if (doThrottle && throttled.contains(largest.shard) == false) {
-                        logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
-                        throttled.add(largest.shard);
-                        activateThrottling(largest.shard);
-                    }
-                }
-            }
+            writeShardBuffers(doThrottle);
 
             if (doThrottle == false) {
                 for(IndexShard shard : throttled) {
@@ -372,6 +326,91 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                     deactivateThrottling(shard);
                 }
                 throttled.clear();
+            }
+        }
+    }
+
+    private long totalBytesWriting() {
+        long totalBytes = 0;
+        for (IndexShard shard : availableShards()) {
+            totalBytes += shard.getWritingBytes();
+        }
+        return totalBytes;
+    }
+
+    private long totalBytesUsedByShards() {
+        long totalBytes = 0;
+        for (IndexShard shard : availableShards()) {
+            // How many bytes this shard is currently (async'd) moving from heap to disk:
+            long shardWritingBytes = getShardWritingBytes(shard);
+
+            // How many heap bytes this shard is currently using
+            long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
+
+            shardBytesUsed -= shardWritingBytes;
+
+            // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+            // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+            if (shardBytesUsed < 0) {
+                continue;
+            }
+
+            totalBytes += shardBytesUsed;
+        }
+        return totalBytes;
+    }
+
+    private void writeShardBuffers(boolean doThrottle) {
+        long totalBytesUsed;
+        while ((totalBytesUsed = totalBytesUsedByShards()) > indexingBuffer.getBytes()) {
+            logger.debug("indexing buffers are using [{}] bytes; limit is [{}]; going to flush buffers",
+                totalBytesUsed, indexingBuffer.getBytes());
+            // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
+            PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
+
+            for (IndexShard shard : availableShards()) {
+                // How many bytes this shard is currently (async'd) moving from heap to disk:
+                long shardWritingBytes = getShardWritingBytes(shard);
+
+                // How many heap bytes this shard is currently using
+                long shardBytesUsed = getIndexBufferRAMBytesUsed(shard);
+
+                // Only count up bytes not already being refreshed:
+                shardBytesUsed -= shardWritingBytes;
+
+                // If the refresh completed just after we pulled shardWritingBytes and before we pulled shardBytesUsed, then we could
+                // have a negative value here.  So we just skip this shard since that means it's now using very little heap:
+                if (shardBytesUsed < 0) {
+                    continue;
+                }
+
+                if (shardBytesUsed > 0) {
+                    if (logger.isTraceEnabled()) {
+                        if (shardWritingBytes != 0) {
+                            logger.trace("shard [{}] is using [{}] heap, writing [{}] heap", shard.shardId(), shardBytesUsed, shardWritingBytes);
+                        } else {
+                            logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
+                        }
+                    }
+                    queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
+                }
+            }
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
+                    new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting()), queue.size());
+            }
+
+            while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
+                ShardAndBytesUsed largest = queue.poll();
+                logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
+                writeIndexingBufferAsync(largest.shard);
+                totalBytesUsed -= largest.bytesUsed;
+                if (doThrottle && throttled.contains(largest.shard) == false) {
+                    logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
+                    throttled.add(largest.shard);
+                    activateThrottling(largest.shard);
+                }
             }
         }
     }

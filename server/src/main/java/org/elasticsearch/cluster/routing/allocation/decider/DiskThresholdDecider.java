@@ -142,7 +142,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     "space, actual free: [%s]",
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                     diskThresholdSettings.getLowWatermarkRaw(),
-                    diskThresholdSettings.getFreeBytesThresholdLow(), ByteSizeValue.toString(freeBytes));
+                    diskThresholdSettings.getFreeBytesThresholdLow(), new ByteSizeValue(freeBytes));
             } else if (freeBytes > diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
                 // Allow the shard to be allocated because it is primary that
                 // has never been allocated if it's under the high watermark
@@ -167,7 +167,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     "space, actual free: [%s]",
                     CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                     diskThresholdSettings.getHighWatermarkRaw(),
-                    diskThresholdSettings.getFreeBytesThresholdHigh(), ByteSizeValue.toString(freeBytes));
+                    diskThresholdSettings.getFreeBytesThresholdHigh(), new ByteSizeValue(freeBytes));
             }
         }
 
@@ -221,13 +221,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn("after allocating, node [{}] would have less than the required " +
                     "{} free bytes threshold ({} bytes free), preventing allocation",
-                    node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytesAfterShard);
+                    node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytes);
             return allocation.decision(Decision.NO, NAME,
                 "allocating the shard to this node will bring the node above the high watermark cluster setting [%s=%s] " +
-                    "and cause it to have less than the minimum required [%s] of free space (free bytes after shard added: [%s])",
+                    "and cause it to have less than the minimum required [%s] of free space (free bytes [%s], estimated shard size: [%s])",
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                 diskThresholdSettings.getHighWatermarkRaw(),
-                diskThresholdSettings.getFreeBytesThresholdHigh(), ByteSizeValue.toString(freeBytesAfterShard));
+                diskThresholdSettings.getFreeBytesThresholdHigh(),
+                new ByteSizeValue(freeBytes), new ByteSizeValue(shardSize));
         }
         if (freeSpaceAfterShard < diskThresholdSettings.getFreeDiskThresholdHigh()) {
             logger.warn("after allocating, node [{}] would have more than the allowed " +
@@ -243,9 +244,9 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         return allocation.decision(Decision.YES, NAME,
                 "enough disk for shard on node, free: [%s], shard size: [%s], free after allocating shard: [%s]",
-                ByteSizeValue.toString(freeBytes),
-                ByteSizeValue.toString(shardSize),
-                ByteSizeValue.toString(freeBytesAfterShard));
+                new ByteSizeValue(freeBytes),
+                new ByteSizeValue(shardSize),
+                new ByteSizeValue(freeBytesAfterShard));
     }
 
     @Override
@@ -284,7 +285,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                     "and there is less than the required [%s] free space on node, actual free: [%s]",
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                 diskThresholdSettings.getHighWatermarkRaw(),
-                diskThresholdSettings.getFreeBytesThresholdHigh(), ByteSizeValue.toString(freeBytes));
+                diskThresholdSettings.getFreeBytesThresholdHigh(), new ByteSizeValue(freeBytes));
         }
         if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdHigh()) {
             if (logger.isDebugEnabled()) {
@@ -300,7 +301,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         return allocation.decision(Decision.YES, NAME,
-                "there is enough disk on this node for the shard to remain, free: [%s]", ByteSizeValue.toString(freeBytes));
+                "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
     private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,

@@ -164,7 +164,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             "allocating the shard to this node will bring the node above the high watermark cluster setting "
                 +"[cluster.routing.allocation.disk.watermark.high=90%] "
                 + "and cause it to have less than the minimum required [0b] of free space "
-                + "(free bytes after shard added: [" + (freeBytes - shardSize) + "b])"));
+                + "(free bytes [" + freeBytes + "b], estimated shard size: [" + shardSize + "b])"));
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {

@@ -352,14 +352,20 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             modifier.normalizeOther(ft1);
             modifier.modify(ft2);
             if (modifier.strictOnly) {
-                String[] conflicts = {
-                    "mapper [foo] is used by multiple types",
-                    "update [" + modifier.property + "]"
-                };
                 assertCompatible(modifier.property, ft1, ft2, false);
-                assertNotCompatible(modifier.property, ft1, ft2, true, conflicts);
                 assertCompatible(modifier.property, ft2, ft1, false); // always symmetric when not strict
-                assertNotCompatible(modifier.property, ft2, ft1, true, conflicts);
+                if (ft1.equals(ft2) == false) {
+                    String[] conflicts = {
+                        "mapper [foo] is used by multiple types",
+                        "update [" + modifier.property + "]"
+                    };
+                    assertNotCompatible(modifier.property, ft2, ft1, true, conflicts);
+                    assertNotCompatible(modifier.property, ft1, ft2, true, conflicts);
+                } else {
+                    // the modification is no-op so fields are always compatible
+                    assertCompatible(modifier.property, ft1, ft2, true);
+                    assertCompatible(modifier.property, ft2, ft1, true);
+                }
             } else {
                 // not compatible whether strict or not
                 String conflict = "different [" + modifier.property + "]";

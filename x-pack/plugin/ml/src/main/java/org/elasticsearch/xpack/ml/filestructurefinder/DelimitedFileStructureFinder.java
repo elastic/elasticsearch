@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 
 public class DelimitedFileStructureFinder implements FileStructureFinder {
 
+    private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
     private final List<String> sampleMessages;
@@ -133,9 +134,9 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             if (isHeaderInFile) {
                 String quote = String.valueOf(csvPreference.getQuoteChar());
                 String twoQuotes = quote + quote;
-                String optQuote = quote.replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "?";
+                String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
                 structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
-                    .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + optQuote)
+                    .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
                     .collect(Collectors.joining(",")));
             }
 

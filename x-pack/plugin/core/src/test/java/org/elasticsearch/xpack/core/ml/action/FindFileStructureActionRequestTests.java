@@ -82,7 +82,7 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
-        assertThat(e.getMessage(), containsString(" lines_to_sample must be positive if specified"));
+        assertThat(e.getMessage(), containsString(" [lines_to_sample] must be positive if specified"));
     }
 
     public void testValidateNonDelimited() {
@@ -118,7 +118,7 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
-        assertThat(e.getMessage(), containsString(" " + errorField + " may only be specified if format is delimited"));
+        assertThat(e.getMessage(), containsString(" [" + errorField + "] may only be specified if [format] is [delimited]"));
     }
 
     public void testValidateNonSemiStructuredText() {
@@ -131,7 +131,7 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
-        assertThat(e.getMessage(), containsString(" grok_pattern may only be specified if format is semi_structured_text"));
+        assertThat(e.getMessage(), containsString(" [grok_pattern] may only be specified if [format] is [semi_structured_text]"));
     }
 
     public void testValidateSample() {

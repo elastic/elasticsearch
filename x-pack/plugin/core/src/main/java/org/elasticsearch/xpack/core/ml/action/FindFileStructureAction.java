@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -122,6 +123,9 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
         // This one is plural in FileStructure, but singular in FileStructureOverrides
         public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");
         public static final ParseField TIMESTAMP_FIELD = FileStructure.TIMESTAMP_FIELD;
+
+        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE =
+            "[%s] may only be specified if [" + FORMAT.getPreferredName() + "] is [%s]";
 
         private Integer linesToSample;
         private String charset;
@@ -263,39 +267,40 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
             this.sample = sample;
         }
 
+        private static ActionRequestValidationException addIncompatibleArgError(ParseField arg, FileStructure.Format format,
+                                                                                ActionRequestValidationException validationException) {
+            return addValidationError(String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE, arg.getPreferredName(), format),
+                validationException);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (linesToSample != null && linesToSample <= 0) {
                 validationException =
-                    addValidationError(LINES_TO_SAMPLE.getPreferredName() + " must be positive if specified", validationException);
+                    addValidationError("[" + LINES_TO_SAMPLE.getPreferredName() + "] must be positive if specified", validationException);
             }
             if (format != FileStructure.Format.DELIMITED) {
                 if (columnNames != null) {
-                    validationException = addValidationError(COLUMN_NAMES.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.DELIMITED, validationException);
+                    validationException = addIncompatibleArgError(COLUMN_NAMES, FileStructure.Format.DELIMITED, validationException);
                 }
                 if (hasHeaderRow != null) {
-                    validationException = addValidationError(HAS_HEADER_ROW.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.DELIMITED, validationException);
+                    validationException = addIncompatibleArgError(HAS_HEADER_ROW, FileStructure.Format.DELIMITED, validationException);
                 }
                 if (delimiter != null) {
-                    validationException = addValidationError(DELIMITER.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.DELIMITED, validationException);
+                    validationException = addIncompatibleArgError(DELIMITER, FileStructure.Format.DELIMITED, validationException);
                 }
                 if (quote != null) {
-                    validationException = addValidationError(QUOTE.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.DELIMITED, validationException);
+                    validationException = addIncompatibleArgError(QUOTE, FileStructure.Format.DELIMITED, validationException);
                 }
                 if (shouldTrimFields != null) {
-                    validationException = addValidationError(SHOULD_TRIM_FIELDS.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.DELIMITED, validationException);
+                    validationException = addIncompatibleArgError(SHOULD_TRIM_FIELDS, FileStructure.Format.DELIMITED, validationException);
                 }
             }
             if (format != FileStructure.Format.SEMI_STRUCTURED_TEXT) {
                 if (grokPattern != null) {
-                    validationException = addValidationError(GROK_PATTERN.getPreferredName() + " may only be specified if " +
-                        FORMAT.getPreferredName() + " is " + FileStructure.Format.SEMI_STRUCTURED_TEXT, validationException);
+                    validationException =
+                        addIncompatibleArgError(GROK_PATTERN, FileStructure.Format.SEMI_STRUCTURED_TEXT, validationException);
                 }
             }
             if (sample == null || sample.length() == 0) {

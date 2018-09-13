@@ -131,7 +131,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * Schedule a task for immediate execution.
      */
     public void scheduleNow(final Runnable task) {
-        assert task.toString().contains(" ") : task; // ensure that tasks have useful names
         logger.trace("scheduleNow: adding runnable {}", task);
         runnableTasks.add(task);
     }
@@ -140,7 +139,6 @@ public class DeterministicTaskQueue extends AbstractComponent {
      * Schedule a task for future execution.
      */
     public void scheduleAt(final long executionTimeMillis, final Runnable task) {
-        assert task.toString().contains(" ") : task; // ensure that tasks have useful names
         if (executionTimeMillis <= currentTimeMillis) {
             logger.trace("scheduleAt: [{}ms] is not in the future, adding runnable {}", executionTimeMillis, task);
             runnableTasks.add(task);

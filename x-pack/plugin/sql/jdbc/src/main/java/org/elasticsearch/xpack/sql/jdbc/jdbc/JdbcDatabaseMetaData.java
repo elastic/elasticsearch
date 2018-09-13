@@ -368,7 +368,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getCatalogSeparator() throws SQLException {
-        return ".";
+        return ":";
     }
 
     @Override

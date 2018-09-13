@@ -91,7 +91,7 @@ POST /_cluster/reroute
   ]
 }
 
-You must accept the possibility of data loss changing parameter `accept_data_loss` to `true`.
+You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.
 
 Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag from /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
 

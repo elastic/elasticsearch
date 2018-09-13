@@ -75,7 +75,6 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -174,18 +173,14 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Setup the environment.
      * @param settings settings from elasticsearch.yml
-     * @param nodeIdConsumer called as soon as the node id is available to the
-     *      node name in log messages if it wasn't loaded from
-     *      elasticsearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment, Consumer<String> nodeIdConsumer) throws IOException {
+    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
@@ -244,7 +239,6 @@ public final class NodeEnvironment  implements Closeable {
                 throw new IllegalStateException(message, lastException);
             }
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
-            nodeIdConsumer.accept(nodeMetaData.nodeId());
 
             this.nodeLockId = nodeLockId;
             this.locks = locks;

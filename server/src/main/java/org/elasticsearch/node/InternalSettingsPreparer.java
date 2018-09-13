@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 
 public class InternalSettingsPreparer {
 
@@ -154,9 +155,13 @@ public class InternalSettingsPreparer {
         }
         output.replacePropertyPlaceholders();
 
-        // put the cluster name
+        // put the cluster and node name if they aren't set
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
             output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
+        }
+        if (output.get(Node.NODE_NAME_SETTING.getKey()) == null) {
+            // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat
+            output.put(Node.NODE_NAME_SETTING.getKey(), System.getenv("HOSTNAME"));
         }
     }
 }

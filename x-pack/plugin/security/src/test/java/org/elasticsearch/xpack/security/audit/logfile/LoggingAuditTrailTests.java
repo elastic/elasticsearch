@@ -172,7 +172,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.emit_request_body", includeRequestBody)
                 .build();
         localNode = mock(DiscoveryNode.class);
-        when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
+        when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         Mockito.doAnswer((Answer) invocation -> {
@@ -222,8 +222,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testAnonymousAccessDeniedRest() throws Exception {
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200));
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
 
@@ -310,8 +311,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             params.put("foo", "bar");
         }
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final AuthenticationToken mockToken = new MockToken();
@@ -347,8 +349,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             params.put("bar", "baz");
         }
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
 
@@ -411,8 +414,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             params.put("_param", "baz");
         }
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final AuthenticationToken mockToken = new MockToken();
@@ -567,8 +571,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             params.put("_param", "baz");
         }
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         auditTrail.tamperedRequest(request);
@@ -791,8 +796,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             params.put("foo", "bar");
             params.put("evac", "true");
         }
-        final InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", new InetSocketAddress(address, 9200), params);
+        final InetSocketAddress address = new InetSocketAddress(forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+                randomIntBetween(9200, 9300));
+        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final String realm = randomAlphaOfLengthBetween(1, 6);
@@ -1090,12 +1096,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
             checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
-                    .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress.getAddress()));
+                    .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
         } else {
             final TransportAddress address = message.remoteAddress();
             if (address != null) {
                 checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-                        .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address().getAddress()));
+                        .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
             }
         }
     }

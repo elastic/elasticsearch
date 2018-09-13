@@ -625,8 +625,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
             final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
             if (socketAddress != null) {
-                final String formattedAddress = NetworkAddress.format(socketAddress.getAddress());
-                logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME, formattedAddress);
+                logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
             }
             // fall through to local_node default
             return this;
@@ -636,13 +636,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
             final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
             if (restAddress != null) {
-                logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME,
-                        NetworkAddress.format(restAddress.getAddress()));
+                logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             } else {
                 final TransportAddress address = message.remoteAddress();
                 if (address != null) {
-                    logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME,
-                            NetworkAddress.format(address.address().getAddress()));
+                    logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                            .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
                 }
             }
             // fall through to local_node default
@@ -964,19 +964,18 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     commonFields.put(NODE_NAME_FIELD_NAME, nodeName);
                 }
             }
-            if (newLocalNode != null) {
-                if (EMIT_HOST_ADDRESS_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostAddress())) {
-                    commonFields.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
+            if (newLocalNode != null && newLocalNode.getAddress() != null) {
+                if (EMIT_HOST_ADDRESS_SETTING.get(settings)) {
+                    commonFields.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getAddress().getAddress());
                 }
-                if (EMIT_HOST_NAME_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostName())) {
-                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
+                if (EMIT_HOST_NAME_SETTING.get(settings)) {
+                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().address().getHostString());
                 }
+                // the default origin is local
+                commonFields.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getAddress().toString());
             }
             // the default origin is local
             commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
-            if (newLocalNode != null) {
-                commonFields.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
-            }
             this.commonFields = Collections.unmodifiableMap(commonFields);
         }
 

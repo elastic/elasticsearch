@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -221,6 +222,20 @@ public class MLRequestConvertersTests extends ESTestCase {
             DatafeedConfig parsedDatafeed = DatafeedConfig.PARSER.apply(parser, null).build();
             assertThat(parsedDatafeed, equalTo(datafeed));
         }
+    }
+
+    public void testDeleteDatafeed() {
+        String datafeedId = randomAlphaOfLength(10);
+        DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
+
+        Request request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" + datafeedId, request.getEndpoint());
+        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+
+        deleteDatafeedRequest.setForce(true);
+        request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
     }
 
     public void testDeleteForecast() throws Exception {

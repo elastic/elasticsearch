@@ -25,9 +25,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
-import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -129,7 +129,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
+        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
@@ -310,6 +310,22 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig createdDatafeed = response.getResponse();
         assertThat(createdDatafeed.getId(), equalTo(datafeedId));
         assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
+    }
+
+    public void testDeleteDatafeed() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
+
+        AcknowledgedResponse response = execute(new DeleteDatafeedRequest(datafeedId), machineLearningClient::deleteDatafeed,
+                machineLearningClient::deleteDatafeedAsync);
+
+        assertTrue(response.isAcknowledged());
     }
 
     public void testDeleteForecast() throws Exception {

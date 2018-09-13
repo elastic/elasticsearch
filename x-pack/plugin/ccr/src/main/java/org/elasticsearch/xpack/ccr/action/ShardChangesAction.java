@@ -314,10 +314,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                             if (g == UNASSIGNED_SEQ_NO) {
                                 assert e != null;
                                 if (e instanceof TimeoutException) {
-                                    final long mappingVersion =
-                                            clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
-                                    final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
-                                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
+                                    try {
+                                        final long mappingVersion =
+                                                clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
+                                        final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
+                                        listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
+                                    } catch (final Exception caught) {
+                                        listener.onFailure(caught);
+                                    }
                                 } else {
                                     listener.onFailure(e);
                                 }

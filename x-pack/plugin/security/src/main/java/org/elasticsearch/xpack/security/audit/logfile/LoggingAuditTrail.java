@@ -85,6 +85,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String ORIGIN_TYPE_FIELD_NAME = "origin.type";
     public static final String ORIGIN_ADDRESS_FIELD_NAME = "origin.address";
     public static final String NODE_NAME_FIELD_NAME = "node.name";
+    public static final String NODE_ID_FIELD_NAME = "node.id";
     public static final String HOST_ADDRESS_FIELD_NAME = "host.ip";
     public static final String HOST_NAME_FIELD_NAME = "host.name";
     public static final String EVENT_CATEGORY_FIELD_NAME = "event.category";
@@ -113,7 +114,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             .boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"),
             false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true,
+    public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), false,
+            Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_id"), true,
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
@@ -175,8 +178,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // `entryCommonFields` and `includeRequestBody` writes happen-before! `events` is
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS,
-                EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
+        }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
+                INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
@@ -746,6 +749,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         settings.add(EMIT_HOST_ADDRESS_SETTING);
         settings.add(EMIT_HOST_NAME_SETTING);
         settings.add(EMIT_NODE_NAME_SETTING);
+        settings.add(EMIT_NODE_ID_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
@@ -970,6 +974,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 }
                 if (EMIT_HOST_NAME_SETTING.get(settings)) {
                     commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().address().getHostString());
+                }
+                if (EMIT_NODE_ID_SETTING.get(settings)) {
+                    commonFields.put(NODE_ID_FIELD_NAME, newLocalNode.getId());
                 }
                 // the default origin is local
                 commonFields.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getAddress().toString());

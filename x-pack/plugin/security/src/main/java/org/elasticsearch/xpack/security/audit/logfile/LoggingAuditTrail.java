@@ -395,7 +395,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if (isSystem && events.contains(SYSTEM_ACCESS_GRANTED) || isSystem == false && events.contains(ACCESS_GRANTED)) {
+        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {

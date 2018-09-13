@@ -1566,7 +1566,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     private <T> List<T> randomListFromLengthBetween(List<T> l, int min, int max) {
-        assert min >= 0 && min <= max && max <= l.size();
+        assert (min >= 0) && (min <= max) && (max <= l.size());
         final int len = randomIntBetween(min, max);
         final List<T> ans = new ArrayList<>(len);
         while (ans.size() < len) {

@@ -198,15 +198,15 @@ public class Normalizer {
      * @return true if the update is considered "big"
      */
     private static boolean isBigUpdate(double oldVal, double newVal) {
-        if (Math.abs(oldVal - newVal) >= 1.0) {
+        if (Math.abs(oldVal - newVal) >= 2.0) {
             return true;
         }
         if (oldVal > newVal) {
-            if (oldVal * 0.5 > newVal) {
+            if (oldVal * 0.33 > newVal) {
                 return true;
             }
         } else {
-            if (newVal * 0.5 > oldVal) {
+            if (newVal * 0.33 > oldVal) {
                 return true;
             }
         }

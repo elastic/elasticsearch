@@ -100,7 +100,7 @@ public class PublicationTests extends ESTestCase {
 
         Map<DiscoveryNode, ActionListener<PublishWithJoinResponse>> pendingPublications = new HashMap<>();
         Map<DiscoveryNode, ActionListener<TransportResponse.Empty>> pendingCommits = new HashMap<>();
-        Map<DiscoveryNode, PublishWithJoinResponse> possibleJoins = new HashMap<>();
+        Map<DiscoveryNode, Join> possibleJoins = new HashMap<>();
 
         MockPublication(Settings settings, PublishRequest publishRequest, Discovery.AckListener ackListener,
                                LongSupplier currentTimeSupplier) {
@@ -116,8 +116,8 @@ public class PublicationTests extends ESTestCase {
         }
 
         @Override
-        protected void onPossibleJoin(DiscoveryNode sourceNode, PublishWithJoinResponse response) {
-            assertNull(possibleJoins.put(sourceNode, response));
+        protected void onJoin(Join join) {
+            assertNull(possibleJoins.put(join.getSourceNode(), join));
         }
 
         @Override

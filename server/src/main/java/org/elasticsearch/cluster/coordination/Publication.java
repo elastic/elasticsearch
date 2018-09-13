@@ -156,7 +156,7 @@ public abstract class Publication extends AbstractComponent {
 
     protected abstract Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse);
 
-    protected abstract void onPossibleJoin(DiscoveryNode sourceNode, PublishWithJoinResponse response);
+    protected abstract void onJoin(Join join);
 
     protected abstract void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                                ActionListener<PublishWithJoinResponse> responseActionListener);
@@ -287,8 +287,10 @@ public abstract class Publication extends AbstractComponent {
                     return;
                 }
 
-                // TODO: check if we need to pass the full response here or if it's sufficient to just pass the optional join.
-                onPossibleJoin(discoveryNode, response);
+                response.getJoin().ifPresent(join -> {
+                    assert discoveryNode.equals(join.getSourceNode());
+                    onJoin(join);
+                });
 
                 assert state == PublicationTargetState.SENT_PUBLISH_REQUEST : state + " -> " + PublicationTargetState.WAITING_FOR_QUORUM;
                 state = PublicationTargetState.WAITING_FOR_QUORUM;

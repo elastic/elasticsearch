@@ -20,10 +20,12 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.CoordinationStateTests.InMemoryPersistedState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -38,10 +40,14 @@ import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -50,6 +56,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -57,6 +64,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
+import static org.elasticsearch.cluster.coordination.Coordinator.COMMIT_STATE_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_STATE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.empty;
@@ -221,8 +230,91 @@ public class CoordinatorTests extends ESTestCase {
                 AtomicReference<ClusterState> currentState = new AtomicReference<>(getPersistedState().getLastAcceptedState());
                 masterService.setClusterStateSupplier(currentState::get);
                 masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+                    final PublishRequest publishRequest;
+                    try {
+                        publishRequest = coordinator.coordinationState.get().handleClientValue(event.state());
+                    } catch (CoordinationStateRejectedException e) {
+                        publishListener.onFailure(new FailedToCommitClusterStateException("rejected client value", e));
+                        return;
+                    }
+
+                    final Publication publication = new Publication(settings, publishRequest, ackListener,
+                        deterministicTaskQueue::getCurrentTimeMillis) {
+
+                        @Override
+                        protected void onCompletion(boolean committed) {
+                            if (committed) {
+                                publishListener.onResponse(null);
+                            } else {
+                                publishListener.onFailure(new FailedToCommitClusterStateException("not committed"));
+                            }
+                        }
+
+                        @Override
+                        protected boolean isPublishQuorum(VoteCollection votes) {
+                            return coordinator.coordinationState.get().isPublishQuorum(votes);
+                        }
+
+                        @Override
+                        protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode,
+                                                                                     PublishResponse publishResponse) {
+                            return coordinator.coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+                        }
+
+                        @Override
+                        protected void onJoin(Join join) {
+                            coordinator.handleJoin(join);
+                        }
+
+                        @Override
+                        protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
+                                                          ActionListener<PublishWithJoinResponse> responseActionListener) {
+                            transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, publishRequest,
+
+                                new TransportResponseHandler<PublishWithJoinResponse>() {
+
+                                    @Override
+                                    public void handleResponse(PublishWithJoinResponse response) {
+                                        responseActionListener.onResponse(response);
+                                    }
+
+                                    @Override
+                                    public void handleException(TransportException exp) {
+                                        responseActionListener.onFailure(exp);
+                                    }
+
+                                    @Override
+                                    public String executor() {
+                                        return Names.GENERIC;
+                                    }
+                                });
+                        }
+
+                        @Override
+                        protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
+                                                       ActionListener<Empty> responseActionListener) {
+                            transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommit,
+
+                                new TransportResponseHandler<Empty>() {
+
+                                    @Override
+                                    public void handleResponse(Empty response) {
+                                        responseActionListener.onResponse(response);
+                                    }
+
+                                    @Override
+                                    public void handleException(TransportException exp) {
+                                        responseActionListener.onFailure(exp);
+                                    }
+
+                                    @Override
+                                    public String executor() {
+                                        return Names.GENERIC;
+                                    }
+                                });
+                        }
+                    };
                     currentState.set(event.state());
-                    publishListener.onResponse(null);
                 });
                 masterService.start();
 

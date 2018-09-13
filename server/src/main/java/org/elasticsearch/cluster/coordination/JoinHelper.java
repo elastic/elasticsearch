@@ -246,7 +246,8 @@ public class JoinHelper extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "CandidateJoinAccumulator{" + joinRequestAccumulator.keySet() + '}';
+            return "CandidateJoinAccumulator{" + joinRequestAccumulator.keySet() +
+                ", closed=" + closed + '}';
         }
     }
 }

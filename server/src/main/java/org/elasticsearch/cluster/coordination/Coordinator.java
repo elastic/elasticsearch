@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
@@ -52,6 +53,8 @@ import java.util.function.Supplier;
 public class Coordinator extends AbstractLifecycleComponent {
 
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/start_join";
+    public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/publish_state";
+    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/commit_state";
 
     private final TransportService transportService;
     private final JoinHelper joinHelper;
@@ -60,6 +63,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
+    private Optional<ClusterState> lastCommittedState = Optional.empty();
 
     private final PeerFinder peerFinder;
     private final PreVoteCollector preVoteCollector;
@@ -99,6 +103,53 @@ public class Coordinator extends AbstractLifecycleComponent {
                 handleStartJoinRequest(request);
                 channel.sendResponse(Empty.INSTANCE);
             });
+
+        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, Names.GENERIC, false, false,
+            in -> new PublishRequest(in, transportService.getLocalNode()),
+            (request, channel, task) -> channel.sendResponse(handlePublishRequest(request)));
+
+
+        transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, Names.GENERIC, false, false,
+            ApplyCommitRequest::new,
+            (request, channel, task) -> {
+                handleApplyCommit(request);
+                channel.sendResponse(Empty.INSTANCE);
+            });
+    }
+
+    private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {
+        synchronized (mutex) {
+            logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
+
+            coordinationState.get().handleCommit(applyCommitRequest);
+            lastCommittedState = Optional.of(coordinationState.get().getLastAcceptedState());
+        }
+    }
+
+    private PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        synchronized (mutex) {
+            final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
+            logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
+            ensureTermAtLeast(sourceNode, publishRequest.getAcceptedState().term());
+            final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
+
+            if (sourceNode.equals(getLocalNode()) == false) {
+                becomeFollower("handlePublishRequest", sourceNode);
+            }
+
+            return new PublishWithJoinResponse(publishResponse,
+                joinWithDestination(lastJoin, sourceNode, publishRequest.getAcceptedState().term()));
+        }
+    }
+
+    private static Optional<Join> joinWithDestination(Optional<Join> lastJoin, DiscoveryNode leader, long term) {
+        if (lastJoin.isPresent()
+            && lastJoin.get().getTargetNode().getId().equals(leader.getId())
+            && lastJoin.get().getTerm() == term) {
+            return lastJoin;
+        }
+
+        return Optional.empty();
     }
 
     protected TransportAddressConnector getTransportAddressConnector() {
@@ -195,7 +246,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
-        logger.trace("handleJoin: as {}, handling {}", mode, joinRequest);
+        logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
         connectToNode(joinRequest.getSourceNode());
 
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
@@ -203,29 +254,11 @@ public class Coordinator extends AbstractLifecycleComponent {
             final CoordinationState coordState = coordinationState.get();
             final boolean prevElectionWon = coordState.electionWon();
 
-            if (optionalJoin.isPresent()) {
-                Join join = optionalJoin.get();
-                // if someone thinks we should be master, let's add our vote and try to become one
-                // note that the following line should never throw an exception
-                ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(coordState::handleJoin);
-
-                if (coordState.electionWon()) {
-                    // if we have already won the election then the actual join does not matter for election purposes,
-                    // so swallow any exception
-                    try {
-                        coordState.handleJoin(join);
-                    } catch (CoordinationStateRejectedException e) {
-                        logger.trace("failed to add join, ignoring", e);
-                    }
-                } else {
-                    coordState.handleJoin(join); // this might fail and bubble up the exception
-                }
-            }
-
+            optionalJoin.ifPresent(this::handleJoin);
             joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinCallback);
 
             if (prevElectionWon == false && coordState.electionWon()) {
-                becomeLeader("handleJoin");
+                becomeLeader("handleJoinRequest");
             }
         }
     }
@@ -354,6 +387,25 @@ public class Coordinator extends AbstractLifecycleComponent {
     // for tests
     boolean hasJoinVoteFrom(DiscoveryNode localNode) {
         return coordinationState.get().containsJoinVote(localNode);
+    }
+
+    public void handleJoin(Join join) {
+        synchronized (mutex) {
+            ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
+
+            if (coordinationState.get().electionWon()) {
+                // if we have already won the election then the actual join does not matter for election purposes,
+                // so swallow any exception
+                try {
+                    coordinationState.get().handleJoin(join);
+                } catch (CoordinationStateRejectedException e) {
+                    logger.debug("failed to add join, ignoring", e);
+                }
+            } else {
+                coordinationState.get().handleJoin(join); // this might fail and bubble up the exception
+            }
+
+        }
     }
 
     public enum Mode {

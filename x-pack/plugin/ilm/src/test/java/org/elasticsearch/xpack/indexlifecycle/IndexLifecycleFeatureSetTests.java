@@ -115,7 +115,7 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
 
     private ClusterState buildClusterState(List<LifecyclePolicy> lifecyclePolicies) {
         Map<String, LifecyclePolicyMetadata> lifecyclePolicyMetadatasMap = lifecyclePolicies.stream()
-                .map(p -> new LifecyclePolicyMetadata(p, Collections.emptyMap()))
+                .map(p -> new LifecyclePolicyMetadata(p, Collections.emptyMap(), 1, 0L))
                 .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 

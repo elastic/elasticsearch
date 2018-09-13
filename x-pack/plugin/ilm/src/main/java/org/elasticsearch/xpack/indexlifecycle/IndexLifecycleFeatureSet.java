@@ -69,7 +69,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
             List<PolicyStats> policyStats = lifecycleMetadata.getPolicies().values().stream().map(policy -> {
                 Map<String, PhaseStats> phaseStats = policy.getPhases().values().stream().map(phase -> {
                     String[] actionNames = phase.getActions().keySet().toArray(new String[phase.getActions().size()]);
-                    return new Tuple<String, PhaseStats>(phase.getName(), new PhaseStats(phase.getAfter(), actionNames));
+                    return new Tuple<String, PhaseStats>(phase.getName(), new PhaseStats(phase.getMinimumAge(), actionNames));
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new PolicyStats(phaseStats);
             }).collect(Collectors.toList());

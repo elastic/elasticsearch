@@ -150,7 +150,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Phase.AFTER_FIELD.getPreferredName(), after.getStringRep());
+            builder.field(Phase.MINIMUM_AGE.getPreferredName(), after.getStringRep());
             builder.field(Phase.ACTIONS_FIELD.getPreferredName(), actionNames);
             builder.endObject();
             return builder;

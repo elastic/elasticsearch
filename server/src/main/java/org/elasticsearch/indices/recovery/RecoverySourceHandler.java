@@ -201,6 +201,8 @@ public class RecoverySourceHandler {
             runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()),
                 shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
 
+            // DISCUSS: Is it possible to have an operation gets delivered via recovery first, then delivered via replication?
+            // If this is the case, we need to propagate the max_timestamp of all append-only, not only retry requests.
             final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
             /*
              * We need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
@@ -551,8 +553,8 @@ public class RecoverySourceHandler {
             logger.trace("no translog operations to send");
         }
 
-        final CancellableThreads.IOInterruptable sendBatch =
-                () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
+        final CancellableThreads.IOInterruptable sendBatch = () ->
+            targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps, shard.getMaxAutoIdTimestamp()));
 
         // send operations in batches
         Translog.Operation operation;

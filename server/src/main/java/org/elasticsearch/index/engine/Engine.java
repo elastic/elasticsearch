@@ -1690,6 +1690,17 @@ public abstract class Engine implements Closeable {
      */
     public abstract void maybePruneDeletes();
 
+    /**
+     * Returns the maximum auto-generated timestamp of append-only requests has been processed by this engine.
+     */
+    public abstract long getMaxAutoIdTimestamp();
+
+    /**
+     * Sets the maximum auto-generated timestamp of append-only requests tracked by this engine to {@code newTimestamp}.
+     * The update only takes effect if the current timestamp is smaller the new given parameter.
+     */
+    public abstract void updateMaxAutoIdTimestamp(long newTimestamp);
+
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;

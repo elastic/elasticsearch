@@ -455,7 +455,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
-                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
+                    recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(), request.maxAutoIdTimestamp());
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node

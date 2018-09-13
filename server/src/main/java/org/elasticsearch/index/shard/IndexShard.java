@@ -1244,6 +1244,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().trimOperationsFromTranslog(operationPrimaryTerm, aboveSeqNo);
     }
 
+    /**
+     * Sets the maximum auto-generated timestamp of append-only requests tracked by this shard to {@code newTimestamp}.
+     * The update only takes effect if the current timestamp is smaller the new given parameter.
+     */
+    public void updateMaxAutoIdTimestamp(long newTimestamp) {
+        getEngine().updateMaxAutoIdTimestamp(newTimestamp);
+    }
+
+    /**
+     * Returns the maximum auto-generated timestamp of append-only requests has been processed by this shard.
+     */
+    public long getMaxAutoIdTimestamp() {
+        return getEngine().getMaxAutoIdTimestamp();
+    }
+
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {
         // If a translog op is replayed on the primary (eg. ccr), we need to use external instead of null for its version type.
         final VersionType versionType = (origin == Engine.Operation.Origin.PRIMARY) ? VersionType.EXTERNAL : null;

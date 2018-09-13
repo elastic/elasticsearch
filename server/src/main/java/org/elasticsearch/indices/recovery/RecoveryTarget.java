@@ -386,13 +386,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                        long maxAutoIdTimestamp) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
+        indexShard().updateMaxAutoIdTimestamp(maxAutoIdTimestamp);
         for (Translog.Operation operation : operations) {
             Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {

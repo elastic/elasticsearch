@@ -279,7 +279,7 @@ public class CoordinatorTests extends ESTestCase {
                                         };
 
                                         try {
-                                            requestHandler.processMessageReceived(request, transportChannel);
+                                            processMessageReceived(request, requestHandler, transportChannel);
                                         } catch (Exception e) {
                                             deterministicTaskQueue.scheduleNow(new Runnable() {
                                                 @Override
@@ -480,5 +480,11 @@ public class CoordinatorTests extends ESTestCase {
             clusterNodes.forEach(n -> unicastHosts.add(n.getLocalNode().getAddress()));
             return unmodifiableList(unicastHosts);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void processMessageReceived(TransportRequest request, RequestHandlerRegistry requestHandler,
+                                               TransportChannel transportChannel) throws Exception {
+        requestHandler.processMessageReceived(request, transportChannel);
     }
 }

@@ -47,6 +47,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -136,6 +137,7 @@ public class NodeJoinTests extends ESTestCase {
         this.masterService = masterService;
         TransportService transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(initialState.nodes().getLocalNode());
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<TransportRequestHandler<JoinRequest>> joinRequestHandler = ArgumentCaptor.forClass(
             (Class) TransportRequestHandler.class);

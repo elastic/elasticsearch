@@ -40,3 +40,16 @@ will be removed in the future, thus requiring HTTP to always be enabled.
 This setting has been removed, as disabling http pipelining support on the server
 provided little value. The setting `http.pipelining.max_events` can still be used to
 limit the number of pipelined requests in-flight.
+
+==== Cross-cluster search settings renamed
+
+The cross-cluster search remote cluster connection infrastructure is also used
+in cross-cluster replication. This means that the setting names
+`search.remote.*` used for configuring cross-cluster search belie the fact that
+they also apply to other situations where a connection to a remote cluster as
+used.  Therefore, these settings have been renamed from `search.remote.*` to
+`cluster.remote.*`. For backwards compatibility purposes, we will fallback to
+`search.remote.*` if `cluster.remote.*` is not set. For any such settings stored
+in the cluster state, or set on dynamic settings updates, we will automatically
+upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
+settings will be removed in 8.0.0.

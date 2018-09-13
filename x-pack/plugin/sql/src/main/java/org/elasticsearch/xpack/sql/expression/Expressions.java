@@ -99,7 +99,7 @@ public abstract class Expressions {
             return ((NamedExpression) e).toAttribute();
         }
         if (e != null && e.foldable()) {
-            return new LiteralAttribute(Literal.of(e));
+            return Literal.of(e).toAttribute();
         }
         return null;
     }

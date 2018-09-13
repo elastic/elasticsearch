@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
@@ -33,7 +34,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -53,7 +53,8 @@ public class GlobalCheckpointListeners implements Closeable {
          * Callback when the global checkpoint is updated or the shard is closed. If the shard is closed, the value of the global checkpoint
          * will be set to {@link org.elasticsearch.index.seqno.SequenceNumbers#UNASSIGNED_SEQ_NO} and the exception will be non-null and an
          * instance of {@link IndexShardClosedException }. If the listener timed out waiting for notification then the exception will be
-         * non-null and an instance of {@link TimeoutException}. If the global checkpoint is updated, the exception will be null.
+         * non-null and an instance of {@link ElasticsearchTimeoutException}. If the global checkpoint is updated, the exception will be
+         * null.
          *
          * @param globalCheckpoint the updated global checkpoint
          * @param e                if non-null, the shard is closed or the listener timed out
@@ -96,8 +97,8 @@ public class GlobalCheckpointListeners implements Closeable {
      * shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
      * checkpoint listeners. The listener will only be notified of at most one event, either the global checkpoint is updated or the shard
      * is closed. A listener must re-register after one of these events to receive subsequent events. Callers may add a timeout to be
-     * notified after if the timeout elapses. In this case, the listener will be notified with a {@link TimeoutException}. Passing null for
-     * the timeout means no timeout will be associated to the listener.
+     * notified after if the timeout elapses. In this case, the listener will be notified with a {@link ElasticsearchTimeoutException}.
+     * Passing null for the timeout means no timeout will be associated to the listener.
      *
      * @param currentGlobalCheckpoint the current global checkpoint known to the listener
      * @param listener                the listener
@@ -140,7 +141,7 @@ public class GlobalCheckpointListeners implements Closeable {
                                         removed = listeners != null && listeners.remove(listener) != null;
                                     }
                                     if (removed) {
-                                        final TimeoutException e = new TimeoutException(timeout.getStringRep());
+                                        final ElasticsearchTimeoutException e = new ElasticsearchTimeoutException(timeout.getStringRep());
                                         logger.trace("global checkpoint listener timed out", e);
                                         executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, e));
                                     }
@@ -225,7 +226,7 @@ public class GlobalCheckpointListeners implements Closeable {
             } else if (e instanceof IndexShardClosedException) {
                 logger.warn("error notifying global checkpoint listener of closed shard", caught);
             } else {
-                assert e instanceof TimeoutException : e;
+                assert e instanceof ElasticsearchTimeoutException : e;
                 logger.warn("error notifying global checkpoint listener of timeout", caught);
             }
         }

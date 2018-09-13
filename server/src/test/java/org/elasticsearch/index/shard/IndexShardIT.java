@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -89,7 +90,6 @@ import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -798,7 +798,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                         notified.set(true);
                         assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
                         assertNotNull(e);
-                        assertThat(e, instanceOf(TimeoutException.class));
+                        assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
                         assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
                     } finally {
                         latch.countDown();

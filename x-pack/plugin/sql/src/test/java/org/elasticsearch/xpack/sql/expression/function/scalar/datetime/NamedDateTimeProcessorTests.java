@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
@@ -14,6 +15,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.TimeZone;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33621")
 public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase<NamedDateTimeProcessor> {
     private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 

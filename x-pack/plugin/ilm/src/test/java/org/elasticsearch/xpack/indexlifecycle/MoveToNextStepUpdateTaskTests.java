@@ -47,7 +47,8 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         index = indexMetadata.getIndex();
         lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(
-            Collections.singletonMap(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap())),
+            Collections.singletonMap(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(),
+                randomNonNegativeLong(), randomNonNegativeLong())),
             OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())

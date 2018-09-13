@@ -109,6 +109,7 @@ public class LocalCheckpointTracker {
      * @param checkpoint the local checkpoint to reset this tracker to
      */
     public synchronized void resetCheckpoint(final long checkpoint) {
+        // TODO: remove this method as after we restore the local history on promotion.
         assert checkpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
         assert checkpoint <= this.checkpoint;
         processedSeqNo.clear();

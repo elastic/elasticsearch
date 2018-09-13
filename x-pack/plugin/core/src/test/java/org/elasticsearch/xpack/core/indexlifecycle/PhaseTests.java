@@ -69,7 +69,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     @Override
     protected Phase mutateInstance(Phase instance) throws IOException {
         String name = instance.getName();
-        TimeValue after = instance.getAfter();
+        TimeValue after = instance.getMinimumAge();
         Map<String, LifecycleAction> actions = instance.getActions();
         switch (between(0, 2)) {
         case 0:
@@ -90,6 +90,6 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     public void testDefaultAfter() {
         Phase phase = new Phase(randomAlphaOfLength(20), null, Collections.emptyMap());
-        assertEquals(TimeValue.ZERO, phase.getAfter());
+        assertEquals(TimeValue.ZERO, phase.getMinimumAge());
     }
 }

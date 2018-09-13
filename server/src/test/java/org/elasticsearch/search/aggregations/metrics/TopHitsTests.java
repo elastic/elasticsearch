@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;

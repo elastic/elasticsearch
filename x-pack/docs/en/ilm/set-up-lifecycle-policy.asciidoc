@@ -20,7 +20,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "after": "30d",
+        "minimum_age": "30d",
         "actions": {
           "delete": {} <2>
         }

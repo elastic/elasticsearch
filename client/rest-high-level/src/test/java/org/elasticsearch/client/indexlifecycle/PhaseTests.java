@@ -71,6 +71,6 @@ public class PhaseTests extends AbstractXContentTestCase<Phase> {
 
     public void testDefaultAfter() {
         Phase phase = new Phase(randomAlphaOfLength(20), null, Collections.emptyMap());
-        assertEquals(TimeValue.ZERO, phase.getAfter());
+        assertEquals(TimeValue.ZERO, phase.getMinimumAge());
     }
 }

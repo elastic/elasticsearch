@@ -295,8 +295,9 @@ as _properties_ within Windows Installer documentation) that can be passed to `m
 
 `SKIPSETTINGPASSWORDS`::
 
-  When installing with a `Trial` license and X-Pack Security enabled, whether the
-  installation should skip setting up the built-in users `elastic`, `kibana` and `logstash_system`.
+  When installing with a `Trial` license and {security} enabled, whether the
+  installation should skip setting up the built-in users `elastic`, `kibana`, 
+  `logstash_system`, `apm_system`, and `beats_system`.
   Defaults to `false`
 
 `ELASTICUSERPASSWORD`::

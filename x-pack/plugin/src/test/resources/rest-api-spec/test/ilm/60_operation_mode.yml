@@ -13,13 +13,13 @@ setup:
   - do:
       acknowlege: true
       ilm.put_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
         body: |
            {
              "policy": {
                "phases": {
                  "warm": {
-                   "after": "10s",
+                   "minimum_age": "10s",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -27,7 +27,7 @@ setup:
                    }
                  },
                  "delete": {
-                   "after": "30s",
+                   "minimum_age": "30s",
                    "actions": {
                      "delete": {}
                    }
@@ -59,9 +59,9 @@ setup:
   - do:
       acknowledge: true
       ilm.delete_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"
 
   - do:
       catch: missing
       ilm.get_lifecycle:
-        lifecycle: "my_timeseries_lifecycle"
+        policy: "my_timeseries_lifecycle"

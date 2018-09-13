@@ -66,6 +66,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         Step currentStep = startStep;
         IndexMetaData indexMetaData = currentState.metaData().index(index);
         if (indexMetaData == null) {
+            logger.debug("lifecycle for index [{}] executed but index no longer exists", index.getName());
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState;
         }

@@ -32,6 +32,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
@@ -72,7 +73,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost)
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
                 throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
@@ -414,7 +415,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
         Query query = new MatchAllDocsQuery();
-        final DummyWeight weight = new DummyWeight(s.createNormalizedWeight(query, false));
+        final DummyWeight weight = new DummyWeight(s.createWeight(s.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f));
         final Weight cached = cache.doCache(weight, s.getQueryCachingPolicy());
         assertNotSame(weight, cached);
         assertFalse(weight.scorerCalled);

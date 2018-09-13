@@ -176,6 +176,7 @@ class org.elasticsearch.painless.FeatureTest no_import {
 }
 
 # for testing
-static {
+static_import {
+  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
   int testAddWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingTest
 }

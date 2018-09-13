@@ -36,6 +36,12 @@ public class XPackSettings {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
 
+
+    /**
+     * Setting for controlling whether or not CCR is enabled.
+     */
+    public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
+
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 

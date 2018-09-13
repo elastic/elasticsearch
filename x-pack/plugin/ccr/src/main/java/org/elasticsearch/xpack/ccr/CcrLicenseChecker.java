@@ -54,7 +54,7 @@ public final class CcrLicenseChecker {
      *
      * @param isCcrAllowed a boolean supplier that should return true if CCR is allowed and false otherwise
      */
-    CcrLicenseChecker(final BooleanSupplier isCcrAllowed) {
+    public CcrLicenseChecker(final BooleanSupplier isCcrAllowed) {
         this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed);
     }
 

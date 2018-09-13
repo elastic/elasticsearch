@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -54,7 +54,7 @@ import java.util.Objects;
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DocValueFieldsFetchSubPhase.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
@@ -77,7 +77,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         hits = hits.clone(); // don't modify the incoming hits
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
-        boolean usesDefaultFormat = false;
+        if (context.docValueFieldsContext().fields().stream()
+                .map(f -> f.format)
+                .filter(USE_DEFAULT_FORMAT::equals)
+                .findAny()
+                .isPresent()) {
+            DEPRECATION_LOGGER.deprecated("[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
+                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
+        }
+
         for (FieldAndFormat fieldAndFormat : context.docValueFieldsContext().fields()) {
             String field = fieldAndFormat.field;
             MappedFieldType fieldType = context.mapperService().fullName(field);
@@ -86,7 +94,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 String formatDesc = fieldAndFormat.format;
                 if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
                     // TODO: Remove in 8.x
-                    usesDefaultFormat = true;
                     formatDesc = null;
                 }
                 final DocValueFormat format = fieldType.docValueFormat(formatDesc, null);
@@ -145,10 +152,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     }
                 }
             }
-        }
-        if (usesDefaultFormat) {
-            DEPRECATION_LOGGER.deprecated("[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
-                    "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");
         }
     }
 }

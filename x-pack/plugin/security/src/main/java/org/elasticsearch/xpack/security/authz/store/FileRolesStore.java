@@ -21,13 +21,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.Security;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -119,7 +119,7 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     public static Path resolveFile(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, "roles.yml");
+        return Security.resolveConfigFile(env, "roles.yml");
     }
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {

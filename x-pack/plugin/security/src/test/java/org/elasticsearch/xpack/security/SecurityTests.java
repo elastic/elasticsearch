@@ -49,6 +49,10 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -454,5 +458,47 @@ public class SecurityTests extends ESTestCase {
             assertWarnings("[indices.admin.filtered_fields] setting was deprecated in Elasticsearch and will be removed in a " +
                     "future release! See the breaking changes documentation for the next major version.");
         }
+    }
+
+    public void testIsDefaultFileCheck() throws Exception {
+        Path homeDir = createTempDir();
+        Path configDir = homeDir.resolve("config");
+        Path xPackConfigDir = configDir.resolve("x-pack");
+        Environment environment = new Environment(Settings.builder().put("path.home", homeDir).build(), configDir);
+
+        List<String> defaultFiles = Arrays.asList("roles.yml", "role_mapping.yml", "users", "users_roles");
+        Files.createDirectories(xPackConfigDir);
+
+        for (String defaultFileName : defaultFiles) {
+            logger.info("testing default file: {}", defaultFileName);
+            Path defaultFile = getDataPath("/" + defaultFileName);
+            final List<String> defaultLines = Files.readAllLines(defaultFile);
+            final Path defaultFileConfigPath = configDir.resolve(defaultFileName);
+            Path resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            Files.write(defaultFileConfigPath, defaultLines);
+            assertTrue(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+
+            // put a file in x-pack dir
+            final Path xPackFilePath = xPackConfigDir.resolve(defaultFileName);
+            Files.write(xPackFilePath, Collections.singletonList(randomAlphaOfLength(8)));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(xPackFilePath, resolvedPath);
+            assertWarnings("Config file [" + defaultFileName + "] is in a deprecated location. Move from " + xPackFilePath + " to " +
+                defaultFileConfigPath);
+
+            // modify file in new location
+            Files.write(defaultFileConfigPath, Collections.singletonList(randomAlphaOfLength(8)),
+                randomBoolean() ? StandardOpenOption.TRUNCATE_EXISTING : StandardOpenOption.APPEND);
+
+            assertFalse(Security.isDefaultFile(defaultFileName, defaultFileConfigPath));
+            resolvedPath = Security.resolveConfigFile(environment, defaultFileName);
+            assertEquals(defaultFileConfigPath, resolvedPath);
+        }
+
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -26,9 +27,10 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -49,6 +51,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -221,7 +224,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -253,7 +259,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin, DiscoveryPlugin, MapperPlugin,
         ExtensiblePlugin {
 
-    private static final Logger logger = Loggers.getLogger(Security.class);
+    private static final Logger logger = LogManager.getLogger(Security.class);
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String NAME4 = XPackField.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING =
@@ -1166,5 +1173,37 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public void reloadSPI(ClassLoader loader) {
         securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
+    }
+
+    public static Path resolveConfigFile(Environment env, String name) {
+        Path config =  env.configFile().resolve(name);
+        if (Files.exists(config) == false || isDefaultFile(name, config)) {
+            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            if (Files.exists(legacyConfig)) {
+                deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                    legacyConfig.toString() + " to " + config.toString());
+                return legacyConfig;
+            }
+        }
+        return config;
+    }
+
+    static boolean isDefaultFile(String name, Path file) {
+        InputStream in = null;
+        try {
+            in = XPackPlugin.class.getResourceAsStream("/" + name);
+            if (in != null) {
+                List<String> defaultLines = Streams.readAllLines(in);
+                List<String> expectedLines = Files.readAllLines(file);
+                return defaultLines.equals(expectedLines);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            if (in != null) {
+                IOUtils.closeWhileHandlingException(in);
+            }
+        }
+        return false;
     }
 }

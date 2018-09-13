@@ -137,6 +137,11 @@ artifacts {
     archives jar
     testArtifacts testJar
 }
+
+sourceSets.main.resources {
+    srcDir 'src/main/config'
+}
+
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
 }

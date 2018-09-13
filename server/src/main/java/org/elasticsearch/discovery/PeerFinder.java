@@ -257,7 +257,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
             @Override
             public String toString() {
-                return "PeerFinder::handleWakeUp";
+                return "PeerFinder handling wakeup";
             }
         });
 

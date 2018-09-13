@@ -182,47 +182,86 @@ public class CoordinatorTests extends ESTestCase {
                         assert destination.equals(localNode) == false : "non-local message from " + localNode + " to itself";
                         super.onSendRequest(requestId, action, request, destination);
 
-                        deterministicTaskQueue.scheduleNow(() ->
-                            clusterNodes.stream().filter(d -> d.getLocalNode().equals(destination)).findAny().ifPresent(
-                                destinationNode -> {
+                        deterministicTaskQueue.scheduleNow(new Runnable() {
+                            @Override
+                            public String toString() {
+                                return "delivery of " + request;
+                            }
 
-                                    final RequestHandlerRegistry requestHandler
-                                        = destinationNode.capturingTransport.getRequestHandler(action);
+                            @Override
+                            public void run() {
+                                clusterNodes.stream().filter(d -> d.getLocalNode().equals(destination)).findAny().ifPresent(
+                                    destinationNode -> {
 
-                                    final TransportChannel transportChannel = new TransportChannel() {
-                                        @Override
-                                        public String getProfileName() {
-                                            return "default";
+                                        final RequestHandlerRegistry requestHandler
+                                            = destinationNode.capturingTransport.getRequestHandler(action);
+
+                                        final TransportChannel transportChannel = new TransportChannel() {
+                                            @Override
+                                            public String getProfileName() {
+                                                return "default";
+                                            }
+
+                                            @Override
+                                            public String getChannelType() {
+                                                return "coordinator-test-channel";
+                                            }
+
+                                            @Override
+                                            public void sendResponse(final TransportResponse response) {
+                                                deterministicTaskQueue.scheduleNow(new Runnable() {
+                                                    @Override
+                                                    public String toString() {
+                                                        return "delivery of response " + response + " to " + request;
+                                                    }
+
+                                                    @Override
+                                                    public void run() {
+                                                        handleResponse(requestId, response);
+                                                    }
+                                                });
+                                            }
+
+                                            @Override
+                                            public void sendResponse(TransportResponse response, TransportResponseOptions options) {
+                                                sendResponse(response);
+                                            }
+
+                                            @Override
+                                            public void sendResponse(Exception exception) {
+                                                deterministicTaskQueue.scheduleNow(new Runnable() {
+                                                    @Override
+                                                    public String toString() {
+                                                        return "delivery of error response " + exception.getMessage() + " to " + request;
+                                                    }
+
+                                                    @Override
+                                                    public void run() {
+                                                        handleRemoteError(requestId, exception);
+                                                    }
+                                                });
+                                            }
+                                        };
+
+                                        try {
+                                            requestHandler.processMessageReceived(request, transportChannel);
+                                        } catch (Exception e) {
+                                            deterministicTaskQueue.scheduleNow(new Runnable() {
+                                                @Override
+                                                public String toString() {
+                                                    return "delivery of processing error response " + e.getMessage() + " to " + request;
+                                                }
+
+                                                @Override
+                                                public void run() {
+                                                    handleRemoteError(requestId, e);
+                                                }
+                                            });
                                         }
-
-                                        @Override
-                                        public String getChannelType() {
-                                            return "coordinator-test-channel";
-                                        }
-
-                                        @Override
-                                        public void sendResponse(final TransportResponse response) {
-                                            deterministicTaskQueue.scheduleNow(() -> handleResponse(requestId, response));
-                                        }
-
-                                        @Override
-                                        public void sendResponse(TransportResponse response, TransportResponseOptions options) {
-                                            sendResponse(response);
-                                        }
-
-                                        @Override
-                                        public void sendResponse(Exception exception) {
-                                            deterministicTaskQueue.scheduleNow(() -> handleRemoteError(requestId, exception));
-                                        }
-                                    };
-
-                                    try {
-                                        requestHandler.processMessageReceived(request, transportChannel);
-                                    } catch (Exception e) {
-                                        deterministicTaskQueue.scheduleNow(() -> handleRemoteError(requestId, e));
                                     }
-                                }
-                            ));
+                                );
+                            }
+                        });
                     }
                 };
 
@@ -331,12 +370,31 @@ public class CoordinatorTests extends ESTestCase {
                         return (transportAddress, listener) -> {
                             for (final ClusterNode clusterNode : clusterNodes) {
                                 if (clusterNode.getLocalNode().getAddress().equals(transportAddress)) {
-                                    deterministicTaskQueue.scheduleNow(() -> listener.onResponse(clusterNode.getLocalNode()));
+                                    deterministicTaskQueue.scheduleNow(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            listener.onResponse(clusterNode.getLocalNode());
+                                        }
+
+                                        @Override
+                                        public String toString() {
+                                            return "TransportAddressConnector connecting to " + clusterNode.getId();
+                                        }
+                                    });
                                     return;
                                 }
                             }
-                            deterministicTaskQueue.scheduleNow(() ->
-                                listener.onFailure(new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes)));
+                            deterministicTaskQueue.scheduleNow(new Runnable() {
+                                @Override
+                                public void run() {
+                                    listener.onFailure(new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes));
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "TransportAddressConnector failing to connect to " + transportAddress;
+                                }
+                            });
                         };
                     }
 

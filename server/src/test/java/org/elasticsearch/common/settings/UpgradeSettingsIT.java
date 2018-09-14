@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -120,6 +121,39 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
         assertFalse(UpgradeSettingsPlugin.oldSetting.exists(settingsFunction.apply(response.getState().metaData())));
         assertTrue(UpgradeSettingsPlugin.newSetting.exists(settingsFunction.apply(response.getState().metaData())));
         assertThat(UpgradeSettingsPlugin.newSetting.get(settingsFunction.apply(response.getState().metaData())), equalTo("new." + value));
+    }
+
+    public void testUpgradeRemoteClusterSettings() {
+        final boolean skipUnavailable = randomBoolean();
+        client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                        Settings.builder()
+                            .put("search.remote.foo.skip_unavailable", skipUnavailable)
+                            .putList("search.remote.foo.seeds", Collections.singletonList("localhost:9200"))
+                            .put("search.remote.foo.proxy", "localhost:9200")
+                            .build())
+                .get();
+
+        final ClusterStateResponse response = client().admin().cluster().prepareState().clear().setMetaData(true).get();
+
+        final Settings settings = response.getState().metaData().persistentSettings();
+        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
+        assertTrue(RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
+        assertThat(
+                RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").get(settings),
+                equalTo(skipUnavailable));
+        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+        assertTrue(RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+        assertThat(
+                RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
+                equalTo(Collections.singletonList("localhost:9200")));
+        assertFalse(RemoteClusterService.SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+        assertTrue(RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").exists(settings));
+        assertThat(
+                RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("foo").get(settings), equalTo("localhost:9200"));
     }
 
 }

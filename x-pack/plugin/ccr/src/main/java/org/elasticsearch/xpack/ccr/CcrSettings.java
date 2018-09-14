@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.List;
@@ -21,11 +22,6 @@ public final class CcrSettings {
     private CcrSettings() {
 
     }
-
-    /**
-     * Setting for controlling whether or not CCR is enabled.
-     */
-    static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
     /**
      * Index setting for a following index.
@@ -46,7 +42,7 @@ public final class CcrSettings {
      */
     static List<Setting<?>> getSettings() {
         return Arrays.asList(
-                CCR_ENABLED_SETTING,
+                XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,
                 CCR_AUTO_FOLLOW_POLL_INTERVAL);
     }

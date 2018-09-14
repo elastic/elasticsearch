@@ -160,7 +160,7 @@ public class GlobalCheckpointListeners implements Closeable {
      * @return the number of listeners pending notification
      */
     synchronized int pendingListeners() {
-        return listeners == null ? 0 : listeners.size();
+        return listeners.size();
     }
 
     /**

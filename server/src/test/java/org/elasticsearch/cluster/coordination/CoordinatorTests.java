@@ -133,7 +133,11 @@ public class CoordinatorTests extends ESTestCase {
             while (deterministicTaskQueue.getCurrentTimeMillis() < stabilisationStartTime + DEFAULT_STABILISATION_TIME) {
 
                 while (deterministicTaskQueue.hasRunnableTasks()) {
-                    deterministicTaskQueue.runRandomTask(random());
+                    try {
+                        deterministicTaskQueue.runRandomTask(random());
+                    } catch (CoordinationStateRejectedException e) {
+                        logger.debug("ignoring benign exception thrown when stabilising", e);
+                    }
                     for (final ClusterNode clusterNode : clusterNodes) {
                         clusterNode.coordinator.invariant();
                     }

@@ -165,7 +165,7 @@ public abstract class PeerFinder extends AbstractComponent {
      */
     protected abstract void onFoundPeersUpdated();
 
-    // only for assertions
+    // only for assertions, but accessed from separate package o.e.c.coordination so needs to be public
     public boolean isActive() {
         return active;
     }

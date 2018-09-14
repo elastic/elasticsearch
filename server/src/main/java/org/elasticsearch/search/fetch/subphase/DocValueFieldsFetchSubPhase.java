@@ -54,7 +54,8 @@ import java.util.Objects;
 public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            LogManager.getLogger(DocValueFieldsFetchSubPhase.class));
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {

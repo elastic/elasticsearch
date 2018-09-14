@@ -83,7 +83,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         };
     }
 
-    protected Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters, List<TokenFilterFactory> tokenFilters) {
+    protected Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                            List<TokenFilterFactory> tokenFilters) {
         return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream().filter(TokenFilterFactory::runForSynonyms).toArray(TokenFilterFactory[]::new));
     }

@@ -20,34 +20,37 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import junit.framework.TestCase;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Distribution.DEFAULT_DEB;
+import static org.elasticsearch.packaging.util.Distribution.DEFAULT_RPM;
+import static org.elasticsearch.packaging.util.Distribution.OSS_DEB;
+import static org.elasticsearch.packaging.util.Distribution.OSS_RPM;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
+import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
@@ -69,25 +72,42 @@ import static org.junit.Assume.assumeTrue;
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class ArchiveTestCase extends PackagingTestCase {
 
-    private static Installation installation;
-
-    /** The {@link Distribution} that should be tested in this case */
-    protected abstract Distribution distribution();
-
-    @BeforeClass
-    public static void cleanup() {
-        installation = null;
-        cleanEverything();
-    }
-
-    @Before
-    public void onlyCompatibleDistributions() {
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
-    }
-
     public void test10Install() {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
+    }
+
+    public void test11DebDependencies() {
+        assumeTrue(Platforms.isDPKG());
+
+        final Shell sh = new Shell();
+
+        final Result defaultResult = sh.run("dpkg -I " + getDistributionFile(DEFAULT_DEB));
+        final Result ossResult = sh.run("dpkg -I " + getDistributionFile(OSS_DEB));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(ossResult.stdout).find());
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch-oss$").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch$").matcher(ossResult.stdout).find());
+    }
+
+    public void test12RpmDependencies() {
+        assumeTrue(Platforms.isRPM());
+
+        final Shell sh = new Shell();
+
+        final Result defaultDeps = sh.run("rpm -qpR " + getDistributionFile(DEFAULT_RPM));
+        final Result ossDeps = sh.run("rpm -qpR " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(defaultDeps.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(ossDeps.stdout).find());
+
+        final Result defaultConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(DEFAULT_RPM));
+        final Result ossConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch-oss\\s*$").matcher(defaultConflicts.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch\\s*$").matcher(ossConflicts.stdout).find());
     }
 
     public void test20PluginsListWithNoPlugins() {

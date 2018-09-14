@@ -213,7 +213,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         for (int i = 0; i < numberOfListeners; i++) {
             final int index = i;
             globalCheckpointListeners.add(
-                    NO_OPS_PERFORMED, maybeMultipleInvocationProtectingListener((g, e) -> exceptions[index] = e), null);
+                    0, maybeMultipleInvocationProtectingListener((g, e) -> exceptions[index] = e), null);
         }
         globalCheckpointListeners.close();
         for (int i = 0; i < numberOfListeners; i++) {
@@ -263,7 +263,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             final boolean failure = randomBoolean();
             failures[index] = failure;
             globalCheckpointListeners.add(
-                    NO_OPS_PERFORMED,
+                    0,
                     maybeMultipleInvocationProtectingListener((g, e) -> {
                         if (failure) {
                             globalCheckpoints[index] = Long.MIN_VALUE;
@@ -317,7 +317,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             final boolean failure = randomBoolean();
             failures[index] = failure;
             globalCheckpointListeners.add(
-                    NO_OPS_PERFORMED,
+                    0,
                     maybeMultipleInvocationProtectingListener((g, e) -> {
                         if (failure) {
                             throw new RuntimeException("failure");
@@ -366,7 +366,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         final int numberOfListeners = randomIntBetween(0, 16);
         for (int i = 0; i < numberOfListeners; i++) {
             globalCheckpointListeners.add(
-                    NO_OPS_PERFORMED,
+                    0,
                     maybeMultipleInvocationProtectingListener((g, e) -> {
                         notified.incrementAndGet();
                         assertThat(g, equalTo(globalCheckpoint));

@@ -745,31 +745,6 @@ public class Lucene {
         }
     }
 
-    /**
-     * Return a Scorer that throws an ElasticsearchIllegalStateException
-     * on all operations with the given message.
-     */
-    public static Scorer illegalScorer(final String message) {
-        return new Scorer(null) {
-            @Override
-            public float score() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public int docID() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public DocIdSetIterator iterator() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public float getMaxScore(int upTo) throws IOException {
-                throw new IllegalStateException(message);
-            }
-        };
-    }
-
     private static final class CommitPoint extends IndexCommit {
         private String segmentsFileName;
         private final Collection<String> files;

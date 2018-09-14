@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -149,7 +150,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxOperationSizeInBytes(),
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
-            request.getRetryTimeout(),
+            request.getMaxRetryDelay(),
             request.getIdleShardRetryDelay()
         );
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);

@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -70,12 +72,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
     }
 
     private void doAutoFollow() {
-        if (ccrLicenseChecker.isCcrAllowed() == false) {
-            // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-            LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
-            threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
-            return;
-        }
         if (localNodeMaster == false) {
             return;
         }
@@ -87,6 +83,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         if (autoFollowMetadata.getPatterns().isEmpty()) {
+            threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
+            return;
+        }
+
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
+            // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+            LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
             return;
         }
@@ -215,7 +218,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         new FollowIndexAction.Request(leaderIndexNameWithClusterAliasPrefix, followIndexName,
                             autoFollowPattern.getMaxBatchOperationCount(), autoFollowPattern.getMaxConcurrentReadBatches(),
                             autoFollowPattern.getMaxOperationSizeInBytes(), autoFollowPattern.getMaxConcurrentWriteBatches(),
-                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getRetryTimeout(),
+                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getMaxRetryDelay(),
                             autoFollowPattern.getIdleShardRetryDelay());
 
                     // Execute if the create and follow api call succeeds:

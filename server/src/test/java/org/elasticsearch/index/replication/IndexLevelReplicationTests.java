@@ -160,6 +160,61 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
     }
 
+    public void testAppendOnlyRecoveryThenReplication() throws Exception {
+        CountDownLatch indexedOnPrimary = new CountDownLatch(1);
+        CountDownLatch recoveryDone = new CountDownLatch(1);
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1)) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                return config -> new InternalEngine(config) {
+                    @Override
+                    public IndexResult index(Index op) throws IOException {
+                        IndexResult result = super.index(op);
+                        if (op.origin() == Operation.Origin.PRIMARY) {
+                            indexedOnPrimary.countDown();
+                            // prevent the indexing on the primary from returning (it was added to Lucene and translog already)
+                            // to make sure that this operation is replicated to the replica via recovery, then via replication.
+                            try {
+                                recoveryDone.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }
+                        return result;
+                    }
+                };
+            }
+        }) {
+            shards.startAll();
+            Thread thread = new Thread(() -> {
+                IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                try {
+                    shards.index(indexRequest);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+            IndexShard replica = shards.addReplica();
+            Future<Void> fut = shards.asyncRecoverReplica(replica,
+                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
+                    @Override
+                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                        try {
+                            indexedOnPrimary.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                    }
+                });
+            fut.get();
+            recoveryDone.countDown();
+            thread.join();
+            shards.assertAllEqual(1);
+        }
+    }
+
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();

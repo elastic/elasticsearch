@@ -248,7 +248,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
 
         lastKnownLeader = Optional.of(leaderNode);
-        peerFinder.deactivate(getLocalNode());
+        peerFinder.deactivate(leaderNode);
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
     }

@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -74,6 +75,7 @@ import static org.elasticsearch.cluster.coordination.Coordinator.COMMIT_STATE_AC
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_STATE_ACTION_NAME;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -216,7 +218,11 @@ public class CoordinatorTests extends ESTestCase {
                         assert destination.equals(localNode) == false : "non-local message from " + localNode + " to itself";
                         super.onSendRequest(requestId, action, request, destination);
 
-                        deterministicTaskQueue.scheduleNow(new Runnable() {
+                        // connecting and handshaking with a new node happens synchronously, so we cannot enqueue these tasks for later
+                        final Consumer<Runnable> scheduler
+                            = action.equals(HANDSHAKE_ACTION_NAME) ? Runnable::run : deterministicTaskQueue::scheduleNow;
+
+                        scheduler.accept(new Runnable() {
                             @Override
                             public String toString() {
                                 return "delivery of [" + action + "][" + requestId + "]: " + request;
@@ -243,7 +249,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(final TransportResponse response) {
-                                                deterministicTaskQueue.scheduleNow(new Runnable() {
+                                                scheduler.accept(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of response " + response
@@ -264,7 +270,7 @@ public class CoordinatorTests extends ESTestCase {
 
                                             @Override
                                             public void sendResponse(Exception exception) {
-                                                deterministicTaskQueue.scheduleNow(new Runnable() {
+                                                scheduler.accept(new Runnable() {
                                                     @Override
                                                     public String toString() {
                                                         return "delivery of error response " + exception.getMessage()
@@ -282,7 +288,7 @@ public class CoordinatorTests extends ESTestCase {
                                         try {
                                             processMessageReceived(request, requestHandler, transportChannel);
                                         } catch (Exception e) {
-                                            deterministicTaskQueue.scheduleNow(new Runnable() {
+                                            scheduler.accept(new Runnable() {
                                                 @Override
                                                 public String toString() {
                                                     return "delivery of processing error response " + e.getMessage()
@@ -435,11 +441,6 @@ public class CoordinatorTests extends ESTestCase {
                                 }
                             });
                         };
-                    }
-
-                    @Override
-                    protected void connectToNode(DiscoveryNode node) {
-                        // do nothing, we are simulating connections between nodes.
                     }
                 };
 

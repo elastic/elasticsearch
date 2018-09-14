@@ -40,8 +40,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -894,38 +892,53 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testExclusionFilterDefaultsNotOmitted() {
-        final Setting.AffixSetting<String> setting = CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
-        final boolean omitDefaults = CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING_OMIT_DEFAULTS;
+    public void testAffixMapUpdateWithNullSettingValueAndOmitDefaults() {
+        final boolean omitDefaults = true;
+        final int expectedChangeCount = 0;
 
-        final Consumer<Map<String, String>> consumer = (map) -> {
-        };
-        final BiConsumer<String, String> validator = (s1, s2) -> {
-        };
-        final SettingUpdater<Map<String, String>> updater = setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults);
+        testAffixMapUpdateWithNullSettingValue(omitDefaults, expectedChangeCount);
+    }
 
+    public void testAffixMapUpdateWithNullSettingValueAndNotOmitDefaults() {
+        final boolean omitDefaults = false;
+        final int expectedChangeCount = 1;
+
+        testAffixMapUpdateWithNullSettingValue(omitDefaults, expectedChangeCount);
+    }
+
+    private void testAffixMapUpdateWithNullSettingValue(boolean omitDefaults, int expectedChangeCount) {
+        // GIVEN an affix setting
         final Settings current = Settings.builder()
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
-            .put("cluster.routing.allocation.exclude._ip", "foo")
-            .put("cluster.routing.allocation.exclude._host", (String) null)
+            .put("prefix._foo", (String) null)
             .build();
 
         final Settings previous = Settings.builder()
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
-            .put("cluster.routing.allocation.exclude._ip", "foo")
-            .put("cluster.routing.allocation.exclude._host", "bar")
+            .put("prefix._foo", "bar")
             .build();
 
+        final Setting.AffixSetting<String> affixSetting =
+            Setting.prefixKeySetting("prefix" + ".",
+                (key) -> Setting.simpleString(key, (value, map) -> {}, Property.Dynamic, Property.NodeScope));
+
+        final Consumer<Map<String, String>> consumer = (map) -> {};
+        final BiConsumer<String, String> validator = (s1, s2) -> {};
+
+        // WHEN using an affix updater with a given "omitDefaults" parameter to check for setting changes
+        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator, omitDefaults);
+
+        // THEN changes can be expected or not based on the given "omitDefaults" parameter
         assertTrue(updater.hasChanged(current, previous));
 
         final Map<String, String> updatedSettings = updater.getValue(current, previous);
         assertNotNull(updatedSettings);
-        assertEquals(1, updatedSettings.size());
+        assertEquals(expectedChangeCount, updatedSettings.size());
 
-        final String key = updatedSettings.keySet().iterator().next();
-        final String value = updatedSettings.get(key);
-        assertEquals("_host", key);
-        assertEquals("", value);
+        if (expectedChangeCount == 1) {
+            final String key = updatedSettings.keySet().iterator().next();
+            final String value = updatedSettings.get(key);
+            assertEquals("_foo", key);
+            assertEquals("", value);
+        }
     }
 
 }

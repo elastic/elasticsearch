@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.List;
@@ -46,15 +45,14 @@ public class JobStatsCollector extends Collector {
     private final ThreadContext threadContext;
     private final MachineLearningClient client;
 
-    public JobStatsCollector(final Settings settings, final ClusterService clusterService, final MonitoringService monitoringService,
+    public JobStatsCollector(final Settings settings, final ClusterService clusterService,
                              final XPackLicenseState licenseState, final Client client) {
-        this(settings, clusterService, monitoringService, licenseState, new XPackClient(client).machineLearning(),
-             client.threadPool().getThreadContext());
+        this(settings, clusterService, licenseState, new XPackClient(client).machineLearning(), client.threadPool().getThreadContext());
     }
 
-    JobStatsCollector(final Settings settings, final ClusterService clusterService, final MonitoringService monitoringService,
+    JobStatsCollector(final Settings settings, final ClusterService clusterService,
                       final XPackLicenseState licenseState, final MachineLearningClient client, final ThreadContext threadContext) {
-        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, monitoringService, JOB_STATS_TIMEOUT, licenseState);
+        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
         this.client = client;
         this.threadContext = threadContext;
     }

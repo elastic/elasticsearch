@@ -14,7 +14,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.ArrayList;
@@ -33,10 +32,9 @@ public class ShardsCollector extends Collector {
 
     public ShardsCollector(final Settings settings,
                            final ClusterService clusterService,
-                           final MonitoringService monitoringService,
                            final XPackLicenseState licenseState) {
 
-        super(settings, ShardMonitoringDoc.TYPE, clusterService, monitoringService, null, licenseState);
+        super(settings, ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
     @Override

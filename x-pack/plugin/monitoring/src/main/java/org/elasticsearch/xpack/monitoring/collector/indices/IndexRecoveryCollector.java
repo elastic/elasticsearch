@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.ArrayList;
@@ -49,11 +48,10 @@ public class IndexRecoveryCollector extends Collector {
 
     public IndexRecoveryCollector(final Settings settings,
                                   final ClusterService clusterService,
-                                  final MonitoringService monitoringService,
                                   final XPackLicenseState licenseState,
                                   final Client client) {
 
-        super(settings, IndexRecoveryMonitoringDoc.TYPE, clusterService, monitoringService, INDEX_RECOVERY_TIMEOUT, licenseState);
+        super(settings, IndexRecoveryMonitoringDoc.TYPE, clusterService, INDEX_RECOVERY_TIMEOUT, licenseState);
         this.client = Objects.requireNonNull(client);
     }
 

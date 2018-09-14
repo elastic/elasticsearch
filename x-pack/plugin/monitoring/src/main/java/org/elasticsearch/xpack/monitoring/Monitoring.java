@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -137,19 +136,16 @@ public class Monitoring extends Plugin implements ActionPlugin {
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(),
             threadPool.getThreadContext());
 
-        final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, exporters);
-
         Set<Collector> collectors = new HashSet<>();
-        collectors.add(new IndexStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
-        collectors.add(new ClusterStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client,
-            getLicenseService()));
-        collectors.add(new ShardsCollector(settings, clusterService, monitoringService, getLicenseState()));
-        collectors.add(new NodeStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
-        collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringService, getLicenseState(), client));
-        collectors.add(new JobStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
-        collectors.add(new CcrStatsCollector(settings, clusterService, monitoringService, getLicenseState(), client));
+        collectors.add(new IndexStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService()));
+        collectors.add(new ShardsCollector(settings, clusterService, getLicenseState()));
+        collectors.add(new NodeStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new IndexRecoveryCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new CcrStatsCollector(settings, clusterService, getLicenseState(), client));
 
-        monitoringService.addCollectors(collectors);
+        final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         return Arrays.asList(monitoringService, exporters, cleanerService);
     }

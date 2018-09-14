@@ -48,7 +48,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -61,34 +61,23 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
-    public void testShouldCollectReturnsFalseIfElasticsearchCollectionIsDisabled() {
-        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(false);
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-    }
-
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        when(monitoringService.isElasticsearchCollectionEnabled()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
         assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
     }
 
     public void testDoCollectWhenNoClusterState() throws Exception {
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
 
         final Collection<MonitoringDoc> results = collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), null);
         assertThat(results, notNullValue());
@@ -116,7 +105,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         when(nodes.get(eq("_current"))).thenReturn(localNode);
         when(clusterState.getNodes()).thenReturn(nodes);
 
-        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, monitoringService, licenseState);
+        final ShardsCollector collector = new ShardsCollector(Settings.EMPTY, clusterService, licenseState);
         assertNull(collector.getCollectionTimeout());
         assertArrayEquals(indices, collector.getCollectionIndices());
 

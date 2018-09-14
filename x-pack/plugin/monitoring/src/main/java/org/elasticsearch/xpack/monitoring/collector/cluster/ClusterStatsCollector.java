@@ -28,7 +28,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.Collection;
@@ -62,22 +61,19 @@ public class ClusterStatsCollector extends Collector {
 
     public ClusterStatsCollector(final Settings settings,
                                  final ClusterService clusterService,
-                                 final MonitoringService monitoringService,
                                  final XPackLicenseState licenseState,
                                  final Client client,
                                  final LicenseService licenseService) {
-        this(settings, clusterService, monitoringService, licenseState, client, licenseService,
-             new IndexNameExpressionResolver(Settings.EMPTY));
+        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver(Settings.EMPTY));
     }
 
     ClusterStatsCollector(final Settings settings,
                           final ClusterService clusterService,
-                          final MonitoringService monitoringService,
                           final XPackLicenseState licenseState,
                           final Client client,
                           final LicenseService licenseService,
                           final IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, monitoringService, CLUSTER_STATS_TIMEOUT, licenseState);
+        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
 
         this.client = client;
         this.licenseService = licenseService;
@@ -87,7 +83,7 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // This collector can always collect data on the master node
-        return isElectedMaster && super.shouldCollect(isElectedMaster);
+        return isElectedMaster;
     }
 
     @Override

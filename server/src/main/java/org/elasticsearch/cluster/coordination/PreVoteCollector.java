@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
@@ -45,12 +46,11 @@ public class PreVoteCollector extends AbstractComponent {
     private final TransportService transportService;
     private final Runnable startElection;
 
-    // Tuple for simple atomic updates
-    private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader
+    // Tuple for simple atomic updates. null until the first call to `update()`.
+    private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
     PreVoteCollector(final Settings settings, final TransportService transportService, final Runnable startElection) {
         super(settings);
-        state = new Tuple<>(null, new PreVoteResponse(0, 0, 0));
         this.transportService = transportService;
         this.startElection = startElection;
 
@@ -73,7 +73,7 @@ public class PreVoteCollector extends AbstractComponent {
         return preVotingRound;
     }
 
-    public void update(final PreVoteResponse preVoteResponse, final DiscoveryNode leader) {
+    public void update(final PreVoteResponse preVoteResponse, @Nullable final DiscoveryNode leader) {
         logger.trace("updating with preVoteResponse={}, leader={}", preVoteResponse, leader);
         state = new Tuple<>(leader, preVoteResponse);
     }

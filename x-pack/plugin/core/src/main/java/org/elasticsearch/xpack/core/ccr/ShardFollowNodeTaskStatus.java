@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -84,17 +85,17 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[19],
                             (long) args[20],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, ElasticsearchException>>) args[21])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[21])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
                             (long) args[22]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
-    static final ConstructingObjectParser<Map.Entry<Long, ElasticsearchException>, Void> FETCH_EXCEPTIONS_ENTRY_PARSER =
+    static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> FETCH_EXCEPTIONS_ENTRY_PARSER =
             new ConstructingObjectParser<>(
                     FETCH_EXCEPTIONS_ENTRY_PARSER_NAME,
-                    args -> new AbstractMap.SimpleEntry<>((long) args[0], (ElasticsearchException) args[1]));
+                    args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer)args[1], (ElasticsearchException)args[2])));
 
     static {
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
@@ -123,10 +124,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     static final ParseField FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
+    static final ParseField FETCH_EXCEPTIONS_RETRIES = new ParseField("retries");
     static final ParseField FETCH_EXCEPTIONS_ENTRY_EXCEPTION = new ParseField("exception");
 
     static {
         FETCH_EXCEPTIONS_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO);
+        FETCH_EXCEPTIONS_ENTRY_PARSER.declareInt(ConstructingObjectParser.constructorArg(), FETCH_EXCEPTIONS_RETRIES);
         FETCH_EXCEPTIONS_ENTRY_PARSER.declareObject(
                 ConstructingObjectParser.constructorArg(),
                 (p, c) -> ElasticsearchException.fromXContent(p),
@@ -259,9 +262,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return numberOfOperationsIndexed;
     }
 
-    private final NavigableMap<Long, ElasticsearchException> fetchExceptions;
+    private final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions;
 
-    public NavigableMap<Long, ElasticsearchException> fetchExceptions() {
+    public NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions() {
         return fetchExceptions;
     }
 
@@ -293,7 +296,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final long numberOfSuccessfulBulkOperations,
             final long numberOfFailedBulkOperations,
             final long numberOfOperationsIndexed,
-            final NavigableMap<Long, ElasticsearchException> fetchExceptions,
+            final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions,
             final long timeSinceLastFetchMillis) {
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
@@ -342,7 +345,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfSuccessfulBulkOperations = in.readVLong();
         this.numberOfFailedBulkOperations = in.readVLong();
         this.numberOfOperationsIndexed = in.readVLong();
-        this.fetchExceptions = new TreeMap<>(in.readMap(StreamInput::readVLong, StreamInput::readException));
+        this.fetchExceptions =
+                new TreeMap<>(in.readMap(StreamInput::readVLong, stream -> Tuple.tuple(stream.readVInt(), stream.readException())));
         this.timeSinceLastFetchMillis = in.readZLong();
     }
 
@@ -374,7 +378,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(numberOfSuccessfulBulkOperations);
         out.writeVLong(numberOfFailedBulkOperations);
         out.writeVLong(numberOfOperationsIndexed);
-        out.writeMap(fetchExceptions, StreamOutput::writeVLong, StreamOutput::writeException);
+        out.writeMap(
+                fetchExceptions,
+                StreamOutput::writeVLong,
+                (stream, value) -> { stream.writeVInt(value.v1()); stream.writeException(value.v2()); });
         out.writeZLong(timeSinceLastFetchMillis);
     }
 
@@ -421,14 +428,15 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.field(NUMBER_OF_OPERATIONS_INDEXED_FIELD.getPreferredName(), numberOfOperationsIndexed);
         builder.startArray(FETCH_EXCEPTIONS.getPreferredName());
         {
-            for (final Map.Entry<Long, ElasticsearchException> entry : fetchExceptions.entrySet()) {
+            for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry : fetchExceptions.entrySet()) {
                 builder.startObject();
                 {
                     builder.field(FETCH_EXCEPTIONS_ENTRY_FROM_SEQ_NO.getPreferredName(), entry.getKey());
+                    builder.field(FETCH_EXCEPTIONS_RETRIES.getPreferredName(), entry.getValue().v1());
                     builder.field(FETCH_EXCEPTIONS_ENTRY_EXCEPTION.getPreferredName());
                     builder.startObject();
                     {
-                        ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
+                        ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue().v2());
                     }
                     builder.endObject();
                 }
@@ -515,7 +523,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     private static List<String> getFetchExceptionMessages(final ShardFollowNodeTaskStatus status) {
-        return status.fetchExceptions().values().stream().map(ElasticsearchException::getMessage).collect(Collectors.toList());
+        return status.fetchExceptions().values().stream().map(t -> t.v2().getMessage()).collect(Collectors.toList());
     }
 
     public String toString() {

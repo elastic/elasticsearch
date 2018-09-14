@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.monitoring.collector.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -101,8 +102,10 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
         final long numberOfSuccessfulBulkOperations = randomNonNegativeLong();
         final long numberOfFailedBulkOperations = randomNonNegativeLong();
         final long numberOfOperationsIndexed = randomNonNegativeLong();
-        final NavigableMap<Long, ElasticsearchException> fetchExceptions =
-                new TreeMap<>(Collections.singletonMap(randomNonNegativeLong(), new ElasticsearchException("shard is sad")));
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
+                new TreeMap<>(Collections.singletonMap(
+                        randomNonNegativeLong(),
+                        Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
         final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "cluster_alias:leader_index",
@@ -171,6 +174,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                                         + "\"fetch_exceptions\":["
                                                 + "{"
                                                         + "\"from_seq_no\":" + fetchExceptions.keySet().iterator().next() + ","
+                                                        + "\"retries\":" + fetchExceptions.values().iterator().next().v1() + ","
                                                         + "\"exception\":{"
                                                                 + "\"type\":\"exception\","
                                                                 + "\"reason\":\"shard is sad\""
@@ -183,8 +187,8 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
     }
 
     public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
-        final NavigableMap<Long, ElasticsearchException> fetchExceptions =
-            new TreeMap<>(Collections.singletonMap(1L, new ElasticsearchException("shard is sad")));
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
+            new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
             "cluster_alias:leader_index",
             "follower_index",
@@ -234,7 +238,9 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
             } else {
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("fetch_exceptions")) {
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
                     assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
+                    assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
                     assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("text"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");

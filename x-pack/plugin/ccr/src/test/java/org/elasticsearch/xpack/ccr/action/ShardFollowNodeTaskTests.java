@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -192,12 +193,13 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             assertThat(status.numberOfFailedFetches(), equalTo(retryCounter.get()));
             if (retryCounter.get() > 0) {
                 assertThat(status.fetchExceptions().entrySet(), hasSize(1));
-                final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+                final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.fetchExceptions().entrySet().iterator().next();
+                assertThat(entry.getValue().v1(), equalTo(Math.toIntExact(retryCounter.get())));
                 assertThat(entry.getKey(), equalTo(0L));
-                assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
-                assertNotNull(entry.getValue().getCause());
-                assertThat(entry.getValue().getCause(), instanceOf(ShardNotFoundException.class));
-                final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().getCause();
+                assertThat(entry.getValue().v2(), instanceOf(ElasticsearchException.class));
+                assertNotNull(entry.getValue().v2().getCause());
+                assertThat(entry.getValue().v2().getCause(), instanceOf(ShardNotFoundException.class));
+                final ShardNotFoundException cause = (ShardNotFoundException) entry.getValue().v2().getCause();
                 assertThat(cause.getShardId().getIndexName(), equalTo("leader_index"));
                 assertThat(cause.getShardId().getId(), equalTo(0));
             }
@@ -253,12 +255,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.numberOfConcurrentWrites(), equalTo(0));
         assertThat(status.numberOfFailedFetches(), equalTo(1L));
         assertThat(status.fetchExceptions().entrySet(), hasSize(1));
-        final Map.Entry<Long, ElasticsearchException> entry = status.fetchExceptions().entrySet().iterator().next();
+        final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry = status.fetchExceptions().entrySet().iterator().next();
         assertThat(entry.getKey(), equalTo(0L));
-        assertThat(entry.getValue(), instanceOf(ElasticsearchException.class));
-        assertNotNull(entry.getValue().getCause());
-        assertThat(entry.getValue().getCause(), instanceOf(RuntimeException.class));
-        final RuntimeException cause = (RuntimeException) entry.getValue().getCause();
+        assertThat(entry.getValue().v2(), instanceOf(ElasticsearchException.class));
+        assertNotNull(entry.getValue().v2().getCause());
+        assertThat(entry.getValue().v2().getCause(), instanceOf(RuntimeException.class));
+        final RuntimeException cause = (RuntimeException) entry.getValue().v2().getCause();
         assertThat(cause.getMessage(), equalTo("replication failed"));
         assertThat(status.lastRequestedSeqNo(), equalTo(63L));
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));

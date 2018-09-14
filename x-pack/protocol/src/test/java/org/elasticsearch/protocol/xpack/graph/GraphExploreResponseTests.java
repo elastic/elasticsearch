@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -105,8 +107,17 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
         Connection[] expectedConns = expectedInstance.getConnections().toArray(new Connection[0]);
         assertArrayEquals(expectedConns, newConns);
         
-        Vertex[] newVertices = newInstance.getVertices().toArray(new Vertex[0]);
+        //Sort the vertices lists before equality test (map insertion sequences can cause order differences)
+        Comparator<Vertex> comparator = new Comparator<Vertex>() {
+            @Override
+            public int compare(Vertex o1, Vertex o2) {
+                return o1.getId().toString().compareTo(o2.getId().toString());
+            }
+        };
+        Vertex[] newVertices = newInstance.getVertices().toArray(new Vertex[0]);        
         Vertex[] expectedVertices = expectedInstance.getVertices().toArray(new Vertex[0]);
+        Arrays.sort(newVertices, comparator);
+        Arrays.sort(expectedVertices, comparator);
         assertArrayEquals(expectedVertices, newVertices);
         
         ShardOperationFailedException[] newFailures = newInstance.getShardFailures();

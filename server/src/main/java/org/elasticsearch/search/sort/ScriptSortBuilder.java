@@ -51,7 +51,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.SortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -305,8 +305,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.SCRIPT_SORT_CONTEXT);
-        final SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+        final SortScript.Factory factory = context.getScriptService().compile(script, SortScript.CONTEXT);
+        final SortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -329,7 +329,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         switch (type) {
             case STRING:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    SearchScript leafScript;
+                    SortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = searchScript.newInstance(context);
@@ -342,7 +342,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public BytesRef binaryValue() {
-                                final Object run = leafScript.run();
+                                final Object run = leafScript.execute();
                                 CollectionUtils.ensureNoSelfReferences(run, "ScriptSortBuilder leaf script");
                                 spare.copyChars(run.toString());
                                 return spare.get();
@@ -358,7 +358,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 break;
             case NUMBER:
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    SearchScript leafScript;
+                    SortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = searchScript.newInstance(context);

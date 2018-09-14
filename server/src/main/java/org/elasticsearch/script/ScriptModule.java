@@ -43,7 +43,7 @@ public class ScriptModule {
             SearchScript.CONTEXT,
             SearchScript.AGGS_CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
+            SortScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
             ExecutableScript.CONTEXT,
             UpdateScript.CONTEXT,

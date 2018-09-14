@@ -15,6 +15,7 @@ import org.elasticsearch.script.SearchScript;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.elasticsearch.script.SortScript;
 
 import static java.util.Collections.singletonList;
 
@@ -29,7 +30,7 @@ public class SqlPainlessExtension implements PainlessExtension {
         whitelist.put(FilterScript.CONTEXT, list);
         whitelist.put(SearchScript.AGGS_CONTEXT, list);
         whitelist.put(SearchScript.CONTEXT, list);
-        whitelist.put(SearchScript.SCRIPT_SORT_CONTEXT, list);
+        whitelist.put(SortScript.CONTEXT, list);
         return whitelist;
     }
 }

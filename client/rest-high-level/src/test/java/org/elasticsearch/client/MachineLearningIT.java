@@ -25,9 +25,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
-import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -40,11 +40,15 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -129,7 +133,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
+        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
@@ -312,6 +316,22 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
     }
 
+    public void testDeleteDatafeed() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
+
+        AcknowledgedResponse response = execute(new DeleteDatafeedRequest(datafeedId), machineLearningClient::deleteDatafeed,
+                machineLearningClient::deleteDatafeedAsync);
+
+        assertTrue(response.isAcknowledged());
+    }
+
     public void testDeleteForecast() throws Exception {
         String jobId = "test-delete-forecast";
 
@@ -379,6 +399,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         getRequest.id(jobId + "_model_forecast_request_stats_" + forecastId);
         GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
         return getResponse.isExists();
+    }
+
+    public void testPutCalendar() throws IOException {
+
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse = execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
     }
 
     public static String randomValidJobId() {

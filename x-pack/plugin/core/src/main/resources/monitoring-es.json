@@ -987,6 +987,9 @@
                 "from_seq_no": {
                   "type": "long"
                 },
+                "retries": {
+                  "type": "integer"
+                },
                 "exception": {
                   "type": "text"
                 }

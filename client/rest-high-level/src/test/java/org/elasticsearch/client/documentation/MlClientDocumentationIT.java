@@ -34,9 +34,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
-import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -59,11 +59,14 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -264,7 +267,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-delete-ml-job-request
             DeleteJobRequest deleteJobRequest = new DeleteJobRequest("my-first-machine-learning-job");
             deleteJobRequest.setForce(false); //<1>
-            DeleteJobResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse deleteJobResponse = client.machineLearning().deleteJob(deleteJobRequest, RequestOptions.DEFAULT);
             //end::x-pack-delete-ml-job-request
 
             //tag::x-pack-delete-ml-job-response
@@ -273,9 +276,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::x-pack-delete-ml-job-request-listener
-            ActionListener<DeleteJobResponse> listener = new ActionListener<DeleteJobResponse>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(DeleteJobResponse deleteJobResponse) {
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     // <1>
                 }
 
@@ -582,6 +585,61 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::x-pack-ml-put-datafeed-execute-async
             client.machineLearning().putDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-ml-put-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-datafeed-job";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        String datafeedId = "test-delete-datafeed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId).setIndices("foo").build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-delete-ml-datafeed-request
+            DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
+            deleteDatafeedRequest.setForce(false); //<1>
+            AcknowledgedResponse deleteDatafeedResponse = client.machineLearning().deleteDatafeed(
+                    deleteDatafeedRequest, RequestOptions.DEFAULT);
+            //end::x-pack-delete-ml-datafeed-request
+
+            //tag::x-pack-delete-ml-datafeed-response
+            boolean isAcknowledged = deleteDatafeedResponse.isAcknowledged(); //<1>
+            //end::x-pack-delete-ml-datafeed-response
+        }
+
+        // Recreate datafeed to allow second deletion
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        {
+            //tag::x-pack-delete-ml-datafeed-request-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::x-pack-delete-ml-datafeed-request-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::x-pack-delete-ml-datafeed-request-async
+            DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
+            client.machineLearning().deleteDatafeedAsync(deleteDatafeedRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::x-pack-delete-ml-datafeed-request-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -1313,7 +1371,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
-            " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
+                " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1347,17 +1405,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::x-pack-ml-get-categories-listener
             ActionListener<GetCategoriesResponse> listener =
-                new ActionListener<GetCategoriesResponse>() {
-                    @Override
-                    public void onResponse(GetCategoriesResponse getcategoriesResponse) {
-                        // <1>
-                    }
+                    new ActionListener<GetCategoriesResponse>() {
+                        @Override
+                        public void onResponse(GetCategoriesResponse getcategoriesResponse) {
+                            // <1>
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
             // end::x-pack-ml-get-categories-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1369,6 +1427,48 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::x-pack-ml-get-categories-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-         }
+        }
+    }
+
+    public void testPutCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        //tag::x-pack-ml-put-calendar-request
+        Calendar calendar = new Calendar("public_holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest request = new PutCalendarRequest(calendar); // <1>
+        //end::x-pack-ml-put-calendar-request
+
+        //tag::x-pack-ml-put-calendar-execution
+        PutCalendarResponse response = client.machineLearning().putCalendar(request, RequestOptions.DEFAULT);
+        //end::x-pack-ml-put-calendar-execution
+
+        //tag::x-pack-ml-put-calendar-response
+        Calendar newCalendar = response.getCalendar(); // <1>
+        //end::x-pack-ml-put-calendar-response
+        assertThat(newCalendar.getId(), equalTo("public_holidays"));
+
+        // tag::x-pack-ml-put-calendar-listener
+        ActionListener<PutCalendarResponse> listener = new ActionListener<PutCalendarResponse>() {
+            @Override
+            public void onResponse(PutCalendarResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::x-pack-ml-put-calendar-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::x-pack-ml-put-calendar-execute-async
+        client.machineLearning().putCalendarAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::x-pack-ml-put-calendar-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

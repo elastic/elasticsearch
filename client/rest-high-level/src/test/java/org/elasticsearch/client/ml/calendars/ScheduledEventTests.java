@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,27 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+
+package org.elasticsearch.client.ml.calendars;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.io.IOException;
+import java.util.Date;
 
-public class DeleteJobResponseTests extends AbstractXContentTestCase<DeleteJobResponse> {
+public class ScheduledEventTests extends AbstractXContentTestCase<ScheduledEvent> {
 
-    @Override
-    protected DeleteJobResponse createTestInstance() {
-        return new DeleteJobResponse();
+    public static ScheduledEvent testInstance() {
+        Date start = new Date(randomNonNegativeLong());
+        Date end = new Date(start.getTime() + randomIntBetween(1, 10000) * 1000);
+
+        return new ScheduledEvent(randomAlphaOfLength(10), start, end, randomAlphaOfLengthBetween(1, 20),
+                randomBoolean() ? null : randomAlphaOfLength(7));
     }
 
     @Override
-    protected DeleteJobResponse doParseInstance(XContentParser parser) throws IOException {
-        return DeleteJobResponse.fromXContent(parser);
+    protected ScheduledEvent createTestInstance() {
+        return testInstance();
+    }
+
+    @Override
+    protected ScheduledEvent doParseInstance(XContentParser parser) {
+        return ScheduledEvent.PARSER.apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

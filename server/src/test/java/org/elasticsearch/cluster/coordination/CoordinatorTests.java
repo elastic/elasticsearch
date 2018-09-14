@@ -480,7 +480,7 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         private List<TransportAddress> provideUnicastHosts(HostsResolver ignored) {
-            return clusterNodes.stream().map(ClusterNode::getLocalNode).map (DiscoveryNode::getAddress).collect(Collectors.toList());
+            return clusterNodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getAddress).collect(Collectors.toList());
         }
     }
 

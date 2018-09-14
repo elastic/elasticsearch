@@ -309,7 +309,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
                 logger.trace(
-                        "waiting for global checkpoint advancement from [{}] to [{}]",
+                        "{} waiting for global checkpoint advancement from [{}] to [{}]",
+                        shardId,
                         seqNoStats.getGlobalCheckpoint(),
                         request.getFromSeqNo());
                 indexShard.addGlobalCheckpointListener(
@@ -317,7 +318,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                         (g, e) -> {
                             if (g != UNASSIGNED_SEQ_NO) {
                                 assert request.getFromSeqNo() <= g
-                                        : "only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
+                                        : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
                                 globalCheckpointAdvanced(shardId, g, request, listener);
                             } else {
                                 assert e != null;
@@ -335,7 +336,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 final long globalCheckpoint,
                 final Request request,
                 final ActionListener<Response> listener) {
-            logger.trace("global checkpoint advanced to [{}] after waiting for [{}]", globalCheckpoint, request.getFromSeqNo());
+            logger.trace("{} global checkpoint advanced to [{}] after waiting for [{}]", shardId, globalCheckpoint, request.getFromSeqNo());
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (final IOException caught) {
@@ -351,7 +352,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 final IndexShard indexShard) {
             logger.trace(
                     () -> new ParameterizedMessage(
-                            "exception waiting for global checkpoint advancement to [{}]", request.getFromSeqNo()),
+                            "{} exception waiting for global checkpoint advancement to [{}]", shardId, request.getFromSeqNo()),
                     e);
             if (e instanceof TimeoutException) {
                 try {

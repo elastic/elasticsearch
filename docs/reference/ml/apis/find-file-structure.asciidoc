@@ -1,0 +1,477 @@
+[role="xpack"]
+[testenv="basic"]
+[[ml-find-file-structure]]
+=== Find File Structure API
+++++
+<titleabbrev>Find File Structure</titleabbrev>
+++++
+
+experimental[]
+
+Finds the structure of a text file that contains data suitable to be ingested
+into Elasticsearch.
+
+==== Request
+
+`POST _xpack/ml/find_file_structure`
+
+
+==== Description
+
+The aim of this endpoint is to provide a starting point for ingesting data into
+Elasticsearch in a format that will be suitable for subsequent use with other
+{ml} functionality.
+
+Unlike other Elasticsearch endpoints, the data that is POSTed to this endpoint
+need not be in JSON format, nor even UTF-8 encoded.  It must, however, be text;
+binary file formats are not currently supported.
+
+The response from the endpoint contains:
+
+* A couple of messages from the beginning of the file.
+* Statistics revealing the most common values of all fields detected within the
+  file, plus basic numeric statistics for numeric fields.
+* Information about the structure of the file that would be useful when writing
+  ingest configurations to index the file contents.
+* Appropriate mappings for an Elasticsearch index into which the file contents
+  could be ingested.
+
+All this can be calculated by the endpoint with no guidance.  However,
+optionally it is possible to override some of the decisions about the file
+structure by specifying the desired values in one or more query parameters.
+
+Details of the output can be seen in the
+<<ml-find-file-structure-examples,examples>>.
+
+If the endpoint produces unexpected results for a particular file, the `explain`
+query parameter causes an `explanation` to appear in the response, which should
+help in determining why the returned structure was chosen.
+
+==== Query Parameters
+
+`charset`::
+  (string) Optionally, the character set in which the sample file is encoded.
+  This must be a character set that is supported by the JVM that Elasticsearch,
+  for example "UTF-8", "UTF-16LE", "windows-1252" or "EUC-JP".  If not specified
+  then the structure finder will choose an appropriate character set.
+
+`column_names`::
+  (string) If `format` is set to `delimited` then this parameter may optionally
+  be used to specify the column names.  The value of this parameter must be a
+  comma separated list of column names even if the `delimiter` for the sample
+  file is not comma.  If not specified then the structure finder will use the
+  column names from the header row of the sample file if it has one, and
+  "column1", "column2", "column3", and so on if it doesn't.
+
+`delimiter`::
+  (string) If `format` is set to `delimited` then this parameter may optionally
+  be used to specify the character used to delimit the values in each row.
+  Only a single character is supported; the delimiter may not have multiple
+  characters.  If not specified then the structure finder will consider the
+  following possibilities: comma, tab, semi-colon and pipe (`|`).
+
+`explain`::
+  (boolean) If this parameter is set to `true` then the response will include a
+  field named `explanation` that is an array of strings that indicate how the
+  structure finder produced its result.  The default value is `false`.
+
+`format`::
+  (string) Optionally, the high level structure of the file, which must be one
+  of `json`, `xml`, `delimited` or `semi_structured_text`.  If not specified
+  then the structure finder will decide.
+
+`grok_pattern`::
+  (string) If `format` is set to `semi_structured_text` then this parameter may
+  optionally supply the Grok pattern to be used to extract fields from every
+  message within the sample file.  The name of the timestamp field within the
+  Grok pattern must match what is specified in `timestamp_field`, or be
+  "timestamp" if that parameter is not specified.  If not specified then the
+  structure finder will create a Grok pattern.
+
+`has_header_row`::
+  (boolean) If `format` is set to `delimited` then this parameter may optionally
+  be used to force the decision on whether the column names are in the first row
+  of the sample file.  If not specified then the structure finder will guess
+  based on the similarity of the first row of the sample file and other rows.
+
+`lines_to_sample`::
+  (unsigned integer) The number of lines from the beginning of the uploaded
+  sample to include in the structure analysis.  The minimum is 2; the default
+  is 1000.  If the sample contains fewer lines than this parameter specifies
+  then, providing there are at least two lines in the sample, the analysis will
+  proceed and will analyse all lines provided.  The more lines that are analyzed
+  the slower the analysis will be.  The more varied the lines that are analyzed
+  the more useful the analysis will be.  For example, if you upload a log file
+  where the first 1000 lines are all variations on the same message then the
+  analysis will find more commonality than would be seen with a bigger sample.
+  But, if possible, it would be more efficient to upload a sample file with more
+  variety in the first 1000 lines than to request analysis of 100000 lines to
+  achieve some variety.
+
+`quote`::
+  (string) If `format` is set to `delimited` then this parameter may optionally
+  be used to specify the character used to quote the values in each row if they
+  contain newlines or the delimiter character.  Only a single character is
+  supported.  If not specified the default is a double quote (`"`).  (If your
+  delimited file format does not use quoting then a workaround is to set this
+  argument to a character that does not appear anywhere in the sample.)
+
+`should_trim_fields`::
+  (boolean) If `format` is set to `delimited` then this parameter may optionally
+  be used to specify whether values between delimiters should have whitespace
+  trimmed from them.  If not specified then the default is `true` if the
+  delimiter is pipe (`|`) and `false` otherwise.
+
+`timestamp_field`::
+  (string) Optionally, the name of the field in the sample file that contains
+  the primary timestamp of each record (the one that would be used to populate
+  the `@timestamp` field if the file were ingested into an index).  If `format`
+  is `semi_structured_text` then this field must match the name of the
+  appropriate extraction in the `grok_pattern`, therefore it is best not to
+  specify this parameter unless `grok_pattern` is also specified.  For
+  structured file formats any `timestamp_field` specified must be present within
+  the file.  (For structured file formats it is not compulsory to have a
+  timestamp within the file if `timestamp_field` is not specified.)  If not
+  specified then the structure finder will make a decision about which field
+  (if any) should be the primary timestamp field.
+
+`timestamp_format`::
+  (string) Optionally, the time format of the timestamp field in the sample
+  file.  Currently there is a limitation that this format must be one that the
+  structure finder might choose by itself.  (The reason for this restriction is
+  that to consistently set all the fields in the response the structure finder
+  needs a corresponding Grok pattern name and simple regular expression for each
+  timestamp format.)  Therefore there is little value in specifying this
+  parameter for structured file formats: it is as good and less error-prone to
+  just specify `timestamp_field` if you know which field contains your primary
+  timestamp.  The valuable use case for this parameter is when the format is
+  semi-structured text, there are multiple timestamp formats in the sample file
+  and you know which format corresponds to the primary timestamp, yet you do not
+  want to specify the full `grok_pattern`.  If not specified then the structure
+  finder will choose the best format from the formats it knows, which are:
+  - `dd/MMM/YYYY:HH:mm:ss Z`
+  - `EEE MMM dd HH:mm zzz YYYY`
+  - `EEE MMM dd HH:mm:ss YYYY`
+  - `EEE MMM dd HH:mm:ss zzz YYYY`
+  - `EEE MMM dd YYYY HH:mm zzz`
+  - `EEE MMM dd YYYY HH:mm:ss zzz`
+  - `EEE, dd MMM YYYY HH:mm Z`
+  - `EEE, dd MMM YYYY HH:mm ZZ`
+  - `EEE, dd MMM YYYY HH:mm:ss Z`
+  - `EEE, dd MMM YYYY HH:mm:ss ZZ`
+  - `ISO8601`
+  - `MMM  d HH:mm:ss`
+  - `MMM  d HH:mm:ss,SSS`
+  - `MMM  d YYYY HH:mm:ss`
+  - `MMM dd HH:mm:ss`
+  - `MMM dd HH:mm:ss,SSS`
+  - `MMM dd YYYY HH:mm:ss`
+  - `MMM dd, YYYY K:mm:ss a`
+  - `TAI64N`
+  - `UNIX`
+  - `UNIX_MS`
+  - `YYYY-MM-dd HH:mm:ss`
+  - `YYYY-MM-dd HH:mm:ss,SSS`
+  - `YYYY-MM-dd HH:mm:ss,SSS Z`
+  - `YYYY-MM-dd HH:mm:ss,SSSZ`
+  - `YYYY-MM-dd HH:mm:ss,SSSZZ`
+  - `YYYY-MM-dd HH:mm:ssZ`
+  - `YYYY-MM-dd HH:mm:ssZZ`
+  - `YYYYMMddHHmmss`
+
+
+==== Request Body
+
+The file whose structure is to be analyzed.  This does not necessarily have to
+be in JSON format, and does not necessarily have to be UTF-8 encoded.  The
+size is still limited to the Elasticsearch HTTP receive buffer size (default
+100 Mb).
+
+
+==== Authorization
+
+You must have `monitor_ml`, or `monitor` cluster privileges to use this API.
+For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+
+
+[[ml-find-file-structure-examples]]
+==== Examples
+
+Suppose you have a newline delimited JSON file containing information about some
+books.  Then you could send the contents to the `find_file_structure` endpoint:
+
+[source,js]
+----
+POST _xpack/ml/find_file_structure
+{"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+{"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+{"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+{"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+{"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+{"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+{"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+{"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+{"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+{"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+{"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+{"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+{"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+{"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+{"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+{"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+{"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+{"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+{"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+{"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+{"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+{"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+{"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+{"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+----
+// CONSOLE
+// TEST
+
+If the request does not encounter errors, you receive the following result:
+[source,js]
+----
+{
+  "num_lines_analyzed" : 24, <1>
+  "num_messages_analyzed" : 24, <2>
+  "sample_start" : "{\"name\": \"Leviathan Wakes\", \"author\": \"James S.A. Corey\", \"release_date\": \"2011-06-02\", \"page_count\": 561}\n{\"name\": \"Hyperion\", \"author\": \"Dan Simmons\", \"release_date\": \"1989-05-26\", \"page_count\": 482}\n", <3>
+  "charset" : "UTF-8", <4>
+  "has_byte_order_marker" : false, <5>
+  "format" : "json", <6>
+  "need_client_timezone" : false, <7>
+  "mappings" : { <8>
+    "author" : {
+      "type" : "keyword"
+    },
+    "name" : {
+      "type" : "keyword"
+    },
+    "page_count" : {
+      "type" : "long"
+    },
+    "release_date" : {
+      "type" : "keyword"
+    }
+  },
+  "field_stats" : { <9>
+    "author" : {
+      "count" : 24,
+      "cardinality" : 20,
+      "top_hits" : [
+        {
+          "value" : "Frank Herbert",
+          "count" : 4
+        },
+        {
+          "value" : "Robert A. Heinlein",
+          "count" : 2
+        },
+        {
+          "value" : "Alastair Reynolds",
+          "count" : 1
+        },
+        {
+          "value" : "Aldous Huxley",
+          "count" : 1
+        },
+        {
+          "value" : "Dan Simmons",
+          "count" : 1
+        },
+        {
+          "value" : "Douglas Adams",
+          "count" : 1
+        },
+        {
+          "value" : "George Orwell",
+          "count" : 1
+        },
+        {
+          "value" : "Iain M. Banks",
+          "count" : 1
+        },
+        {
+          "value" : "Isaac Asimov",
+          "count" : 1
+        },
+        {
+          "value" : "James S.A. Corey",
+          "count" : 1
+        }
+      ]
+    },
+    "name" : {
+      "count" : 24,
+      "cardinality" : 24,
+      "top_hits" : [
+        {
+          "value" : "1984",
+          "count" : 1
+        },
+        {
+          "value" : "A Fire Upon the Deep",
+          "count" : 1
+        },
+        {
+          "value" : "Brave New World",
+          "count" : 1
+        },
+        {
+          "value" : "Children of Dune",
+          "count" : 1
+        },
+        {
+          "value" : "Consider Phlebas",
+          "count" : 1
+        },
+        {
+          "value" : "Dune",
+          "count" : 1
+        },
+        {
+          "value" : "Dune Messiah",
+          "count" : 1
+        },
+        {
+          "value" : "Ender's Game",
+          "count" : 1
+        },
+        {
+          "value" : "Fahrenheit 451",
+          "count" : 1
+        },
+        {
+          "value" : "Foundation",
+          "count" : 1
+        }
+      ]
+    },
+    "page_count" : {
+      "count" : 24,
+      "cardinality" : 24,
+      "min_value" : 180.0,
+      "max_value" : 768.0,
+      "mean_value" : 387.0833333333333,
+      "median_value" : 329.5,
+      "top_hits" : [
+        {
+          "value" : 180.0,
+          "count" : 1
+        },
+        {
+          "value" : 208.0,
+          "count" : 1
+        },
+        {
+          "value" : 224.0,
+          "count" : 1
+        },
+        {
+          "value" : 227.0,
+          "count" : 1
+        },
+        {
+          "value" : 268.0,
+          "count" : 1
+        },
+        {
+          "value" : 271.0,
+          "count" : 1
+        },
+        {
+          "value" : 275.0,
+          "count" : 1
+        },
+        {
+          "value" : 288.0,
+          "count" : 1
+        },
+        {
+          "value" : 304.0,
+          "count" : 1
+        },
+        {
+          "value" : 311.0,
+          "count" : 1
+        }
+      ]
+    },
+    "release_date" : {
+      "count" : 24,
+      "cardinality" : 20,
+      "top_hits" : [
+        {
+          "value" : "1985-06-01",
+          "count" : 3
+        },
+        {
+          "value" : "1969-06-01",
+          "count" : 2
+        },
+        {
+          "value" : "1992-06-01",
+          "count" : 2
+        },
+        {
+          "value" : "1932-06-01",
+          "count" : 1
+        },
+        {
+          "value" : "1951-06-01",
+          "count" : 1
+        },
+        {
+          "value" : "1953-10-15",
+          "count" : 1
+        },
+        {
+          "value" : "1959-12-01",
+          "count" : 1
+        },
+        {
+          "value" : "1965-06-01",
+          "count" : 1
+        },
+        {
+          "value" : "1966-04-01",
+          "count" : 1
+        },
+        {
+          "value" : "1969-10-15",
+          "count" : 1
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
+// The substitution is because the "file" is pre-processed by the test harness,
+// so the fields may get reordered in the JSON the endpoint sees
+
+<1> `num_lines_analyzed` says how many lines of the uploaded file were analyzed.
+<2> `num_messages_analyzed` says how many distinct messages the lines contained.
+     For ND-JSON it will be the same as `num_lines_analyzed`, but for other
+     file formats messages can span several lines.
+<3> `sample_start` reproduces the first two messages in the sample file
+    verbatim.  This may help to diagnose parse errors, or accidental uploads of
+    the wrong file.
+<4> `charset` the character encoding used to parse the uploaded file.
+<5> `has_byte_order_marker` for UTF character encodings, did the uploaded file
+    begin with a byte order marker?
+<6> `format` is one of `json`, `xml`, `delimited` or `semi_structured_text`.
+<7> `need_client_timezone` will be `true` if a timestamp format is detected
+    that does not include a timezone, thus necessitating that the server that
+    parses it must be told the correct timezone by the client.
+<8> `mappings` contains some suitable mappings for an index into which the data
+    could be ingested.  In this case the `release_date` field has been given
+    `type` `keyword` as it is not considered specific enough to convert to the
+    `date` `type`.
+<9> `field_stats` contains the most common values of each field, plus basic
+    numeric statistics for the numeric `page_count` field.  This information
+    may provide clues that the data needs to be cleaned or transformed prior
+    to use by other {ml} functionality.
+

@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 public interface TokenFilterFactory {

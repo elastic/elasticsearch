@@ -686,7 +686,8 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 13);
             final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
             String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-            o.writeString(DateTimeZone.UTC.getID());
+            // joda does not understand "Z" for utc, so we must special case
+            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         WRITERS = Collections.unmodifiableMap(writers);

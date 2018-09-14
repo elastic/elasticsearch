@@ -37,7 +37,7 @@ transport.profiles.client.bind_host: 1.1.1.1 <2>
 <2> The bind address for the network used for client communication
 
 If separate networks are not available, then
-{xpack-ref}/ip-filtering.html[IP Filtering] can
+{stack-ov}/ip-filtering.html[IP Filtering] can
 be enabled to limit access to the profiles.
 
 When using SSL for transport, a different set of certificates can also be used
@@ -65,4 +65,4 @@ transport.profiles.client.xpack.security.ssl.client_authentication: none
 This setting keeps certificate authentication active for node-to-node traffic,
 but removes the requirement to distribute a signed certificate to transport
 clients. For more information, see
-{xpack-ref}/java-clients.html#transport-client[Configuring the Transport Client to work with a Secured Cluster].
+{stack-ov}/java-clients.html#transport-client[Configuring the Transport Client to work with a Secured Cluster].

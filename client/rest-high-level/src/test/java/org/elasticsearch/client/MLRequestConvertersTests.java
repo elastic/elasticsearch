@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -37,9 +38,12 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
+import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -223,6 +227,20 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testDeleteDatafeed() {
+        String datafeedId = randomAlphaOfLength(10);
+        DeleteDatafeedRequest deleteDatafeedRequest = new DeleteDatafeedRequest(datafeedId);
+
+        Request request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds/" + datafeedId, request.getEndpoint());
+        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+
+        deleteDatafeedRequest.setForce(true);
+        request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
+        assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+    }
+
     public void testDeleteForecast() throws Exception {
         String jobId = randomAlphaOfLength(10);
         DeleteForecastRequest deleteForecastRequest = new DeleteForecastRequest(jobId);
@@ -365,6 +383,17 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             GetInfluencersRequest parsedRequest = GetInfluencersRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(getInfluencersRequest));
+        }
+    }
+
+    public void testPutCalendar() throws IOException {
+        PutCalendarRequest putCalendarRequest = new PutCalendarRequest(CalendarTests.testInstance());
+        Request request = MLRequestConverters.putCalendar(putCalendarRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/calendars/" + putCalendarRequest.getCalendar().getId(), request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            Calendar parsedCalendar = Calendar.PARSER.apply(parser, null);
+            assertThat(parsedCalendar, equalTo(putCalendarRequest.getCalendar()));
         }
     }
 

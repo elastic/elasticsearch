@@ -60,9 +60,12 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(command("SHOW FUNCTIONS LIKE '%DAY%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
         assertThat(readLine(), containsString("----------"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_MONTH\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFMONTH\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_WEEK\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFWEEK\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_OF_YEAR\\s*\\|\\s*SCALAR\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*DAYOFYEAR\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*HOUR_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MINUTE_OF_DAY\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*DAY_NAME\\s*\\|\\s*SCALAR\\s*"));

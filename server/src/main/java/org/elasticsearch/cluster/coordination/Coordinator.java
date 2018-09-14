@@ -107,7 +107,6 @@ public class Coordinator extends AbstractLifecycleComponent {
             in -> new PublishRequest(in, transportService.getLocalNode()),
             (request, channel, task) -> channel.sendResponse(handlePublishRequest(request)));
 
-
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, Names.GENERIC, false, false,
             ApplyCommitRequest::new,
             (request, channel, task) -> {

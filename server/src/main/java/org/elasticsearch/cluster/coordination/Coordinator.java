@@ -62,7 +62,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     // These tests can be rewritten to use public methods once Coordinator is more feature-complete
     final Object mutex = new Object();
     final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
-    private Optional<ClusterState> lastCommittedState = Optional.empty();
+    private volatile Optional<ClusterState> lastCommittedState = Optional.empty();
 
     private final PeerFinder peerFinder;
     private final PreVoteCollector preVoteCollector;
@@ -403,7 +403,9 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     public ClusterState getLastAcceptedState() {
-        return coordinationState.get().getLastAcceptedState();
+        synchronized (mutex) {
+            return coordinationState.get().getLastAcceptedState();
+        }
     }
 
     public Optional<ClusterState> getLastCommittedState() {

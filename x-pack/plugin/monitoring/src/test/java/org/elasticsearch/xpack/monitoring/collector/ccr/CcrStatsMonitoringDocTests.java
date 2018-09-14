@@ -7,12 +7,17 @@
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -20,13 +25,17 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
@@ -93,8 +102,10 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
         final long numberOfSuccessfulBulkOperations = randomNonNegativeLong();
         final long numberOfFailedBulkOperations = randomNonNegativeLong();
         final long numberOfOperationsIndexed = randomNonNegativeLong();
-        final NavigableMap<Long, ElasticsearchException> fetchExceptions =
-                new TreeMap<>(Collections.singletonMap(randomNonNegativeLong(), new ElasticsearchException("shard is sad")));
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
+                new TreeMap<>(Collections.singletonMap(
+                        randomNonNegativeLong(),
+                        Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
         final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "cluster_alias:leader_index",
@@ -163,6 +174,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                                         + "\"fetch_exceptions\":["
                                                 + "{"
                                                         + "\"from_seq_no\":" + fetchExceptions.keySet().iterator().next() + ","
+                                                        + "\"retries\":" + fetchExceptions.values().iterator().next().v1() + ","
                                                         + "\"exception\":{"
                                                                 + "\"type\":\"exception\","
                                                                 + "\"reason\":\"shard is sad\""
@@ -172,6 +184,69 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                                         + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis
                                 + "}"
                         + "}"));
+    }
+
+    public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
+            new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
+        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+            "cluster_alias:leader_index",
+            "follower_index",
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            100,
+            10,
+            0,
+            10,
+            100,
+            10,
+            10,
+            0,
+            10,
+            fetchExceptions,
+            2);
+        XContentBuilder builder = jsonBuilder();
+        builder.value(status);
+        Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
+
+        Map<String, Object> template =
+            XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
+        Map<?, ?> ccrStatsMapping = (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_stats.properties", template);
+
+        assertThat(serializedStatus.size(), equalTo(ccrStatsMapping.size()));
+        for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
+            String fieldName = entry.getKey();
+            Map<?, ?> fieldMapping = (Map<?, ?>) ccrStatsMapping.get(fieldName);
+            assertThat(fieldMapping, notNullValue());
+
+            Object fieldValue = entry.getValue();
+            String fieldType = (String) fieldMapping.get("type");
+            if (fieldValue instanceof Long || fieldValue instanceof Integer) {
+                assertThat("expected long field type for field [" + fieldName + "]", fieldType,
+                    anyOf(equalTo("long"), equalTo("integer")));
+            } else if (fieldValue instanceof String) {
+                assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
+                    anyOf(equalTo("keyword"), equalTo("text")));
+            } else {
+                // Manual test specific object fields and if not just fail:
+                if (fieldName.equals("fetch_exceptions")) {
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
+                    assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
+                    assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
+                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("text"));
+                } else {
+                    fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
+                }
+            }
+        }
     }
 
 }

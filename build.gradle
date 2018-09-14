@@ -632,7 +632,7 @@ if (System.properties.get("build.compare") != null) {
 allprojects {
   task resolveAllDependencies {
     doLast {
-      configurations.all { if (it.isCanBeResolved()) it.resolve() }
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
     }
   }
 }

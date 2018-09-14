@@ -42,12 +42,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 public class JoinHelper extends AbstractComponent {
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
+    public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     private final MasterService masterService;
     private final TransportService transportService;
@@ -55,7 +58,7 @@ public class JoinHelper extends AbstractComponent {
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinHandler) {
+                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm) {
         super(settings);
         this.masterService = masterService;
         this.transportService = transportService;
@@ -106,30 +109,62 @@ public class JoinHelper extends AbstractComponent {
                     return "JoinCallback{request=" + request + "}";
                 }
             }));
+
+        transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
+            StartJoinRequest::new,
+            (request, channel, task) -> {
+                final DiscoveryNode destination = request.getSourceNode();
+                final JoinRequest joinRequest
+                    = new JoinRequest(transportService.getLocalNode(), Optional.of(joinLeaderInTerm.apply(request)));
+                logger.debug("attempting to join {} with {}", destination, joinRequest);
+                this.transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler<Empty>() {
+                    @Override
+                    public Empty read(StreamInput in) {
+                        return Empty.INSTANCE;
+                    }
+
+                    @Override
+                    public void handleResponse(Empty response) {
+                        logger.debug("successfully joined {} with {}", destination, joinRequest);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return Names.SAME;
+                    }
+                });
+                channel.sendResponse(Empty.INSTANCE);
+            });
     }
 
-    public void sendJoin(final DiscoveryNode destination, final JoinRequest joinRequest) {
-        transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,new TransportResponseHandler<Empty>() {
-            @Override
-            public Empty read(StreamInput in) {
-                return Empty.INSTANCE;
-            }
+    public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
+            startJoinRequest, new TransportResponseHandler<Empty>() {
+                @Override
+                public Empty read(StreamInput in) {
+                    return Empty.INSTANCE;
+                }
 
-            @Override
-            public void handleResponse(Empty response) {
-                logger.debug("successfully joined {} with {}", destination, joinRequest);
-            }
+                @Override
+                public void handleResponse(Empty response) {
+                    logger.debug("successful response to {} from {}", startJoinRequest, destination);
+                }
 
-            @Override
-            public void handleException(TransportException exp) {
-                logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-            }
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
+                }
 
-            @Override
-            public String executor() {
-                return Names.SAME;
-            }
-        });
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
     }
 
     public interface JoinCallback {

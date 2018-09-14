@@ -53,7 +53,6 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
-    public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     private final TransportService transportService;
     private final JoinHelper joinHelper;
@@ -85,7 +84,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         super(settings);
         this.transportService = transportService;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
-            this::getCurrentTerm, this::handleJoinRequest);
+            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm);
         this.persistedStateSupplier = persistedStateSupplier;
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
@@ -95,13 +94,6 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService, getTransportAddressConnector(), configuredHostsResolver);
-
-        transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
-            StartJoinRequest::new,
-            (request, channel, task) -> {
-                handleStartJoinRequest(request);
-                channel.sendResponse(Empty.INSTANCE);
-            });
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, Names.GENERIC, false, false,
             in -> new PublishRequest(in, transportService.getLocalNode()),
@@ -180,40 +172,8 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
-                getDiscoveredNodes().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
+                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
-        }
-    }
-
-    private void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
-            startJoinRequest, new TransportResponseHandler<Empty>() {
-                @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
-                    logger.debug("successful response to {} from {}", startJoinRequest, destination);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-            });
-    }
-
-    private void handleStartJoinRequest(final StartJoinRequest startJoinRequest) {
-        synchronized (mutex) {
-            final Join join = joinLeaderInTerm(startJoinRequest);
-            joinHelper.sendJoin(startJoinRequest.getSourceNode(), new JoinRequest(getLocalNode(), Optional.of(join)));
         }
     }
 
@@ -226,14 +186,15 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
-        final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
-        lastJoin = Optional.of(join);
-        if (mode != Mode.CANDIDATE) {
-            becomeCandidate("joinLeaderInTerm");
+        synchronized (mutex) {
+            logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
+            final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
+            lastJoin = Optional.of(join);
+            if (mode != Mode.CANDIDATE) {
+                becomeCandidate("joinLeaderInTerm");
+            }
+            return join;
         }
-        return join;
     }
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {

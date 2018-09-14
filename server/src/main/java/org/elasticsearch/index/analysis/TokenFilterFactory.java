@@ -64,6 +64,9 @@ public interface TokenFilterFactory {
         return this;
     }
 
+    /**
+     * A TokenFilterFactory that does no filtering to its TokenStream
+     */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {
         @Override
         public String name() {

@@ -308,42 +308,63 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
-                logger.trace("waiting for global checkpoint advancement to [{}]", request.getFromSeqNo());
+                logger.trace(
+                        "waiting for global checkpoint advancement from [{}] to [{}]",
+                        seqNoStats.getGlobalCheckpoint(),
+                        request.getFromSeqNo());
                 indexShard.addGlobalCheckpointListener(
                         request.getFromSeqNo(),
                         (g, e) -> {
-                            if (g == UNASSIGNED_SEQ_NO) {
-                                assert e != null;
-                                logger.trace(
-                                        () -> new ParameterizedMessage(
-                                                "exception waiting for global checkpoint advancement to [{}]", request.getFromSeqNo()),
-                                        e);
-                                if (e instanceof TimeoutException) {
-                                    try {
-                                        final long mappingVersion =
-                                                clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
-                                        final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
-                                        listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
-                                    } catch (final Exception caught) {
-                                        caught.addSuppressed(e);
-                                        listener.onFailure(caught);
-                                    }
-                                } else {
-                                    listener.onFailure(e);
-                                }
+                            if (g != UNASSIGNED_SEQ_NO) {
+                                assert request.getFromSeqNo() <= g
+                                        : "only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
+                                globalCheckpointAdvanced(shardId, g, request, listener);
                             } else {
-                                assert request.getFromSeqNo() <= g;
-                                logger.trace("global checkpoint advanced to [{}] after waiting for [{}]", g, request.getFromSeqNo());
-                                try {
-                                    super.asyncShardOperation(request, shardId, listener);
-                                } catch (final IOException caught) {
-                                    listener.onFailure(caught);
-                                }
+                                assert e != null;
+                                globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
                             }
                         },
                         request.getPollTimeout());
             } else {
                 super.asyncShardOperation(request, shardId, listener);
+            }
+        }
+
+        private void globalCheckpointAdvanced(
+                final ShardId shardId,
+                final long globalCheckpoint,
+                final Request request,
+                final ActionListener<Response> listener) {
+            logger.trace("global checkpoint advanced to [{}] after waiting for [{}]", globalCheckpoint, request.getFromSeqNo());
+            try {
+                super.asyncShardOperation(request, shardId, listener);
+            } catch (final IOException caught) {
+                listener.onFailure(caught);
+            }
+        }
+
+        private void globalCheckpointAdvancementFailure(
+                final ShardId shardId,
+                final Exception e,
+                final Request request,
+                final ActionListener<Response> listener,
+                final IndexShard indexShard) {
+            logger.trace(
+                    () -> new ParameterizedMessage(
+                            "exception waiting for global checkpoint advancement to [{}]", request.getFromSeqNo()),
+                    e);
+            if (e instanceof TimeoutException) {
+                try {
+                    final long mappingVersion =
+                            clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
+                    final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
+                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
+                } catch (final Exception caught) {
+                    caught.addSuppressed(e);
+                    listener.onFailure(caught);
+                }
+            } else {
+                listener.onFailure(e);
             }
         }
 

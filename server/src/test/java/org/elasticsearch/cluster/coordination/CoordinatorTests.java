@@ -203,14 +203,13 @@ public class CoordinatorTests extends ESTestCase {
                 final TransportAddress transportAddress = buildNewFakeTransportAddress();
                 // Generate the ephemeral ID deterministically, for repeatable tests. This means we have to pass everything else into the
                 // constructor explicitly too.
-                return new DiscoveryNode("", "node" + nodeIndex, UUIDs.randomBase64UUID(random()),
+                return new DiscoveryNode("", nodeIdFromIndex(nodeIndex), UUIDs.randomBase64UUID(random()),
                     transportAddress.address().getHostString(),
                     transportAddress.getAddress(), transportAddress, Collections.emptyMap(),
                     EnumSet.allOf(Role.class), Version.CURRENT);
             }
 
             private void setUp() {
-
                 capturingTransport = new CapturingTransport() {
                     @Override
                     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {

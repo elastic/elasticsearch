@@ -383,7 +383,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         return coordinationState.get().containsJoinVoteFor(localNode);
     }
 
-    public void handleJoin(Join join) {
+    void handleJoin(Join join) {
         synchronized (mutex) {
             ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
 

@@ -157,14 +157,16 @@ SELECT SUBSTRING('Elasticsearch', 10, 10) sub;
 ucaseFilter
 SELECT UCASE(gender) uppercased, COUNT(*) count FROM "test_emp" WHERE UCASE(gender) = 'F' GROUP BY UCASE(gender);
 
-ucaseInline1
-SELECT UCASE('ElAsTiC') upper;
+//https://github.com/elastic/elasticsearch/issues/33687
+//ucaseInline1
+//SELECT UCASE('ElAsTiC') upper;
 
 ucaseInline2
 SELECT UCASE('') upper;
 
-ucaseInline3
-SELECT UCASE(' elastic ') upper;
+//https://github.com/elastic/elasticsearch/issues/33687
+//ucaseInline3
+//SELECT UCASE(' elastic ') upper;
 
 //
 // Group and order by

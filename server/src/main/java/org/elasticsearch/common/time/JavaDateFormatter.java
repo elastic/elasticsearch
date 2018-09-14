@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common.time;
 
 import java.time.ZoneId;
@@ -27,33 +28,28 @@ import java.time.temporal.TemporalField;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Consumer;
 
-/**
- * wrapper class around java.time.DateTimeFormatter that supports multiple formats for easier parsing,
- * and one specific format for printing
- */
-public class CompoundDateTimeFormatter {
+class JavaDateFormatter implements DateFormatter {
 
-    private static final Consumer<DateTimeFormatter[]> SAME_TIME_ZONE_VALIDATOR = (parsers) -> {
+    private final String format;
+    private final DateTimeFormatter printer;
+    private final DateTimeFormatter[] parsers;
+
+    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
         long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();
         if (distinctZones > 1) {
             throw new IllegalArgumentException("formatters must have the same time zone");
         }
-    };
-
-    final DateTimeFormatter printer;
-    final DateTimeFormatter[] parsers;
-
-    CompoundDateTimeFormatter(DateTimeFormatter ... parsers) {
         if (parsers.length == 0) {
-            throw new IllegalArgumentException("at least one date time formatter is required");
+            this.parsers = new DateTimeFormatter[]{printer};
+        } else {
+            this.parsers = parsers;
         }
-        SAME_TIME_ZONE_VALIDATOR.accept(parsers);
-        this.printer = parsers[0];
-        this.parsers = parsers;
+        this.format = format;
+        this.printer = printer;
     }
 
+    @Override
     public TemporalAccessor parse(String input) {
         DateTimeParseException failure = null;
         for (int i = 0; i < parsers.length; i++) {
@@ -72,13 +68,8 @@ public class CompoundDateTimeFormatter {
         throw failure;
     }
 
-    /**
-     * Configure a specific time zone for a date formatter
-     *
-     * @param zoneId The zoneId this formatter shoulduse
-     * @return       The new formatter with all parsers switched to the specified timezone
-     */
-    public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
+    @Override
+    public DateFormatter withZone(ZoneId zoneId) {
         // shortcurt to not create new objects unnecessarily
         if (zoneId.equals(parsers[0].getZone())) {
             return this;
@@ -89,25 +80,33 @@ public class CompoundDateTimeFormatter {
             parsersWithZone[i] = parsers[i].withZone(zoneId);
         }
 
-        return new CompoundDateTimeFormatter(parsersWithZone);
+        return new JavaDateFormatter(format, printer.withZone(zoneId), parsersWithZone);
     }
 
-    /**
-     * Configure defaults for missing values in a parser, then return a new compound date formatter
-     */
-    CompoundDateTimeFormatter parseDefaulting(Map<TemporalField, Long> fields) {
-        final DateTimeFormatter[] parsersWithDefaulting = new DateTimeFormatter[parsers.length];
-        for (int i = 0; i < parsers.length; i++) {
-            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(parsers[i]);
-            fields.forEach(builder::parseDefaulting);
-            parsersWithDefaulting[i] = builder.toFormatter(Locale.ROOT);
-        }
-
-        return new CompoundDateTimeFormatter(parsersWithDefaulting);
-    }
-
+    @Override
     public String format(TemporalAccessor accessor) {
         return printer.format(accessor);
     }
 
+    @Override
+    public String pattern() {
+        return format;
+    }
+
+    @Override
+    public DateFormatter parseDefaulting(Map<TemporalField, Long> fields) {
+        final DateTimeFormatterBuilder parseDefaultingBuilder = new DateTimeFormatterBuilder().append(printer);
+        fields.forEach(parseDefaultingBuilder::parseDefaulting);
+        if (parsers.length == 1 && parsers[0].equals(printer)) {
+            return new JavaDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT));
+        } else {
+            final DateTimeFormatter[] parsersWithDefaulting = new DateTimeFormatter[parsers.length];
+            for (int i = 0; i < parsers.length; i++) {
+                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(parsers[i]);
+                fields.forEach(builder::parseDefaulting);
+                parsersWithDefaulting[i] = builder.toFormatter(Locale.ROOT);
+            }
+            return new JavaDateFormatter(format, parseDefaultingBuilder.toFormatter(Locale.ROOT), parsersWithDefaulting);
+        }
+    }
 }

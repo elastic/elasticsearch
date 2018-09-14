@@ -134,8 +134,8 @@ setup:
 ---
 "docvalue_fields":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
       features: warnings
   - do:
       warnings:
@@ -148,8 +148,8 @@ setup:
 ---
 "multiple docvalue_fields":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
       features: warnings
   - do:
       warnings:
@@ -162,8 +162,8 @@ setup:
 ---
 "docvalue_fields as url param":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+      version: " - 6.4.0"
+      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
       features: warnings
   - do:
       warnings:

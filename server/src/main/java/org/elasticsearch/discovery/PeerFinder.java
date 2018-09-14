@@ -66,7 +66,6 @@ public abstract class PeerFinder extends AbstractComponent {
     private final TransportService transportService;
     private final TransportAddressConnector transportAddressConnector;
     private final ConfiguredHostsResolver configuredHostsResolver;
-    private final LongConsumer updateMaxTermSeen;
 
     private volatile long currentTerm;
     private boolean active;
@@ -75,13 +74,12 @@ public abstract class PeerFinder extends AbstractComponent {
     private Optional<DiscoveryNode> leader = Optional.empty();
 
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
-                      ConfiguredHostsResolver configuredHostsResolver, LongConsumer updateMaxTermSeen) {
+                      ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         this.transportService = transportService;
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
-        this.updateMaxTermSeen = updateMaxTermSeen;
 
         transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
             PeersRequest::new,
@@ -121,7 +119,7 @@ public abstract class PeerFinder extends AbstractComponent {
         return Thread.holdsLock(mutex);
     }
 
-    boolean assertInactiveWithNoKnownPeers() {
+    private boolean assertInactiveWithNoKnownPeers() {
         assert active == false;
         assert peersByAddress.isEmpty() : peersByAddress.keySet();
         return true;

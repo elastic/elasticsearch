@@ -373,7 +373,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
         CoordinatorPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                               ConfiguredHostsResolver configuredHostsResolver) {
-            super(settings, transportService, transportAddressConnector, configuredHostsResolver, Coordinator.this::updateMaxTermSeen);
+            super(settings, transportService, transportAddressConnector, configuredHostsResolver);
         }
 
         @Override

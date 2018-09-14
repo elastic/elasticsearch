@@ -224,8 +224,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 if (hitCount == -1) {
                     assert trackTotalHits == false;
-                    totalHitsSupplier = () -> new TotalHits(topDocsSupplier.get().scoreDocs.length,
-                            TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                    totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 } else {
                     totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
                 }

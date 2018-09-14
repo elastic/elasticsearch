@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -307,12 +308,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
-                assert request.getFromSeqNo() == 1 + seqNoStats.getGlobalCheckpoint();
+                logger.trace("waiting for global checkpoint advancement to [{}]", request.getFromSeqNo());
                 indexShard.addGlobalCheckpointListener(
                         request.getFromSeqNo(),
                         (g, e) -> {
                             if (g == UNASSIGNED_SEQ_NO) {
                                 assert e != null;
+                                logger.trace(
+                                        () -> new ParameterizedMessage(
+                                                "exception waiting for global checkpoint advancement to [{}]", request.getFromSeqNo()),
+                                        e);
                                 if (e instanceof TimeoutException) {
                                     try {
                                         final long mappingVersion =
@@ -320,16 +325,19 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                                         final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                                         listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, EMPTY_OPERATIONS_ARRAY));
                                     } catch (final Exception caught) {
+                                        caught.addSuppressed(e);
                                         listener.onFailure(caught);
                                     }
                                 } else {
                                     listener.onFailure(e);
                                 }
                             } else {
+                                assert request.getFromSeqNo() <= g;
+                                logger.trace("global checkpoint advanced to [{}] after waiting for [{}]", g, request.getFromSeqNo());
                                 try {
                                     super.asyncShardOperation(request, shardId, listener);
-                                } catch (final IOException e1) {
-                                    listener.onFailure(e1);
+                                } catch (final IOException caught) {
+                                    listener.onFailure(caught);
                                 }
                             }
                         },

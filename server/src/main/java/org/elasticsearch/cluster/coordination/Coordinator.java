@@ -96,7 +96,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService, getTransportAddressConnector(), configuredHostsResolver);
 
-        transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.SAME, false, false,
+        transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,
             (request, channel, task) -> {
                 handleStartJoinRequest(request);

@@ -398,7 +398,6 @@ public class Coordinator extends AbstractLifecycleComponent {
             } else {
                 coordinationState.get().handleJoin(join); // this might fail and bubble up the exception
             }
-
         }
     }
 

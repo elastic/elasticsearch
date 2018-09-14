@@ -18,19 +18,16 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate> {
@@ -54,7 +51,11 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             builder.setTypes(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            try {
+                builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to serialize query", e);
+            }
         }
         if (randomBoolean()) {
             int scriptsSize = randomInt(3);
@@ -71,7 +72,11 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             // Testing with a single agg is ok as we don't have special list xcontent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
             aggs.addAggregator(AggregationBuilders.avg(randomAlphaOfLength(10)).field(randomAlphaOfLength(10)));
-            builder.setAggregations(aggs);
+            try {
+                builder.setAggregations(aggs);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to serialize aggs", e);
+            }
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
@@ -91,11 +96,4 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
     protected boolean supportsUnknownFields() {
         return false;
     }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
 }

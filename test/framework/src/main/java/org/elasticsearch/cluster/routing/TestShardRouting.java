@@ -39,10 +39,6 @@ public class TestShardRouting {
         return newShardRouting(new ShardId(index, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
     }
 
-    public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, RecoverySource recoverySource, ShardRoutingState state) {
-        return new ShardRouting(shardId, currentNodeId, null, primary, state, recoverySource, buildUnassignedInfo(state), buildAllocationId(state), -1);
-    }
-
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return new ShardRouting(shardId, currentNodeId, null, primary, state, buildRecoveryTarget(primary, state), buildUnassignedInfo(state), buildAllocationId(state), -1);
     }

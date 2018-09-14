@@ -1937,16 +1937,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Version version = Version.fromString("2.0.0");
-        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null,
-                 Collections.emptySet())) {
+        try (MockTransportService service = build(Settings.EMPTY, version, null, true)) {
             service.start();
             service.acceptIncomingRequests();
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            TransportAddress address = service.boundAddress().publishAddress();
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), version0);
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(1,
                 TransportRequestOptions.Type.BULK,
@@ -1962,15 +1958,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-             MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, null,
-                 Collections.emptySet())) {
+        try (MockTransportService service = build(Settings.EMPTY, version, null, true)) {
             service.start();
             service.acceptIncomingRequests();
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(),
-                    Version.fromString("2.0.0"));
+            TransportAddress address = service.boundAddress().publishAddress();
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(1,
                 TransportRequestOptions.Type.BULK,
@@ -2689,7 +2681,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 }

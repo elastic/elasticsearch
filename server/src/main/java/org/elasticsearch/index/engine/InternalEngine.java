@@ -156,12 +156,6 @@ public class InternalEngine extends Engine {
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
-    /**
-     * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
-     * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
-     * being indexed/deleted.
-     */
-    private final AtomicLong writingBytes = new AtomicLong();
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
 
     @Nullable
@@ -543,7 +537,7 @@ public class InternalEngine extends Engine {
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
     @Override
     public long getWritingBytes() {
-        return writingBytes.get();
+        return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
     }
 
     /**
@@ -761,6 +755,7 @@ public class InternalEngine extends Engine {
                         : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
+                case LOCAL_RESET:
                     assert index.isRetry();
                     return true; // allow to optimize in order to update the max safe time stamp
                 default:
@@ -887,7 +882,7 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(
                             plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
-                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                if (index.origin().isFromTranslog() == false) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
@@ -1240,7 +1235,7 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(
                         plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
-            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            if (delete.origin().isFromTranslog() == false) {
                 final Translog.Location location;
                 if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
@@ -1491,7 +1486,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            if (noOp.origin().isFromTranslog() == false) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);
             }
@@ -1517,9 +1512,6 @@ public class InternalEngine extends Engine {
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = getLocalCheckpoint();
 
-        // this will also cause version map ram to be freed hence we always account for it.
-        final long bytes = indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
-        writingBytes.addAndGet(bytes);
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (store.tryIncRef()) {
@@ -1545,8 +1537,6 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new RefreshFailedEngineException(shardId, e);
-        }  finally {
-            writingBytes.addAndGet(-bytes);
         }
         assert lastRefreshedCheckpoint() >= localCheckpointBeforeRefresh : "refresh checkpoint was not advanced; " +
             "local_checkpoint=" + localCheckpointBeforeRefresh + " refresh_checkpoint=" + lastRefreshedCheckpoint();
@@ -1654,11 +1644,6 @@ public class InternalEngine extends Engine {
             translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1).translogFileGeneration;
         return translogGenerationOfLastCommit < translogGenerationOfNewCommit
             || localCheckpointTracker.getCheckpoint() == localCheckpointTracker.getMaxSeqNo();
-    }
-
-    @Override
-    public CommitId flush() throws EngineException {
-        return flush(false, false);
     }
 
     @Override
@@ -2418,11 +2403,6 @@ public class InternalEngine extends Engine {
     @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
-    }
-
-    @Override
-    public void resetLocalCheckpoint(long localCheckpoint) {
-        localCheckpointTracker.resetCheckpoint(localCheckpoint);
     }
 
     @Override

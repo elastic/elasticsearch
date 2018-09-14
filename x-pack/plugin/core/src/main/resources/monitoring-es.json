@@ -916,6 +916,86 @@
               }
             }
           }
+        },
+        "ccr_stats": {
+          "properties": {
+            "leader_index": {
+              "type": "keyword"
+            },
+            "follower_index": {
+              "type": "keyword"
+            },
+            "shard_id": {
+              "type": "integer"
+            },
+            "leader_global_checkpoint": {
+              "type": "long"
+            },
+            "leader_max_seq_no": {
+              "type": "long"
+            },
+            "follower_global_checkpoint": {
+              "type": "long"
+            },
+            "follower_max_seq_no": {
+              "type": "long"
+            },
+            "last_requested_seq_no": {
+              "type": "long"
+            },
+            "number_of_concurrent_reads": {
+              "type": "long"
+            },
+            "number_of_concurrent_writes": {
+              "type": "long"
+            },
+            "number_of_queued_writes": {
+              "type": "long"
+            },
+            "mapping_version": {
+              "type": "long"
+            },
+            "total_fetch_time_millis": {
+              "type": "long"
+            },
+            "number_of_successful_fetches": {
+              "type": "long"
+            },
+            "number_of_failed_fetches": {
+              "type": "long"
+            },
+            "operations_received": {
+              "type": "long"
+            },
+            "total_transferred_bytes": {
+              "type": "long"
+            },
+            "total_index_time_millis": {
+              "type": "long"
+            },
+            "number_of_successful_bulk_operations": {
+              "type": "long"
+            },
+            "number_of_failed_bulk_operations": {
+              "type": "long"
+            },
+            "number_of_operations_indexed": {
+              "type": "long"
+            },
+            "fetch_exceptions": {
+              "properties": {
+                "from_seq_no": {
+                  "type": "long"
+                },
+                "exception": {
+                  "type": "text"
+                }
+              }
+            },
+            "time_since_last_fetch_millis": {
+              "type": "long"
+            }
+          }
         }
       }
     }

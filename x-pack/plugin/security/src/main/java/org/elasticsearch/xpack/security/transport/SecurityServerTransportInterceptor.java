@@ -107,7 +107,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 // guarantee we use the same value wherever we would check the value for the state
                 // being recovered
                 final boolean stateNotRecovered = isStateNotRecovered;
-                final boolean sendWithAuth = (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) || stateNotRecovered;
+                final boolean sendWithAuth = licenseState.isAuthAllowed() || stateNotRecovered;
                 if (sendWithAuth) {
                     // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                     // ourselves otherwise we wind up using a version newer than what we can actually send
@@ -266,7 +266,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
+                if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

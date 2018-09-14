@@ -386,7 +386,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     // for tests
     boolean hasJoinVoteFrom(DiscoveryNode localNode) {
-        return coordinationState.get().containsJoinVote(localNode);
+        return coordinationState.get().containsJoinVoteFor(localNode);
     }
 
     public void handleJoin(Join join) {

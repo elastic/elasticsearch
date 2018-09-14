@@ -63,8 +63,8 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public boolean runForSynonyms() {
-        return false;
+    public TokenFilterFactory getSynonymFilter() {
+        return null;
     }
 
     @Override

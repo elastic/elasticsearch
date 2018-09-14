@@ -55,9 +55,9 @@ public interface TokenFilterFactory {
     }
 
     /**
-     * If {@code true}, use this filter when analyzing lists of synonyms
+     * Return a version of this TokenFilterFactory appropriate for synonym parsing
      */
-    default boolean runForSynonyms() {
-        return true;
+    default TokenFilterFactory getSynonymFilter() {
+        return this;
     }
 }

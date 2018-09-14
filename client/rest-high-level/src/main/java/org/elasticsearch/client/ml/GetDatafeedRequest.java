@@ -33,10 +33,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Request object to get {@link DatafeedConfig} objects with the matching `datafeedId`s.
+ * Request object to get {@link DatafeedConfig} objects with the matching {@code datafeedId}s.
  *
- * `_all` explicitly gets all the datafeeds in the cluster
- * An empty request (no `datafeedId`s) implicitly gets all the datafeeds in the cluster
+ * {@code _all} explicitly gets all the datafeeds in the cluster
+ * An empty request (no {@code datafeedId}s) implicitly gets all the datafeeds in the cluster
  */
 public class GetDatafeedRequest extends ActionRequest implements ToXContentObject {
 
@@ -90,7 +90,8 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
     /**
      * Whether to ignore if a wildcard expression matches no datafeeds.
      *
-     * @param allowNoDatafeeds If this is {@code false}, then an error is returned when a wildcard (or `_all`) does not match any datafeeds
+     * @param allowNoDatafeeds If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
+     *                        does not match any datafeeds
      */
     public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
         this.allowNoDatafeeds = allowNoDatafeeds;

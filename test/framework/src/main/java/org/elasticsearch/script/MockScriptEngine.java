@@ -85,6 +85,18 @@ public class MockScriptEngine implements ScriptEngine {
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = mockCompiled::createSearchScript;
             return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
+            TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
+                -> new TermsSetQueryScript(parameters, lookup, ctx) {
+                @Override
+                public Number execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return (Number) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);

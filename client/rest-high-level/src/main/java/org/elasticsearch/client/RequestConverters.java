@@ -465,7 +465,8 @@ final class RequestConverters {
         Params params = new Params(request)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
-            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards());
+            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -714,6 +715,15 @@ final class RequestConverters {
             return this;
         }
 
+        Params withRequestsPerSecond(float requestsPerSecond) {
+            // the default in AbstractBulkByScrollRequest is Float.POSITIVE_INFINITY,
+            // but we don't want to add that to the URL parameters, instead we leave it out
+            if (Float.isFinite(requestsPerSecond)) {
+                return putParam("requests_per_second", Float.toString(requestsPerSecond));
+            }
+            return this;
+        }
+
         Params withRetryOnConflict(int retryOnConflict) {
             if (retryOnConflict > 0) {
                 return putParam("retry_on_conflict", String.valueOf(retryOnConflict));
@@ -958,7 +968,7 @@ final class RequestConverters {
         private static String encodePart(String pathPart) {
             try {
                 //encode each part (e.g. index, type and id) separately before merging them into the path
-                //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                //we prepend "/" to the path part to make this path absolute, otherwise there can be issues with
                 //paths that start with `-` or contain `:`
                 URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                 //manually encode any slash that each part may contain

@@ -318,6 +318,11 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setDestPipeline("my_pipeline");
         }
         if (randomBoolean()) {
+            float requestsPerSecond = (float) randomDoubleBetween(0.0, 10.0, false);
+            expectedParams.put("requests_per_second", Float.toString(requestsPerSecond));
+            reindexRequest.setRequestsPerSecond(requestsPerSecond);
+        }
+        if (randomBoolean()) {
             reindexRequest.setDestRouting("=cat");
         }
         if (randomBoolean()) {

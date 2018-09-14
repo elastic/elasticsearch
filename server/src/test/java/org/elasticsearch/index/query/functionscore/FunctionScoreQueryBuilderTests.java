@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -272,6 +273,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(-1 * randomFloat())));
     }
 
     public void testParseFunctionsArray() throws IOException {

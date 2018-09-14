@@ -180,6 +180,7 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33135")
     public void testValidateStringSetting() {
         Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
         Setting<String> stringSetting = Setting.simpleString("foo.bar", Property.NodeScope);

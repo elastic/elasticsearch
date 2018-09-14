@@ -449,6 +449,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING
             )));
 
-    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
+            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER));
 
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -131,7 +133,7 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             request.setMaxOperationSizeInBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            request.setRetryTimeout(TimeValue.timeValueMillis(500));
+            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setIdleShardRetryDelay(TimeValue.timeValueMillis(500));
@@ -162,8 +164,8 @@ public class AutoFollowTests extends ESSingleNodeTestCase {
             if (request.getMaxOperationSizeInBytes() != null) {
                 assertThat(shardFollowTask.getMaxBatchSizeInBytes(), equalTo(request.getMaxOperationSizeInBytes()));
             }
-            if (request.getRetryTimeout() != null) {
-                assertThat(shardFollowTask.getRetryTimeout(), equalTo(request.getRetryTimeout()));
+            if (request.getMaxRetryDelay() != null) {
+                assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
             if (request.getIdleShardRetryDelay() != null) {
                 assertThat(shardFollowTask.getIdleShardRetryDelay(), equalTo(request.getIdleShardRetryDelay()));

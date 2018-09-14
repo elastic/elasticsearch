@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static org.hamcrest.core.StringStartsWith.startsWith;
-
 public class ExpressionTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
@@ -137,7 +135,7 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("-(((a-2)-(-3))+b)");
         assertEquals(Neg.class, expr.getClass());
         Neg neg = (Neg) expr;
-        assertThat(neg.name(), startsWith("-(((a) - 2) - -3) + (b)#"));
+        assertEquals("-ADD(SUB(SUB(?a,2),-3),?b)", neg.name().replaceAll("#\\d+", ""));
         assertEquals(1, neg.children().size());
         assertEquals(Add.class, neg.children().get(0).getClass());
         Add add = (Add) neg.children().get(0);

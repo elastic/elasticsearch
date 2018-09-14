@@ -160,4 +160,22 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("}]"));
         assertEquals("", readLine());
     }
+
+    public void testOptimizedPlanWithFoldableLiteralExpressions() throws IOException {
+        index("test", body -> body.field("test_field", "test_value1").field("i", 1));
+        index("test", body -> body.field("test_field", "test_value2").field("i", 2));
+
+        assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT POWER(i, (1 + 2)) FROM test"), containsString("plan"));
+        assertThat(readLine(), startsWith("----------"));
+        assertEquals("Project[[POWER(i,3)]]", readLine().replaceAll("#\\d+", ""));
+        assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}"));
+        assertEquals("", readLine());
+
+        assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT POWER(i, (1 - 2)) * ABS(10 + 20) FROM test"),
+            containsString("plan"));
+        assertThat(readLine(), startsWith("----------"));
+        assertEquals("Project[[MUL(POWER(i,-1),30)]]", readLine().replaceAll("#\\d+", ""));
+        assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
+        assertEquals("", readLine());
+    }
 }

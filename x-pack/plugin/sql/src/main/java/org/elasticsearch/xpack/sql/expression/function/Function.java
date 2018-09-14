@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
@@ -51,7 +53,7 @@ public abstract class Function extends NamedExpression {
 
     @Override
     public String toString() {
-        return name() + "#" + id();
+        return functionName + functionArgsForToString() + "#" + id();
     }
 
     public String functionName() {
@@ -74,5 +76,32 @@ public abstract class Function extends NamedExpression {
 
     public boolean functionEquals(Function f) {
         return f != null && getClass() == f.getClass() && arguments().equals(f.arguments());
+    }
+
+    /**
+     * Build the string representation of the function arguments for the {@link #toString()}.
+     *  - If an argument is a Function call {@code toString()} to work recursively
+     *  - If an argument is a Literal then just use the evaluated value.
+     *  - If an argument is a NamedExpression then use it's {@code name()} to avoid long confusing output
+     *  - If none of those resolve to the {@code toString()} method of the argument
+     *
+     * @return String representation of the function args for the {@link #toString} representation
+     */
+    private String functionArgsForToString() {
+        StringJoiner sj = new StringJoiner(",", "(", ")");
+        for (Expression child : children()) {
+            String val;
+            if (child instanceof Function) {
+                val = child.toString();
+            } else if (child instanceof Literal) {
+                val = Objects.toString(((Literal) child).value());
+            } else if (child instanceof NamedExpression && child.resolved()) {
+                val = Expressions.name(child);
+            } else {
+                val = child.toString();
+            }
+            sj.add(val);
+        }
+        return sj.toString();
     }
 }

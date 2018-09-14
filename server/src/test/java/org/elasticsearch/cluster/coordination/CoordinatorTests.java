@@ -477,9 +477,7 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         private List<TransportAddress> provideUnicastHosts(HostsResolver ignored) {
-            final List<TransportAddress> unicastHosts = new ArrayList<>(clusterNodes.size());
-            clusterNodes.forEach(n -> unicastHosts.add(n.getLocalNode().getAddress()));
-            return unmodifiableList(unicastHosts);
+            return clusterNodes.stream().map(ClusterNode::getLocalNode).map (DiscoveryNode::getAddress).collect(Collectors.toList());
         }
     }
 

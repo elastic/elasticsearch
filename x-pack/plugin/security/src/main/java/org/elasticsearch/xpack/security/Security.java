@@ -223,6 +223,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTra
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -1193,9 +1194,15 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         try {
             in = XPackPlugin.class.getResourceAsStream("/" + name);
             if (in != null) {
-                List<String> defaultLines = Streams.readAllLines(in);
-                List<String> expectedLines = Files.readAllLines(file);
-                return defaultLines.equals(expectedLines);
+                try (InputStream fin = Files.newInputStream(file)) {
+                    int inValue = in.read();
+                    int finValue = fin.read();
+                    while (inValue != -1 && finValue != -1 && inValue == finValue) {
+                        inValue = in.read();
+                        finValue = fin.read();
+                    }
+                    return inValue == finValue;
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
-import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -88,7 +87,8 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
-        this.peerFinder = new CoordinatorPeerFinder(settings, transportService, getTransportAddressConnector(), configuredHostsResolver);
+        this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
+            new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, Names.GENERIC, false, false,
             in -> new PublishRequest(in, transportService.getLocalNode()),
@@ -135,10 +135,6 @@ public class Coordinator extends AbstractLifecycleComponent {
         }
 
         return Optional.empty();
-    }
-
-    protected TransportAddressConnector getTransportAddressConnector() {
-        return new HandshakingTransportAddressConnector(settings, transportService);
     }
 
     private void closePrevotingAndElectionScheduler() {

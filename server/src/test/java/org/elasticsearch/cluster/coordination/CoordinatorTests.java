@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -64,6 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -218,8 +217,15 @@ public class CoordinatorTests extends ESTestCase {
                         super.onSendRequest(requestId, action, request, destination);
 
                         // connecting and handshaking with a new node happens synchronously, so we cannot enqueue these tasks for later
-                        final Consumer<Runnable> scheduler
-                            = action.equals(HANDSHAKE_ACTION_NAME) ? Runnable::run : deterministicTaskQueue::scheduleNow;
+                        final Consumer<Runnable> scheduler;
+                        final Predicate<ClusterNode> matchesDestination;
+                        if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                            scheduler = Runnable::run;
+                            matchesDestination = n -> n.getLocalNode().getAddress().equals(destination.getAddress());
+                        } else {
+                            scheduler = deterministicTaskQueue::scheduleNow;
+                            matchesDestination = n -> n.getLocalNode().equals(destination);
+                        }
 
                         scheduler.accept(new Runnable() {
                             @Override
@@ -229,7 +235,7 @@ public class CoordinatorTests extends ESTestCase {
 
                             @Override
                             public void run() {
-                                clusterNodes.stream().filter(d -> d.getLocalNode().equals(destination)).findAny().ifPresent(
+                                clusterNodes.stream().filter(matchesDestination).findAny().ifPresent(
                                     destinationNode -> {
 
                                         final RequestHandlerRegistry requestHandler
@@ -406,42 +412,7 @@ public class CoordinatorTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
 
                 coordinator = new Coordinator(settings, transportService, ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-                    masterService, this::getPersistedState, Cluster.this::provideUnicastHosts) {
-
-                    @Override
-                    protected TransportAddressConnector getTransportAddressConnector() {
-                        return (transportAddress, listener) -> {
-                            for (final ClusterNode clusterNode : clusterNodes) {
-                                if (clusterNode.getLocalNode().getAddress().equals(transportAddress)) {
-                                    deterministicTaskQueue.scheduleNow(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            listener.onResponse(clusterNode.getLocalNode());
-                                        }
-
-                                        @Override
-                                        public String toString() {
-                                            return "TransportAddressConnector connecting to " + clusterNode.getId();
-                                        }
-                                    });
-                                    return;
-                                }
-                            }
-                            deterministicTaskQueue.scheduleNow(new Runnable() {
-                                @Override
-                                public void run() {
-                                    listener.onFailure(
-                                        new ElasticsearchException("no such node: " + transportAddress + " in " + clusterNodes));
-                                }
-
-                                @Override
-                                public String toString() {
-                                    return "TransportAddressConnector failing to connect to " + transportAddress;
-                                }
-                            });
-                        };
-                    }
-                };
+                    masterService, this::getPersistedState, Cluster.this::provideUnicastHosts);
 
                 coordinator.start();
                 coordinator.startInitialJoin();

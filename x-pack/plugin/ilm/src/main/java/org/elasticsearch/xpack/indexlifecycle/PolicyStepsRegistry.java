@@ -189,7 +189,7 @@ public class PolicyStepsRegistry {
                             continue;
                         }
                         Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
-                        if (phaseExecutionInfo != null) {
+                        if (phaseExecutionInfo.getPhase() != null) {
                             phaseMap.put(currentPhase, phaseExecutionInfo.getPhase());
                         }
                         policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);

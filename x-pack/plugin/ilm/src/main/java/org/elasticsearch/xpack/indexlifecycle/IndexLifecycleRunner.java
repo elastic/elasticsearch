@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -309,18 +310,15 @@ public class IndexLifecycleRunner {
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             final String newPhaseDefinition;
+            final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
-                newPhaseDefinition = nextStep.getPhase();
+                nextPhase = null;
             } else {
-                Phase nextPhase = policyMetadata.getPolicy().getPhases().get(nextStep.getPhase());
-                PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyMetadata.getName(), nextPhase,
-                    policyMetadata.getVersion(), policyMetadata.getModifiedDate());
-                if (nextPhase == null) {
-                    newPhaseDefinition = null;
-                } else {
-                    newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
-                }
+                nextPhase = policyMetadata.getPolicy().getPhases().get(nextStep.getPhase());
             }
+            PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyMetadata.getName(), nextPhase,
+                policyMetadata.getVersion(), policyMetadata.getModifiedDate());
+            newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION, newPhaseDefinition);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }

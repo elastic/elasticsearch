@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
@@ -85,7 +86,9 @@ public class TransportExplainLifecycleAction
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
                     phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
                 } catch (IOException e) {
-                    logger.error("failed to parse [" + LifecycleSettings.LIFECYCLE_PHASE_DEFINITION + "] for index [" + index + "]", e);
+                    listener.onFailure(new ElasticsearchParseException(
+                        "failed to parse [" + LifecycleSettings.LIFECYCLE_PHASE_DEFINITION + "] for index [" + index + "]", e));
+                    return;
                 }
             }
             final IndexLifecycleExplainResponse indexResponse;

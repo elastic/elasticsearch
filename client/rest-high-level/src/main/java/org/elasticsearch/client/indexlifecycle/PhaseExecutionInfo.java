@@ -27,25 +27,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Objects;
 
 public class PhaseExecutionInfo implements ToXContentObject {
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
     private static final ParseField PHASE_DEFINITION_FIELD = new ParseField("phase_definition");
     private static final ParseField VERSION_FIELD = new ParseField("version");
-    private static final ParseField MODIFIED_DATE_FIELD = new ParseField("modified_date");
+    private static final ParseField MODIFIED_DATE_IN_MILLIS_FIELD = new ParseField("modified_date_in_millis");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
         "phase_execution_info", false,
         (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_NAME_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_IN_MILLIS_FIELD);
     }
 
     public static PhaseExecutionInfo parse(XContentParser parser, String name) {
@@ -87,11 +84,6 @@ public class PhaseExecutionInfo implements ToXContentObject {
         return modifiedDate;
     }
 
-    public String getModifiedDateString() {
-        ZonedDateTime modifiedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(modifiedDate), ZoneOffset.UTC);
-        return modifiedDateTime.toString();
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(policyName, phase, version, modifiedDate);
@@ -114,20 +106,18 @@ public class PhaseExecutionInfo implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(this, false, true);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
-        builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
-        builder.field(VERSION_FIELD.getPreferredName(), version);
-        if (builder.humanReadable()) {
-            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), getModifiedDateString());
-        } else {
-            builder.field(MODIFIED_DATE_FIELD.getPreferredName(), modifiedDate);
+        if (phase != null) {
+            builder.field(PHASE_DEFINITION_FIELD.getPreferredName(), phase);
         }
+        builder.field(VERSION_FIELD.getPreferredName(), version);
+        builder.timeField(MODIFIED_DATE_IN_MILLIS_FIELD.getPreferredName(), "modified_date", modifiedDate);
         builder.endObject();
         return builder;
     }

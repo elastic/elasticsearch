@@ -81,7 +81,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             }
         };
 
-        transportService = capturingTransport.createCapturingTransportService(settings, threadPool,
+        transportService = capturingTransport.createTransportService(settings, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
 
         transportService.start();

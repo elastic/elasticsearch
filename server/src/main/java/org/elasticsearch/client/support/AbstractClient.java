@@ -762,6 +762,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public ClusterGetSettingsRequestBuilder prepareGetSettings() {
+            return new ClusterGetSettingsRequestBuilder(this, ClusterGetSettingsAction.INSTANCE);
+        }
+
+        @Override
         public NodesReloadSecureSettingsRequestBuilder prepareReloadSecureSettings() {
             return new NodesReloadSecureSettingsRequestBuilder(this, NodesReloadSecureSettingsAction.INSTANCE);
         }

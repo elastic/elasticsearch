@@ -92,10 +92,13 @@ public class ClusterStatsCollector extends Collector {
                                                   final ClusterState clusterState) throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
                 () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
+        final Supplier<ClusterGetSettingsResponse> clusterGetSettingsSupplier =
+                () -> client.admin().cluster().prepareGetSettings().get(getCollectionTimeout());
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
                 () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
         final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
+        final ClusterGetSettingsResponse clusterSettings = clusterGetSettingsSupplier.get();
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);
@@ -112,7 +115,8 @@ public class ClusterStatsCollector extends Collector {
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterNeedsTLSEnabled));
+                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterSettings,
+                                              clusterNeedsTLSEnabled));
     }
 
     boolean doAPMIndicesExist(final ClusterState clusterState) {

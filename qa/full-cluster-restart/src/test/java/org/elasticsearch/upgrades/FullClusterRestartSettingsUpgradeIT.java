@@ -19,6 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
@@ -39,6 +40,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.SEARCH_REMOTE_CLUST
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33697")
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {

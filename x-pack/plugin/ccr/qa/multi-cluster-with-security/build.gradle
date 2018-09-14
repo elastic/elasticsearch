@@ -47,7 +47,7 @@ followClusterTestCluster {
     setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.monitoring.collection.enabled', 'true'
     extraConfigFile 'roles.yml', 'roles.yml'
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"

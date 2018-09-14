@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.io.IOException;
 
@@ -33,7 +33,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final CcrStatsAction.TasksRequest request = new CcrStatsAction.TasksRequest();
+        final CcrStatsAction.StatsRequest request = new CcrStatsAction.StatsRequest();
         request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         request.setIndicesOptions(IndicesOptions.fromRequest(restRequest, request.indicesOptions()));
         return channel -> client.execute(CcrStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));

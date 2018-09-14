@@ -179,14 +179,34 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getNumericFunctions() throws SQLException {
-        // TODO: sync this with the grammar
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/numeric-functions?view=sql-server-2017
+        return "ABS,ACOS,ASIN,ATAN,ATAN2,"
+                + "CEILING,COS,"
+                + "DEGREES,"
+                + "EXP,"
+                + "FLOOR,"
+                + "LOG,LOG10,"
+                + "MOD,"
+                + "PI,POWER,"
+                + "RADIANS,RAND,ROUND,"
+                + "SIGN,SIN,SQRT,"
+                + "TAN";
     }
 
     @Override
     public String getStringFunctions() throws SQLException {
-        // TODO: sync this with the grammar
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/string-functions?view=sql-server-2017
+        return "ASCII,"
+                + "BIT_LENGTH,"
+                + "CHAR,CHAR_LENGTH,CHARACTER_LENGTH,CONCAT,"
+                + "INSERT,"
+                + "LCASE,LEFT,LENGTH,LOCATE,LTRIM,"
+                // waiting on https://github.com/elastic/elasticsearch/issues/33477
+                //+ "OCTET_LENGTH,"
+                + "POSITION,"
+                + "REPEAT,REPLACE,RIGHT,RTRIM,"
+                + "SPACE,SUBSTRING,"
+                + "UCASE";
     }
 
     @Override
@@ -197,7 +217,15 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getTimeDateFunctions() throws SQLException {
-        return "";
+        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/time-date-and-interval-functions?view=sql-server-2017
+        return "DAYNAME,DAYOFMONTH,DAYOFWEEK,DAYOFYEAR"
+                + "EXTRACT,"
+                + "HOUR,"
+                + "MINUTE,MONTH,MONTHNAME"
+                + "QUARTER,"
+                + "SECOND,"
+                + "WEEK,"
+                + "YEAR";
     }
 
     @Override
@@ -368,7 +396,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getCatalogSeparator() throws SQLException {
-        return ".";
+        return ":";
     }
 
     @Override

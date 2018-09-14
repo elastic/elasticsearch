@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 
 public class DelimitedFileStructureFinder implements FileStructureFinder {
 
+    private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
     private final List<String> sampleMessages;
@@ -40,19 +41,35 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
     static DelimitedFileStructureFinder makeDelimitedFileStructureFinder(List<String> explanation, String sample, String charsetName,
                                                                          Boolean hasByteOrderMarker, CsvPreference csvPreference,
-                                                                         boolean trimFields) throws IOException {
+                                                                         boolean trimFields, FileStructureOverrides overrides)
+        throws IOException {
 
         Tuple<List<List<String>>, List<Integer>> parsed = readRows(sample, csvPreference);
         List<List<String>> rows = parsed.v1();
         List<Integer> lineNumbers = parsed.v2();
 
-        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows);
+        // Even if the column names are overridden we need to know if there's a
+        // header in the file, as it affects which rows are considered records
+        Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows, overrides);
         boolean isHeaderInFile = headerInfo.v1();
         String[] header = headerInfo.v2();
-        String[] headerWithNamedBlanks = new String[header.length];
-        for (int i = 0; i < header.length; ++i) {
-            String rawHeader = header[i].isEmpty() ? "column" + (i + 1) : header[i];
-            headerWithNamedBlanks[i] = trimFields ? rawHeader.trim() : rawHeader;
+
+        String[] columnNames;
+        List<String> overriddenColumnNames = overrides.getColumnNames();
+        if (overriddenColumnNames != null) {
+            if (overriddenColumnNames.size() != header.length) {
+                throw new IllegalArgumentException("[" + overriddenColumnNames.size() + "] column names were specified [" +
+                    String.join(",", overriddenColumnNames) + "] but there are [" + header.length + "] columns in the sample");
+            }
+            columnNames = overriddenColumnNames.toArray(new String[overriddenColumnNames.size()]);
+        } else {
+            // The column names are the header names but with blanks named column1, column2, etc.
+            columnNames = new String[header.length];
+            for (int i = 0; i < header.length; ++i) {
+                assert header[i] != null;
+                String rawHeader = trimFields ? header[i].trim() : header[i];
+                columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader;
+            }
         }
 
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
@@ -63,7 +80,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
             Map<String, String> sampleRecord = new LinkedHashMap<>();
-            Util.filterListToMap(sampleRecord, headerWithNamedBlanks,
+            Util.filterListToMap(sampleRecord, columnNames,
                 trimFields ? row.stream().map(String::trim).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
             sampleMessages.add(
@@ -82,13 +99,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setHasHeaderRow(isHeaderInFile)
             .setDelimiter(delimiter)
-            .setInputFields(Arrays.stream(headerWithNamedBlanks).collect(Collectors.toList()));
+            .setQuote(csvPreference.getQuoteChar())
+            .setColumnNames(Arrays.stream(columnNames).collect(Collectors.toList()));
 
         if (trimFields) {
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides);
         if (timeField != null) {
             String timeLineRegex = null;
             StringBuilder builder = new StringBuilder("^");
@@ -96,7 +114,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             // timestamp is the last column then either our assumption is wrong (and the approach will completely
             // break down) or else every record is on a single line and there's no point creating a multiline config.
             // This is why the loop excludes the last column.
-            for (String column : Arrays.asList(header).subList(0, header.length - 1)) {
+            for (String column : Arrays.asList(columnNames).subList(0, columnNames.length - 1)) {
                 if (timeField.v1().equals(column)) {
                     builder.append("\"?");
                     String simpleTimePattern = timeField.v2().simplePattern.pattern();
@@ -114,8 +132,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
 
             if (isHeaderInFile) {
+                String quote = String.valueOf(csvPreference.getQuoteChar());
+                String twoQuotes = quote + quote;
+                String optQuote = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + "?";
                 structureBuilder.setExcludeLinesPattern("^" + Arrays.stream(header)
-                    .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
+                    .map(column -> optQuote + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1") + optQuote)
                     .collect(Collectors.joining(",")));
             }
 
@@ -129,7 +150,10 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
-        mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        if (timeField != null) {
+            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
+                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        }
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
@@ -203,43 +227,61 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         return new Tuple<>(rows, lineNumbers);
     }
 
-    static Tuple<Boolean, String[]> findHeaderFromSample(List<String> explanation, List<List<String>> rows) {
+    static Tuple<Boolean, String[]> findHeaderFromSample(List<String> explanation, List<List<String>> rows,
+                                                         FileStructureOverrides overrides) {
 
         assert rows.isEmpty() == false;
 
+        List<String> overriddenColumnNames = overrides.getColumnNames();
         List<String> firstRow = rows.get(0);
 
         boolean isHeaderInFile = true;
-        if (rowContainsDuplicateNonEmptyValues(firstRow)) {
-            isHeaderInFile = false;
-            explanation.add("First row contains duplicate values, so assuming it's not a header");
+        if (overrides.getHasHeaderRow() != null) {
+            isHeaderInFile = overrides.getHasHeaderRow();
+            if (isHeaderInFile && overriddenColumnNames == null) {
+                String duplicateValue = findDuplicateNonEmptyValues(firstRow);
+                if (duplicateValue != null) {
+                    throw new IllegalArgumentException("Sample specified to contain a header row, " +
+                        "but the first row contains duplicate values: [" + duplicateValue + "]");
+                }
+            }
+            explanation.add("Sample specified to " + (isHeaderInFile ? "contain" : "not contain") + " a header row");
         } else {
-            if (rows.size() < 3) {
-                explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
+            if (findDuplicateNonEmptyValues(firstRow) != null) {
+                isHeaderInFile = false;
+                explanation.add("First row contains duplicate values, so assuming it's not a header");
             } else {
-                isHeaderInFile = isFirstRowUnusual(explanation, rows);
+                if (rows.size() < 3) {
+                    explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
+                } else {
+                    isHeaderInFile = isFirstRowUnusual(explanation, rows);
+                }
             }
         }
 
+        String[] header;
         if (isHeaderInFile) {
             // SuperCSV will put nulls in the header if any columns don't have names, but empty strings are better for us
-            return new Tuple<>(true, firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new));
+            header = firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new);
         } else {
-            return new Tuple<>(false, IntStream.rangeClosed(1, firstRow.size()).mapToObj(num -> "column" + num).toArray(String[]::new));
+            header = new String[firstRow.size()];
+            Arrays.fill(header, "");
         }
+
+        return new Tuple<>(isHeaderInFile, header);
     }
 
-    static boolean rowContainsDuplicateNonEmptyValues(List<String> row) {
+    static String findDuplicateNonEmptyValues(List<String> row) {
 
         HashSet<String> values = new HashSet<>();
 
         for (String value : row) {
             if (value != null && value.isEmpty() == false && values.add(value) == false) {
-                return true;
+                return value;
             }
         }
 
-        return false;
+        return null;
     }
 
     private static boolean isFirstRowUnusual(List<String> explanation, List<List<String>> rows) {

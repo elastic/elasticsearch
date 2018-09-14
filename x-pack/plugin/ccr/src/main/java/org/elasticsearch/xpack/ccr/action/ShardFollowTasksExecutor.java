@@ -133,7 +133,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             @Override
             protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
-                ShardChangesAction.Request request = new ShardChangesAction.Request(params.getLeaderShardId());
+                ShardChangesAction.Request request =
+                    new ShardChangesAction.Request(params.getLeaderShardId(), params.getRecordedLeaderIndexHistoryUUID());
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(maxOperationCount);
                 request.setMaxOperationSizeInBytes(params.getMaxBatchSizeInBytes());

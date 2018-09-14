@@ -219,7 +219,7 @@ public class CoordinatorTests extends ESTestCase {
                         deterministicTaskQueue.scheduleNow(new Runnable() {
                             @Override
                             public String toString() {
-                                return "delivery of " + request;
+                                return "delivery of [" + action + "][" + requestId + "]: " + request;
                             }
 
                             @Override
@@ -246,7 +246,8 @@ public class CoordinatorTests extends ESTestCase {
                                                 deterministicTaskQueue.scheduleNow(new Runnable() {
                                                     @Override
                                                     public String toString() {
-                                                        return "delivery of response " + response + " to " + request;
+                                                        return "delivery of response " + response
+                                                            + " to [" + action + "][" + requestId + "]: " + request;
                                                     }
 
                                                     @Override
@@ -266,7 +267,8 @@ public class CoordinatorTests extends ESTestCase {
                                                 deterministicTaskQueue.scheduleNow(new Runnable() {
                                                     @Override
                                                     public String toString() {
-                                                        return "delivery of error response " + exception.getMessage() + " to " + request;
+                                                        return "delivery of error response " + exception.getMessage()
+                                                            + " to [" + action + "][" + requestId + "]: " + request;
                                                     }
 
                                                     @Override
@@ -283,7 +285,8 @@ public class CoordinatorTests extends ESTestCase {
                                             deterministicTaskQueue.scheduleNow(new Runnable() {
                                                 @Override
                                                 public String toString() {
-                                                    return "delivery of processing error response " + e.getMessage() + " to " + request;
+                                                    return "delivery of processing error response " + e.getMessage()
+                                                        + " to [" + action + "][" + requestId + "]: " + request;
                                                 }
 
                                                 @Override

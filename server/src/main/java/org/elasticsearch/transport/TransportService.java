@@ -1054,6 +1054,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
             FutureUtils.cancel(future);
         }
+
+        @Override
+        public String toString() {
+            return "TimeoutHandler for [" + action + "][" + requestId + "]";
+        }
     }
 
     static class TimeoutInfoHolder {

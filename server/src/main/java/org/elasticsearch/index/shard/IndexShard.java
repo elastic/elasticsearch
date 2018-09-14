@@ -1781,10 +1781,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Add a global checkpoint listener. If the global checkpoint is above the global checkpoint the listener is waiting for, then the
-     * listener will be notified immediately via an executor (so possibly not on the current thread). If the specified timeout elapses
-     * before the listener is notified, the listener will be notified with an {@link TimeoutException}. A caller may pass null to specify
-     * no timeout.
+     * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
+     * then the listener will be notified immediately via an executor (so possibly not on the current thread). If the specified timeout
+     * elapses before the listener is notified, the listener will be notified with an {@link TimeoutException}. A caller may pass null to
+     * specify no timeout.
      *
      * @param waitingForGlobalCheckpoint the global checkpoint the listener is waiting for
      * @param listener                   the listener

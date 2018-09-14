@@ -94,9 +94,9 @@ public class GlobalCheckpointListeners implements Closeable {
     }
 
     /**
-     * Add a global checkpoint listener. If the global checkpoint is above the global checkpoint the listener is waiting for, then the
-     * listener will be asynchronously notified on the executor used to construct this collection of global checkpoint listeners. If the
-     * shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
+     * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
+     * then the listener will be asynchronously notified on the executor used to construct this collection of global checkpoint listeners.
+     * If the shard is closed then the listener will be asynchronously notified on the executor used to construct this collection of global
      * checkpoint listeners. The listener will only be notified of at most one event, either the global checkpoint is updated above the
      * global checkpoint the listener is waiting for, or the shard is closed. A listener must re-register after one of these events to
      * receive subsequent events. Callers may add a timeout to be notified after if the timeout elapses. In this case, the listener will be

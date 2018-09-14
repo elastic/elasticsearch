@@ -40,6 +40,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class uses a GCE HTTP Mock system which allows to simulate JSON Responses.
@@ -258,6 +259,15 @@ public class GceDiscoveryTests extends ESTestCase {
             .putList(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b", "us-central1-a")
             .build();
         mock = new GceInstancesServiceMock(nodeSettings);
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(1));
+    }
+
+    public void testMetadataServerValues() {
+        Settings nodeSettings = Settings.EMPTY;
+        mock = new GceInstancesServiceMock(nodeSettings);
+        assertThat(mock.project(), not(projectName));
+
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
         assertThat(dynamicHosts, hasSize(1));
     }

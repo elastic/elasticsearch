@@ -50,7 +50,7 @@ import java.util.function.Supplier;
 public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
     public static final String GCE = "gce";
-    private final Settings settings;
+    protected final Settings settings;
     private static final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
     // stashed when created in order to properly close
     private final SetOnce<GceInstancesService> gceInstancesService = new SetOnce<>();

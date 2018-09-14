@@ -228,7 +228,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        logger.debug("joinLeaderInTerm: from [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
+        logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
         final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
         lastJoin = Optional.of(join);
         if (mode != Mode.CANDIDATE) {

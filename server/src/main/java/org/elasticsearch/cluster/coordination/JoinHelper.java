@@ -122,12 +122,7 @@ public class JoinHelper extends AbstractComponent {
 
             @Override
             public void handleException(TransportException exp) {
-                final Throwable rootCause = exp.getRootCause();
-                if (rootCause instanceof CoordinationStateRejectedException) {
-                    logger.debug("failed to join {} with {}: {}", destination, joinRequest, rootCause.getMessage());
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                }
+                logger.debug(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
             }
 
             @Override

@@ -40,21 +40,8 @@ import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private List<TokenFilterFactory> filters;
     private List<String> filterNames;
     private final boolean preserveOriginal;
-
-    private static final TokenFilterFactory IDENTITY_FACTORY = new TokenFilterFactory() {
-        @Override
-        public String name() {
-            return "identity";
-        }
-
-        @Override
-        public TokenStream create(TokenStream tokenStream) {
-            return tokenStream;
-        }
-    };
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
@@ -63,48 +50,57 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getSynonymFilter() {
-        return null;
-    }
-
-    @Override
     public TokenStream create(TokenStream tokenStream) {
-        List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
-        for (TokenFilterFactory tff : filters) {
-            functions.add(tff::create);
-        }
-        return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+        throw new UnsupportedOperationException("TokenFilterFactory.getChainAwareTokenFilterFactory() must be called first");
     }
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                                               List<TokenFilterFactory> previousTokenFilters,
                                                               Function<String, TokenFilterFactory> allFilters) {
-        if (filters == null) {
-            filters = new ArrayList<>();
-            if (preserveOriginal) {
-                filters.add(IDENTITY_FACTORY);
-            }
-            for (String filter : filterNames) {
-                String[] parts = Strings.tokenizeToStringArray(filter, ",");
-                if (parts.length == 1) {
-                    TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
-                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
-                    filters.add(factory);
-                } else {
-                    List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
-                    List<TokenFilterFactory> chain = new ArrayList<>();
-                    for (String subfilter : parts) {
-                        TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
-                        factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
-                        chain.add(factory);
-                        existingChain.add(factory);
-                    }
-                    filters.add(chainFilters(filter, chain));
+        List<TokenFilterFactory> filters = new ArrayList<>();
+        if (preserveOriginal) {
+            filters.add(IDENTITY_FILTER);
+        }
+        for (String filter : filterNames) {
+            String[] parts = Strings.tokenizeToStringArray(filter, ",");
+            if (parts.length == 1) {
+                TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
+                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                filters.add(factory);
+            } else {
+                List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
+                List<TokenFilterFactory> chain = new ArrayList<>();
+                for (String subfilter : parts) {
+                    TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
+                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    chain.add(factory);
+                    existingChain.add(factory);
                 }
+                filters.add(chainFilters(filter, chain));
             }
         }
-        return this;
+
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return MultiplexerTokenFilterFactory.this.name();
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
+                for (TokenFilterFactory tff : filters) {
+                    functions.add(tff::create);
+                }
+                return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+            }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                return IDENTITY_FILTER;
+            }
+        };
     }
 
     private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {

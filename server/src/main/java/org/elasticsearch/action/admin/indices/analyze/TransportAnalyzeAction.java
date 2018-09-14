@@ -580,6 +580,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         public DeferredTokenFilterRegistry(AnalysisRegistry analysisRegistry, IndexSettings indexSettings) {
             this.analysisRegistry = analysisRegistry;
             if (indexSettings == null) {
+                // Settings are null when _analyze is called with no index name, so
+                // we create dummy settings which will make prebuilt analysis components
+                // available
                 Settings settings = Settings.builder()
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

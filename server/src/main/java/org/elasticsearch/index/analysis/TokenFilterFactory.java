@@ -56,8 +56,23 @@ public interface TokenFilterFactory {
 
     /**
      * Return a version of this TokenFilterFactory appropriate for synonym parsing
+     *
+     * Filters that should not be applied to synonyms (for example, those that produce
+     * multiple tokens) can return {@link #IDENTITY_FILTER}
      */
     default TokenFilterFactory getSynonymFilter() {
         return this;
     }
+
+    TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {
+        @Override
+        public String name() {
+            return "identity";
+        }
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+            return tokenStream;
+        }
+    };
 }

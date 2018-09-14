@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -89,7 +88,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()
                 .map(TokenFilterFactory::getSynonymFilter)
-                .filter(Objects::nonNull)
                 .toArray(TokenFilterFactory[]::new));
     }
 

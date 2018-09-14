@@ -43,7 +43,6 @@ import java.util.function.Function;
 public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final AnalysisPredicateScript.Factory factory;
-    private List<TokenFilterFactory> filters;
     private final List<String> filterNames;
 
     ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name,
@@ -65,13 +64,43 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        Function<TokenStream, TokenStream> filter = in -> {
-            for (TokenFilterFactory tff : filters) {
-                in = tff.create(in);
+        throw new UnsupportedOperationException("getChainAwareTokenFilterFactory should be called first");
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        List<TokenFilterFactory> filters = new ArrayList<>();
+        List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
+        for (String filter : filterNames) {
+            TokenFilterFactory tff = allFilters.apply(filter);
+            if (tff == null) {
+                throw new IllegalArgumentException("ScriptedConditionTokenFilter [" + name() +
+                    "] refers to undefined token filter [" + filter + "]");
             }
-            return in;
+            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+            filters.add(tff);
+            existingChain.add(tff);
+        }
+
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return ScriptedConditionTokenFilterFactory.this.name();
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                Function<TokenStream, TokenStream> filter = in -> {
+                    for (TokenFilterFactory tff : filters) {
+                        in = tff.create(in);
+                    }
+                    return in;
+                };
+                return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
+            }
         };
-        return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
     }
 
     private static class ScriptedConditionTokenFilter extends ConditionalTokenFilter {
@@ -80,38 +109,17 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         private final AnalysisPredicateScript.Token token;
 
         ScriptedConditionTokenFilter(TokenStream input, Function<TokenStream, TokenStream> inputFactory,
-                                               AnalysisPredicateScript script) {
+                                     AnalysisPredicateScript script) {
             super(input, inputFactory);
             this.script = script;
             this.token = new AnalysisPredicateScript.Token(this);
         }
 
         @Override
-        protected boolean shouldFilter() throws IOException {
+        protected boolean shouldFilter() {
             token.updatePosition();
             return script.execute(token);
         }
-    }
-
-    @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
-        if (filters == null) {
-            filters = new ArrayList<>();
-            List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
-            for (String filter : filterNames) {
-                TokenFilterFactory tff = allFilters.apply(filter);
-                if (tff == null) {
-                    throw new IllegalArgumentException("ScriptedConditionTokenFilter [" + name() +
-                        "] refers to undefined token filter [" + filter + "]");
-                }
-                tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
-                filters.add(tff);
-                existingChain.add(tff);
-            }
-        }
-        return this;
     }
 
 }

@@ -1235,26 +1235,30 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     private void testStringQueryAndAutoGenerateSynonymsPhrase(Boolean autoGenerateSynonymsPhraseQuery) throws IOException {
-        createIndex("some_index", Settings.EMPTY);
+        try {
+            createIndex("some_index", Settings.EMPTY);
 
-        for (int i = 0; i < 100; i++) {
-            XContentBuilder builder = jsonBuilder().startObject().field("foo", "bar" + i).endObject();
-            Request doc = new Request(HttpPut.METHOD_NAME, "/some_index/type1/" + Integer.toString(i));
-            doc.setJsonEntity(Strings.toString(builder));
-            client().performRequest(doc);
+            for (int i = 0; i < 100; i++) {
+                XContentBuilder builder = jsonBuilder().startObject().field("foo", "bar" + i).endObject();
+                Request doc = new Request(HttpPut.METHOD_NAME, "/some_index/type1/" + Integer.toString(i));
+                doc.setJsonEntity(Strings.toString(builder));
+                client().performRequest(doc);
+            }
+            client().performRequest(new Request(HttpPost.METHOD_NAME, "/some_index/_refresh"));
+
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders
+                .queryStringQuery("foo:bar1")
+                .lenient(Boolean.TRUE)
+                .autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery));
+            searchRequest.source(searchSourceBuilder);
+
+            final SearchResponse searchResponse = highLevelClient().search(searchRequest, RequestOptions.DEFAULT);
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        } finally {
+            deleteIndex("some_index");
         }
-        client().performRequest(new Request(HttpPost.METHOD_NAME, "/some_index/_refresh"));
-
-        SearchRequest searchRequest = new SearchRequest();
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(QueryBuilders
-            .queryStringQuery("foo:bar1")
-            .lenient(Boolean.TRUE)
-            .autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery));
-        searchRequest.source(searchSourceBuilder);
-
-        final SearchResponse searchResponse = highLevelClient().search(searchRequest, RequestOptions.DEFAULT);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 
     private static void assertSearchHeader(SearchResponse searchResponse) {

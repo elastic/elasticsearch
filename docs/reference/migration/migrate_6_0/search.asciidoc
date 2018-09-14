@@ -99,6 +99,8 @@ the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
 * The deprecated multi term rewrite parameters `constant_score_auto`, `constant_score_filter` (synonyms for `constant_score`)
 have been removed.
 
+*  Setting a negative `weight` in Function Score Query is deprecated.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

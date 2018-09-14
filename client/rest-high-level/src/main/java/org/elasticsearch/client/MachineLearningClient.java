@@ -22,9 +22,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
-import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -204,11 +204,11 @@ public final class MachineLearningClient {
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public DeleteJobResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteJob(DeleteJobRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            DeleteJobResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             Collections.emptySet());
     }
 
@@ -222,11 +222,11 @@ public final class MachineLearningClient {
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<DeleteJobResponse> listener) {
+    public void deleteJobAsync(DeleteJobRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteJob,
             options,
-            DeleteJobResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }
@@ -488,6 +488,46 @@ public final class MachineLearningClient {
                 MLRequestConverters::putDatafeed,
                 options,
                 PutDatafeedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Datafeed
+     * <p>
+     *     For additional info
+     *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
+     *         ML Delete Datafeed documentation</a>
+     * </p>
+     * @param request The request to delete the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteDatafeed(DeleteDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::deleteDatafeed,
+                options,
+                AcknowledgedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Datafeed asynchronously and notifies the listener on completion
+     * <p>
+     *     For additional info
+     *     see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
+     *         ML Delete Datafeed documentation</a>
+     * </p>
+     * @param request The request to delete the datafeed
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteDatafeedAsync(DeleteDatafeedRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::deleteDatafeed,
+                options,
+                AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

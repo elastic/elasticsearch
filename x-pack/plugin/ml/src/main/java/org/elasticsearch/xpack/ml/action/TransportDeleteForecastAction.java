@@ -216,6 +216,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
         QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
         request.setQuery(query);
+        request.setRefresh(true);
         return request;
     }
 }

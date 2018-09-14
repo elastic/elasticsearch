@@ -85,7 +85,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection);
+        this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection, this::updateMaxTermSeen);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);

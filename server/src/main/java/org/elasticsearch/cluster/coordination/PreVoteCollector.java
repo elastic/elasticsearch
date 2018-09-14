@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.cluster.coordination.CoordinationState.isElectionQuorum;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
@@ -45,14 +46,17 @@ public class PreVoteCollector extends AbstractComponent {
 
     private final TransportService transportService;
     private final Runnable startElection;
+    private final LongConsumer updateMaxTermSeen;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.
 
-    PreVoteCollector(final Settings settings, final TransportService transportService, final Runnable startElection) {
+    PreVoteCollector(final Settings settings, final TransportService transportService, final Runnable startElection,
+                     final LongConsumer updateMaxTermSeen) {
         super(settings);
         this.transportService = transportService;
         this.startElection = startElection;
+        this.updateMaxTermSeen = updateMaxTermSeen;
 
         // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
@@ -155,7 +159,7 @@ public class PreVoteCollector extends AbstractComponent {
                 return;
             }
 
-            // TODO the response carries the sender's current term. If an election starts then it should be in a higher term.
+            updateMaxTermSeen.accept(response.getCurrentTerm());
 
             if (response.getLastAcceptedTerm() > clusterState.term()
                 || (response.getLastAcceptedTerm() == clusterState.term()

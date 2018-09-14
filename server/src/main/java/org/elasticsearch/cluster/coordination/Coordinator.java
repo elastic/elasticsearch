@@ -180,8 +180,7 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
-                handleStartJoinRequest(startJoinRequest); // getFoundPeers() doesn't return the local node
-                peerFinder.getFoundPeers().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
+                getDiscoveredNodes().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
             }
         }
     }
@@ -411,6 +410,13 @@ public class Coordinator extends AbstractLifecycleComponent {
         return lastCommittedState;
     }
 
+    private List<DiscoveryNode> getDiscoveredNodes() {
+        final List<DiscoveryNode> nodes = new ArrayList<>();
+        nodes.add(getLocalNode());
+        peerFinder.getFoundPeers().forEach(nodes::add);
+        return nodes;
+    }
+
     public enum Mode {
         CANDIDATE, LEADER, FOLLOWER
     }
@@ -446,10 +452,7 @@ public class Coordinator extends AbstractLifecycleComponent {
                                         if (prevotingRound != null) {
                                             prevotingRound.close();
                                         }
-                                        final List<DiscoveryNode> nodes = new ArrayList<>();
-                                        nodes.add(getLocalNode());
-                                        peerFinder.getFoundPeers().forEach(nodes::add);
-                                        prevotingRound = preVoteCollector.start(lastAcceptedState, nodes);
+                                        prevotingRound = preVoteCollector.start(lastAcceptedState, getDiscoveredNodes());
                                     }
                                 }
                             });

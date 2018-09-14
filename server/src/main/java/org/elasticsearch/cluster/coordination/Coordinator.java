@@ -180,7 +180,7 @@ public class Coordinator extends AbstractLifecycleComponent {
             if (mode == Mode.CANDIDATE) {
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen.get()) + 1);
-                handleStartJoinRequestUnderLock(startJoinRequest); // getFoundPeers() doesn't return the local node
+                handleStartJoinRequest(startJoinRequest); // getFoundPeers() doesn't return the local node
                 peerFinder.getFoundPeers().forEach(node -> sendStartJoinRequest(startJoinRequest, node));
             }
         }
@@ -213,14 +213,9 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     private void handleStartJoinRequest(final StartJoinRequest startJoinRequest) {
         synchronized (mutex) {
-            handleStartJoinRequestUnderLock(startJoinRequest);
+            final Join join = joinLeaderInTerm(startJoinRequest);
+            joinHelper.sendJoin(startJoinRequest.getSourceNode(), new JoinRequest(getLocalNode(), Optional.of(join)));
         }
-    }
-
-    private void handleStartJoinRequestUnderLock(final StartJoinRequest startJoinRequest) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        final Join join = joinLeaderInTerm(startJoinRequest);
-        joinHelper.sendJoin(startJoinRequest.getSourceNode(), new JoinRequest(getLocalNode(), Optional.of(join)));
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {

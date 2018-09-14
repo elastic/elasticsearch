@@ -218,7 +218,8 @@ public final class LogConfigWriter {
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"%s:5044\"]\n";
-    private static final String SEPARATOR_TEMPLATE = "    separator => \"%c\"\n";
+    private static final String SEPARATOR_TEMPLATE = "    separator => %s%c%s\n";
+    private static final String QUOTE_CHAR_TEMPLATE = "    quote_char => %s%c%s\n";
     private static final String LOGSTASH_CONVERSIONS_TEMPLATE = "    convert => {\n" +
         "%s" +
         "    }\n";
@@ -234,6 +235,7 @@ public final class LogConfigWriter {
         "\n" +
         "filter {\n" +
         "  csv {\n" +
+        "%s" +
         "%s" +
         "    columns => [ %s ]\n" +
         "%s" +
@@ -261,6 +263,7 @@ public final class LogConfigWriter {
         "    }\n" +
         "  }\n" +
         "  csv {\n" +
+        "%s" +
         "%s" +
         "    columns => [ %s ]\n" +
         "%s" +
@@ -619,6 +622,7 @@ public final class LogConfigWriter {
     private void createDelimitedConfigs(FileStructure structure) {
 
         char delimiter = structure.getDelimiter();
+        char quote = structure.getQuote();
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (structure.getTimestampField() != null) {
@@ -633,16 +637,22 @@ public final class LogConfigWriter {
             makeFilebeatAddLocaleSetting(structure.needClientTimezone()), logstashHost);
         String logstashColumns = structure.getColumnNames().stream()
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
-        String delimiterIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
+        String delimiterQuote = bestLogstashQuoteFor(String.valueOf(delimiter));
+        String delimiterIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiterQuote, delimiter,
+            delimiterQuote);
+        String quoteQuote = bestLogstashQuoteFor(String.valueOf(quote));
+        String quoteIfRequired = (quote == '"') ? "" : String.format(Locale.ROOT, QUOTE_CHAR_TEMPLATE, quoteQuote, quote, quoteQuote);
         String logstashColumnConversions = makeColumnConversions(structure.getMappings());
         String logstashStripFilter = Boolean.TRUE.equals(structure.getShouldTrimFields()) ?
             String.format(Locale.ROOT, LOGSTASH_STRIP_FILTER_TEMPLATE, logstashColumns) : "";
         logstashFromFilebeatConfig = String.format(Locale.ROOT, DELIMITED_LOGSTASH_FROM_FILEBEAT_TEMPLATE, delimiterIfRequired,
-            logstashColumns, logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter, elasticsearchHost);
+            quoteIfRequired, logstashColumns, logstashColumnConversions, logstashStripFilter, logstashFromFilebeatDateFilter,
+            elasticsearchHost);
         String skipHeaderIfRequired = structure.getHasHeaderRow() ? "    skip_header => true\n": "";
         logstashFromFileConfig = String.format(Locale.ROOT, DELIMITED_LOGSTASH_FROM_FILE_TEMPLATE,
-            makeLogstashFileInput(structure.getMultilineStartPattern(), structure.getCharset()), delimiterIfRequired, logstashColumns,
-            skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter, elasticsearchHost, indexName);
+            makeLogstashFileInput(structure.getMultilineStartPattern(), structure.getCharset()), delimiterIfRequired, quoteIfRequired,
+            logstashColumns, skipHeaderIfRequired, logstashColumnConversions, logstashStripFilter, logstashFromFileDateFilter,
+            elasticsearchHost, indexName);
     }
 
     private void createTextConfigs(FileStructure structure, List<String> sampleMessages) {

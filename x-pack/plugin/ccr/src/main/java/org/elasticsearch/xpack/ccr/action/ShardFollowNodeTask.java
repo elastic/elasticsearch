@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,6 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * The node task that fetch the write operations from a leader shard and
@@ -72,7 +74,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfOperationsIndexed = 0;
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
-    private final LinkedHashMap<Long, ElasticsearchException> fetchExceptions;
+    private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -87,9 +89,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
          * concurrent fetches. For each failed fetch, we track the from sequence number associated with the request, and we clear the entry
          * when the fetch task associated with that from sequence number succeeds.
          */
-        this.fetchExceptions = new LinkedHashMap<Long, ElasticsearchException>() {
+        this.fetchExceptions = new LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>>() {
             @Override
-            protected boolean removeEldestEntry(final Map.Entry<Long, ElasticsearchException> eldest) {
+            protected boolean removeEldestEntry(final Map.Entry<Long, Tuple<AtomicInteger, ElasticsearchException>> eldest) {
                 return size() > params.getMaxConcurrentReadBatches();
             }
         };
@@ -240,7 +242,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     synchronized (ShardFollowNodeTask.this) {
                         totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                         numberOfFailedFetches++;
-                        fetchExceptions.put(from, new ElasticsearchException(e));
+                        fetchExceptions.put(from, Tuple.tuple(retryCounter, new ElasticsearchException(e)));
                     }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
@@ -438,7 +440,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numberOfSuccessfulBulkOperations,
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed,
-                new TreeMap<>(fetchExceptions),
+                new TreeMap<>(
+                        fetchExceptions
+                                .entrySet()
+                                .stream()
+                                .collect(
+                                        Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
                 timeSinceLastFetchMillis);
     }
 

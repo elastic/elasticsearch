@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
+import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides;
 
 public class TransportFindFileStructureAction
     extends HandledTransportAction<FindFileStructureAction.Request, FindFileStructureAction.Response> {
@@ -49,8 +50,8 @@ public class TransportFindFileStructureAction
 
         FileStructureFinderManager structureFinderManager = new FileStructureFinderManager();
 
-        FileStructureFinder fileStructureFinder =
-            structureFinderManager.findFileStructure(request.getLinesToSample(), request.getSample().streamInput());
+        FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
+            request.getSample().streamInput(), new FileStructureOverrides(request));
 
         return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
     }

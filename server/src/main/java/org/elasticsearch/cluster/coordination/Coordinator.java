@@ -51,9 +51,9 @@ import java.util.function.Supplier;
 
 public class Coordinator extends AbstractLifecycleComponent {
 
-    public static final String START_JOIN_ACTION_NAME = "internal:cluster/start_join";
-    public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/publish_state";
-    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/commit_state";
+    public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
+    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
+    public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     private final TransportService transportService;
     private final JoinHelper joinHelper;

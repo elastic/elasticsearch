@@ -230,6 +230,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-post-data>>
 * <<java-rest-high-x-pack-ml-get-influencers>>
 * <<java-rest-high-x-pack-ml-get-categories>>
+* <<java-rest-high-x-pack-ml-put-calendar>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -249,6 +250,7 @@ include::ml/get-records.asciidoc[]
 include::ml/post-data.asciidoc[]
 include::ml/get-influencers.asciidoc[]
 include::ml/get-categories.asciidoc[]
+include::ml/put-calendar.asciidoc[]
 
 == Migration APIs
 

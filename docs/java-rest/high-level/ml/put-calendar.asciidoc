@@ -1,0 +1,65 @@
+[[java-rest-high-x-pack-ml-put-calendar]]
+=== Put Calendar API
+Creates a new {ml} calendar.
+The API accepts a `PutCalendarRequest` and responds
+with a `PutCalendarResponse` object.
+
+[[java-rest-high-x-pack-ml-get-calendars-request]]
+==== Put Calendar Request
+
+A `PutCalendarRequest` is constructed with a Calendar object
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-request]
+--------------------------------------------------
+<1> Create a request with the given Calendar
+
+
+[[java-rest-high-x-pack-ml-put-calendar-response]]
+==== Put Calendar Response
+
+The returned `PutCalendarResponse` contains the created Calendar:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-response]
+--------------------------------------------------
+<1> The created Calendar
+
+[[java-rest-high-x-pack-ml-put-calendar-execution]]
+==== Execution
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-ml-put-calendar-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-execute-async]
+--------------------------------------------------
+<1> The `PutCalendarResquest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `PutCalendarResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-put-calendar-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs
+

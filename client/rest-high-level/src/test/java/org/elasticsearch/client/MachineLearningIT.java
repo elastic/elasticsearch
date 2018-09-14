@@ -40,11 +40,15 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
+import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -395,6 +399,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         getRequest.id(jobId + "_model_forecast_request_stats_" + forecastId);
         GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
         return getResponse.isExists();
+    }
+
+    public void testPutCalendar() throws IOException {
+
+        Calendar calendar = CalendarTests.testInstance();
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        PutCalendarResponse putCalendarResponse = execute(new PutCalendarRequest(calendar), machineLearningClient::putCalendar,
+                machineLearningClient::putCalendarAsync);
+
+        assertThat(putCalendarResponse.getCalendar(), equalTo(calendar));
     }
 
     public static String randomValidJobId() {

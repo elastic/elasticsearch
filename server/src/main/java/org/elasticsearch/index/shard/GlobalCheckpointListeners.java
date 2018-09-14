@@ -111,7 +111,7 @@ public class GlobalCheckpointListeners implements Closeable {
             executor.execute(() -> notifyListener(listener, UNASSIGNED_SEQ_NO, new IndexShardClosedException(shardId)));
             return;
         }
-        if (lastKnownGlobalCheckpoint > waitingForGlobalCheckpoint) {
+        if (lastKnownGlobalCheckpoint >= waitingForGlobalCheckpoint) {
             // notify directly
             executor.execute(() -> notifyListener(listener, lastKnownGlobalCheckpoint, null));
         } else {

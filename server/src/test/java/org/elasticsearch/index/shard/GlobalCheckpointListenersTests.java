@@ -133,14 +133,14 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
     public void testListenersReadyToBeNotified() throws IOException {
         final GlobalCheckpointListeners globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, Runnable::run, scheduler, logger);
-        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED + 1, Long.MAX_VALUE);
+        final long globalCheckpoint = randomLongBetween(0, Long.MAX_VALUE);
         globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint);
         final int numberOfListeners = randomIntBetween(0, 16);
         final long[] globalCheckpoints = new long[numberOfListeners];
         for (int i = 0; i < numberOfListeners; i++) {
             final int index = i;
             globalCheckpointListeners.add(
-                    randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint - 1),
+                    randomLongBetween(0, globalCheckpoint),
                     maybeMultipleInvocationProtectingListener((g, e) -> globalCheckpoints[index] = g),
                     null);
             // the listener should be notified immediately

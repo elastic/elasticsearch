@@ -24,8 +24,9 @@ import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.ReferringFilterFactory;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -33,17 +34,16 @@ import org.elasticsearch.script.ScriptType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
  * A factory for a conditional token filter that only applies child filters if the underlying token
  * matches an {@link AnalysisPredicateScript}
  */
-public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
+public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final AnalysisPredicateScript.Factory factory;
-    private final List<TokenFilterFactory> filters = new ArrayList<>();
+    private List<TokenFilterFactory> filters;
     private final List<String> filterNames;
 
     ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name,
@@ -94,15 +94,24 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     @Override
-    public void setReferences(Map<String, TokenFilterFactory> factories) {
-        for (String filter : filterNames) {
-            TokenFilterFactory tff = factories.get(filter);
-            if (tff == null) {
-                throw new IllegalArgumentException("ScriptedConditionTokenFilter [" + name() +
-                    "] refers to undefined token filter [" + filter + "]");
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        if (filters == null) {
+            filters = new ArrayList<>();
+            List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
+            for (String filter : filterNames) {
+                TokenFilterFactory tff = allFilters.apply(filter);
+                if (tff == null) {
+                    throw new IllegalArgumentException("ScriptedConditionTokenFilter [" + name() +
+                        "] refers to undefined token filter [" + filter + "]");
+                }
+                tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                filters.add(tff);
+                existingChain.add(tff);
             }
-            filters.add(tff);
         }
+        return this;
     }
 
 }

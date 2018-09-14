@@ -23,6 +23,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
 public interface TokenFilterFactory {
     String name();
 
@@ -35,5 +39,26 @@ public interface TokenFilterFactory {
      */
     default boolean breaksFastVectorHighlighter() {
         return false;
+    }
+
+    /**
+     * Rewrite the TokenFilterFactory to take into account the preceding analysis chain, or refer
+     * to other TokenFilterFactories
+     * @param tokenizer             the TokenizerFactory for the preceding chain
+     * @param charFilters           any CharFilterFactories for the preceding chain
+     * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
+     * @param allFilters            access to previously defined TokenFilterFactories
+     */
+    default TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                               List<TokenFilterFactory> previousTokenFilters,
+                                                               Function<String, TokenFilterFactory> allFilters) {
+        return this;
+    }
+
+    /**
+     * If {@code true}, use this filter when analyzing lists of synonyms
+     */
+    default boolean runForSynonyms() {
+        return true;
     }
 }

@@ -1,0 +1,83 @@
+[[java-rest-high-x-pack-ml-get-categories]]
+=== Get Categories API
+
+The Get Categories API retrieves one or more category results.
+It accepts a `GetCategoriesRequest` object and responds
+with a `GetCategoriesResponse` object.
+
+[[java-rest-high-x-pack-ml-get-categories-request]]
+==== Get Categories Request
+
+A `GetCategoriesRequest` object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-category-id]
+--------------------------------------------------
+<1> The id of the category to get. Otherwise it will return all categories.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of categories to skip.
+`size` specifies the maximum number of categories to get. Defaults to `0` and `100` respectively.
+
+[[java-rest-high-x-pack-ml-get-categories-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-execute]
+--------------------------------------------------
+
+
+[[java-rest-high-x-pack-ml-get-categories-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-execute-async]
+--------------------------------------------------
+<1> The `GetCategoriesRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back with the `onResponse` method
+if the execution is successful or the `onFailure` method if the execution
+failed.
+
+A typical listener for `GetCategoriesResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs
+
+[[java-rest-high-snapshot-ml-get-categories-response]]
+==== Get Categories Response
+
+The returned `GetCategoriesResponse` contains the requested categories:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-categories-response]
+--------------------------------------------------
+<1> The count of categories that were matched
+<2> The categories retrieved

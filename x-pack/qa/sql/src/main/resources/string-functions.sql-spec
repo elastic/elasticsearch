@@ -1,5 +1,6 @@
 stringAscii
 SELECT ASCII(first_name) s FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
 stringChar
 SELECT CHAR(emp_no % 10000) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 
@@ -9,6 +10,9 @@ SELECT emp_no, ASCII(first_name) a FROM "test_emp" WHERE ASCII(first_name) < 100
 stringAsciiEqualsConstant
 SELECT emp_no, ASCII(first_name) a, first_name name FROM "test_emp" WHERE ASCII(first_name) = 65 ORDER BY emp_no;
 
+stringAsciiInline
+SELECT ASCII('E') e;
+
 //https://github.com/elastic/elasticsearch/issues/31863
 //stringSelectConstantAsciiEqualsConstant
 //SELECT ASCII('A') = 65 a FROM "test_emp" WHERE ASCII('A') = 65 ORDER BY emp_no;
@@ -16,11 +20,104 @@ SELECT emp_no, ASCII(first_name) a, first_name name FROM "test_emp" WHERE ASCII(
 stringCharFilter
 SELECT emp_no, CHAR(emp_no % 10000) m FROM "test_emp" WHERE CHAR(emp_no % 10000) = 'A';
 
+stringSelectCharInline1
+SELECT CHAR(250) c;
+
+stringSelectCharInline2
+SELECT CHAR(2) c;
+
+charLengthInline1
+SELECT CAST(CHAR_LENGTH('Elasticsearch') AS INT) charlength;
+
+charLengthInline2
+SELECT CAST(CHAR_LENGTH('  Elasticsearch   ') AS INT) charlength;
+
+charLengthInline3
+SELECT CAST(CHAR_LENGTH('') AS INT) charlength;
+
+concatInline1
+SELECT CONCAT('Elastic','search') concat;
+
+concatInline2
+SELECT CONCAT(CONCAT('Lucene And ', 'Elastic'),'search') concat;
+
+concatInline3
+SELECT CONCAT(CONCAT('Lucene And ', 'Elastic'),CONCAT('search','')) concat;
+
 lcaseFilter
 SELECT LCASE(first_name) lc, CHAR(ASCII(LCASE(first_name))) chr FROM "test_emp" WHERE CHAR(ASCII(LCASE(first_name))) = 'a';
 
+lcaseInline1
+SELECT LCASE('') L;
+
+lcaseInline2
+SELECT LCASE('ElAsTiC fantastic') lower;
+
+leftInline1
+SELECT LEFT('Elasticsearch', 7) leftchars;
+
+leftInline2
+SELECT LEFT('Elasticsearch', 1) leftchars;
+
+leftInline3
+SELECT LEFT('Elasticsearch', 25) leftchars;
+
+leftInline4
+SELECT LEFT('Elasticsearch', LENGTH('abcdefghijklmnop')) leftchars;
+
 ltrimFilter
 SELECT LTRIM(first_name) lt FROM "test_emp" WHERE LTRIM(first_name) = 'Bob';
+
+ltrimInline1
+SELECT LTRIM('   Elastic   ') trimmed;
+
+ltrimInline2
+SELECT LTRIM('             ') trimmed;
+
+locateInline1
+SELECT LOCATE('a', 'Elasticsearch', 8) location;
+
+locateInline2
+SELECT LOCATE('a', 'Elasticsearch') location;
+
+locateInline3
+SELECT LOCATE('x', 'Elasticsearch') location;
+
+insertInline1
+SELECT INSERT('Insert [here] your comment!', 8, 6, '(random thoughts about Elasticsearch)') ins;
+
+insertInline2
+SELECT INSERT('Insert [here] your comment!', 8, 20, '(random thoughts about Elasticsearch)') ins;
+
+insertInline3
+SELECT INSERT('Insert [here] your comment!', 8, 19, '(random thoughts about Elasticsearch)') ins;
+
+positionInline1
+SELECT POSITION('a','Elasticsearch') pos;
+
+positionInline2
+SELECT POSITION('x','Elasticsearch') pos;
+
+repeatInline1
+SELECT REPEAT('Elastic',2) rep;
+
+repeatInline2
+SELECT REPEAT('Elastic',1) rep;
+
+replaceInline1
+SELECT REPLACE('Elasticsearch','sea','A') repl;
+
+replaceInline2
+SELECT REPLACE('Elasticsearch','x','A') repl;
+
+rightInline1
+SELECT RIGHT('Elasticsearch', LENGTH('Search')) rightchars;
+
+rightInline2
+SELECT RIGHT(CONCAT('Elastic','search'), LENGTH('Search')) rightchars;
+
+rightInline3
+SELECT RIGHT('Elasticsearch', 0) rightchars;
 
 // Unsupported yet
 // Functions combined with 'LIKE' should perform the match inside a Painless script, whereas at the moment it's handled as a regular `match` query in ES.
@@ -30,14 +127,46 @@ SELECT LTRIM(first_name) lt FROM "test_emp" WHERE LTRIM(first_name) = 'Bob';
 rtrimFilter
 SELECT RTRIM(first_name) rt FROM "test_emp" WHERE RTRIM(first_name) = 'Johnny';
 
+rtrimInline1
+SELECT RTRIM('   Elastic   ') trimmed;
+
+rtrimInline2
+SELECT RTRIM('             ') trimmed;
+
 spaceFilter
 SELECT SPACE(languages) spaces, languages FROM "test_emp" WHERE SPACE(languages) = '   ';
 
 spaceFilterWithLengthFunctions
 SELECT SPACE(languages) spaces, languages, first_name FROM "test_emp" WHERE CHAR_LENGTH(SPACE(languages)) = 3 ORDER BY first_name;
 
+spaceInline1
+SELECT SPACE(5) space;
+
+spaceInline1
+SELECT SPACE(0) space;
+
+substringInline1
+SELECT SUBSTRING('Elasticsearch', 1, 7) sub;
+
+substringInline2
+SELECT SUBSTRING('Elasticsearch', 1, 15) sub;
+
+substringInline3
+SELECT SUBSTRING('Elasticsearch', 10, 10) sub;
+
 ucaseFilter
 SELECT UCASE(gender) uppercased, COUNT(*) count FROM "test_emp" WHERE UCASE(gender) = 'F' GROUP BY UCASE(gender);
+
+//https://github.com/elastic/elasticsearch/issues/33687
+//ucaseInline1
+//SELECT UCASE('ElAsTiC') upper;
+
+ucaseInline2
+SELECT UCASE('') upper;
+
+//https://github.com/elastic/elasticsearch/issues/33687
+//ucaseInline3
+//SELECT UCASE(' elastic ') upper;
 
 //
 // Group and order by

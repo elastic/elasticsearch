@@ -110,8 +110,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .put("search.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
-                .put("search.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
+                .put("cluster.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
+                .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
         indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);

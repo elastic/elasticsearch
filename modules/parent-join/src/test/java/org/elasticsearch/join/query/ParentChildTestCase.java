@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,8 +58,6 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
     @Override
     public Settings indexSettings() {
         Settings.Builder builder =  Settings.builder().put(super.indexSettings())
-            // AwaitsFix: https://github.com/elastic/elasticsearch/issues/33318
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             // aggressive filter caching so that we can assert on the filter cache size
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true);

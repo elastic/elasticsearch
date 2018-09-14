@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -50,15 +49,14 @@ final class ExpiredTokenRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        SearchRequest searchRequest = new SearchRequest(SecurityIndexManager.SECURITY_INDEX_NAME);
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_INDEX_NAME);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
-            searchRequest.source().timeout(timeout);
+            expiredDbq.getSearchRequest().source().timeout(timeout);
         }
         final Instant now = Instant.now();
-        searchRequest.source()
-                .query(QueryBuilders.boolQuery()
+        expiredDbq
+            .setQuery(QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termsQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE, "token"))
                         .filter(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.rangeQuery("expiration_time").lte(now.toEpochMilli()))

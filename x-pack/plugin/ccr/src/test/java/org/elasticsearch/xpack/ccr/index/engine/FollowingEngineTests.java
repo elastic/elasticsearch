@@ -37,14 +37,12 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -254,8 +252,6 @@ public class FollowingEngineTests extends ESTestCase {
                 Collections.emptyList(),
                 Collections.emptyList(),
                 null,
-                new TranslogHandler(
-                        xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
                 new NoneCircuitBreakerService(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> primaryTerm.get(),
@@ -264,14 +260,8 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private static Store createStore(
-            final ShardId shardId, final IndexSettings indexSettings, final Directory directory) throws IOException {
-        final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
-            @Override
-            public Directory newDirectory() throws IOException {
-                return directory;
-            }
-        };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+            final ShardId shardId, final IndexSettings indexSettings, final Directory directory) {
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
@@ -280,7 +270,8 @@ public class FollowingEngineTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
-        followingEngine.recoverFromTranslog(Long.MAX_VALUE);
+        TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
+        followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return followingEngine;
     }
 

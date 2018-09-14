@@ -906,14 +906,14 @@ public class SettingTests extends ESTestCase {
 
         final Settings current = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
-            .put("cluster.routing.allocation.exclude._ip", "10.0.2.55")
+            .put("cluster.routing.allocation.exclude._ip", "foo")
             .put("cluster.routing.allocation.exclude._host", (String) null)
             .build();
 
         final Settings previous = Settings.builder()
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
-            .put("cluster.routing.allocation.exclude._ip", "10.0.2.55")
-            .put("cluster.routing.allocation.exclude._host", "json5x60-3.ip.es.io")
+            .put("cluster.routing.allocation.exclude._ip", "foo")
+            .put("cluster.routing.allocation.exclude._host", "bar")
             .build();
 
         assertTrue(updater.hasChanged(current, previous));

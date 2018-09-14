@@ -31,7 +31,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -308,7 +310,7 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private NodeStats createNodeStats() {
+    private NodeStats createNodeStats() throws IOException {
         DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
@@ -474,9 +476,9 @@ public class NodeStatsTests extends ESTestCase {
                 ingestStats, adaptiveSelectionStats, createShardStats(node));
     }
 
-    private List<ShardStats> createShardStats(final DiscoveryNode node) {
+    private List<ShardStats> createShardStats(final DiscoveryNode node) throws IOException {
         if (frequently()) {
-            final int numShards = randomInt(8);
+            final int numShards = randomInt(4);
             final List<ShardStats> shardsStats = new ArrayList<>(numShards);
             final int numIndices = randomInt(3);
             final List<String> indices = new ArrayList<>(numIndices);
@@ -485,14 +487,14 @@ public class NodeStatsTests extends ESTestCase {
                 indices.add("fake-index-" + i);
             }
 
-            final Path dataPath = getBwcIndicesPath();
+            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
 
             for (int i = 0; i < numShards; ++i) {
                 final ShardRoutingState state = randomFrom(ShardRoutingState.values());
                 final ShardRouting routing =
                     TestShardRouting.newShardRouting(randomFrom(indices), i, node.getId(), randomBoolean(), state);
-                // not a real path, but it's close enough
-                final ShardPath path = new ShardPath(false, dataPath, dataPath, routing.shardId());
+                final ShardId id = routing.shardId();
+                final ShardPath path = new ShardPath(false, nodePath.resolve(id), nodePath.resolve(id), id);
 
                 shardsStats.add(new ShardStats(routing, path, new CommonStats(), null, null));
             }

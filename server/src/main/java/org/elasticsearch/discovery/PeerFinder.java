@@ -128,13 +128,24 @@ public abstract class PeerFinder extends AbstractComponent {
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
         synchronized (mutex) {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
+            final List<DiscoveryNode> knownPeers;
             if (active) {
+                assert leader.isPresent() == false : leader;
                 startProbe(peersRequest.getSourceNode().getAddress());
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
-                return new PeersResponse(Optional.empty(), getFoundPeersUnderLock(), currentTerm);
+                knownPeers = getFoundPeersUnderLock();
             } else {
-                return new PeersResponse(leader, Collections.emptyList(), currentTerm);
+                assert leader.isPresent();
+                knownPeers = Collections.emptyList();
             }
+            return new PeersResponse(leader, knownPeers, currentTerm);
+        }
+    }
+
+    // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
+    public Optional<DiscoveryNode> getLeader() {
+        synchronized (mutex) {
+            return leader;
         }
     }
 
@@ -162,11 +173,6 @@ public abstract class PeerFinder extends AbstractComponent {
      * synchronisation to avoid lost updates. Also, by the time this method is invoked we may have been deactivated.
      */
     protected abstract void onFoundPeersUpdated();
-
-    // only for assertions, but accessed from separate package o.e.c.coordination so needs to be public
-    public boolean isActive() {
-        return active;
-    }
 
     public interface TransportAddressConnector {
         /**

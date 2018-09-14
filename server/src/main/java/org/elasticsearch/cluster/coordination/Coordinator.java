@@ -302,24 +302,25 @@ public class Coordinator extends AbstractLifecycleComponent {
 
     public void invariant() {
         synchronized (mutex) {
+            final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
             if (mode == Mode.LEADER) {
                 assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
-                assert peerFinder.isActive() == false;
+                assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
-                assert peerFinder.isActive() == false;
+                assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
             } else {
                 assert mode == Mode.CANDIDATE;
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
-                assert peerFinder.isActive();
+                assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
             }
         }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -84,8 +85,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             leaderClient = wrapClient(client, params.getHeaders());
         }
         Client followerClient = wrapClient(client, params.getHeaders());
-        BiConsumer<TimeValue, Runnable> scheduler =
-            (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
+            try {
+                threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug("couldn't schedule command, executor is shutting down", e);
+                } else {
+                    throw e;
+                }
+            }
+        };
         return new ShardFollowNodeTask(
                 id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler, System::nanoTime) {
 

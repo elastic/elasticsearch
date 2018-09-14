@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;

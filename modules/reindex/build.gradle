@@ -71,7 +71,7 @@ thirdPartyAudit.excludes = [
   'org.apache.log.Logger',
 ]
 
-// Support for testing reindex-from-remote against old Elasticsearch versions
+// Support for testing reindex-from-remote against old Elaticsearch versions
 configurations {
   oldesFixture
   es2

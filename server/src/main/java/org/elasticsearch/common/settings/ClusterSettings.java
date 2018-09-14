@@ -443,6 +443,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
             )));
 
-    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
+            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
+            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER));
 
 }

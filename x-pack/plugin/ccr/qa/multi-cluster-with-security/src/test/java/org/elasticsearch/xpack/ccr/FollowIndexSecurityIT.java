@@ -29,7 +29,9 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
@@ -80,6 +82,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -110,7 +113,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             e = expectThrows(ResponseException.class,
                 () -> followIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("follow index [" + unallowedIndex + "] does not exist"));
+            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }
@@ -201,6 +204,49 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     private static boolean indexExists(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    private static void verifyCcrMonitoring(String expectedLeaderIndex, String expectedFollowerIndex) throws IOException {
+        ensureYellow(".monitoring-*");
+
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
+        Map<String, ?> response = toMap(adminClient().performRequest(request));
+
+        int numberOfOperationsReceived = 0;
+        int numberOfOperationsIndexed = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+            String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
+            assertThat(leaderIndex, endsWith(expectedLeaderIndex));
+
+            final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
+            assertThat(followerIndex, equalTo(expectedFollowerIndex));
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);
+            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
+            int foundNumberOfOperationsIndexed =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.number_of_operations_indexed", hit);
+            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+        }
+
+        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
+        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
+    }
+
+    private static void ensureYellow(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("wait_for_no_initializing_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        adminClient().performRequest(request);
     }
 
 }

@@ -21,17 +21,15 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
-    private final Listener listener;
     private final LongSupplier nowSupplier;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-            LongSupplier nowSupplier, Listener listener) {
+                                    LongSupplier nowSupplier) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
-        this.listener = listener;
     }
 
     Index getIndex() {
@@ -70,23 +68,8 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        // if the new cluster state is different from the old one then
-        // we moved to the new step in the execute method so we should
-        // execute the next step
-        if (oldState != newState) {
-            listener.onClusterStateProcessed(newState);
-        }
-    }
-
-    @Override
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step ["
                 + currentStepKey + "] to step [" + nextStepKey + "].", e);
-    }
-
-    @FunctionalInterface
-    public interface Listener {
-        void onClusterStateProcessed(ClusterState clusterState);
     }
 }

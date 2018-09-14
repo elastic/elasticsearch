@@ -364,7 +364,7 @@ public class IndexLifecycleRunner {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
+                nextStepKey, nowSupplier));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {

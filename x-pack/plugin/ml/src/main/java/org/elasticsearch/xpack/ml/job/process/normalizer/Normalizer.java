@@ -190,10 +190,13 @@ public class Normalizer {
      * Encapsulate the logic for deciding whether a change to a normalized score
      * is "big".
      * <p>
-     * Current logic is that a big change is a change that would result in a change of colour in the UI
-     * (e.g. severity will be changed from WARNING to MINOR), or a change of at least 2, or more than
-     * than 33% of the higher of the two values.
-     *
+     * Current logic is that a change is considered big if any of the following criteria are met:
+     * <ul>
+     * <li>the change  would result in a change of colour in the UI
+     * (e.g. severity would be changed from WARNING to MINOR)</li>
+     * <li>the change is at least 3</li>
+     * <li>the change in values is greater than 67% of the higher of the two values.</li>
+     * </ul>
      * These values have been chosen through a process of experimentation, in particular it was desired to reduce
      * the number of updates written to the results index due to renormalization events for performance reasons
      * while not changing the normalized scores greatly

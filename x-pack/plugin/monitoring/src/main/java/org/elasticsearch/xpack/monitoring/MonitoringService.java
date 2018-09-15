@@ -122,15 +122,15 @@ public class MonitoringService extends AbstractLifecycleComponent {
         return interval;
     }
 
-    public boolean isMonitoringActive() {
+    boolean isMonitoringActive() {
         return isStarted() && enabled;
     }
 
-    public boolean isElasticsearchCollectionEnabled() {
+    boolean isElasticsearchCollectionEnabled() {
         return this.elasticsearchCollectionEnabled;
     }
 
-    public boolean shouldScheduleExecution() {
+    boolean shouldScheduleExecution() {
         return isElasticsearchCollectionEnabled() && isMonitoringActive();
     }
 

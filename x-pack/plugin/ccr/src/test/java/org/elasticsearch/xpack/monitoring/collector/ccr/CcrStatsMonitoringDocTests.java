@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,16 +14,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
-import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,8 +52,8 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
 
     public void testConstructorStatusMustNotBeNull() {
         final NullPointerException e =
-                LuceneTestCase.expectThrows(NullPointerException.class, () -> new CcrStatsMonitoringDoc(cluster, timestamp, interval, node, null));
-        Assert.assertThat(e, hasToString(containsString("status")));
+                expectThrows(NullPointerException.class, () -> new CcrStatsMonitoringDoc(cluster, timestamp, interval, node, null));
+        assertThat(e, hasToString(containsString("status")));
     }
 
     @Override
@@ -74,10 +70,10 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
 
     @Override
     protected void assertMonitoringDoc(CcrStatsMonitoringDoc document) {
-        Assert.assertThat(document.getSystem(), is(MonitoredSystem.ES));
-        Assert.assertThat(document.getType(), Matchers.is(CcrStatsMonitoringDoc.TYPE));
-        Assert.assertThat(document.getId(), nullValue());
-        Assert.assertThat(document.status(), is(status));
+        assertThat(document.getSystem(), is(MonitoredSystem.ES));
+        assertThat(document.getType(), is(CcrStatsMonitoringDoc.TYPE));
+        assertThat(document.getId(), nullValue());
+        assertThat(document.status(), is(status));
     }
 
     @Override
@@ -87,30 +83,30 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
         final long nodeTimestamp = System.currentTimeMillis();
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", nodeTimestamp);
         // these random values do not need to be internally consistent, they are only for testing formatting
-        final int shardId = ESTestCase.randomIntBetween(0, Integer.MAX_VALUE);
-        final long leaderGlobalCheckpoint = ESTestCase.randomNonNegativeLong();
-        final long leaderMaxSeqNo = ESTestCase.randomNonNegativeLong();
-        final long followerGlobalCheckpoint = ESTestCase.randomNonNegativeLong();
-        final long followerMaxSeqNo = ESTestCase.randomNonNegativeLong();
-        final long lastRequestedSeqNo = ESTestCase.randomNonNegativeLong();
-        final int numberOfConcurrentReads = ESTestCase.randomIntBetween(1, Integer.MAX_VALUE);
-        final int numberOfConcurrentWrites = ESTestCase.randomIntBetween(1, Integer.MAX_VALUE);
-        final int numberOfQueuedWrites = ESTestCase.randomIntBetween(0, Integer.MAX_VALUE);
-        final long mappingVersion = ESTestCase.randomIntBetween(0, Integer.MAX_VALUE);
-        final long totalFetchTimeMillis = ESTestCase.randomLongBetween(0, 4096);
-        final long numberOfSuccessfulFetches = ESTestCase.randomNonNegativeLong();
-        final long numberOfFailedFetches = ESTestCase.randomLongBetween(0, 8);
-        final long operationsReceived = ESTestCase.randomNonNegativeLong();
-        final long totalTransferredBytes = ESTestCase.randomNonNegativeLong();
-        final long totalIndexTimeMillis = ESTestCase.randomNonNegativeLong();
-        final long numberOfSuccessfulBulkOperations = ESTestCase.randomNonNegativeLong();
-        final long numberOfFailedBulkOperations = ESTestCase.randomNonNegativeLong();
-        final long numberOfOperationsIndexed = ESTestCase.randomNonNegativeLong();
+        final int shardId = randomIntBetween(0, Integer.MAX_VALUE);
+        final long leaderGlobalCheckpoint = randomNonNegativeLong();
+        final long leaderMaxSeqNo = randomNonNegativeLong();
+        final long followerGlobalCheckpoint = randomNonNegativeLong();
+        final long followerMaxSeqNo = randomNonNegativeLong();
+        final long lastRequestedSeqNo = randomNonNegativeLong();
+        final int numberOfConcurrentReads = randomIntBetween(1, Integer.MAX_VALUE);
+        final int numberOfConcurrentWrites = randomIntBetween(1, Integer.MAX_VALUE);
+        final int numberOfQueuedWrites = randomIntBetween(0, Integer.MAX_VALUE);
+        final long mappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
+        final long totalFetchTimeMillis = randomLongBetween(0, 4096);
+        final long numberOfSuccessfulFetches = randomNonNegativeLong();
+        final long numberOfFailedFetches = randomLongBetween(0, 8);
+        final long operationsReceived = randomNonNegativeLong();
+        final long totalTransferredBytes = randomNonNegativeLong();
+        final long totalIndexTimeMillis = randomNonNegativeLong();
+        final long numberOfSuccessfulBulkOperations = randomNonNegativeLong();
+        final long numberOfFailedBulkOperations = randomNonNegativeLong();
+        final long numberOfOperationsIndexed = randomNonNegativeLong();
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
                 new TreeMap<>(Collections.singletonMap(
-                        ESTestCase.randomNonNegativeLong(),
-                        Tuple.tuple(ESTestCase.randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
-        final long timeSinceLastFetchMillis = ESTestCase.randomNonNegativeLong();
+                        randomNonNegativeLong(),
+                        Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
+        final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "cluster_alias:leader_index",
                 "follower_index",
@@ -137,7 +133,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                 timeSinceLastFetchMillis);
         final CcrStatsMonitoringDoc document = new CcrStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        Assert.assertThat(
+        assertThat(
                 xContent.utf8ToString(),
                 equalTo(
                         "{"
@@ -225,29 +221,29 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
             XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
         Map<?, ?> ccrStatsMapping = (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_stats.properties", template);
 
-        Assert.assertThat(serializedStatus.size(), equalTo(ccrStatsMapping.size()));
+        assertThat(serializedStatus.size(), equalTo(ccrStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();
             Map<?, ?> fieldMapping = (Map<?, ?>) ccrStatsMapping.get(fieldName);
-            Assert.assertThat(fieldMapping, notNullValue());
+            assertThat(fieldMapping, notNullValue());
 
             Object fieldValue = entry.getValue();
             String fieldType = (String) fieldMapping.get("type");
             if (fieldValue instanceof Long || fieldValue instanceof Integer) {
-                Assert.assertThat("expected long field type for field [" + fieldName + "]", fieldType,
+                assertThat("expected long field type for field [" + fieldName + "]", fieldType,
                     anyOf(equalTo("long"), equalTo("integer")));
             } else if (fieldValue instanceof String) {
-                Assert.assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
+                assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
                     anyOf(equalTo("keyword"), equalTo("text")));
             } else {
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("fetch_exceptions")) {
-                    Assert.assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
-                    Assert.assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
-                    Assert.assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
-                    Assert.assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("text"));
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
+                    assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
+                    assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
+                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("text"));
                 } else {
-                    Assert.fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
+                    fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
                 }
             }
         }

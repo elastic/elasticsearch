@@ -14,6 +14,8 @@ esplugin {
 }
 archivesBaseName = 'x-pack-ccr'
 
+integTest.enabled = false
+
 compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
@@ -27,29 +29,7 @@ task internalClusterTest(type: RandomizedTestingTask,
     classpath = project.test.classpath
     testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'
-    exclude '**/CcrRestIT.class'
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-integTestCluster {
-    distribution 'zip'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    // TODO: reduce the need for superuser here
-    setupCommand 'setup-ccr-user',
-            'bin/elasticsearch-users', 'useradd', 'ccr-user', '-p', 'ccr-user-password', '-r', 'superuser'
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'ccr-user',
-                password: 'ccr-user-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
 }
 
 check.dependsOn internalClusterTest

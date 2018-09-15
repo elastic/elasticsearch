@@ -273,7 +273,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         registerRequestHandler(service1, requestHandlerShouldNotBeCalled());
         Exception e = new Exception("dummy exception");
         registerRequestHandler(service2, requestHandlerRepliesExceptionally(e));
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerException.get());
@@ -285,7 +285,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         registerRequestHandler(service1, requestHandlerShouldNotBeCalled());
         registerRequestHandler(service2, requestHandlerShouldNotBeCalled());
         disconnectedLinks.add(Tuple.tuple(node1, node2));
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
         deterministicTaskQueue.runAllRunnableTasks();
         assertNotNull(responseHandlerException.get());
@@ -305,7 +305,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldNotBeCalled());
         deterministicTaskQueue.runAllRunnableTasks();
         assertNull(responseHandlerException.get());
@@ -321,7 +321,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldNotBeCalled());
         deterministicTaskQueue.runAllRunnableTasks();
         assertNull(responseHandlerException.get());
@@ -337,7 +337,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldNotBeCalled());
         deterministicTaskQueue.runAllRunnableTasks();
         assertNull(responseHandlerException.get());
@@ -353,7 +353,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         AtomicReference<TransportChannel> responseHandlerChannel = new AtomicReference<>();
         registerRequestHandler(service2, requestHandlerCaptures(responseHandlerChannel::set));
 
-        AtomicReference<TransportException> responseHandlerException = new AtomicReference();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
         send(service1, node2, responseHandlerShouldNotBeCalled());
         deterministicTaskQueue.runAllRunnableTasks();
         assertNull(responseHandlerException.get());

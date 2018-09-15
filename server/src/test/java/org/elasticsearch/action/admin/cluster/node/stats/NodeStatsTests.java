@@ -32,6 +32,8 @@ import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -305,6 +307,36 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
+                final List<ShardStats> shardsStats = nodeStats.getShardsStats();
+                final List<ShardStats> deserializedShardsStats = deserializedNodeStats.getShardsStats();
+                if (shardsStats == null) {
+                    assertNull(deserializedShardsStats);
+                } else {
+                    assertEquals(shardsStats.size(), deserializedShardsStats.size());
+                    for (int i = 0; i < shardsStats.size(); ++i) {
+                        final ShardStats shard = shardsStats.get(i);
+                        final ShardStats deserializedShard = deserializedShardsStats.get(i);
+                        final CommonStats shardStats = shard.getStats();
+
+                        assertEquals(shard.getStats().getTotalMemory(), deserializedShard.getStats().getTotalMemory());
+                        assertEquals(shard.getDataPath(), deserializedShard.getDataPath());
+
+                        if (shardStats.docs == null) {
+                            assertNull(deserializedShard.getStats().docs);
+                        } else {
+                            assertEquals(shardStats.docs.getTotalSizeInBytes(), deserializedShard.getStats().docs.getTotalSizeInBytes());
+                            assertEquals(shardStats.docs.getCount(), deserializedShard.getStats().docs.getCount());
+                            assertEquals(shardStats.docs.getDeleted(), deserializedShard.getStats().docs.getDeleted());
+
+                            if (shardStats.fieldData == null) {
+                                assertNull(deserializedShard.getStats().fieldData);
+                            } else {
+                                assertEquals(shardStats.fieldData.getMemorySize(), deserializedShard.getStats().fieldData.getMemorySize());
+                                assertEquals(shardStats.fieldData.getEvictions(), deserializedShard.getStats().fieldData.getEvictions());
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -477,9 +509,9 @@ public class NodeStatsTests extends ESTestCase {
 
     private List<ShardStats> createShardStats(final DiscoveryNode node) throws IOException {
         if (frequently()) {
-            final int numShards = randomInt(4);
+            final int numShards = randomIntBetween(1, 4);
             final List<ShardStats> shardsStats = new ArrayList<>(numShards);
-            final int numIndices = randomInt(3);
+            final int numIndices = randomIntBetween(1, 3);
             final List<String> indices = new ArrayList<>(numIndices);
 
             for (int i = 0; i < numIndices; ++i) {
@@ -489,13 +521,23 @@ public class NodeStatsTests extends ESTestCase {
             final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
 
             for (int i = 0; i < numShards; ++i) {
-                final ShardRoutingState state = randomFrom(ShardRoutingState.values());
-                final ShardRouting routing =
-                    TestShardRouting.newShardRouting(randomFrom(indices), i, node.getId(), randomBoolean(), state);
-                final ShardId id = routing.shardId();
+                final String index = randomFrom(indices);
+                final ShardId id = new ShardId(index, index + "-uuid", i);
+                final ShardRouting routing = TestShardRouting.newShardRouting(id, node.getId(), randomBoolean(), ShardRoutingState.STARTED);
                 final ShardPath path = new ShardPath(false, nodePath.resolve(id), nodePath.resolve(id), id);
+                final CommonStats stats = new CommonStats();
 
-                shardsStats.add(new ShardStats(routing, path, new CommonStats(), null, null));
+                if (frequently()) {
+                    final int docs = randomIntBetween(1, 123456);
+
+                    stats.docs = new DocsStats(docs, randomInt(docs), docs * 16L);
+
+                    if (randomBoolean()) {
+                        stats.fieldData = new FieldDataStats(randomIntBetween(8, 32) * 8, randomIntBetween(1, 30), null);
+                    }
+                }
+
+                shardsStats.add(new ShardStats(routing, path, stats, null, null));
             }
 
             return shardsStats;

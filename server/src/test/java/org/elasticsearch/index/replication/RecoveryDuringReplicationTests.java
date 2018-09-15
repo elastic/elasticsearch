@@ -489,9 +489,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }) {
                     @Override
                     public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                        long maxAutoIdTimestamp) throws IOException {
+                                                        long maxSeenAutoIdTimestampOnPrimary) throws IOException {
                         opsSent.set(true);
-                        return super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+                        return super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary);
                     }
                 };
             });

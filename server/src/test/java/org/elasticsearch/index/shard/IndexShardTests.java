@@ -2198,8 +2198,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
                 @Override
                 public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                    long maxAutoIdTimestamp) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp);
+                                                    long maxSeenAutoIdTimestamp) throws IOException {
+                    final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp);
                     assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }

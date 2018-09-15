@@ -36,18 +36,18 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     private ShardId shardId;
     private List<Translog.Operation> operations;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
-    private long maxAutoIdTimestamp;
+    private long maxSeenAutoIdTimestampOnPrimary;
 
     public RecoveryTranslogOperationsRequest() {
     }
 
     RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations,
-                                      int totalTranslogOps, long maxAutoIdTimestamp) {
+                                      int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
         this.totalTranslogOps = totalTranslogOps;
-        this.maxAutoIdTimestamp = maxAutoIdTimestamp;
+        this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
     }
 
     public long recoveryId() {
@@ -66,8 +66,8 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         return totalTranslogOps;
     }
 
-    public long maxAutoIdTimestamp() {
-        return maxAutoIdTimestamp;
+    public long maxSeenAutoIdTimestampOnPrimary() {
+        return maxSeenAutoIdTimestampOnPrimary;
     }
 
     @Override
@@ -78,9 +78,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            maxAutoIdTimestamp = in.readZLong();
+            maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         } else {
-            maxAutoIdTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+            maxSeenAutoIdTimestampOnPrimary = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
         }
     }
 
@@ -92,7 +92,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         Translog.writeOperations(out, operations);
         out.writeVInt(totalTranslogOps);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeZLong(maxAutoIdTimestamp);
+            out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         }
     }
 }

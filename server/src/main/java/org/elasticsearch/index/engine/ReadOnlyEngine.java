@@ -28,7 +28,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -368,12 +367,7 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getMaxAutoIdTimestamp() {
-        return IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
-    }
-
-    @Override
-    public void updateMaxAutoIdTimestamp(long newTimestamp) {
+    public void forceUpdateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
     }
 }

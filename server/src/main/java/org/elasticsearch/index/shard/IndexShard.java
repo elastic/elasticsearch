@@ -1245,18 +1245,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Sets the maximum auto-generated timestamp of append-only requests tracked by this shard to {@code newTimestamp}.
-     * The update only takes effect if the current timestamp is smaller the new given parameter.
+     * Returns the maximum auto_id_timestamp of all append-only requests have been processed (or force-updated) by this shard.
+     * A primary propagates this timestamp to replicas at the beginning of a peer-recovery or a primary-replica resync.
+     *
+     * @see #forceUpdateMaxUnsafeAutoIdTimestamp(long)
      */
-    public void updateMaxAutoIdTimestamp(long newTimestamp) {
-        getEngine().updateMaxAutoIdTimestamp(newTimestamp);
+    public long getMaxSeenAutoIdTimestamp() {
+        return getEngine().getMaxSeenAutoIdTimestamp();
     }
 
     /**
-     * Returns the maximum auto-generated timestamp of append-only requests has been processed by this shard.
+     * Since operations stored in soft-deletes do not have max_auto_id_timestamp, the primary has to propagate its max_auto_id_timestamp
+     * (via {@link #getMaxSeenAutoIdTimestamp()} of all processed append-only requests to replicas at the beginning of a peer-recovery
+     * or a primary-replica resync to force a replica to disable optimization for all append-only requests which are replicated via
+     * replication while its retry variants are replicated via recovery without auto_id_timestamp.
+     * <p>
+     * Without this force-update, a replica can generate duplicate documents (for the same id) if it first receives
+     * a retry append-only (without timestamp) via recovery, then an original append-only (with timestamp) via replication.
      */
-    public long getMaxAutoIdTimestamp() {
-        return getEngine().getMaxAutoIdTimestamp();
+    public void forceUpdateMaxUnsafeAutoIdTimestamp(long maxSeenAutoIdTimestampFromPrimary) {
+        getEngine().forceUpdateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampFromPrimary);
     }
 
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin) throws IOException {

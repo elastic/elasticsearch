@@ -441,6 +441,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public synchronized void close() throws Exception {
             if (closed == false) {
                 closed = true;
+                for (IndexShard replica : replicas) {
+                    assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
+                }
                 closeShards(this);
             } else {
                 throw new AlreadyClosedException("too bad");

@@ -41,6 +41,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1691,15 +1692,19 @@ public abstract class Engine implements Closeable {
     public abstract void maybePruneDeletes();
 
     /**
-     * Returns the maximum auto-generated timestamp of append-only requests has been processed by this engine.
+     * Returns the maximum auto_id_timestamp of all append-only have been processed (or force-updated) by this engine.
+     * Notes this method returns the auto_id_timestamp of all append-only requests, not max_unsafe_auto_id_timestamp.
+     * @see #forceUpdateMaxUnsafeAutoIdTimestamp(long)
      */
-    public abstract long getMaxAutoIdTimestamp();
+    public long getMaxSeenAutoIdTimestamp() {
+        return IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+    }
 
     /**
-     * Sets the maximum auto-generated timestamp of append-only requests tracked by this engine to {@code newTimestamp}.
-     * The update only takes effect if the current timestamp is smaller the new given parameter.
+     * Forces this engine to advance its max_unsafe_auto_id_timestamp marker to at least the given timestamp.
+     * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
      */
-    public abstract void updateMaxAutoIdTimestamp(long newTimestamp);
+    public abstract void forceUpdateMaxUnsafeAutoIdTimestamp(long newTimestamp);
 
     @FunctionalInterface
     public interface TranslogRecoveryRunner {

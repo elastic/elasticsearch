@@ -201,8 +201,6 @@ public class RecoverySourceHandler {
             runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()),
                 shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
 
-            // DISCUSS: Is it possible to have an operation gets delivered via recovery first, then delivered via replication?
-            // If this is the case, we need to propagate the max_timestamp of all append-only, not only retry requests.
             final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
             /*
              * We need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
@@ -217,7 +215,10 @@ public class RecoverySourceHandler {
             }
             final long targetLocalCheckpoint;
             try (Translog.Snapshot snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo)) {
-                targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
+                // We have to capture the max auto_id_timestamp after taking a snapshot of operations to guarantee
+                // that the auto_id_timestamp of every operation in the snapshot is at most this timestamp value.
+                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+                targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
@@ -449,9 +450,11 @@ public class RecoverySourceHandler {
      * @param requiredSeqNoRangeStart the lower sequence number of the required range (ending with endingSeqNo)
      * @param endingSeqNo             the highest sequence number that should be sent
      * @param snapshot                a snapshot of the translog
+     * @param maxSeenAutoIdTimestamp  the max auto_id_timestamp of append-only requests on the primary
      * @return the local checkpoint on the target
      */
-    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot)
+    long phase2(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, final Translog.Snapshot snapshot,
+                final long maxSeenAutoIdTimestamp)
         throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
@@ -464,7 +467,8 @@ public class RecoverySourceHandler {
             "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
 
         // send all the snapshot's translog operations to the target
-        final SendSnapshotResult result = sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
+        final SendSnapshotResult result = sendSnapshot(
+            startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot, maxSeenAutoIdTimestamp);
 
         stopWatch.stop();
         logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
@@ -532,10 +536,11 @@ public class RecoverySourceHandler {
      * @param endingSeqNo             the upper bound of the sequence number range to be sent (inclusive)
      * @param snapshot                the translog snapshot to replay operations from  @return the local checkpoint on the target and the
      *                                total number of operations sent
+     * @param maxSeenAutoIdTimestamp  the max auto_id_timestamp of append-only requests on the primary
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
     protected SendSnapshotResult sendSnapshot(final long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo,
-                                              final Translog.Snapshot snapshot) throws IOException {
+                                              final Translog.Snapshot snapshot, final long maxSeenAutoIdTimestamp) throws IOException {
         assert requiredSeqNoRangeStart <= endingSeqNo + 1:
             "requiredSeqNoRangeStart " + requiredSeqNoRangeStart + " is larger than endingSeqNo " + endingSeqNo;
         assert startingSeqNo <= requiredSeqNoRangeStart :
@@ -554,7 +559,7 @@ public class RecoverySourceHandler {
         }
 
         final CancellableThreads.IOInterruptable sendBatch = () ->
-            targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps, shard.getMaxAutoIdTimestamp()));
+            targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps, maxSeenAutoIdTimestamp));
 
         // send operations in batches
         Translog.Operation operation;

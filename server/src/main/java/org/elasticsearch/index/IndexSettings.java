@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
@@ -277,6 +278,26 @@ public final class IndexSettings {
         return s;
        }, Property.Dynamic, Property.IndexScope);
 
+    /**
+     * Allows to specify a dedicated threadpool to execute searches. This is an expert setting and should be used with care.
+     * Indices that for instance contain metadata information that need to be always accessible and should not be rejected
+     * can be served through a different threadpool. Or searches that have a lower priority can go through a threadpool with a
+     * single thread to prevent larger impact on other searches with a higher priority. This setting allows for custom threadpools
+     * or search and generic. Other build-in threadpools are disallowed.
+     */
+    public static final Setting<String> INDEX_SEARCH_THREAD_POOL =
+        new Setting<>("index.search.threadpool", ThreadPool.Names.SEARCH, s -> {
+            if (s == null || s.isEmpty()) {
+                throw new IllegalArgumentException("Value for [index.search.threadpool] must be a non-empty string.");
+            }
+            if (ThreadPool.Names.SEARCH.equals(s) == false && ThreadPool.Names.GENERIC.equals(s) == false &&
+                ThreadPool.THREAD_POOL_TYPES.containsKey(s)) {
+                throw new IllegalArgumentException("Invalid valid for [index.search.threadpool] - " + s + " is a reserved built-in " +
+                    "threadpool");
+            }
+            return s;
+        }, Property.IndexScope, Property.Dynamic);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -319,6 +340,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String searchThreadPool;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -402,6 +424,7 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
+        this.searchThreadPool = INDEX_SEARCH_THREAD_POOL.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -478,6 +501,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THREAD_POOL, this::setSearchThreadPool);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -878,5 +902,16 @@ public final class IndexSettings {
      */
     public long getSoftDeleteRetentionOperations() {
         return this.softDeleteRetentionOperations;
+    }
+
+    /**
+     * Returns the thread-pool name to execute search requests on for this index.
+     */
+    public String getSearchThreadPool() {
+        return searchThreadPool;
+    }
+
+    private void setSearchThreadPool(String searchThreadPool) {
+        this.searchThreadPool = searchThreadPool;
     }
 }

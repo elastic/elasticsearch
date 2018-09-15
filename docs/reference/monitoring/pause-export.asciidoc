@@ -23,7 +23,7 @@ just for {es}:
 [source,yaml]
 ---------------------------------------------------
 xpack.monitoring.collection.enabled: true
-xpack.monitoring.elasticsearch.collection.enabled: true
+xpack.monitoring.elasticsearch.collection.enabled: false
 ---------------------------------------------------
 
 If you want to separately disable a specific exporter, you can specify the 

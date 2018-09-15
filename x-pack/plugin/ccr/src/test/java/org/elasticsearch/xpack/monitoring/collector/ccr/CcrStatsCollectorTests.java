@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
-import org.junit.Assert;
 import org.mockito.ArgumentMatcher;
 
 import java.util.ArrayList;
@@ -136,7 +135,7 @@ public class CcrStatsCollectorTests extends BaseCollectorTestCase {
         withCollectionTimeout(CcrStatsCollector.CCR_STATS_TIMEOUT, timeout);
 
         final CcrStatsCollector collector = new CcrStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
-        Assert.assertEquals(timeout, collector.getCollectionTimeout());
+        assertEquals(timeout, collector.getCollectionTimeout());
 
         final List<CcrStatsAction.StatsResponse> statuses = mockStatuses();
 

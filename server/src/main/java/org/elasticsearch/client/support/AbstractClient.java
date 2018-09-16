@@ -521,7 +521,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
     @Override
     public void count(final CountRequest request, final ActionListener<CountResponse> listener) {
-        execute(SearchAction.INSTANCE, request.getSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
+        execute(SearchAction.INSTANCE, request.toSearchRequest(), new DelegatingActionListener<SearchResponse, CountResponse>(listener) {
             @Override
             protected CountResponse getDelegatedFromInstigator(SearchResponse response) {
                 return new CountResponse(response);

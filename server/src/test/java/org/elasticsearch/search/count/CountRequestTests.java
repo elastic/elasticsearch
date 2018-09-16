@@ -20,18 +20,20 @@
 package org.elasticsearch.search.count;
 
 import org.elasticsearch.action.search.CountRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-//quite similar to SearchRequestTests as CountRequest wraps SearchRequest
 public class CountRequestTests extends AbstractSearchTestCase {
 
     public void testIllegalArguments() {
@@ -42,6 +44,7 @@ public class CountRequestTests extends AbstractSearchTestCase {
 
         NullPointerException e = expectThrows(NullPointerException.class, () -> countRequest.indices((String[]) null));
         assertEquals("indices must not be null", e.getMessage());
+
         e = expectThrows(NullPointerException.class, () -> countRequest.indices((String) null));
         assertEquals("index must not be null", e.getMessage());
 
@@ -50,8 +53,6 @@ public class CountRequestTests extends AbstractSearchTestCase {
 
         e = expectThrows(NullPointerException.class, () -> countRequest.types((String[]) null));
         assertEquals("types must not be null", e.getMessage());
-        e = expectThrows(NullPointerException.class, () -> countRequest.types((String) null));
-        assertEquals("type must not be null", e.getMessage());
 
         e = expectThrows(NullPointerException.class, () -> countRequest.source(null));
         assertEquals("source must not be null", e.getMessage());
@@ -77,7 +78,7 @@ public class CountRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.types(ArrayUtils.concat(countRequest.types(), new String[]{randomAlphaOfLength(10)})));
         mutators.add(() -> mutation.preference(randomValueOtherThan(countRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(countRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
-        mutators.add(() -> mutation.source(randomValueOtherThan(countRequest.source(), this::createSearchSourceBuilder)));
+        mutators.add(() -> mutation.source(randomValueOtherThan(countRequest.toSearchRequest().source(), this::createSearchSourceBuilder)));
         randomFrom(mutators).run();
         return mutation;
     }
@@ -89,9 +90,30 @@ public class CountRequestTests extends AbstractSearchTestCase {
         result.types(countRequest.types());
         result.preference(countRequest.preference());
         result.routing(countRequest.routing());
-        if (countRequest.source() != null) {
-            result.source(countRequest.source());
+        if (countRequest.toSearchRequest().source() != null) {
+            result.source(countRequest.toSearchRequest().source());
         }
         return result;
+    }
+
+    public void testToSearchRequest() {
+        CountRequest countRequest = randomBoolean() ? new CountRequest(generateRandomStringArray(4, 10, false, false)) : new CountRequest();
+        countRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        countRequest.types(generateRandomStringArray(4, 10, false, false));
+        countRequest.routing(generateRandomStringArray(4, 10, false, false));
+        countRequest.preference(randomAsciiLettersOfLengthBetween(1, 10));
+        countRequest.source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        countRequest.minScore(randomFloat());
+        countRequest.terminateAfter(10);
+
+        SearchRequest searchRequest = countRequest.toSearchRequest();
+
+        assertArrayEquals(countRequest.indices(), searchRequest.indices());
+        assertEquals(countRequest.indicesOptions(), searchRequest.indicesOptions());
+        assertArrayEquals(countRequest.types(), searchRequest.types());
+        assertEquals(countRequest.routing(), searchRequest.routing());
+        assertEquals(countRequest.preference(), searchRequest.preference());
+        assertEquals(countRequest.minScore(), searchRequest.source().minScore());
+        assertEquals(countRequest.terminateAfter(), searchRequest.source().terminateAfter());
     }
 }

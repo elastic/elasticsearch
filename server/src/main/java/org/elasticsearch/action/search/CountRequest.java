@@ -19,59 +19,70 @@
 
 package org.elasticsearch.action.search;
 
+import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
+
+import java.util.Arrays;
+import java.util.Objects;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-
-import java.util.Objects;
-
 
 /**
  * Encapsulates a request to _count API against one, several or all indices.
  */
 public final class CountRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    //CountRequest wraps SearchRequest and delegates appropriate methods
-    private final SearchRequest searchRequest;
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private String[] types = Strings.EMPTY_ARRAY;
+    private String routing;
+    private String preference;
+    private SearchSourceBuilder searchSourceBuilder;
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public CountRequest() {
-        this.searchRequest = new SearchRequest();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return searchRequest.validate();
+        this.searchSourceBuilder = new SearchSourceBuilder();
     }
 
     /**
      * Constructs a new count request against the indices. No indices provided here means that count will execute on all indices.
      */
     public CountRequest(String... indices) {
-        this.searchRequest = new SearchRequest(indices);
+        this(indices, new SearchSourceBuilder());
     }
 
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
-    public CountRequest(String[] indices, SearchSourceBuilder source) {
-        this.searchRequest = new SearchRequest(indices, source);
+    public CountRequest(String[] indices, SearchSourceBuilder searchSourceBuilder) {
+        indices(indices);
+        this.searchSourceBuilder = searchSourceBuilder;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     /**
      * Sets the indices the count will be executed on.
      */
     public CountRequest indices(String... indices) {
-        searchRequest.indices(indices);
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
+        }
+        this.indices = indices;
         return this;
     }
 
     /**
      * The source of the count request.
      */
-    public CountRequest source(SearchSourceBuilder sourceBuilder) {
-        searchRequest.source(sourceBuilder);
+    public CountRequest source(SearchSourceBuilder searchSourceBuilder) {
+        this.searchSourceBuilder = Objects.requireNonNull(searchSourceBuilder, "source must not be null");
         return this;
     }
 
@@ -82,23 +93,27 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      */
     @Deprecated
     public CountRequest types(String... types) {
-        searchRequest.types(types);
+        Objects.requireNonNull(types, "types must not be null");
+        for (String type : types) {
+            Objects.requireNonNull(type, "type must not be null");
+        }
+        this.types = types;
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the search will be executed on.
+     */
+    public CountRequest routing(String routing) {
+        this.routing = routing;
         return this;
     }
 
     /**
      * A comma separated list of routing values to control the shards the count will be executed on.
      */
-    public CountRequest routing(String routing) {
-        searchRequest.routing(routing);
-        return this;
-    }
-
-    /**
-     * The routing values to control the count that the search will be executed on.
-     */
     public CountRequest routing(String... routings) {
-        searchRequest.routing(routings);
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
     }
 
@@ -109,7 +124,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      * @see org.elasticsearch.action.support.IndicesOptions
      */
     public CountRequest indicesOptions(IndicesOptions indicesOptions) {
-        searchRequest.indicesOptions(indicesOptions);
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
     }
 
@@ -118,49 +133,80 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      * or a custom value, which guarantees that the same order will be used across different requests.
      */
     public CountRequest preference(String preference) {
-        searchRequest.preference(preference);
+        this.preference = preference;
         return this;
     }
 
     public IndicesOptions indicesOptions() {
-        return searchRequest.indicesOptions();
+        return this.indicesOptions;
     }
 
     public String routing() {
-        return searchRequest.routing();
+        return this.routing;
     }
 
     public String preference() {
-        return searchRequest.preference();
-    }
-
-    public SearchSourceBuilder source() {
-        return searchRequest.source();
+        return this.preference;
     }
 
     public String[] indices() {
-        return searchRequest.indices();
+        return this.indices;
+    }
+
+    public Float minScore() {
+        return this.searchSourceBuilder.minScore();
+    }
+
+    public CountRequest minScore(Float minScore) {
+        this.searchSourceBuilder.minScore(minScore);
+        return this;
+    }
+
+    public int terminateAfter() {
+        return this.searchSourceBuilder.terminateAfter();
+    }
+
+    public CountRequest terminateAfter(int terminateAfter) {
+        this.searchSourceBuilder.terminateAfter(terminateAfter);
+        return this;
     }
 
     public String[] types() {
-        return searchRequest.types();
+        return this.types;
     }
 
-    public SearchRequest getSearchRequest() {
+    public SearchRequest toSearchRequest() {
+        SearchRequest searchRequest = new SearchRequest(indices());
+        searchRequest.indicesOptions(indicesOptions());
+        searchRequest.types(types());
+        searchRequest.routing(routing());
+        searchRequest.preference(preference());
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
         return searchRequest;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CountRequest that = (CountRequest) o;
-        return Objects.equals(searchRequest, that.searchRequest);
+        return Objects.equals(indicesOptions, that.indicesOptions) &&
+            Arrays.equals(indices, that.indices) &&
+            Arrays.equals(types, that.types) &&
+            Objects.equals(routing, that.routing) &&
+            Objects.equals(preference, that.preference);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchRequest);
+        int result = Objects.hash(indicesOptions, routing, preference);
+        result = 31 * result + Arrays.hashCode(indices);
+        result = 31 * result + Arrays.hashCode(types);
+        return result;
     }
-
 }

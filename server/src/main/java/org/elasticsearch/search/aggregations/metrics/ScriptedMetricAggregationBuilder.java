@@ -196,22 +196,16 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
             Builder subfactoriesBuilder) throws IOException {
 
-        QueryShardContext queryShardContext = context.getQueryShardContext();
-
-        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
-        Map<String, Object> combineScriptParams;
-        if (combineScript != null) {
-            compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
-                ScriptedMetricAggContexts.CombineScript.CONTEXT);
-            combineScriptParams = combineScript.getParams();
-        } else {
+        if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
         }
 
         if(reduceScript == null) {
             throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
         }
-        
+
+        QueryShardContext queryShardContext = context.getQueryShardContext();
+
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
         // access to them for the scripts it's given precompiled.
 
@@ -228,6 +222,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.getScriptService().compile(mapScript,
             ScriptedMetricAggContexts.MapScript.CONTEXT);
         Map<String, Object> mapScriptParams = mapScript.getParams();
+
+
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
+        Map<String, Object> combineScriptParams;
+
+        compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT);
+        combineScriptParams = combineScript.getParams();
 
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,

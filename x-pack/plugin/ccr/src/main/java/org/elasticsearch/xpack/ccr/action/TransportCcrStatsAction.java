@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,8 +34,8 @@ import java.util.function.Consumer;
 
 public class TransportCcrStatsAction extends TransportTasksAction<
         ShardFollowNodeTask,
-        CcrStatsAction.TasksRequest,
-        CcrStatsAction.TasksResponse, CcrStatsAction.TaskResponse> {
+        CcrStatsAction.StatsRequest,
+        CcrStatsAction.StatsResponses, CcrStatsAction.StatsResponse> {
 
     private final IndexNameExpressionResolver resolver;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -53,8 +54,8 @@ public class TransportCcrStatsAction extends TransportTasksAction<
                 clusterService,
                 transportService,
                 actionFilters,
-                CcrStatsAction.TasksRequest::new,
-                CcrStatsAction.TasksResponse::new,
+                CcrStatsAction.StatsRequest::new,
+                CcrStatsAction.StatsResponses::new,
                 Ccr.CCR_THREAD_POOL_NAME);
         this.resolver = Objects.requireNonNull(resolver);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -63,8 +64,8 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     @Override
     protected void doExecute(
             final Task task,
-            final CcrStatsAction.TasksRequest request,
-            final ActionListener<CcrStatsAction.TasksResponse> listener) {
+            final CcrStatsAction.StatsRequest request,
+            final ActionListener<CcrStatsAction.StatsResponses> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -73,21 +74,21 @@ public class TransportCcrStatsAction extends TransportTasksAction<
     }
 
     @Override
-    protected CcrStatsAction.TasksResponse newResponse(
-            final CcrStatsAction.TasksRequest request,
-            final List<CcrStatsAction.TaskResponse> taskResponses,
+    protected CcrStatsAction.StatsResponses newResponse(
+            final CcrStatsAction.StatsRequest request,
+            final List<CcrStatsAction.StatsResponse> statsRespons,
             final List<TaskOperationFailure> taskOperationFailures,
             final List<FailedNodeException> failedNodeExceptions) {
-        return new CcrStatsAction.TasksResponse(taskOperationFailures, failedNodeExceptions, taskResponses);
+        return new CcrStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
     }
 
     @Override
-    protected CcrStatsAction.TaskResponse readTaskResponse(final StreamInput in) throws IOException {
-        return new CcrStatsAction.TaskResponse(in);
+    protected CcrStatsAction.StatsResponse readTaskResponse(final StreamInput in) throws IOException {
+        return new CcrStatsAction.StatsResponse(in);
     }
 
     @Override
-    protected void processTasks(final CcrStatsAction.TasksRequest request, final Consumer<ShardFollowNodeTask> operation) {
+    protected void processTasks(final CcrStatsAction.StatsRequest request, final Consumer<ShardFollowNodeTask> operation) {
         final ClusterState state = clusterService.state();
         final Set<String> concreteIndices = new HashSet<>(Arrays.asList(resolver.concreteIndexNames(state, request)));
         for (final Task task : taskManager.getTasks().values()) {
@@ -102,10 +103,10 @@ public class TransportCcrStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-            final CcrStatsAction.TasksRequest request,
+            final CcrStatsAction.StatsRequest request,
             final ShardFollowNodeTask task,
-            final ActionListener<CcrStatsAction.TaskResponse> listener) {
-        listener.onResponse(new CcrStatsAction.TaskResponse(task.getFollowShardId(), task.getStatus()));
+            final ActionListener<CcrStatsAction.StatsResponse> listener) {
+        listener.onResponse(new CcrStatsAction.StatsResponse(task.getStatus()));
     }
 
 }

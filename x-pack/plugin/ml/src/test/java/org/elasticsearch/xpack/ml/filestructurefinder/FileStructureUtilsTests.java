@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 
+import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
 import static org.hamcrest.Matchers.contains;
 
 public class FileStructureUtilsTests extends FileStructureTestCase {
@@ -32,57 +33,106 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertFalse(FileStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
     }
 
-    public void testSingleSampleSingleField() {
+    public void testGuessTimestampGivenSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample));
+            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("field1", match.v1());
         assertThat(match.v2().dateFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithSameSingleTimeField() {
+    public void testGuessTimestampGivenSingleSampleSingleFieldAndConsistentTimeFieldOverride() {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("field1").build();
+
+        Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
+        Tuple<String, TimestampMatch> match =
+            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides);
+        assertNotNull(match);
+        assertEquals("field1", match.v1());
+        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
+    }
+
+    public void testGuessTimestampGivenSingleSampleSingleFieldAndImpossibleTimeFieldOverride() {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("field2").build();
+
+        Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides));
+
+        assertEquals("Specified timestamp field [field2] is not present in record [{field1=2018-05-24T17:28:31,735}]", e.getMessage());
+    }
+
+    public void testGuessTimestampGivenSingleSampleSingleFieldAndConsistentTimeFormatOverride() {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("ISO8601").build();
+
+        Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
+        Tuple<String, TimestampMatch> match =
+            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides);
+        assertNotNull(match);
+        assertEquals("field1", match.v1());
+        assertThat(match.v2().dateFormats, contains("ISO8601"));
+        assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
+    }
+
+    public void testGuessTimestampGivenSingleSampleSingleFieldAndImpossibleTimeFormatOverride() {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("EEE MMM dd HH:mm:ss YYYY").build();
+
+        Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides));
+
+        assertEquals("Specified timestamp format [EEE MMM dd HH:mm:ss YYYY] does not match for record [{field1=2018-05-24T17:28:31,735}]",
+            e.getMessage());
+    }
+
+    public void testGuessTimestampGivenSamplesWithSameSingleTimeField() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("field1", "2018-05-24T17:33:39,406");
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("field1", match.v1());
         assertThat(match.v2().dateFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithOneSingleTimeFieldDifferentFormat() {
+    public void testGuessTimestampGivenSamplesWithOneSingleTimeFieldDifferentFormat() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("field1", "2018-05-24 17:33:39,406");
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNull(match);
     }
 
-    public void testSamplesWithDifferentSingleTimeField() {
+    public void testGuessTimestampGivenSamplesWithDifferentSingleTimeField() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("another_field", "2018-05-24T17:33:39,406");
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNull(match);
     }
 
-    public void testSingleSampleManyFieldsOneTimeFormat() {
+    public void testGuessTimestampGivenSingleSampleManyFieldsOneTimeFormat() {
         Map<String, Object> sample = new LinkedHashMap<>();
         sample.put("foo", "not a time");
         sample.put("time", "2018-05-24 17:28:31,735");
         sample.put("bar", 42);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample));
+            FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
         assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithManyFieldsSameSingleTimeFormat() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsSameSingleTimeFormat() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time", "2018-05-24 17:28:31,735");
@@ -92,14 +142,14 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
         assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithManyFieldsSameTimeFieldDifferentTimeFormat() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsSameTimeFieldDifferentTimeFormat() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time", "2018-05-24 17:28:31,735");
@@ -109,11 +159,11 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time", "May 29 2018 11:53:02");
         sample2.put("bar", 17);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNull(match);
     }
 
-    public void testSamplesWithManyFieldsSameSingleTimeFormatDistractionBefore() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsSameSingleTimeFormatDistractionBefore() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("red_herring", "May 29 2007 11:53:02");
         sample1.put("time", "2018-05-24 17:28:31,735");
@@ -123,14 +173,14 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
         assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithManyFieldsSameSingleTimeFormatDistractionAfter() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsSameSingleTimeFormatDistractionAfter() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time", "May 24 2018 17:28:31");
@@ -140,14 +190,14 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time", "May 29 2018 11:53:02");
         sample2.put("red_herring", "17");
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time", match.v1());
         assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
-    public void testSamplesWithManyFieldsInconsistentTimeFields() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsInconsistentTimeFields() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time1", "May 24 2018 17:28:31");
@@ -157,11 +207,11 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time2", "May 29 2018 11:53:02");
         sample2.put("bar", 42);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNull(match);
     }
 
-    public void testSamplesWithManyFieldsInconsistentAndConsistentTimeFields() {
+    public void testGuessTimestampGivenSamplesWithManyFieldsInconsistentAndConsistentTimeFields() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
         sample1.put("time1", "2018-05-09 17:28:31,735");
@@ -173,7 +223,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("time3", "Thu, May 10 2018 11:53:02");
         sample2.put("bar", 42);
         Tuple<String, TimestampMatch> match =
-            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2));
+            FileStructureUtils.guessTimestampField(explanation, Arrays.asList(sample1, sample2), EMPTY_OVERRIDES);
         assertNotNull(match);
         assertEquals("time2", match.v1());
         assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));

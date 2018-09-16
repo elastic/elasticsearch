@@ -11,11 +11,11 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction.Request;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
+import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
 
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 

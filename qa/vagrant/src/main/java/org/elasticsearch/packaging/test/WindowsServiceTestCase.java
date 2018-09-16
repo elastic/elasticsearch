@@ -21,17 +21,20 @@ package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -49,6 +52,11 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     @Before
     public void createShell() {
         sh = new Shell();
+    }
+
+    @BeforeClass
+    public static void ensureWindows() {
+        assumeTrue(Platforms.WINDOWS);
     }
 
     @After

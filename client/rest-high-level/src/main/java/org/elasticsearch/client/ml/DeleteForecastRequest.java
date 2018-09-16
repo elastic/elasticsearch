@@ -109,7 +109,7 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
     }
 
     /**
-     * Sets the `allow_no_forecasts` field.
+     * Sets the value of "allow_no_forecasts".
      *
      * @param allowNoForecasts when {@code true} no error is thrown when {@link DeleteForecastRequest#ALL} does not find any forecasts
      */

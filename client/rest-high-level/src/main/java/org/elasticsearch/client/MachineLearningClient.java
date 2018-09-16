@@ -33,6 +33,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
@@ -466,8 +468,8 @@ public final class MachineLearningClient {
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html">ML PUT datafeed documentation</a>
      *
-     * @param request  The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
     public void putDatafeedAsync(PutDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
@@ -475,6 +477,47 @@ public final class MachineLearningClient {
                 MLRequestConverters::putDatafeed,
                 options,
                 PutDatafeedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets one or more Machine Learning datafeed configuration info.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html">ML GET datafeed documentation</a>
+     *
+     * @param request {@link GetDatafeedRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDatafeedResponse} response object containing
+     * the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} objects and the number of jobs found
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetDatafeedResponse getDatafeed(GetDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                MLRequestConverters::getDatafeed,
+                options,
+                GetDatafeedResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Gets one or more Machine Learning datafeed configuration info, asynchronously.
+     *
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed.html">ML GET datafeed documentation</a>
+     *
+     * @param request {@link GetDatafeedRequest} Request containing a list of datafeedId(s) and additional options
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified with {@link GetDatafeedResponse} upon request completion
+     */
+    public void getDatafeedAsync(GetDatafeedRequest request, RequestOptions options, ActionListener<GetDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                MLRequestConverters::getDatafeed,
+                options,
+                GetDatafeedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

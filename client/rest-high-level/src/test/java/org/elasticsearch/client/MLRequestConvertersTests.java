@@ -31,6 +31,7 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -225,6 +226,23 @@ public class MLRequestConvertersTests extends ESTestCase {
             DatafeedConfig parsedDatafeed = DatafeedConfig.PARSER.apply(parser, null).build();
             assertThat(parsedDatafeed, equalTo(datafeed));
         }
+    }
+
+    public void testGetDatafeed() {
+        GetDatafeedRequest getDatafeedRequest = new GetDatafeedRequest();
+
+        Request request = MLRequestConverters.getDatafeed(getDatafeedRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/datafeeds", request.getEndpoint());
+        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+
+        getDatafeedRequest = new GetDatafeedRequest("feed-1", "feed-*");
+        getDatafeedRequest.setAllowNoDatafeeds(true);
+        request = MLRequestConverters.getDatafeed(getDatafeedRequest);
+
+        assertEquals("/_xpack/ml/datafeeds/feed-1,feed-*", request.getEndpoint());
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
     }
 
     public void testDeleteDatafeed() {

@@ -53,9 +53,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
     @After
     public void uninstallService() {
-        Result result;
-        result = sh.runIgnoreExitCode(serviceScript + " remove");
-        System.out.println(result.stdout);
+        sh.runIgnoreExitCode(serviceScript + " remove");
     }
 
     private Result runWithoutJava(String script) {

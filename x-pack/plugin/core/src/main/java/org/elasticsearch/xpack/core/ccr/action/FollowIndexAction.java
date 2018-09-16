@@ -36,8 +36,8 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
     public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
     public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
     static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
-    static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
     static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
+    public static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private FollowIndexAction() {
         super(NAME);
@@ -58,7 +58,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
         private static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         private static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         private static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
-        private static final ParseField IDLE_SHARD_RETRY_DELAY = new ParseField("idle_shard_retry_delay");
+        private static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(NAME, true,
             (args, followerIndex) -> {
                 if (args[1] != null) {
@@ -83,8 +83,8 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> TimeValue.parseTimeValue(p.text(), IDLE_SHARD_RETRY_DELAY.getPreferredName()),
-                    IDLE_SHARD_RETRY_DELAY,
+                    (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
+                    POLL_TIMEOUT,
                     ObjectParser.ValueType.STRING);
         }
 
@@ -151,10 +151,10 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             return maxRetryDelay;
         }
 
-        private TimeValue idleShardRetryDelay;
+        private TimeValue pollTimeout;
 
-        public TimeValue getIdleShardRetryDelay() {
-            return idleShardRetryDelay;
+        public TimeValue getPollTimeout() {
+            return pollTimeout;
         }
 
         public Request(
@@ -166,7 +166,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             final Integer maxConcurrentWriteBatches,
             final Integer maxWriteBufferSize,
             final TimeValue maxRetryDelay,
-            final TimeValue idleShardRetryDelay) {
+            final TimeValue pollTimeout) {
 
             if (leaderIndex == null) {
                 throw new IllegalArgumentException(LEADER_INDEX_FIELD.getPreferredName() + " is missing");
@@ -206,7 +206,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             }
 
             final TimeValue actualRetryTimeout = maxRetryDelay == null ? DEFAULT_MAX_RETRY_DELAY : maxRetryDelay;
-            final TimeValue actualIdleShardRetryDelay = idleShardRetryDelay == null ? DEFAULT_IDLE_SHARD_RETRY_DELAY : idleShardRetryDelay;
+            final TimeValue actualPollTimeout = pollTimeout == null ? DEFAULT_POLL_TIMEOUT : pollTimeout;
 
             this.leaderIndex = leaderIndex;
             this.followerIndex = followerIndex;
@@ -216,7 +216,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentWriteBatches = actualMaxConcurrentWriteBatches;
             this.maxWriteBufferSize = actualMaxWriteBufferSize;
             this.maxRetryDelay = actualRetryTimeout;
-            this.idleShardRetryDelay = actualIdleShardRetryDelay;
+            this.pollTimeout = actualPollTimeout;
         }
 
         public Request() {
@@ -252,7 +252,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             maxConcurrentWriteBatches = in.readVInt();
             maxWriteBufferSize = in.readVInt();
             maxRetryDelay = in.readOptionalTimeValue();
-            idleShardRetryDelay = in.readOptionalTimeValue();
+            pollTimeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -266,7 +266,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
             out.writeVInt(maxConcurrentWriteBatches);
             out.writeVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(idleShardRetryDelay);
+            out.writeOptionalTimeValue(pollTimeout);
         }
 
         @Override
@@ -281,7 +281,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
                 builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), maxRetryDelay.getStringRep());
-                builder.field(IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
             }
             builder.endObject();
             return builder;
@@ -298,7 +298,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                 maxConcurrentWriteBatches == request.maxConcurrentWriteBatches &&
                 maxWriteBufferSize == request.maxWriteBufferSize &&
                 Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay) &&
+                Objects.equals(pollTimeout, request.pollTimeout) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
                 Objects.equals(followerIndex, request.followerIndex);
         }
@@ -314,7 +314,7 @@ public final class FollowIndexAction extends Action<AcknowledgedResponse> {
                 maxConcurrentWriteBatches,
                 maxWriteBufferSize,
                 maxRetryDelay,
-                idleShardRetryDelay
+                pollTimeout
             );
         }
     }

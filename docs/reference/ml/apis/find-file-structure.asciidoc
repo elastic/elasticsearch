@@ -8,8 +8,8 @@
 
 experimental[]
 
-Finds the structure of a text file that contains data suitable to be ingested
-into Elasticsearch.
+Finds the structure of a text file. The text file must contain data that is 
+suitable to be ingested into {es}.
 
 ==== Request
 
@@ -18,174 +18,187 @@ into Elasticsearch.
 
 ==== Description
 
-The aim of this endpoint is to provide a starting point for ingesting data into
-Elasticsearch in a format that will be suitable for subsequent use with other
-{ml} functionality.
+This API provides a starting point for ingesting data into {es} in a format that 
+is suitable for subsequent use with other {ml} functionality.
 
-Unlike other Elasticsearch endpoints, the data that is POSTed to this endpoint
-need not be in JSON format, nor even UTF-8 encoded.  It must, however, be text;
-binary file formats are not currently supported.
+Unlike other {es} endpoints, the data that is posted to this endpoint does not 
+need to be UTF-8 encoded and in JSON format.  It must, however, be text; binary 
+file formats are not currently supported.
 
-The response from the endpoint contains:
+The response from the API contains:
 
 * A couple of messages from the beginning of the file.
-* Statistics revealing the most common values of all fields detected within the
-  file, plus basic numeric statistics for numeric fields.
-* Information about the structure of the file that would be useful when writing
+* Statistics that reveal the most common values for all fields detected within 
+  the file and basic numeric statistics for numeric fields.
+* Information about the structure of the file, which is useful when you write 
   ingest configurations to index the file contents.
-* Appropriate mappings for an Elasticsearch index into which the file contents
-  could be ingested.
+* Appropriate mappings for an {es} index, which you could use to ingest the file 
+  contents. 
 
-All this can be calculated by the endpoint with no guidance.  However,
-optionally it is possible to override some of the decisions about the file
-structure by specifying the desired values in one or more query parameters.
+All this information can be calculated by the structure finder with no guidance. 
+However, you can optionally override some of the decisions about the file 
+structure by specifying one or more query parameters.
 
 Details of the output can be seen in the
 <<ml-find-file-structure-examples,examples>>.
 
-If the endpoint produces unexpected results for a particular file, the `explain`
-query parameter causes an `explanation` to appear in the response, which should
-help in determining why the returned structure was chosen.
+If the structure finder produces unexpected results for a particular file, 
+specify the `explain` query parameter. It causes an `explanation` to appear in 
+the response, which should help in determining why the returned structure was 
+chosen.
 
 ==== Query Parameters
 
 `charset`::
-  (string) Optionally, the character set in which the sample file is encoded.
-  This must be a character set that is supported by the JVM that Elasticsearch,
-  for example "UTF-8", "UTF-16LE", "windows-1252" or "EUC-JP".  If not specified
-  then the structure finder will choose an appropriate character set.
+  (string) The file's character set. It must be a character set that is supported 
+  by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`, `windows-1252`, or 
+  `EUC-JP`. If this parameter is not specified, the structure finder chooses an 
+  appropriate character set.
 
 `column_names`::
-  (string) If `format` is set to `delimited` then this parameter may optionally
-  be used to specify the column names.  The value of this parameter must be a
-  comma separated list of column names even if the `delimiter` for the sample
-  file is not comma.  If not specified then the structure finder will use the
-  column names from the header row of the sample file if it has one, and
-  "column1", "column2", "column3", and so on if it doesn't.
+  (string) If `format` is set to `delimited`, you can specify the column names 
+  in a comma-separated list. If this parameter is not specified, the structure 
+  finder uses the column names from the header row of the file. If the file does 
+  not have a header role, columns are named "column1", "column2", "column3", etc. 
 
 `delimiter`::
-  (string) If `format` is set to `delimited` then this parameter may optionally
-  be used to specify the character used to delimit the values in each row.
-  Only a single character is supported; the delimiter may not have multiple
-  characters.  If not specified then the structure finder will consider the
-  following possibilities: comma, tab, semi-colon and pipe (`|`).
+  (string) If `format` is set to `delimited`, you can specify the character used 
+  to delimit the values in each row. Only a single character is supported; the 
+  delimiter cannot have multiple characters. If this parameter is not specified, 
+  the structure finder considers the following possibilities: comma, tab, 
+  semi-colon, and pipe (`|`).
 
 `explain`::
-  (boolean) If this parameter is set to `true` then the response will include a
-  field named `explanation` that is an array of strings that indicate how the
-  structure finder produced its result.  The default value is `false`.
+  (boolean) If this parameter is set to `true`, the response includes a field 
+  named `explanation`, which is an array of strings that indicate how the
+  structure finder produced its result. The default value is `false`.
 
 `format`::
-  (string) Optionally, the high level structure of the file, which must be one
-  of `json`, `xml`, `delimited` or `semi_structured_text`.  If not specified
-  then the structure finder will decide.
+  (string) The high level structure of the file. Valid values are `json`, `xml`, 
+  `delimited`, and `semi_structured_text`. If this parameter is not specified, 
+  the structure finder chooses one.
 
 `grok_pattern`::
-  (string) If `format` is set to `semi_structured_text` then this parameter may
-  optionally supply the Grok pattern to be used to extract fields from every
-  message within the sample file.  The name of the timestamp field within the
-  Grok pattern must match what is specified in `timestamp_field`, or be
-  "timestamp" if that parameter is not specified.  If not specified then the
-  structure finder will create a Grok pattern.
+  (string) If `format` is set to `semi_structured_text`, you can specify a Grok 
+  pattern that is used to extract fields from every message in the file. The 
+  name of the timestamp field in the Grok pattern must match what is specified 
+  in the `timestamp_field` parameter. If that parameter is not specified, the 
+  name of the timestamp field in the Grok pattern must match "timestamp". If 
+  `grok_pattern` is not specified, the structure finder creates a Grok pattern.
 
 `has_header_row`::
-  (boolean) If `format` is set to `delimited` then this parameter may optionally
-  be used to force the decision on whether the column names are in the first row
-  of the sample file.  If not specified then the structure finder will guess
-  based on the similarity of the first row of the sample file and other rows.
+  (boolean) If `format` is set to `delimited`, you can use this parameter to 
+  indicate whether the column names are in the first row of the file. If this 
+  parameter is not specified, the structure finder guesses based on the similarity of 
+  the first row of the file to other rows.
 
 `lines_to_sample`::
-  (unsigned integer) The number of lines from the beginning of the uploaded
-  sample to include in the structure analysis.  The minimum is 2; the default
-  is 1000.  If the sample contains fewer lines than this parameter specifies
-  then, providing there are at least two lines in the sample, the analysis will
-  proceed and will analyse all lines provided.  The more lines that are analyzed
-  the slower the analysis will be.  The more varied the lines that are analyzed
-  the more useful the analysis will be.  For example, if you upload a log file
-  where the first 1000 lines are all variations on the same message then the
-  analysis will find more commonality than would be seen with a bigger sample.
-  But, if possible, it would be more efficient to upload a sample file with more
-  variety in the first 1000 lines than to request analysis of 100000 lines to
-  achieve some variety.
+  (unsigned integer) The number of lines to include in the structural analysis, 
+  starting from the beginning of the file. The minimum is 2; the default
+  is 1000. If the value of this parameter is greater than the number of lines in 
+  the file, the analysis proceeds (as long as there are at least two lines in the 
+  file) for all of the lines. +
++
+--  
+NOTE: The number of lines and the variation of the lines affects the speed of 
+the analysis. For example, if you upload a log file where the first 1000 lines 
+are all variations on the same message, the analysis will find more commonality 
+than would be seen with a bigger sample. If possible, however, it is more 
+efficient to upload a sample file with more variety in the first 1000 lines than 
+to request analysis of 100000 lines to achieve some variety.
+--
 
 `quote`::
-  (string) If `format` is set to `delimited` then this parameter may optionally
-  be used to specify the character used to quote the values in each row if they
-  contain newlines or the delimiter character.  Only a single character is
-  supported.  If not specified the default is a double quote (`"`).  (If your
-  delimited file format does not use quoting then a workaround is to set this
-  argument to a character that does not appear anywhere in the sample.)
+  (string) If `format` is set to `delimited`, you can specify the character used 
+  to quote the values in each row if they contain newlines or the delimiter 
+  character. Only a single character is supported. If this parameter is not 
+  specified, the default value is a double quote (`"`). If your delimited file 
+  format does not use quoting, a workaround is to set this argument to a 
+  character that does not appear anywhere in the sample.
 
 `should_trim_fields`::
-  (boolean) If `format` is set to `delimited` then this parameter may optionally
-  be used to specify whether values between delimiters should have whitespace
-  trimmed from them.  If not specified then the default is `true` if the
-  delimiter is pipe (`|`) and `false` otherwise.
+  (boolean) If `format` is set to `delimited`, you can specify whether values 
+  between delimiters should have whitespace trimmed from them. If this parameter 
+  is not specified and the delimiter is pipe (`|`), the default value is `true`. 
+  Otherwise, the default value is `false`.
 
 `timestamp_field`::
-  (string) Optionally, the name of the field in the sample file that contains
-  the primary timestamp of each record (the one that would be used to populate
-  the `@timestamp` field if the file were ingested into an index).  If `format`
-  is `semi_structured_text` then this field must match the name of the
-  appropriate extraction in the `grok_pattern`, therefore it is best not to
-  specify this parameter unless `grok_pattern` is also specified.  For
-  structured file formats any `timestamp_field` specified must be present within
-  the file.  (For structured file formats it is not compulsory to have a
-  timestamp within the file if `timestamp_field` is not specified.)  If not
-  specified then the structure finder will make a decision about which field
-  (if any) should be the primary timestamp field.
+  (string) The name of the field that contains the primary timestamp of each 
+  record in the file. In particular, if the file were ingested into an index, 
+  this is the field that would be used to populate the `@timestamp` field. +
++
+--
+If the `format` is `semi_structured_text`, this field must match the name of the
+appropriate extraction in the `grok_pattern`. Therefore, for semi-structured 
+file formats, it is best not to specify this parameter unless `grok_pattern` is 
+also specified. 
+
+For structured file formats, if you specify this parameter, the field must exist 
+within the file. 
+
+If this parameter is not specified, the structure finder makes a decision about which 
+field (if any) is the primary timestamp field. For structured file formats, it 
+is not compulsory to have a timestamp in the file.
+--
 
 `timestamp_format`::
-  (string) Optionally, the time format of the timestamp field in the sample
-  file.  Currently there is a limitation that this format must be one that the
-  structure finder might choose by itself.  (The reason for this restriction is
-  that to consistently set all the fields in the response the structure finder
-  needs a corresponding Grok pattern name and simple regular expression for each
-  timestamp format.)  Therefore there is little value in specifying this
-  parameter for structured file formats: it is as good and less error-prone to
-  just specify `timestamp_field` if you know which field contains your primary
-  timestamp.  The valuable use case for this parameter is when the format is
-  semi-structured text, there are multiple timestamp formats in the sample file
-  and you know which format corresponds to the primary timestamp, yet you do not
-  want to specify the full `grok_pattern`.  If not specified then the structure
-  finder will choose the best format from the formats it knows, which are:
-  - `dd/MMM/YYYY:HH:mm:ss Z`
-  - `EEE MMM dd HH:mm zzz YYYY`
-  - `EEE MMM dd HH:mm:ss YYYY`
-  - `EEE MMM dd HH:mm:ss zzz YYYY`
-  - `EEE MMM dd YYYY HH:mm zzz`
-  - `EEE MMM dd YYYY HH:mm:ss zzz`
-  - `EEE, dd MMM YYYY HH:mm Z`
-  - `EEE, dd MMM YYYY HH:mm ZZ`
-  - `EEE, dd MMM YYYY HH:mm:ss Z`
-  - `EEE, dd MMM YYYY HH:mm:ss ZZ`
-  - `ISO8601`
-  - `MMM  d HH:mm:ss`
-  - `MMM  d HH:mm:ss,SSS`
-  - `MMM  d YYYY HH:mm:ss`
-  - `MMM dd HH:mm:ss`
-  - `MMM dd HH:mm:ss,SSS`
-  - `MMM dd YYYY HH:mm:ss`
-  - `MMM dd, YYYY K:mm:ss a`
-  - `TAI64N`
-  - `UNIX`
-  - `UNIX_MS`
-  - `YYYY-MM-dd HH:mm:ss`
-  - `YYYY-MM-dd HH:mm:ss,SSS`
-  - `YYYY-MM-dd HH:mm:ss,SSS Z`
-  - `YYYY-MM-dd HH:mm:ss,SSSZ`
-  - `YYYY-MM-dd HH:mm:ss,SSSZZ`
-  - `YYYY-MM-dd HH:mm:ssZ`
-  - `YYYY-MM-dd HH:mm:ssZZ`
-  - `YYYYMMddHHmmss`
+  (string) The time format of the timestamp field in the file. +
++
+--
+NOTE: Currently there is a limitation that this format must be one that the 
+structure finder might choose by itself. The reason for this restriction is that 
+to consistently set all the fields in the response the structure finder needs a 
+corresponding Grok pattern name and simple regular expression for each timestamp 
+format. Therefore, there is little value in specifying this parameter for 
+structured file formats. If you know which field contains your primary timestamp, 
+it is as good and less error-prone to just specify `timestamp_field`.
 
+The valuable use case for this parameter is when the format is semi-structured 
+text, there are multiple timestamp formats in the file, and you know which 
+format corresponds to the primary timestamp, but you do not want to specify the 
+full `grok_pattern`.  
+
+If this parameter is not specified, the structure finder chooses the best format from 
+the formats it knows, which are:
+
+* `dd/MMM/YYYY:HH:mm:ss Z`
+* `EEE MMM dd HH:mm zzz YYYY`
+* `EEE MMM dd HH:mm:ss YYYY`
+* `EEE MMM dd HH:mm:ss zzz YYYY`
+* `EEE MMM dd YYYY HH:mm zzz`
+* `EEE MMM dd YYYY HH:mm:ss zzz`
+* `EEE, dd MMM YYYY HH:mm Z`
+* `EEE, dd MMM YYYY HH:mm ZZ`
+* `EEE, dd MMM YYYY HH:mm:ss Z`
+* `EEE, dd MMM YYYY HH:mm:ss ZZ`
+* `ISO8601`
+* `MMM  d HH:mm:ss`
+* `MMM  d HH:mm:ss,SSS`
+* `MMM  d YYYY HH:mm:ss`
+* `MMM dd HH:mm:ss`
+* `MMM dd HH:mm:ss,SSS`
+* `MMM dd YYYY HH:mm:ss`
+* `MMM dd, YYYY K:mm:ss a`
+* `TAI64N`
+* `UNIX`
+* `UNIX_MS`
+* `YYYY-MM-dd HH:mm:ss`
+* `YYYY-MM-dd HH:mm:ss,SSS`
+* `YYYY-MM-dd HH:mm:ss,SSS Z`
+* `YYYY-MM-dd HH:mm:ss,SSSZ`
+* `YYYY-MM-dd HH:mm:ss,SSSZZ`
+* `YYYY-MM-dd HH:mm:ssZ`
+* `YYYY-MM-dd HH:mm:ssZZ`
+* `YYYYMMddHHmmss`
+
+--
 
 ==== Request Body
 
-The file whose structure is to be analyzed.  This does not necessarily have to
-be in JSON format, and does not necessarily have to be UTF-8 encoded.  The
-size is still limited to the Elasticsearch HTTP receive buffer size (default
-100 Mb).
+The text file that you want to analyze. It must contain data that is suitable to 
+be ingested into {es}. It does not need to be in JSON format and it does not 
+need to be UTF-8 encoded.  The size is limited to the {es} HTTP receive buffer 
+size, which defaults to 100 Mb.
 
 
 ==== Authorization
@@ -197,8 +210,8 @@ For more information, see {stack-ov}/security-privileges.html[Security Privilege
 [[ml-find-file-structure-examples]]
 ==== Examples
 
-Suppose you have a newline delimited JSON file containing information about some
-books.  Then you could send the contents to the `find_file_structure` endpoint:
+Suppose you have a newline-delimited JSON file that contains information about 
+some books. You can send the contents to the `find_file_structure` endpoint:
 
 [source,js]
 ----
@@ -452,24 +465,23 @@ If the request does not encounter errors, you receive the following result:
 // The substitution is because the "file" is pre-processed by the test harness,
 // so the fields may get reordered in the JSON the endpoint sees
 
-<1> `num_lines_analyzed` says how many lines of the uploaded file were analyzed.
-<2> `num_messages_analyzed` says how many distinct messages the lines contained.
-     For ND-JSON it will be the same as `num_lines_analyzed`, but for other
-     file formats messages can span several lines.
-<3> `sample_start` reproduces the first two messages in the sample file
-    verbatim.  This may help to diagnose parse errors, or accidental uploads of
-    the wrong file.
-<4> `charset` the character encoding used to parse the uploaded file.
-<5> `has_byte_order_marker` for UTF character encodings, did the uploaded file
-    begin with a byte order marker?
+<1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
+<2> `num_messages_analyzed` indicates how many distinct messages the lines contained.
+     For ND-JSON, this value is the same as `num_lines_analyzed`. For other file 
+     formats, messages can span several lines.
+<3> `sample_start` reproduces the first two messages in the file verbatim. This 
+     may help to diagnose parse errors or accidental uploads of the wrong file.
+<4> `charset` indicates the character encoding used to parse the file.
+<5> For UTF character encodings, `has_byte_order_marker` indicates whether the 
+    file begins with a byte order marker.
 <6> `format` is one of `json`, `xml`, `delimited` or `semi_structured_text`.
-<7> `need_client_timezone` will be `true` if a timestamp format is detected
-    that does not include a timezone, thus necessitating that the server that
-    parses it must be told the correct timezone by the client.
+<7> If a timestamp format is detected that does not include a timezone, 
+    `need_client_timezone` will be `true`. The server that parses the file must 
+    therefore be told the correct timezone by the client.
 <8> `mappings` contains some suitable mappings for an index into which the data
-    could be ingested.  In this case the `release_date` field has been given
-    `type` `keyword` as it is not considered specific enough to convert to the
-    `date` `type`.
+    could be ingested. In this case, the `release_date` field has been given a 
+    `keyword` type as it is not considered specific enough to convert to the
+    `date` type.
 <9> `field_stats` contains the most common values of each field, plus basic
     numeric statistics for the numeric `page_count` field.  This information
     may provide clues that the data needs to be cleaned or transformed prior

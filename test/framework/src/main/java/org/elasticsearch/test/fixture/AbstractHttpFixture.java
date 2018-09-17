@@ -155,7 +155,7 @@ public abstract class AbstractHttpFixture {
     }
 
     /**
-     * Represents a HTTP Response.
+     * Represents an HTTP Response.
      */
     protected static class Response {
 
@@ -201,7 +201,7 @@ public abstract class AbstractHttpFixture {
     }
 
     /**
-     * Represents a HTTP Request.
+     * Represents an HTTP Request.
      */
     protected static class Request {
 

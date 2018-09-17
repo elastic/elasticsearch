@@ -161,7 +161,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Construct a HttpHost from the given host and port
+     * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
         return new HttpHost(host, port, getProtocol());

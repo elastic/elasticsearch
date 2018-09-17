@@ -991,7 +991,15 @@
                   "type": "integer"
                 },
                 "exception": {
-                  "type": "text"
+                  "type": "object",
+                  "properties": {
+                    "type" : {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
                 }
               }
             },

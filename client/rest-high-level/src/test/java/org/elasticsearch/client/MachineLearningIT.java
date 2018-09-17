@@ -32,6 +32,8 @@ import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
+import org.elasticsearch.client.ml.GetDatafeedRequest;
+import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -58,6 +60,7 @@ import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.junit.After;
 
 import java.io.IOException;
@@ -314,6 +317,84 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig createdDatafeed = response.getResponse();
         assertThat(createdDatafeed.getId(), equalTo(datafeedId));
         assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
+    }
+
+    public void testGetDatafeed() throws Exception {
+        String jobId1 = "test-get-datafeed-job-1";
+        String jobId2 = "test-get-datafeed-job-2";
+        Job job1 = buildJob(jobId1);
+        Job job2 = buildJob(jobId2);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job1), RequestOptions.DEFAULT);
+        machineLearningClient.putJob(new PutJobRequest(job2), RequestOptions.DEFAULT);
+
+        String datafeedId1 = jobId1 + "-feed";
+        String datafeedId2 = jobId2 + "-feed";
+        DatafeedConfig datafeed1 = DatafeedConfig.builder(datafeedId1, jobId1).setIndices("data_1").build();
+        DatafeedConfig datafeed2 = DatafeedConfig.builder(datafeedId2, jobId2).setIndices("data_2").build();
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed1), RequestOptions.DEFAULT);
+        machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed2), RequestOptions.DEFAULT);
+
+        // Test getting specific datafeeds
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1, datafeedId2);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertEquals(2, response.count());
+            assertThat(response.datafeeds(), hasSize(2));
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    containsInAnyOrder(datafeedId1, datafeedId2));
+        }
+
+        // Test getting a single one
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest(datafeedId1);
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 1L);
+            assertThat(response.datafeeds().get(0).getId(), equalTo(datafeedId1));
+        }
+
+        // Test getting all datafeeds explicitly
+        {
+            GetDatafeedRequest request = GetDatafeedRequest.getAllDatafeedsRequest();
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() == 2L);
+            assertTrue(response.datafeeds().size() == 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test getting all datafeeds implicitly
+        {
+            GetDatafeedResponse response = execute(new GetDatafeedRequest(), machineLearningClient::getDatafeed,
+                    machineLearningClient::getDatafeedAsync);
+
+            assertTrue(response.count() >= 2L);
+            assertTrue(response.datafeeds().size() >= 2L);
+            assertThat(response.datafeeds().stream().map(DatafeedConfig::getId).collect(Collectors.toList()),
+                    hasItems(datafeedId1, datafeedId2));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to true
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+
+            GetDatafeedResponse response = execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync);
+
+            assertThat(response.count(), equalTo(0L));
+        }
+
+        // Test get missing pattern with allow_no_datafeeds set to false
+        {
+            GetDatafeedRequest request = new GetDatafeedRequest("missing-*");
+            request.setAllowNoDatafeeds(false);
+
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                    () -> execute(request, machineLearningClient::getDatafeed, machineLearningClient::getDatafeedAsync));
+            assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+        }
     }
 
     public void testDeleteDatafeed() throws Exception {

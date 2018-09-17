@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -475,6 +477,24 @@ public class ShardChangesIT extends ESIntegTestCase {
             1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         e = expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, wrongRequest2).actionGet());
         assertThat(e.getMessage(), containsString("follow index [index2] should reference"));
+    }
+
+    public void testAttemptToChangeCcrFollowingIndexSetting() throws Exception {
+        String leaderIndexSettings = getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureYellow("index1");
+        FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+        unfollowIndex("index2");
+        client().admin().indices().close(new CloseIndexRequest("index2")).actionGet();
+
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("index2");
+        updateSettingsRequest.settings(Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), false).build());
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("can not update internal setting [index.xpack.ccr.following_index]; " +
+            "this setting is managed via a dedicated API"));
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

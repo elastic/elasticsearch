@@ -262,6 +262,14 @@ The Java High Level REST Client supports the following Migration APIs:
 
 include::migration/get-assistance.asciidoc[]
 
+== Rollup APIs
+
+The Java High Level REST Client supports the following Rollup APIs:
+
+* <<java-rest-high-x-pack-rollup-put-job>>
+
+include::rollup/put_job.asciidoc[]
+
 == Security APIs
 
 The Java High Level REST Client supports the following Security APIs:

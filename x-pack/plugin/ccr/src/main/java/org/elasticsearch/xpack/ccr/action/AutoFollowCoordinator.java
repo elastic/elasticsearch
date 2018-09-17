@@ -107,12 +107,16 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 recentAutoFollowErrors.put(result.clusterAlias,
                     new ElasticsearchException(result.clusterStateFetchException));
                 numberOfFailedRemoteClusterStateRequests++;
+                LOGGER.warn(new ParameterizedMessage("failure occurred while fetching cluster state in leader cluster [{}]",
+                    result.clusterAlias), result.clusterStateFetchException);
             } else {
                 for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
                         recentAutoFollowErrors.put(result.clusterAlias + ":" + entry.getKey().getName(),
                             new ElasticsearchException(entry.getValue()));
+                        LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] in leader cluster [{}]",
+                            entry.getKey(), result.clusterAlias), entry.getValue());
                     } else {
                         numberOfSuccessfulIndicesAutoFollowed++;
                     }
@@ -146,18 +150,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         Consumer<List<AutoFollowResult>> handler = results -> {
-            for (AutoFollowResult result : results) {
-                if (result.clusterStateFetchException != null) {
-                    LOGGER.warn(new ParameterizedMessage("failure occurred while fetching cluster state in leader cluster [{}]",
-                        result.clusterAlias), result.clusterStateFetchException);
-                }
-                for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
-                    if (entry.getValue() != null) {
-                        LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] in leader cluster [{}]",
-                            entry.getKey(), result.clusterAlias), entry.getValue());
-                    }
-                }
-            }
             updateStats(results);
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
         };
@@ -244,14 +236,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         private final AutoFollowMetadata autoFollowMetadata;
 
         private final CountDown autoFollowPatternsCountDown;
-        private final AtomicArray<AutoFollowResult> clusterAliasResults;
+        private final AtomicArray<AutoFollowResult> autoFollowResults;
 
         AutoFollower(final Consumer<List<AutoFollowResult>> handler, final ClusterState followerClusterState) {
             this.handler = handler;
             this.followerClusterState = followerClusterState;
             this.autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
             this.autoFollowPatternsCountDown = new CountDown(autoFollowMetadata.getPatterns().size());
-            this.clusterAliasResults = new AtomicArray<>(autoFollowMetadata.getPatterns().size());
+            this.autoFollowResults = new AtomicArray<>(autoFollowMetadata.getPatterns().size());
         }
 
         void autoFollowIndices() {
@@ -312,6 +304,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction(clusterAlias, indexToFollow);
                         // The coordinator always runs on the elected master node, so we can update cluster state here:
                         updateAutoFollowMetadata(function, updateError -> {
+                            assert results.get(slot) == null;
                             if (updateError != null) {
                                 LOGGER.error("Failed to mark leader index [" + leaderIndexName + "] as auto followed", updateError);
                                 results.set(slot, new Tuple<>(indexToFollow, updateError));
@@ -339,9 +332,10 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         private void finalise(int slot, AutoFollowResult result) {
-            clusterAliasResults.set(slot, result);
+            assert autoFollowResults.get(slot) == null;
+            autoFollowResults.set(slot, result);
             if (autoFollowPatternsCountDown.countDown()) {
-                handler.accept(clusterAliasResults.asList());
+                handler.accept(autoFollowResults.asList());
             }
         }
 
@@ -442,9 +436,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         AutoFollowResult(String clusterAlias) {
-            this.clusterAlias = clusterAlias;
-            this.clusterStateFetchException = null;
-            this.autoFollowExecutionResults = Collections.emptyMap();
+            this(clusterAlias, (Exception) null);
         }
     }
 }

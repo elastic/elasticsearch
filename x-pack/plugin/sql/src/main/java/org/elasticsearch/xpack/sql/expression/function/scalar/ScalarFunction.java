@@ -68,8 +68,9 @@ public abstract class ScalarFunction extends Function {
             if (attr instanceof AggregateFunctionAttribute) {
                 return asScriptFrom((AggregateFunctionAttribute) attr);
             }
-            // fall-back to
-            return asScriptFrom((FieldAttribute) attr);
+            if (attr instanceof FieldAttribute) {
+                return asScriptFrom((FieldAttribute) attr);
+            }
         }
         throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }

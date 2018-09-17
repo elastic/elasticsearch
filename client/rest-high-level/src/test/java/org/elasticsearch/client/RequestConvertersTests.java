@@ -30,6 +30,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -1173,6 +1175,58 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(3, request.getParameters().size());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
+    }
+
+    public void testPutScript() throws Exception {
+        PutStoredScriptRequest putStoredScriptRequest = new PutStoredScriptRequest();
+
+        String id = randomAlphaOfLengthBetween(5, 10);
+        putStoredScriptRequest.id(id);
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            builder.startObject("script")
+                .field("lang", "painless")
+                .field("source", "Math.log(_score * 2) + params.multiplier")
+                .endObject();
+            builder.endObject();
+
+            putStoredScriptRequest.content(BytesReference.bytes(builder), xContentType);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(putStoredScriptRequest, expectedParams);
+        setRandomTimeout(putStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        if (randomBoolean()) {
+            String context = randomAlphaOfLengthBetween(5, 10);
+            putStoredScriptRequest.context(context);
+            expectedParams.put("context", context);
+        }
+
+        Request request = RequestConverters.putScript(putStoredScriptRequest);
+
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + id));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertNotNull(request.getEntity());
+        assertToXContentBody(putStoredScriptRequest, request.getEntity());
+    }
+
+    public void testAnalyzeRequest() throws Exception {
+        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
+            .text("Here is some text")
+            .index("test_index")
+            .analyzer("test_analyzer");
+
+        Request request = RequestConverters.analyze(indexAnalyzeRequest);
+        assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
+        assertToXContentBody(indexAnalyzeRequest, request.getEntity());
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
+            .text("more text")
+            .analyzer("test_analyzer");
+        assertThat(RequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 
     public void testGetScriptRequest() {

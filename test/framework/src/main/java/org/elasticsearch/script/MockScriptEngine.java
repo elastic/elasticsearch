@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
@@ -84,6 +84,18 @@ public class MockScriptEngine implements ScriptEngine {
         MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
+            TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
+                -> new TermsSetQueryScript(parameters, lookup, ctx) {
+                @Override
+                public Number execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return (Number) script.apply(vars);
+                }
+            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
@@ -334,7 +346,7 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public void setScorer(Scorer scorer) {
+                public void setScorer(Scorable scorer) {
                     ctx.put("_score", new ScoreAccessor(scorer));
                 }
 
@@ -553,7 +565,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                    Scorer[] scorerHolder = new Scorer[1];
+                    Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, lookup, ctx) {
                         @Override
                         public double execute() {
@@ -566,7 +578,7 @@ public class MockScriptEngine implements ScriptEngine {
                         }
 
                         @Override
-                        public void setScorer(Scorer scorer) {
+                        public void setScorer(Scorable scorer) {
                             scorerHolder[0] = scorer;
                         }
                     };

@@ -1118,36 +1118,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            // handle aliases to avoid double aliasing of functions
-            // alias points to function which gets folded and wrapped in an alias that is
-            // aliases
             if (e instanceof Alias) {
                 Alias a = (Alias) e;
-                Expression fold = fold(a.child());
-                if (fold != a.child()) {
-                    return new Alias(a.location(), a.name(), null, fold, a.id());
-                }
-                return a;
+                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
             }
 
-            Expression fold = fold(e);
-            if (fold != e) {
-                // preserve the name through an alias
-                if (e instanceof NamedExpression) {
-                    NamedExpression ne = (NamedExpression) e;
-                    return new Alias(e.location(), ne.name(), null, fold, ne.id());
-                }
-                return fold;
-            }
-            return e;
-        }
-
-        private Expression fold(Expression e) {
-            // literals are always foldable, so avoid creating a duplicate
-            if (e.foldable() && !(e instanceof Literal)) {
-                return new Literal(e.location(), e.fold(), e.dataType());
-            }
-            return e;
+            return e.foldable() ? Literal.of(e) : e;
         }
     }
 
@@ -1836,14 +1812,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
-                if (n instanceof Alias) {
-                    Alias a = (Alias) n;
-                    if (a.child().foldable()) {
-                        values.add(a.child().fold());
-                    }
-                    else {
-                        return values;
-                    }
+                if (n.foldable()) {
+                    values.add(n.fold());
+                } else {
+                    // not everything is foldable, bail-out early
+                    return values;
                 }
             }
             return values;

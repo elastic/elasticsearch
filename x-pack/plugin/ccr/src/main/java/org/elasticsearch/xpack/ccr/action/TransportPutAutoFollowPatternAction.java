@@ -21,29 +21,41 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends
     TransportMasterNodeAction<PutAutoFollowPatternAction.Request, AcknowledgedResponse> {
 
     private final Client client;
+    private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
-    public TransportPutAutoFollowPatternAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportPutAutoFollowPatternAction(
+            final Settings settings,
+            final TransportService transportService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final ActionFilters actionFilters,
+            final Client client,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final CcrLicenseChecker ccrLicenseChecker) {
         super(settings, PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, PutAutoFollowPatternAction.Request::new);
         this.client = client;
+        this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
 
     @Override
@@ -60,6 +72,10 @@ public class TransportPutAutoFollowPatternAction extends
     protected void masterOperation(PutAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException("ccr"));
+            return;
+        }
         final Client leaderClient;
         if (request.getLeaderClusterAlias().equals("_local_")) {
             leaderClient = client;
@@ -71,25 +87,34 @@ public class TransportPutAutoFollowPatternAction extends
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
-        leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
-            final ClusterState leaderClusterState = clusterStateResponse.getState();
-            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                    @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
-                    }
+        leaderClient.admin().cluster().state(
+                clusterStateRequest,
+                ActionListener.wrap(
+                        clusterStateResponse -> {
+                            final ClusterState leaderClusterState = clusterStateResponse.getState();
+                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderClusterAlias(),
+                                    new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return innerPut(request, currentState, leaderClusterState);
-                    }
-                });
-        }, listener::onFailure));
+                                        @Override
+                                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                                            return new AcknowledgedResponse(acknowledged);
+                                        }
+
+                                        @Override
+                                        public ClusterState execute(ClusterState currentState) throws Exception {
+                                            return innerPut(request, filteredHeaders, currentState, leaderClusterState);
+                                        }
+                                    });
+                        },
+                        listener::onFailure));
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
+                                 Map<String, String> filteredHeaders,
                                  ClusterState localState,
                                  ClusterState leaderClusterState) {
         // auto patterns are always overwritten
@@ -130,9 +155,9 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxOperationSizeInBytes(),
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
-            request.getRetryTimeout(),
-            request.getIdleShardRetryDelay()
-        );
+            request.getMaxRetryDelay(),
+            request.getIdleShardRetryDelay(),
+            filteredHeaders);
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

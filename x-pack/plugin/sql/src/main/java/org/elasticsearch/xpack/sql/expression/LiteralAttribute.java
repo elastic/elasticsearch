@@ -15,18 +15,10 @@ public class LiteralAttribute extends TypedAttribute {
 
     private final Literal literal;
 
-    public LiteralAttribute(Literal literal) {
-        this(literal.location(), String.valueOf(literal.fold()), null, false, null, false, literal.dataType(), literal);
-    }
-
     public LiteralAttribute(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic,
             DataType dataType, Literal literal) {
         super(location, name, dataType, qualifier, nullable, id, synthetic);
         this.literal = literal;
-    }
-
-    public Literal literal() {
-        return literal;
     }
 
     @Override

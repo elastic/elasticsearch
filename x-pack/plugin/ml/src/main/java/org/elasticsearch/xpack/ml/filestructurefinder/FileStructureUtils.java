@@ -51,29 +51,41 @@ public final class FileStructureUtils {
      *                    may be non-empty when the method is called, and this method may
      *                    append to it.
      * @param sampleRecords List of records derived from the provided sample.
+     * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
+     *                  values determined by structure analysis.  An exception will be thrown if the file structure
+     *                  is incompatible with an overridden value.
      * @return A tuple of (field name, timestamp format) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
-    static Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    static Tuple<String, TimestampMatch> guessTimestampField(List<String> explanation, List<Map<String, ?>> sampleRecords,
+                                                             FileStructureOverrides overrides) {
         if (sampleRecords.isEmpty()) {
             return null;
         }
 
         // Accept the first match from the first sample that is compatible with all the other samples
-        for (Tuple<String, TimestampMatch> candidate : findCandidates(explanation, sampleRecords)) {
+        for (Tuple<String, TimestampMatch> candidate : findCandidates(explanation, sampleRecords, overrides)) {
 
             boolean allGood = true;
             for (Map<String, ?> sampleRecord : sampleRecords.subList(1, sampleRecords.size())) {
                 Object fieldValue = sampleRecord.get(candidate.v1());
                 if (fieldValue == null) {
+                    if (overrides.getTimestampField() != null) {
+                        throw new IllegalArgumentException("Specified timestamp field [" + overrides.getTimestampField() +
+                            "] is not present in record [" + sampleRecord + "]");
+                    }
                     explanation.add("First sample match [" + candidate.v1() + "] ruled out because record [" + sampleRecord +
                         "] doesn't have field");
                     allGood = false;
                     break;
                 }
 
-                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString());
+                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString(), overrides.getTimestampFormat());
                 if (match == null || match.candidateIndex != candidate.v2().candidateIndex) {
+                    if (overrides.getTimestampFormat() != null) {
+                        throw new IllegalArgumentException("Specified timestamp format [" + overrides.getTimestampFormat() +
+                            "] does not match for record [" + sampleRecord + "]");
+                    }
                     explanation.add("First sample match [" + candidate.v1() + "] ruled out because record [" + sampleRecord +
                         "] matches differently: [" + match + "]");
                     allGood = false;
@@ -82,7 +94,8 @@ public final class FileStructureUtils {
             }
 
             if (allGood) {
-                explanation.add("Guessing timestamp field is [" + candidate.v1() + "] with format [" + candidate.v2() + "]");
+                explanation.add(((overrides.getTimestampField() == null) ? "Guessing timestamp" : "Timestamp") +
+                    " field is [" + candidate.v1() + "] with format [" + candidate.v2() + "]");
                 return candidate;
             }
         }
@@ -90,21 +103,39 @@ public final class FileStructureUtils {
         return null;
     }
 
-    private static List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords) {
+    private static List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords,
+                                                                      FileStructureOverrides overrides) {
+
+        assert sampleRecords.isEmpty() == false;
+        Map<String, ?> firstRecord = sampleRecords.get(0);
+
+        String onlyConsiderField = overrides.getTimestampField();
+        if (onlyConsiderField != null && firstRecord.get(onlyConsiderField) == null) {
+            throw new IllegalArgumentException("Specified timestamp field [" + overrides.getTimestampField() +
+                "] is not present in record [" + firstRecord + "]");
+        }
 
         List<Tuple<String, TimestampMatch>> candidates = new ArrayList<>();
 
-        // Get candidate timestamps from the first sample record
-        for (Map.Entry<String, ?> entry : sampleRecords.get(0).entrySet()) {
-            Object value = entry.getValue();
-            if (value != null) {
-                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString());
-                if (match != null) {
-                    Tuple<String, TimestampMatch> candidate = new Tuple<>(entry.getKey(), match);
-                    candidates.add(candidate);
-                    explanation.add("First sample timestamp match [" + candidate + "]");
+        // Get candidate timestamps from the possible field(s) of the first sample record
+        for (Map.Entry<String, ?> field : firstRecord.entrySet()) {
+            String fieldName = field.getKey();
+            if (onlyConsiderField == null || onlyConsiderField.equals(fieldName)) {
+                Object value = field.getValue();
+                if (value != null) {
+                    TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString(), overrides.getTimestampFormat());
+                    if (match != null) {
+                        Tuple<String, TimestampMatch> candidate = new Tuple<>(fieldName, match);
+                        candidates.add(candidate);
+                        explanation.add("First sample timestamp match [" + candidate + "]");
+                    }
                 }
             }
+        }
+
+        if (candidates.isEmpty() && overrides.getTimestampFormat() != null) {
+            throw new IllegalArgumentException("Specified timestamp format [" + overrides.getTimestampFormat() +
+                "] does not match for record [" + firstRecord + "]");
         }
 
         return candidates;

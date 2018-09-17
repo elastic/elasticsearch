@@ -84,7 +84,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        (float) score(docId, subQueryScore.getValue()),
+                        (float) score(docId, subQueryScore.getValue().floatValue()),
                         "random score function (seed: " + originalSeed + ", field: " + field + ")");
             }
         };

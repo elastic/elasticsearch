@@ -15,7 +15,7 @@ task remoteClusterTest(type: RestIntegTestTask) {
 remoteClusterTestCluster {
   numNodes = 2
   clusterName = 'remote-cluster'
-  setting 'search.remote.connect', false
+  setting 'cluster.remote.connect', false
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
@@ -60,9 +60,9 @@ mixedClusterTestCluster {
             retries: 10)
     return tmpFile.exists()
   }
-  setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
-  setting 'search.remote.connections_per_cluster', 1
-  setting 'search.remote.connect', true
+  setting 'cluster.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+  setting 'cluster.remote.connections_per_cluster', 1
+  setting 'cluster.remote.connect', true
 }
 
 mixedClusterTestRunner {

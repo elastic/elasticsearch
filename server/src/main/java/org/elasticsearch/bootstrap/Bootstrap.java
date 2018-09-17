@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -217,6 +216,11 @@ final class Bootstrap {
                 final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
+
+            @Override
+            protected void registerDerivedNodeNameWithLogger(String nodeName) {
+                LogConfigurator.setNodeName(nodeName);
+            }
         };
     }
 
@@ -289,9 +293,9 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        String nodeName = Node.NODE_NAME_SETTING.get(environment.settings());
-        NodeNamePatternConverter.setNodeName(nodeName);
-
+        if (Node.NODE_NAME_SETTING.exists(environment.settings())) {
+            LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+        }
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

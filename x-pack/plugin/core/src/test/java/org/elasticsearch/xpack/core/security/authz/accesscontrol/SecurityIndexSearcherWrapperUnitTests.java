@@ -131,7 +131,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         IndexShard indexShard = mock(IndexShard.class);
@@ -232,7 +231,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
-        assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
+        assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
         bitsetFilterCache.close();
     }
 
@@ -270,7 +269,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
-        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")), false);
+        Weight weight = searcher.createWeight(new TermQuery(new Term("field2", "value1")),
+                org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
@@ -545,8 +545,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-            return new CreateScorerOnceWeight(query.createWeight(searcher, needsScores, boost));
+        public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+            return new CreateScorerOnceWeight(query.createWeight(searcher, scoreMode, boost));
         }
 
         @Override

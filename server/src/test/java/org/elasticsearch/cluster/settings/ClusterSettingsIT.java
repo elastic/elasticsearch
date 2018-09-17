@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.settings;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -285,7 +286,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [-1] for setting [discovery.zen.publish_timeout] must be >= 0s");
+            assertEquals(ex.getMessage(), "failed to parse value [-1] for setting [discovery.zen.publish_timeout], must be >= [0ms]");
         }
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
@@ -377,6 +378,36 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             }
             assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+        }
+    }
+
+    public void testUserMetadata() {
+        String key = "cluster.metadata." + randomAlphaOfLengthBetween(5, 20);
+        String value = randomRealisticUnicodeOfCodepointLengthBetween(5, 50);
+        String updatedValue = randomRealisticUnicodeOfCodepointLengthBetween(5, 50);
+        logger.info("Attempting to store [{}]: [{}], then update to [{}]", key, value, updatedValue);
+
+        final Settings settings = Settings.builder().put(key, value).build();
+        final Settings updatedSettings = Settings.builder().put(key, updatedValue).build();
+        if (randomBoolean()) {
+            logger.info("Using persistent settings");
+
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet();
+            ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(value, state.getState().getMetaData().persistentSettings().get(key));
+
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(updatedSettings).execute().actionGet();
+            ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(updatedValue, updatedState.getState().getMetaData().persistentSettings().get(key));
+        } else {
+            logger.info("Using transient settings");
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+            ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(value, state.getState().getMetaData().transientSettings().get(key));
+
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(updatedSettings).execute().actionGet();
+            ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
+            assertEquals(updatedValue, updatedState.getState().getMetaData().transientSettings().get(key));
         }
     }
 

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-
 public class MaxTests extends AbstractNumericMetricTestCase<MaxAggregationBuilder> {
 
     @Override

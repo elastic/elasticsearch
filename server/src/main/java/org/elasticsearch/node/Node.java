@@ -249,18 +249,6 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
 
-    /**
-     * Constructs a node with the given settings.
-     *
-     * @param preparedSettings Base settings to configure the node with
-     */
-    public Node(Settings preparedSettings) { // NOCOMMIT do we even need this?!
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, Collections.emptyMap(), null,
-                () -> {
-                    throw new IllegalArgumentException("settings must have [node.name]");
-                }));
-    }
-
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
     }

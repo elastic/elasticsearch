@@ -221,11 +221,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn("after allocating, node [{}] would have less than the required threshold of " +
-                    "{} free ({} free), estimated shard size is {}, preventing allocation",
+                    "{} free (currently {} free, estimated shard size is {}), preventing allocation",
                     node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytesValue, new ByteSizeValue(shardSize));
             return allocation.decision(Decision.NO, NAME,
                 "allocating the shard to this node will bring the node above the high watermark cluster setting [%s=%s] " +
-                    "and cause it to have less than the minimum required [%s] of free space (free bytes [%s], estimated shard size: [%s])",
+                    "and cause it to have less than the minimum required [%s] of free space (free: [%s], estimated shard size: [%s])",
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                 diskThresholdSettings.getHighWatermarkRaw(),
                 diskThresholdSettings.getFreeBytesThresholdHigh(),

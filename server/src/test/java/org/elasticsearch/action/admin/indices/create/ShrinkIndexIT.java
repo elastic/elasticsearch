@@ -162,7 +162,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
         final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size() - 1), factors);
         final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
-        final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
+        final int numberOfTargetShards = randomSubsetOf(randomInt(numberOfShardsFactors.size() - 1), numberOfShardsFactors)
+            .stream().reduce(1, (x, y) -> x * y);
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 

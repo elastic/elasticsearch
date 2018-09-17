@@ -57,8 +57,8 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
     public CountResponse(SearchResponse searchResponse) {
         this.count = searchResponse.getHits().totalHits;
         this.terminatedEarly = searchResponse.isTerminatedEarly();
-        this.shardStats = new ShardStats(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards(),searchResponse
-            .getSkippedShards(), searchResponse.getShardFailures());
+        this.shardStats = new ShardStats(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards(),
+            searchResponse.getSkippedShards(), searchResponse.getShardFailures());
     }
 
     /**
@@ -217,7 +217,7 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
                     parser.skipChildren();
                 }
             }
-            return new ShardStats(successfulShards,totalShards,skippedShards,failures.toArray(new ShardSearchFailure[failures.size()]));
+            return new ShardStats(successfulShards, totalShards, skippedShards, failures.toArray(new ShardSearchFailure[failures.size()]));
         }
 
         @Override
@@ -227,6 +227,4 @@ public final class CountResponse extends ActionResponse implements StatusToXCont
             return builder;
         }
     }
-
-
 }

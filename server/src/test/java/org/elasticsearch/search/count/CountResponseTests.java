@@ -180,5 +180,4 @@ public class CountResponseTests extends AbstractXContentTestCase<CountResponse> 
         assertThat(countResponse.getCount(), equalTo(searchResponse.getHits().totalHits));
         assertThat(countResponse.isTerminatedEarly(), equalTo(searchResponse.isTerminatedEarly()));
     }
-
 }

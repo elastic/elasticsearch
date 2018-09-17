@@ -72,8 +72,8 @@ public abstract class PeerFinder extends AbstractComponent {
     private final Map<TransportAddress, Peer> peersByAddress = newConcurrentMap();
     private Optional<DiscoveryNode> leader = Optional.empty();
 
-    PeerFinder(Settings settings, TransportService transportService,
-               TransportAddressConnector transportAddressConnector, ConfiguredHostsResolver configuredHostsResolver) {
+    public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
+                      ConfiguredHostsResolver configuredHostsResolver) {
         super(settings);
         findPeersDelay = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         this.transportService = transportService;
@@ -95,6 +95,8 @@ public abstract class PeerFinder extends AbstractComponent {
             leader = Optional.empty();
             handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
         }
+
+        onFoundPeersUpdated(); // trigger a check for a quorum already
     }
 
     public void deactivate(DiscoveryNode leader) {
@@ -116,7 +118,7 @@ public abstract class PeerFinder extends AbstractComponent {
         return Thread.holdsLock(mutex);
     }
 
-    boolean assertInactiveWithNoKnownPeers() {
+    private boolean assertInactiveWithNoKnownPeers() {
         assert active == false;
         assert peersByAddress.isEmpty() : peersByAddress.keySet();
         return true;
@@ -125,13 +127,24 @@ public abstract class PeerFinder extends AbstractComponent {
     PeersResponse handlePeersRequest(PeersRequest peersRequest) {
         synchronized (mutex) {
             assert peersRequest.getSourceNode().equals(getLocalNode()) == false;
+            final List<DiscoveryNode> knownPeers;
             if (active) {
+                assert leader.isPresent() == false : leader;
                 startProbe(peersRequest.getSourceNode().getAddress());
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
-                return new PeersResponse(Optional.empty(), getFoundPeersUnderLock(), currentTerm);
+                knownPeers = getFoundPeersUnderLock();
             } else {
-                return new PeersResponse(leader, Collections.emptyList(), currentTerm);
+                assert leader.isPresent();
+                knownPeers = Collections.emptyList();
             }
+            return new PeersResponse(leader, knownPeers, currentTerm);
+        }
+    }
+
+    // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
+    public Optional<DiscoveryNode> getLeader() {
+        synchronized (mutex) {
+            return leader;
         }
     }
 
@@ -247,7 +260,7 @@ public abstract class PeerFinder extends AbstractComponent {
 
             @Override
             public String toString() {
-                return "PeerFinder::handleWakeUp";
+                return "PeerFinder handling wakeup";
             }
         });
 

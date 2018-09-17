@@ -109,10 +109,12 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollector = new PreVoteCollector(settings, getLocalPreVoteResponse(), transportService, () -> {
+        preVoteCollector = new PreVoteCollector(settings, transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
-        });
+        }, l -> {
+        }); // TODO need tests that check that the max term seen is updated
+        preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
     private PreVoteResponse getLocalPreVoteResponse() {

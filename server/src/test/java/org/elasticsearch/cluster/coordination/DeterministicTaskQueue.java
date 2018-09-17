@@ -326,7 +326,7 @@ public class DeterministicTaskQueue extends AbstractComponent {
 
                     @Override
                     public boolean cancel(boolean mayInterruptIfRunning) {
-                        throw new UnsupportedOperationException();
+                        return false;
                     }
 
                     @Override

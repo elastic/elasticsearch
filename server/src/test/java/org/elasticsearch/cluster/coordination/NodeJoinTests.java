@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.anyObject;
@@ -135,6 +136,7 @@ public class NodeJoinTests extends ESTestCase {
         this.masterService = masterService;
         TransportService transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(initialState.nodes().getLocalNode());
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<TransportRequestHandler<JoinRequest>> joinRequestHandler = ArgumentCaptor.forClass(
             (Class) TransportRequestHandler.class);
@@ -142,7 +144,7 @@ public class NodeJoinTests extends ESTestCase {
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState));
+            () -> new CoordinationStateTests.InMemoryPersistedState(term, initialState), r -> emptyList());
         verify(transportService).registerRequestHandler(eq(JoinHelper.JOIN_ACTION_NAME), eq(ThreadPool.Names.GENERIC), eq(false), eq(false),
             anyObject(), joinRequestHandler.capture());
         transportRequestHandler = joinRequestHandler.getValue();

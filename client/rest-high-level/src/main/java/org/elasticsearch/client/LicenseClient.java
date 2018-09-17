@@ -131,7 +131,7 @@ public final class LicenseClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PostStartTrialResponse postStartTrial(PostStartTrialRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::postStartTrial, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::postStartTrial, options,
             PostStartTrialResponse::fromXContent, singleton(403));
     }
 
@@ -144,7 +144,7 @@ public final class LicenseClient {
                                     RequestOptions options,
                                     ActionListener<PostStartTrialResponse> listener) {
 
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::postStartTrial, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::postStartTrial, options,
             PostStartTrialResponse::fromXContent, listener, singleton(403));
     }
 

@@ -18,32 +18,53 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-public class Coordinator extends AbstractLifecycleComponent {
+public class Coordinator extends AbstractLifecycleComponent implements Discovery {
+
+    // the timeout for the publication of each value
+    public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.publish.timeout",
+            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
@@ -61,6 +82,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private final PreVoteCollector preVoteCollector;
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final UnicastConfiguredHostsResolver configuredHostsResolver;
+    private final TimeValue publishTimeout;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -71,6 +93,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     private Optional<DiscoveryNode> lastKnownLeader;
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
+    private Optional<Publication> currentPublication = Optional.empty();
 
     public Coordinator(Settings settings, TransportService transportService, AllocationService allocationService,
                        MasterService masterService, Supplier<CoordinationState.PersistedState> persistedStateSupplier,
@@ -83,12 +106,14 @@ public class Coordinator extends AbstractLifecycleComponent {
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = joinHelper.new CandidateJoinAccumulator();
-
+        this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, Randomness.get(), transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection, this::updateMaxTermSeen);
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
+
+        masterService.setClusterStateSupplier(this::getStateForMasterService);
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, Names.GENERIC, false, false,
             in -> new PublishRequest(in, transportService.getLocalNode()),
@@ -108,6 +133,7 @@ public class Coordinator extends AbstractLifecycleComponent {
 
             coordinationState.get().handleCommit(applyCommitRequest);
             lastCommittedState = Optional.of(coordinationState.get().getLastAcceptedState());
+            // TODO: send to applier
         }
     }
 
@@ -208,11 +234,12 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     void becomeCandidate(String method) {
-        assert Thread.holdsLock(mutex) : "Legislator mutex not held";
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug("{}: becoming CANDIDATE (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
         if (mode != Mode.CANDIDATE) {
             mode = Mode.CANDIDATE;
+            cancelActivePublication();
             joinAccumulator.close(mode);
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
@@ -223,7 +250,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     void becomeLeader(String method) {
-        assert Thread.holdsLock(mutex) : "Legislator mutex not held";
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         logger.debug("{}: becoming LEADER (was {}, lastKnownLeader was [{}])", method, mode, lastKnownLeader);
 
@@ -238,7 +265,7 @@ public class Coordinator extends AbstractLifecycleComponent {
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
-        assert Thread.holdsLock(mutex) : "Legislator mutex not held";
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug("{}: becoming FOLLOWER of [{}] (was {}, lastKnownLeader was [{}])", method, leaderNode, mode, lastKnownLeader);
 
         if (mode != Mode.FOLLOWER) {
@@ -250,6 +277,7 @@ public class Coordinator extends AbstractLifecycleComponent {
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
         closePrevotingAndElectionScheduler();
+        cancelActivePublication();
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
     }
 
@@ -284,6 +312,13 @@ public class Coordinator extends AbstractLifecycleComponent {
         configuredHostsResolver.start();
     }
 
+    @Override
+    public DiscoveryStats stats() {
+        // TODO implement
+        return null;
+    }
+
+    @Override
     public void startInitialJoin() {
         synchronized (mutex) {
             becomeCandidate("startInitialJoin");
@@ -364,6 +399,242 @@ public class Coordinator extends AbstractLifecycleComponent {
         nodes.add(getLocalNode());
         peerFinder.getFoundPeers().forEach(nodes::add);
         return nodes;
+    }
+
+    public ClusterState getStateForMasterService() {
+        synchronized (mutex) {
+            // expose last accepted cluster state as base state upon which the master service
+            // speculatively calculates the next cluster state update
+            final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
+            if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
+                // the master service checks if the local node is the master node in order to fail execution of the state update early
+                return clusterStateWithNoMasterBlock(clusterState);
+            }
+            return clusterState;
+        }
+    }
+
+    private ClusterState clusterStateWithNoMasterBlock(ClusterState clusterState) {
+        if (clusterState.nodes().getMasterNodeId() != null) {
+            // remove block if it already exists before adding new one
+            assert clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false :
+                "NO_MASTER_BLOCK should only be added by Coordinator";
+            // TODO: allow dynamically configuring NO_MASTER_BLOCK_ALL
+            final ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks()).addGlobalBlock(
+                DiscoverySettings.NO_MASTER_BLOCK_WRITES).build();
+            final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
+            return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
+        } else {
+            return clusterState;
+        }
+    }
+
+    @Override
+    public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
+        try {
+            synchronized (mutex) {
+                publishUnderLock(clusterChangedEvent, publishListener, ackListener);
+            }
+        } catch (Exception e) {
+            logger.trace(() -> new ParameterizedMessage("[{}] publishing: [{}] failed: {}",
+                getLocalNode().getName(), clusterChangedEvent.source(), e.getMessage()), e);
+            publishListener.onFailure(new FailedToCommitClusterStateException("failure while publishing", e));
+        }
+    }
+
+    private void publishUnderLock(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> completionListener,
+                                  AckListener ackListener) {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+        if (mode != Mode.LEADER) {
+            throw new CoordinationStateRejectedException("publishUnderLock: not currently leading, so cannot handle client value.");
+        }
+
+        if (currentPublication.isPresent()) {
+            throw new CoordinationStateRejectedException("[{}] is in progress", currentPublication.get());
+        }
+
+        // the DiscoveryNodes part can be different as we adapt it in getStateForMasterService when becoming master
+        assert clusterChangedEvent.previousState().term() == coordinationState.get().getLastAcceptedState().term() &&
+            clusterChangedEvent.previousState().version() == coordinationState.get().getLastAcceptedState().version() &&
+            clusterChangedEvent.previousState().metaData() == coordinationState.get().getLastAcceptedState().metaData();
+
+        final ClusterState clusterState = clusterChangedEvent.state();
+
+        assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
+            getLocalNode() + " should be in published " + clusterState;
+
+        final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
+
+        final ListenableFuture<Void> localNodeAckEvent = new ListenableFuture<>();
+        final AckListener wrappedAckListener = new AckListener() {
+            @Override
+            public void onCommit(TimeValue commitTime) {
+                ackListener.onCommit(commitTime);
+            }
+
+            @Override
+            public void onNodeAck(DiscoveryNode node, Exception e) {
+                // acking and cluster state application for local node is handled specially
+                if (node.equals(getLocalNode())) {
+                    synchronized (mutex) {
+                        if (e == null) {
+                            localNodeAckEvent.onResponse(null);
+                        } else {
+                            localNodeAckEvent.onFailure(e);
+                        }
+                    }
+                } else {
+                    ackListener.onNodeAck(node, e);
+                }
+            }
+        };
+
+        final Publication publication = new Publication(settings, publishRequest, wrappedAckListener,
+            transportService.getThreadPool()::relativeTimeInMillis) {
+
+            @Override
+            protected void onCompletion(boolean committed) {
+                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                assert currentPublication.get() == this;
+                currentPublication = Optional.empty();
+                updateMaxTermSeen(getCurrentTerm()); // triggers term bump if new term was found during publication
+
+                localNodeAckEvent.addListener(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void ignore) {
+                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                        assert coordinationState.get().getLastAcceptedTerm() == publishRequest.getAcceptedState().term()
+                            && coordinationState.get().getLastAcceptedVersion() == publishRequest.getAcceptedState().version()
+                            : "onPossibleCompletion: term or version mismatch when publishing [" + this
+                            + "]: current version is now [" + coordinationState.get().getLastAcceptedVersion()
+                            + "] in term [" + coordinationState.get().getLastAcceptedTerm() + "]";
+
+                        // TODO: send to applier
+                        ackListener.onNodeAck(getLocalNode(), null);
+                        completionListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                        assert committed == false;
+                        if (publishRequest.getAcceptedState().term() == coordinationState.get().getCurrentTerm() &&
+                            publishRequest.getAcceptedState().version() == coordinationState.get().getLastPublishedVersion()) {
+                            becomeCandidate("Publication.onCompletion(false)");
+                        }
+                        FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
+                        ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
+                        completionListener.onFailure(exception);
+                    }
+                }, transportService.getThreadPool().generic());
+            }
+
+            @Override
+            protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
+                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                return coordinationState.get().isPublishQuorum(votes);
+            }
+
+            @Override
+            protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                assert getCurrentTerm() >= publishResponse.getTerm();
+                return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+            }
+
+            @Override
+            protected void onJoin(Join join) {
+                assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+                if (join.getTerm() == getCurrentTerm()) {
+                    handleJoin(join);
+                }
+                // TODO: what to do on missing join?
+            }
+
+            @Override
+            protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
+                                              ActionListener<PublishWithJoinResponse> responseActionListener) {
+                transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, publishRequest,
+                    new TransportResponseHandler<PublishWithJoinResponse>() {
+
+                        @Override
+                        public PublishWithJoinResponse read(StreamInput in) throws IOException {
+                            return new PublishWithJoinResponse(in);
+                        }
+
+                        @Override
+                        public void handleResponse(PublishWithJoinResponse response) {
+                            synchronized (mutex) {
+                                responseActionListener.onResponse(response);
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            synchronized (mutex) {
+                                responseActionListener.onFailure(exp);
+                            }
+                        }
+
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
+                    });
+            }
+
+            @Override
+            protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
+                                           ActionListener<TransportResponse.Empty> responseActionListener) {
+                transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest,
+                    new TransportResponseHandler<Empty>() {
+
+                        @Override
+                        public TransportResponse.Empty read(StreamInput in) {
+                            return Empty.INSTANCE;
+                        }
+
+                        @Override
+                        public void handleResponse(TransportResponse.Empty response) {
+                            synchronized (mutex) {
+                                responseActionListener.onResponse(response);
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            synchronized (mutex) {
+                                responseActionListener.onFailure(exp);
+                            }
+                        }
+
+                        @Override
+                        public String executor() {
+                            return Names.GENERIC;
+                        }
+                    });
+            }
+        };
+
+        assert currentPublication.isPresent() == false
+            : "[" + currentPublication.get() + "] in progress, cannot start [" + publication + ']';
+        currentPublication = Optional.of(publication);
+
+        transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, () -> {
+            synchronized (mutex) {
+                publication.onTimeout();
+            }
+        });
+        publication.start(Collections.emptySet()); // TODO start failure detector and put faultyNodes here
+    }
+
+    private void cancelActivePublication() {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        if (currentPublication.isPresent()) {
+            currentPublication.get().onTimeout();
+            assert currentPublication.isPresent() == false;
+        }
     }
 
     public enum Mode {

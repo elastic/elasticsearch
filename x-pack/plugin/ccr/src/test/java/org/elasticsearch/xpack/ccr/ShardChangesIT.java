@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -257,6 +258,29 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         unfollowIndex("index2");
+    }
+
+    public void testNoMappingDefined() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        ensureGreen("index1");
+
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+
+        client().prepareIndex("index1", "doc", "1").setSource("{\"f\":1}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(1L)));
+        unfollowIndex("index2");
+
+        MappingMetaData mappingMetaData = client().admin().indices().prepareGetMappings("index2").get().getMappings()
+            .get("index2").get("doc");
+        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+        assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
     }
 
     public void testFollowIndex_backlog() throws Exception {

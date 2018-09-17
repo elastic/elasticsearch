@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -97,7 +97,10 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         boolean requireRouting = randomBoolean();
         boolean useNested = randomBoolean();
         IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
-        assertHits(sourceIdx, builders.length);
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(sourceIdx).clear().setDocs(true).get();
+        long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
+        boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
+        assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
             client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
@@ -116,7 +119,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             client().admin().indices().prepareUpdateSettings(sourceIdx)
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
         ensureGreen(sourceIdx);
-        assertHits(sourceIdx, builders.length);
+        assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
     public void testSnapshotAndRestoreWithNested() throws Exception {
@@ -125,7 +128,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
         assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
-        assertHits(sourceIdx, builders.length);
+        assertHits(sourceIdx, builders.length, true);
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get());
@@ -141,7 +144,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
             .get();
         ensureGreen(sourceIdx);
-        assertHits(sourceIdx, builders.length);
+        assertHits(sourceIdx, builders.length, true);
     }
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
@@ -165,15 +168,12 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
     }
 
-    private void assertHits(String index, int numDocsExpected) {
+    private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
         SearchResponse searchResponse = client().prepareSearch(index)
             .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setSize(numDocsExpected).get();
-        Consumer<SearchResponse> assertConsumer = res -> {
+        BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
             SearchHits hits = res.getHits();
-            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
-            long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
-            boolean allowHoles = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
             long i = 0;
             for (SearchHit hit : hits) {
                 String id = hit.getId();
@@ -190,18 +190,24 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 assertEquals("r" + id, hit.field("_routing").getValue());
             }
         };
-        assertConsumer.accept(searchResponse);
+        assertConsumer.accept(searchResponse, sourceHadDeletions);
         assertEquals(numDocsExpected, searchResponse.getHits().totalHits);
         searchResponse = client().prepareSearch(index)
             .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll("1m")
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0,1), 2))
             .setSize(randomIntBetween(1, 10)).get();
-        do {
-            // now do a scroll with a slice
-            assertConsumer.accept(searchResponse);
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
-        } while (searchResponse.getHits().getHits().length > 0);
+        try {
+            do {
+                // now do a scroll with a slice
+                assertConsumer.accept(searchResponse, true);
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+            } while (searchResponse.getHits().getHits().length > 0);
+        } finally {
+            if (searchResponse.getScrollId() != null) {
+                client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+            }
+        }
 
     }
 

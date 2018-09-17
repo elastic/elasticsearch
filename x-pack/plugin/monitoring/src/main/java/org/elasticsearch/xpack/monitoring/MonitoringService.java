@@ -122,7 +122,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         return interval;
     }
 
-    boolean isMonitoringActive() {
+    public boolean isMonitoringActive() {
         return isStarted() && enabled;
     }
 

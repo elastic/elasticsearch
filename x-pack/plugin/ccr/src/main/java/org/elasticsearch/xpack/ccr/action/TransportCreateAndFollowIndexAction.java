@@ -121,10 +121,16 @@ public final class TransportCreateAndFollowIndexAction
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final String leaderIndex = request.getFollowRequest().getLeaderIndex();
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
-        Consumer<String[]> handler = historyUUIDs -> {
+        Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, handler);
+        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, leaderIndex, e -> {
+            if (e == null) {
+                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
+            } else {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(

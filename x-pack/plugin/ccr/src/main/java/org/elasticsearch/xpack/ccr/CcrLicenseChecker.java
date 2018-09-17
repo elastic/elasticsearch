@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -25,6 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,7 +36,14 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -50,21 +61,24 @@ import java.util.stream.Collectors;
  */
 public final class CcrLicenseChecker {
 
+    private final BooleanSupplier isAuthAllowed;
     private final BooleanSupplier isCcrAllowed;
 
     /**
      * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
      */
     CcrLicenseChecker() {
-        this(XPackPlugin.getSharedLicenseState()::isCcrAllowed);
+        this(XPackPlugin.getSharedLicenseState()::isCcrAllowed, XPackPlugin.getSharedLicenseState()::isAuthAllowed);
     }
 
     /**
-     * Constructs a CCR license checker with the specified boolean supplier.
+     * Constructs a CCR license checker with the specified boolean suppliers.
      *
-     * @param isCcrAllowed a boolean supplier that should return true if CCR is allowed and false otherwise
+     * @param isCcrAllowed  a boolean supplier that should return true if CCR is allowed and false otherwise
+     * @param isAuthAllowed a boolean supplier that should return true if security, authentication and authorization are be enabled
      */
-    CcrLicenseChecker(final BooleanSupplier isCcrAllowed) {
+    CcrLicenseChecker(final BooleanSupplier isCcrAllowed, final BooleanSupplier isAuthAllowed) {
+        this.isAuthAllowed = Objects.requireNonNull(isAuthAllowed);
         this.isCcrAllowed = Objects.requireNonNull(isCcrAllowed);
     }
 
@@ -110,8 +124,14 @@ public final class CcrLicenseChecker {
                 leaderClusterState -> {
                     IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
-                    fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
-                        consumer.accept(historyUUIDs, leaderIndexMetaData);
+                    hasPrivilegesToFollowIndex(leaderClient, leaderIndex, e -> {
+                        if (e == null) {
+                            fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
+                                consumer.accept(historyUUIDs, leaderIndexMetaData);
+                            });
+                        } else {
+                            onFailure.accept(e);
+                        }
                     });
                 },
                 licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
@@ -251,6 +271,54 @@ public final class CcrLicenseChecker {
         request.clear();
         request.indices(leaderIndex);
         leaderClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
+    }
+
+    public void hasPrivilegesToFollowIndex(
+        final Client leaderClient,
+        final String index,
+        Consumer<Exception> handler
+    ) {
+        if (isAuthAllowed.getAsBoolean() == false) {
+            handler.accept(null);
+            return;
+        }
+
+        ThreadContext threadContext = leaderClient.threadPool().getThreadContext();
+        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        String username = securityContext.getUser().principal();
+
+        RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(index)
+            .privileges(IndicesStatsAction.NAME, ShardChangesAction.NAME)
+            .build();
+
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(username);
+        request.clusterPrivileges(Strings.EMPTY_ARRAY);
+        request.indexPrivileges(privileges);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        CheckedConsumer<HasPrivilegesResponse, Exception> responseHandler = response -> {
+            if (response.isCompleteMatch()) {
+                handler.accept(null);
+            } else {
+                StringBuilder message = new StringBuilder("insufficient privileges to follow index [");
+                message.append(index);
+                message.append(']');
+                assert response.getIndexPrivileges().size() == 1;
+
+                HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);
+                for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {
+                    if (entry.getValue() == false) {
+                        message.append(", privilege for action [");
+                        message.append(entry.getKey());
+                        message.append("] is missing");
+                    }
+                }
+
+                handler.accept(Exceptions.authorizationError(message.toString()));
+            }
+        };
+        leaderClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
     }
 
     public static Client wrapClient(Client client, Map<String, String> headers) {

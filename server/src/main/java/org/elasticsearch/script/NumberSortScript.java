@@ -33,11 +33,7 @@ public abstract class NumberSortScript extends AbstractSortScript {
         super(params, lookup, leafContext);
     }
 
-    public double runAsDouble() {
-        return execute().doubleValue();
-    }
-
-    public abstract Number execute();
+    public abstract double execute();
 
     /**
      * A factory to construct {@link NumberSortScript} instances.

@@ -101,11 +101,11 @@ public class MockScriptEngine implements ScriptEngine {
             NumberSortScript.Factory factory = (parameters, lookup) -> (NumberSortScript.LeafFactory) ctx
                 -> new NumberSortScript(parameters, lookup, ctx) {
                 @Override
-                public Number execute() {
+                public double execute() {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
-                    return (Number) script.apply(vars);
+                    return ((Number) script.apply(vars)).doubleValue();
                 }
             };
             return context.factoryClazz.cast(factory);

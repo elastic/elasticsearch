@@ -369,7 +369,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.runAsDouble();
+                                return leafScript.execute();
                             }
                         };
                         return FieldData.singleton(values);

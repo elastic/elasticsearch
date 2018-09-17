@@ -82,7 +82,7 @@ abstract class AbstractSortScript implements ScorerAware {
     }
 
     /** Return the score of the current document. */
-    public double getScore() {
+    public double get_score() {
         try {
             return scorer.score();
         } catch (IOException e) {

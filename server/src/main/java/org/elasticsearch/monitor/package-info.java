@@ -18,7 +18,7 @@
  */
 
 /**
- * Monitors the Elasticsearch process and the system on which it is running so that metrics can be exposed via a HTTP or transport APIs to
+ * Monitors the Elasticsearch process and the system on which it is running so that metrics can be exposed via an HTTP or transport APIs to
  * be logged and graphed.
  */
 package org.elasticsearch.monitor;

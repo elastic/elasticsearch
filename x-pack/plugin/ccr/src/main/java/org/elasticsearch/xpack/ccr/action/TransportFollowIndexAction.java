@@ -175,7 +175,8 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         for (int i = 0; i < numShards; i++) {
             final int shardId = i;
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndexMetadata);
+            Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+            String[] recordedLeaderShardHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
             String recordedLeaderShardHistoryUUID = recordedLeaderShardHistoryUUIDs[shardId];
 
             ShardFollowTask shardFollowTask = new ShardFollowTask(
@@ -188,7 +189,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
                     request.getMaxConcurrentWriteBatches(),
                     request.getMaxWriteBufferSize(),
                     request.getMaxRetryDelay(),
-                    request.getIdleShardRetryDelay(),
+                    request.getPollTimeout(),
                     recordedLeaderShardHistoryUUID,
                     filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
@@ -245,16 +246,18 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
         }
+        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        if (ccrIndexMetadata == null) {
+            throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
+        }
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
-        String recordedLeaderIndexUUID = followIndex
-                .getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
-                .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" + leaderIndexUUID +
                     "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
 
-        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(followIndex);
+        String[] recordedHistoryUUIDs = extractIndexShardHistoryUUIDs(ccrIndexMetadata);
         assert recordedHistoryUUIDs.length == leaderIndexHistoryUUID.length;
         for (int i = 0; i < leaderIndexHistoryUUID.length; i++) {
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
@@ -296,9 +299,8 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         followerMapperService.merge(leaderIndex, MapperService.MergeReason.MAPPING_RECOVERY);
     }
 
-    private static String[] extractIndexShardHistoryUUIDs(IndexMetaData followIndexMetadata) {
-        String historyUUIDs = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY)
-            .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+    private static String[] extractIndexShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
+        String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         return historyUUIDs.split(",");
     }
 

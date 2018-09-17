@@ -82,15 +82,25 @@ public class SourceOnlySnapshot {
         try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
              StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
             SegmentInfos segmentInfos = reader.getSegmentInfos();
-            DirectoryReader wrapper = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
-            for (LeafReaderContext ctx : wrapper.leaves()) {
-                SegmentCommitInfo info = segmentInfos.info(ctx.ord);
+            for (LeafReaderContext ctx : reader.leaves()) {
                 LeafReader leafReader = ctx.reader();
-                LiveDocs liveDocs = getLiveDocs(leafReader);
-                if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
-                    SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
-                    newInfos.add(newInfo);
+                SegmentCommitInfo info = reader.getSegmentInfos().info(ctx.ord);
+                assert info.info.equals(Lucene.segmentReader(ctx.reader()).getSegmentInfo().info);
+                /* We could do this totally different without wrapping this dummy directory reader if FilterCodecReader would have a
+                 * getDelegate method. This is fixed in LUCENE-8502 but we need to wait for it to come in 7.5.1 or 7.6.
+                 * The reason here is that the ctx.ord is not guaranteed to be equivalent to the SegmentCommitInfo ord in the SegmentInfo
+                 * object since we might drop fully deleted segments. if that happens we are using the wrong reader for the SI and
+                 * might almost certainly expose deleted documents.
+                 */
+                DirectoryReader wrappedReader = wrapReader(new DummyDirectoryReader(reader.directory(), leafReader));
+                if (wrappedReader.leaves().isEmpty() == false) {
+                    leafReader = wrappedReader.leaves().get(0).reader();
+                    LiveDocs liveDocs = getLiveDocs(leafReader);
+                    if (leafReader.numDocs() != 0) { // fully deleted segments don't need to be processed
+                        SegmentCommitInfo newInfo = syncSegment(info, liveDocs, leafReader.getFieldInfos(), existingSegments, createdFiles);
+                        newInfos.add(newInfo);
+                    }
                 }
             }
             segmentInfos.clear();
@@ -256,6 +266,53 @@ public class SourceOnlySnapshot {
         LiveDocs(int numDeletes, Bits bits) {
             this.numDeletes = numDeletes;
             this.bits = bits;
+        }
+    }
+
+    private static class DummyDirectoryReader extends DirectoryReader {
+
+        protected DummyDirectoryReader(Directory directory, LeafReader... segmentReaders) throws IOException {
+            super(directory, segmentReaders);
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
+            return null;
+        }
+
+        @Override
+        public long getVersion() {
+            return 0;
+        }
+
+        @Override
+        public boolean isCurrent() throws IOException {
+            return false;
+        }
+
+        @Override
+        public IndexCommit getIndexCommit() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
         }
     }
 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -90,6 +89,7 @@ import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -747,7 +747,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    i - 1,
+                    i,
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -759,7 +759,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    randomLongBetween(NO_OPS_PERFORMED, i - 1),
+                    randomLongBetween(0, i),
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -770,7 +770,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener(
-                numberOfUpdates - 1,
+                numberOfUpdates,
                 (g, e) -> {
                     invoked.set(true);
                     assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
@@ -792,13 +792,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
         shard.addGlobalCheckpointListener(
-                NO_OPS_PERFORMED,
+                0,
                 (g, e) -> {
                     try {
                         notified.set(true);
                         assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
                         assertNotNull(e);
-                        assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
+                        assertThat(e, instanceOf(TimeoutException.class));
                         assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
                     } finally {
                         latch.countDown();

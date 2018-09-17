@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -29,6 +28,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,10 +65,10 @@ public class SessionFactoryTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "conn_settings");
         final Path pathHome = createTempDir();
         Settings settings = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), "10ms")
-                .put(RealmSettings.getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), "false")
-                .put(RealmSettings.getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "20ms")
-                .put(RealmSettings.getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), "false")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), "10ms")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), "false")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "20ms")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), "false")
                 .put("path.home", pathHome)
                 .build();
 
@@ -80,11 +80,11 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
         assertThat(options.getResponseTimeoutMillis(), is(equalTo(20L)));
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
-        assertWarnings("the setting [xpack.security.authc.realms.ldap.conn_settings.hostname_verification] has been deprecated and will be " +
-                "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead");
+        assertWarnings("the setting [xpack.security.authc.realms.ldap.conn_settings.hostname_verification] has been deprecated and will be "
+            + "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead");
 
         settings = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .put("path.home", pathHome)
                 .build();
         realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -94,7 +94,7 @@ public class SessionFactoryTests extends ESTestCase {
         // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
         if (inFipsJvm() == false) {
             settings = Settings.builder()
-                    .put(RealmSettings.getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.NONE)
+                    .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.NONE)
                     .put("path.home", pathHome)
                     .build();
             realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -103,7 +103,7 @@ public class SessionFactoryTests extends ESTestCase {
         }
 
         settings = Settings.builder()
-                .put(RealmSettings.getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.FULL)
+                .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.FULL)
                 .put("path.home", pathHome)
                 .build();
         realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
@@ -126,7 +126,7 @@ public class SessionFactoryTests extends ESTestCase {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "_name");
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, mergeSettings(
                 Settings.builder()
-                        .put(RealmSettings.getFullSettingKey(realmIdentifier, SessionFactorySettings.URLS_SETTING), "ldap://localhost:389")
+                        .put(getFullSettingKey(realmIdentifier, SessionFactorySettings.URLS_SETTING), "ldap://localhost:389")
                         .build(), global),
                 TestEnvironment.newEnvironment(global), new ThreadContext(Settings.EMPTY));
         return new SessionFactory(realmConfig, null, threadPool) {

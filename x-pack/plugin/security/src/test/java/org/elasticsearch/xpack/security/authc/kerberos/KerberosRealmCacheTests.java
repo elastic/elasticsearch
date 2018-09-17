@@ -19,7 +19,9 @@ import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -39,7 +41,10 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
 
         final String expectedUsername = maybeRemoveRealmName(username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
@@ -71,7 +76,10 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(authNUsername, outToken), null);
         final String expectedUsername = maybeRemoveRealmName(authNUsername);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(authNUsername));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, authNUsername);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
 
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
         final User user1 = authenticateAndAssertResult(kerberosRealm, expectedUser, kerberosAuthenticationToken, outToken);
@@ -101,14 +109,17 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
             throws LoginException, GSSException, IOException {
         // if cache.ttl <= 0 then the cache is disabled
-        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.REALM_NAME,
-            KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true, randomBoolean());
+        settings = buildKerberosRealmSettings(REALM_NAME,
+            writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true, randomBoolean());
         final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
 
         final String expectedUsername = maybeRemoveRealmName(username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);

@@ -579,13 +579,11 @@ gradle.projectsEvaluated {
     if (project.path.startsWith(':qa')) {
       Task assemble = project.tasks.findByName('assemble')
       if (assemble) {
-        project.tasks.remove(assemble)
-        project.build.dependsOn.remove('assemble')
+        assemble.enabled = false
       }
       Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
       if (dependenciesInfo) {
-        project.tasks.remove(dependenciesInfo)
-        project.precommit.dependsOn.remove('dependenciesInfo')
+        dependenciesInfo.enabled = false
       }
     }
   }
@@ -627,6 +625,14 @@ if (System.properties.get("build.compare") != null) {
       tasks = ["clean", "assemble"]
       // use -Dorg.gradle.java.home= to alter jdk versions
       arguments = ["-Dbuild.compare_friendly=true"]
+    }
+  }
+}
+
+allprojects {
+  task resolveAllDependencies {
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
     }
   }
 }

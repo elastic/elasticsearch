@@ -59,7 +59,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms") //1 millisecond
+                .put(RealmSettings.getFullSettingKey(REALM_IDENTIFIER, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
                 .put("path.home", createTempDir())
                 .build();
 

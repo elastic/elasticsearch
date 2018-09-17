@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -301,7 +302,8 @@ public class RealmSettingsTests extends ESTestCase {
 
     private void validate(Settings settings) {
         final Set<Setting<?>> settingsSet = new HashSet<>(InternalRealmsSettings.getSettings());
-        final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingsSet, Setting.Property.NodeScope) {
+        final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingsSet, Collections.emptySet(),
+            Setting.Property.NodeScope) {
         };
         validator.validate(settings, false);
     }

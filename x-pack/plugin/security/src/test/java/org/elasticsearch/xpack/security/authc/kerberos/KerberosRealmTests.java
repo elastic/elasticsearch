@@ -39,9 +39,12 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.security.authc.kerberos.KerberosRealmTestCase.buildKerberosRealmSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -70,7 +73,10 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         final String username = randomPrincipalName();
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final String expectedUsername = maybeRemoveRealmName(username);
-        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+        metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
         final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
@@ -155,7 +161,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
 
     private void assertKerberosRealmConstructorFails(final String keytabPath, final String expectedErrorMessage) {
         final String realmName = "test-kerb-realm";
-        settings = KerberosTestCase.buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
+        settings = buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, randomBoolean(), globalSettings);
         config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, realmName), settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList("user"));

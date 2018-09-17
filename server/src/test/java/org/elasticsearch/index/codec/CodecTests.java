@@ -22,8 +22,7 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene62.Lucene62Codec;
-import org.apache.lucene.codecs.lucene70.Lucene70Codec;
+import org.apache.lucene.codecs.lucene80.Lucene80Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -54,8 +53,8 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene70Codec.class));
-        assertThat(codecService.codec("Lucene62"), instanceOf(Lucene62Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene80Codec.class));
+        assertThat(codecService.codec("Lucene80"), instanceOf(Lucene80Codec.class));
     }
 
     public void testDefault() throws Exception {

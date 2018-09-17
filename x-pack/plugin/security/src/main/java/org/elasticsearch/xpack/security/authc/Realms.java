@@ -5,21 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -47,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -110,7 +97,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     @Override
     public Iterator<Realm> iterator() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyIterator();
         }
 
@@ -132,7 +119,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     }
 
     public List<Realm> asList() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isAuthAllowed() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyList();
         }
 
@@ -191,8 +178,9 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             if (KerberosRealmSettings.TYPE.equals(identifier.getType())) {
                 kerberosRealmNames.add(identifier.getName());
                 if (kerberosRealmNames.size() > 1) {
-                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type [" + identifier.getType()
-                            + "], [" + identifier.getType() + "] can only have one such realm configured");
+                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type ["
+                        + identifier.getType() + "], [" + identifier.getType() + "] can only have one such realm " +
+                        "configured");
                 }
             }
             realms.add(factory.create(config));

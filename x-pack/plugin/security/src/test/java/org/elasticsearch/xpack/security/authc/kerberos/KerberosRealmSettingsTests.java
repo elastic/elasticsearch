@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 
 import java.io.IOException;
@@ -30,14 +31,15 @@ public class KerberosRealmSettingsTests extends ESTestCase {
             configDir = Files.createDirectory(configDir);
         }
         final String keytabPathConfig = "config" + dir.getFileSystem().getSeparator() + "http.keytab";
-        KerberosTestCase.writeKeyTab(dir.resolve(keytabPathConfig), null);
+        KerberosRealmTestCase.writeKeyTab(dir.resolve(keytabPathConfig), null);
         final Integer maxUsers = randomInt();
         final String cacheTTL = randomLongBetween(10L, 100L) + "m";
         final boolean enableDebugLogs = randomBoolean();
         final boolean removeRealmName = randomBoolean();
-        final Settings settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.REALM_NAME,
+        final Settings settings = KerberosRealmTestCase.buildKerberosRealmSettings(KerberosRealmTestCase.REALM_NAME,
             keytabPathConfig, maxUsers, cacheTTL, enableDebugLogs, removeRealmName);
-        final RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, KerberosTestCase.REALM_NAME),
+        final RealmIdentifier identifier = new RealmIdentifier(KerberosRealmSettings.TYPE, KerberosRealmTestCase.REALM_NAME);
+        final RealmConfig config = new RealmConfig(identifier,
             settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
 
         assertThat(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH), equalTo(keytabPathConfig));

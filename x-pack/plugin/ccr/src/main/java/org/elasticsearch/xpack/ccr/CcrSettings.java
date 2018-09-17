@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,15 +24,16 @@ public final class CcrSettings {
     }
 
     /**
-     * Setting for controlling whether or not CCR is enabled.
-     */
-    static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
-
-    /**
      * Index setting for a following index.
      */
     public static final Setting<Boolean> CCR_FOLLOWING_INDEX_SETTING =
             Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
+
+    /**
+     * Setting for controlling the interval in between polling leader clusters to check whether there are indices to follow
+     */
+    public static final Setting<TimeValue> CCR_AUTO_FOLLOW_POLL_INTERVAL =
+        Setting.timeSetting("xpack.ccr.auto_follow.poll_interval", TimeValue.timeValueMillis(2500), Property.NodeScope);
 
     /**
      * The settings defined by CCR.
@@ -39,8 +42,9 @@ public final class CcrSettings {
      */
     static List<Setting<?>> getSettings() {
         return Arrays.asList(
-                CCR_ENABLED_SETTING,
-                CCR_FOLLOWING_INDEX_SETTING);
+                XPackSettings.CCR_ENABLED_SETTING,
+                CCR_FOLLOWING_INDEX_SETTING,
+                CCR_AUTO_FOLLOW_POLL_INTERVAL);
     }
 
 }

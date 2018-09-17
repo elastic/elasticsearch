@@ -649,7 +649,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "count",
             "create",
-            "delete_by_query",
             "exists_source",
             "get_source",
             "indices.delete_alias",
@@ -659,7 +658,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "put_script",
             "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
@@ -758,7 +756,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("machine_learning.") == false &&
                             apiName.startsWith("watcher.") == false &&
                             apiName.startsWith("graph.") == false &&
-                            apiName.startsWith("migration.") == false) {
+                            apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

@@ -104,7 +104,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(searchBatchSize);
         final TopDocs topDocs = searchOperations(null);
-        this.totalHits = Math.toIntExact(topDocs.totalHits);
+        this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
     }
@@ -212,7 +212,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
-        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, lastSeenSeqNo + 1, toSeqNo);
+        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         final Sort sortedBySeqNoThenByTerm = new Sort(
             new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
             new SortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)

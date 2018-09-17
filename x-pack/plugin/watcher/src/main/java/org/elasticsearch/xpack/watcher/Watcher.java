@@ -300,7 +300,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
-        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
+        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
@@ -535,7 +535,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
+                "[{},{},{}*]", (Object) value, Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME, HistoryStoreField.INDEX_PREFIX);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -602,7 +602,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     }
 
     @Override
-    public List<ScriptContext> getContexts() {
+    public List<ScriptContext<?>> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 

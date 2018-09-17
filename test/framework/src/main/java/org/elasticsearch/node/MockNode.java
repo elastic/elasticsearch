@@ -85,7 +85,9 @@ public class MockNode extends Node {
             final Path configPath,
             final boolean forbidPrivateIndexSettings) {
         this(
-                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath),
+                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () ->{
+                    throw new IllegalArgumentException("settings must have [node.name]");
+                }),
                 classpathPlugins,
                 forbidPrivateIndexSettings);
     }

@@ -254,8 +254,11 @@ public class Node implements Closeable {
      *
      * @param preparedSettings Base settings to configure the node with
      */
-    public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings));
+    public Node(Settings preparedSettings) { // NOCOMMIT do we even need this?!
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, Collections.emptyMap(), null,
+                () -> {
+                    throw new IllegalArgumentException("settings must have [node.name]");
+                }));
     }
 
     public Node(Environment environment) {

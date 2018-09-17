@@ -255,7 +255,9 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     private void start() throws NodeValidationException {

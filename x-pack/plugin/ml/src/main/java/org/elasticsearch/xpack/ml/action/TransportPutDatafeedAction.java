@@ -33,8 +33,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -152,7 +150,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         };
 
         CheckedConsumer<Boolean, Exception> jobOk = ok ->
-            validateDatafeedAgainstJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));
+            jobConfigProvider.validateDatafeedJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));
 
         checkJobDoesNotHaveADatafeed(jobId, ActionListener.wrap(jobOk, listener::onFailure));
     }
@@ -186,20 +184,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     } else {
                         listener.onFailure(ExceptionsHelper.conflictStatusException("A datafeed [" + datafeedIds.iterator().next()
                                 + "] already exists for job [" + jobId + "]"));
-                    }
-                },
-                listener::onFailure
-        ));
-    }
-
-    private void validateDatafeedAgainstJob(DatafeedConfig config, ActionListener<Boolean> listener) {
-        jobConfigProvider.getJob(config.getJobId(), ActionListener.wrap(
-                jobBuilder -> {
-                    try {
-                        DatafeedJobValidator.validate(config, jobBuilder.build());
-                        listener.onResponse(Boolean.TRUE);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
                     }
                 },
                 listener::onFailure

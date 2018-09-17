@@ -123,6 +123,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         if (MlTasks.getDatafeedTask(request.getDatafeedId(), tasks) != null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException(
                     Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)));
+            return;
         }
 
         datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(

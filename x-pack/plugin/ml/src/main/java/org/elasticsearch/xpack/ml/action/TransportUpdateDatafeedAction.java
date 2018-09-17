@@ -23,8 +23,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -79,7 +77,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
         CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
             datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
-                    this::validateDatafeedJob,
+                    jobConfigProvider::validateDatafeedJob,
                     ActionListener.wrap(
                             updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
                             listener::onFailure
@@ -93,20 +91,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         } else {
             updateConsumer.accept(Boolean.TRUE);
         }
-    }
-
-    private void validateDatafeedJob(DatafeedConfig updatedConfig, ActionListener<Boolean> listener) {
-        jobConfigProvider.getJob(updatedConfig.getJobId(), ActionListener.wrap(
-                jobBuilder -> {
-                    try {
-                        DatafeedJobValidator.validate(updatedConfig, jobBuilder.build());
-                        listener.onResponse(Boolean.TRUE);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
-                },
-                listener::onFailure
-        ));
     }
 
     /*

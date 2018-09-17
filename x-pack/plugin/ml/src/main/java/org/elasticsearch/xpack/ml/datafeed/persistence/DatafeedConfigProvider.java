@@ -171,7 +171,6 @@ public class DatafeedConfigProvider extends AbstractComponent {
      */
     public void findDatafeedForJobId(String jobId, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdQuery(jobId));
-        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
 

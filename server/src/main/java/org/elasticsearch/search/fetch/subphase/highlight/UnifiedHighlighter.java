@@ -26,6 +26,7 @@ import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
@@ -54,7 +55,7 @@ public class UnifiedHighlighter implements Highlighter {
     public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
-
+    
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         MappedFieldType fieldType = highlighterContext.fieldType;
@@ -62,8 +63,6 @@ public class UnifiedHighlighter implements Highlighter {
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
-            field.fieldOptions().postTags()[0], encoder);
         final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
 
         List<Snippet> snippets = new ArrayList<>();
@@ -71,14 +70,12 @@ public class UnifiedHighlighter implements Highlighter {
         try {
 
             final Analyzer analyzer =
-                getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
-            List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext);
-            fieldValues = fieldValues.stream()
-                .map((s) -> convertFieldValue(fieldType, s))
-                .collect(Collectors.toList());
+                wrap(getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType));
+            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
             }
+            final PassageFormatter passageFormatter = getPassageFormatter(field, encoder);
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
@@ -143,6 +140,26 @@ public class UnifiedHighlighter implements Highlighter {
             return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
         }
         return null;
+    }
+
+    protected PassageFormatter getPassageFormatter(SearchContextHighlight.Field field, Encoder encoder) {
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
+            field.fieldOptions().postTags()[0], encoder);
+        return passageFormatter;
+    }
+
+    
+    protected Analyzer wrap(Analyzer analyzer) {
+        return analyzer;
+    }
+    
+    protected List<Object> loadFieldValues(MappedFieldType fieldType, SearchContextHighlight.Field field, SearchContext context,
+            FetchSubPhase.HitContext hitContext) throws IOException {
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext);
+        fieldValues = fieldValues.stream()
+            .map((s) -> convertFieldValue(fieldType, s))
+            .collect(Collectors.toList());
+        return fieldValues;
     }
 
     protected BreakIterator getBreakIterator(SearchContextHighlight.Field field) {

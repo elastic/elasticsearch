@@ -65,7 +65,8 @@ public class AnnotatedTextHighlighterTests  extends ESTestCase {
         
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
         Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(markedUpInputs, wrapperAnalyzer);
+        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+        hiliteAnalyzer.init(markedUpInputs);
         PassageFormatter passageFormatter = new AnnotatedPassageFormatter(hiliteAnalyzer,new DefaultEncoder());
         String []plainTextForHighlighter = hiliteAnalyzer.getPlainTextValuesForHighlighter();
 

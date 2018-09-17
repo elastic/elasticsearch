@@ -316,9 +316,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private Analyzer delegate;
         private AnnotatedText[] annotations;
-        public AnnotatedHighlighterAnalyzer(String [] markedUpFieldValues, Analyzer delegate){
+        public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
+        }
+
+        public void init(String[] markedUpFieldValues) {
             this.annotations = new AnnotatedText[markedUpFieldValues.length];
             for (int i = 0; i < markedUpFieldValues.length; i++) {
                 annotations[i] = AnnotatedText.parse(markedUpFieldValues[i]);
@@ -635,7 +638,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public AnnotatedTextFieldType clone() {
             return new AnnotatedTextFieldType(this);
         }
-       
 
         @Override
         public String typeName() {
@@ -710,7 +712,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return mpqb.build();
         }        
     }
-
     
     private int positionIncrementGap;
     protected AnnotatedTextFieldMapper(String simpleName, AnnotatedTextFieldType fieldType, MappedFieldType defaultFieldType,

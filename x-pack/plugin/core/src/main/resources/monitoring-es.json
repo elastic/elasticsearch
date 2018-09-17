@@ -991,7 +991,7 @@
                   "type": "integer"
                 },
                 "exception": {
-                  "type": "object",
+                  "type": "nested",
                   "properties": {
                     "type" : {
                       "type": "keyword"

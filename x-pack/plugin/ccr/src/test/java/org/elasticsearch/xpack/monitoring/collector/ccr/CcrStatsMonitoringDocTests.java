@@ -241,7 +241,7 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
                     assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
                     assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
                     assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
-                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("object"));
+                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("nested"));
 
                     Map<?, ?> exceptionFieldMapping =
                         (Map<?, ?>) XContentMapValues.extractValue("properties.exception.properties", fieldMapping);

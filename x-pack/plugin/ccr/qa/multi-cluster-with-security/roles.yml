@@ -7,3 +7,4 @@ ccruser:
         - monitor
         - read
         - write
+        - create_follow_index

@@ -254,7 +254,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             adaptiveSelectionStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
             shardsStats = in.readList(ShardStats::readShardStats);
         } else {
             shardsStats = null;
@@ -285,7 +285,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             if (shardsStats == null) {
                 out.writeBoolean(false);
             } else {

@@ -103,19 +103,22 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         AutoFollower operation = new AutoFollower(handler, followerClusterState) {
 
             @Override
-            void getLeaderClusterState(final String leaderClusterAlias, final BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(final Map<String, String> headers,
+                                       final String leaderClusterAlias,
+                                       final BiConsumer<ClusterState, Exception> handler) {
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
                 request.metaData(true);
 
                 if ("_local_".equals(leaderClusterAlias)) {
+                    Client client = CcrLicenseChecker.wrapClient(AutoFollowCoordinator.this.client, headers);
                     client.admin().cluster().state(
                             request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
                 } else {
-                    final Client leaderClient = client.getRemoteClusterClient(leaderClusterAlias);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
-                            leaderClient,
+                            client,
+                            headers,
                             leaderClusterAlias,
                             request,
                             e -> handler.accept(null, e),
@@ -125,15 +128,22 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest,
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                client.execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest),
-                    ActionListener.wrap(r -> successHandler.run(), failureHandler));
+                Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
+                followerClient.execute(
+                    CreateAndFollowIndexAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(r -> successHandler.run(), failureHandler)
+                );
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                     @Override
@@ -188,7 +198,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 AutoFollowPattern autoFollowPattern = entry.getValue();
                 List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
 
-                getLeaderClusterState(clusterAlias, (leaderClusterState, e) -> {
+                getLeaderClusterState(autoFollowPattern.getHeaders(), clusterAlias, (leaderClusterState, e) -> {
                     if (leaderClusterState != null) {
                         assert e == null;
                         handleClusterAlias(clusterAlias, autoFollowPattern, followedIndices, leaderClusterState);
@@ -251,7 +261,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             finalise(followError);
                         }
                     };
-                    createAndFollow(followRequest, successHandler, failureHandler);
+                    createAndFollow(autoFollowPattern.getHeaders(), followRequest, successHandler, failureHandler);
                 }
             }
         }
@@ -314,14 +324,27 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         /**
          * Fetch the cluster state from the leader with the specified cluster alias
          *
+         * @param headers            the client headers
          * @param leaderClusterAlias the cluster alias of the leader
          * @param handler            the callback to invoke
          */
-        abstract void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler);
+        abstract void getLeaderClusterState(
+            Map<String, String> headers,
+            String leaderClusterAlias,
+            BiConsumer<ClusterState, Exception> handler
+        );
 
-        abstract void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler);
+        abstract void createAndFollow(
+            Map<String, String> headers,
+            FollowIndexAction.Request followRequest,
+            Runnable successHandler,
+            Consumer<Exception> failureHandler
+        );
 
-        abstract void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler);
+        abstract void updateAutoFollowMetadata(
+            Function<ClusterState, ClusterState> updateFunction,
+            Consumer<Exception> handler
+        );
 
     }
 }

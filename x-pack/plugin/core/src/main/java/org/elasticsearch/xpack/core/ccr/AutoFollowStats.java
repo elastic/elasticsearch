@@ -26,9 +26,8 @@ import java.util.stream.Collectors;
 
 public class AutoFollowStats implements Writeable, ToXContentObject {
 
-    private static final ParseField NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED =
-        new ParseField("number_of_successful_indices_auto_followed");
-    private static final ParseField NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED = new ParseField("number_of_failed_indices_auto_followed");
+    private static final ParseField NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED = new ParseField("number_of_successful_follow_indices");
+    private static final ParseField NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED = new ParseField("number_of_failed_follow_indices");
     private static final ParseField NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS =
         new ParseField("number_of_failed_remote_cluster_state_requests");
     private static final ParseField RECENT_AUTO_FOLLOW_ERRORS = new ParseField("recent_auto_follow_errors");
@@ -70,48 +69,48 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         return STATS_PARSER.apply(parser, null);
     }
 
-    private final long numberOfFailedIndicesAutoFollowed;
+    private final long numberOfFailedFollowIndices;
     private final long numberOfFailedRemoteClusterStateRequests;
-    private final long numberOfSuccessfulIndicesAutoFollowed;
+    private final long numberOfSuccessfulFollowIndices;
     private final NavigableMap<String, ElasticsearchException> recentAutoFollowErrors;
 
     public AutoFollowStats(
-            long numberOfFailedIndicesAutoFollowed,
+            long numberOfFailedFollowIndices,
             long numberOfFailedRemoteClusterStateRequests,
-            long numberOfSuccessfulIndicesAutoFollowed,
+            long numberOfSuccessfulFollowIndices,
             NavigableMap<String, ElasticsearchException> recentAutoFollowErrors
     ) {
-        this.numberOfFailedIndicesAutoFollowed = numberOfFailedIndicesAutoFollowed;
+        this.numberOfFailedFollowIndices = numberOfFailedFollowIndices;
         this.numberOfFailedRemoteClusterStateRequests = numberOfFailedRemoteClusterStateRequests;
-        this.numberOfSuccessfulIndicesAutoFollowed = numberOfSuccessfulIndicesAutoFollowed;
+        this.numberOfSuccessfulFollowIndices = numberOfSuccessfulFollowIndices;
         this.recentAutoFollowErrors = recentAutoFollowErrors;
     }
 
     public AutoFollowStats(StreamInput in) throws IOException {
-        numberOfFailedIndicesAutoFollowed = in.readVLong();
+        numberOfFailedFollowIndices = in.readVLong();
         numberOfFailedRemoteClusterStateRequests = in.readVLong();
-        numberOfSuccessfulIndicesAutoFollowed = in.readVLong();
+        numberOfSuccessfulFollowIndices = in.readVLong();
         recentAutoFollowErrors= new TreeMap<>(in.readMap(StreamInput::readString, StreamInput::readException));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(numberOfFailedIndicesAutoFollowed);
+        out.writeVLong(numberOfFailedFollowIndices);
         out.writeVLong(numberOfFailedRemoteClusterStateRequests);
-        out.writeVLong(numberOfSuccessfulIndicesAutoFollowed);
+        out.writeVLong(numberOfSuccessfulFollowIndices);
         out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, StreamOutput::writeException);
     }
 
-    public long getNumberOfFailedIndicesAutoFollowed() {
-        return numberOfFailedIndicesAutoFollowed;
+    public long getNumberOfFailedFollowIndices() {
+        return numberOfFailedFollowIndices;
     }
 
     public long getNumberOfFailedRemoteClusterStateRequests() {
         return numberOfFailedRemoteClusterStateRequests;
     }
 
-    public long getNumberOfSuccessfulIndicesAutoFollowed() {
-        return numberOfSuccessfulIndicesAutoFollowed;
+    public long getNumberOfSuccessfulFollowIndices() {
+        return numberOfSuccessfulFollowIndices;
     }
 
     public NavigableMap<String, ElasticsearchException> getRecentAutoFollowErrors() {
@@ -122,9 +121,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfFailedIndicesAutoFollowed);
+            builder.field(NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfFailedFollowIndices);
             builder.field(NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS.getPreferredName(), numberOfFailedRemoteClusterStateRequests);
-            builder.field(NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfSuccessfulIndicesAutoFollowed);
+            builder.field(NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfSuccessfulFollowIndices);
             builder.startArray(RECENT_AUTO_FOLLOW_ERRORS.getPreferredName());
             {
                 for (final Map.Entry<String, ElasticsearchException> entry : recentAutoFollowErrors.entrySet()) {
@@ -152,9 +151,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowStats that = (AutoFollowStats) o;
-        return numberOfFailedIndicesAutoFollowed == that.numberOfFailedIndicesAutoFollowed &&
+        return numberOfFailedFollowIndices == that.numberOfFailedFollowIndices &&
             numberOfFailedRemoteClusterStateRequests == that.numberOfFailedRemoteClusterStateRequests &&
-            numberOfSuccessfulIndicesAutoFollowed == that.numberOfSuccessfulIndicesAutoFollowed &&
+            numberOfSuccessfulFollowIndices == that.numberOfSuccessfulFollowIndices &&
             /*
              * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
              * up to the key set and their messages.  Note that we are relying on the fact that the auto follow exceptions are ordered by
@@ -167,9 +166,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(
-            numberOfFailedIndicesAutoFollowed,
+            numberOfFailedFollowIndices,
             numberOfFailedRemoteClusterStateRequests,
-            numberOfSuccessfulIndicesAutoFollowed,
+            numberOfSuccessfulFollowIndices,
             /*
              * ElasticsearchException does not implement hash code so we will compute the hash code based on the key set and the
              * messages. Note that we are relying on the fact that the auto follow exceptions are ordered by keys.
@@ -186,9 +185,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return "AutoFollowStats{" +
-            "numberOfFailedIndicesAutoFollowed=" + numberOfFailedIndicesAutoFollowed +
+            "numberOfFailedFollowIndices=" + numberOfFailedFollowIndices +
             ", numberOfFailedRemoteClusterStateRequests=" + numberOfFailedRemoteClusterStateRequests +
-            ", numberOfSuccessfulIndicesAutoFollowed=" + numberOfSuccessfulIndicesAutoFollowed +
+            ", numberOfSuccessfulFollowIndices=" + numberOfSuccessfulFollowIndices +
             ", recentAutoFollowErrors=" + recentAutoFollowErrors +
             '}';
     }

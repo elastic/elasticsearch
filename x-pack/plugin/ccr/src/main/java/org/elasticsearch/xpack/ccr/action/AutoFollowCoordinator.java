@@ -257,7 +257,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 getLeaderClusterState(autoFollowPattern.getHeaders(), clusterAlias, (leaderClusterState, e) -> {
                     if (leaderClusterState != null) {
                         assert e == null;
-                        handleClusterAlias(slot, clusterAlias, autoFollowPattern, followedIndices, leaderClusterState);
+                        Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
+                        handleClusterAlias(clusterAlias, autoFollowPattern, followedIndices, leaderClusterState, resultHandler);
                     } else {
                         finalise(slot, new AutoFollowResult(clusterAlias, e));
                     }
@@ -267,16 +268,16 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         private void handleClusterAlias(
-                int clusterAliasSlot,
                 String clusterAlias,
                 AutoFollowPattern autoFollowPattern,
                 List<String> followedIndexUUIDs,
-                ClusterState leaderClusterState
+                ClusterState leaderClusterState,
+                Consumer<AutoFollowResult> resultHandler
         ) {
             final List<Index> leaderIndicesToFollow =
                 getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndexUUIDs);
             if (leaderIndicesToFollow.isEmpty()) {
-                finalise(clusterAliasSlot, new AutoFollowResult(clusterAlias));
+                resultHandler.accept(new AutoFollowResult(clusterAlias));
             } else {
                 final CountDown leaderIndicesCountDown = new CountDown(leaderIndicesToFollow.size());
                 final AtomicArray<Tuple<Index, Exception>> results = new AtomicArray<>(leaderIndicesToFollow.size());
@@ -313,7 +314,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                 LOGGER.debug("Successfully marked leader index [{}] as auto followed", leaderIndexName);
                             }
                             if (leaderIndicesCountDown.countDown()) {
-                                finalise(clusterAliasSlot, new AutoFollowResult(clusterAlias, results.asList()));
+                                resultHandler.accept(new AutoFollowResult(clusterAlias, results.asList()));
                             }
                         });
                     };
@@ -323,7 +324,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         LOGGER.warn("Failed to auto follow leader index [" + leaderIndexName + "]", followError);
                         results.set(slot, new Tuple<>(indexToFollow, followError));
                         if (leaderIndicesCountDown.countDown()) {
-                            finalise(clusterAliasSlot, new AutoFollowResult(clusterAlias, results.asList()));
+                            resultHandler.accept(new AutoFollowResult(clusterAlias, results.asList()));
                         }
                     };
                     createAndFollow(autoFollowPattern.getHeaders(), followRequest, successHandler, failureHandler);

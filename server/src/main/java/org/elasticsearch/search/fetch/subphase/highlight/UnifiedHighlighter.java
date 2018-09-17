@@ -35,7 +35,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -69,8 +68,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer =
-                wrap(getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType));
+            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
@@ -149,8 +147,8 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     
-    protected Analyzer wrap(Analyzer analyzer) {
-        return analyzer;
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+        return HighlightUtils.getAnalyzer(docMapper, type);
     }
     
     protected List<Object> loadFieldValues(MappedFieldType fieldType, SearchContextHighlight.Field field, SearchContext context,
@@ -218,16 +216,6 @@ public class UnifiedHighlighter implements Highlighter {
         }
 
         return filteredSnippets;
-    }
-
-    static Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
-        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-            KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) type;
-            if (keywordFieldType.normalizer() != null) {
-                return  keywordFieldType.normalizer();
-            }
-        }
-        return docMapper.mappers().indexAnalyzer();
     }
 
     protected static String convertFieldValue(MappedFieldType type, Object value) {

@@ -22,6 +22,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -39,8 +40,8 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     AnnotatedHighlighterAnalyzer annotatedHighlighterAnalyzer = null;    
     
     @Override
-    protected Analyzer wrap(Analyzer analyzer) {
-        annotatedHighlighterAnalyzer = new AnnotatedHighlighterAnalyzer(analyzer);
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+        annotatedHighlighterAnalyzer = new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type));
         return annotatedHighlighterAnalyzer;
     }
 

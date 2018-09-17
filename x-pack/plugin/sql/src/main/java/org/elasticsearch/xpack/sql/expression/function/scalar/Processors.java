@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.BucketExtractorProcessor;
@@ -17,13 +19,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.InsertFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 
 import java.util.ArrayList;
@@ -52,6 +54,8 @@ public final class Processors {
         entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         // math
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));
         // string

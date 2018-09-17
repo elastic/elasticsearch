@@ -25,7 +25,9 @@ import org.ietf.jgss.GSSException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.security.auth.login.LoginException;
 
@@ -86,7 +88,10 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             assertThat(result, is(notNullValue()));
             if (validTicket) {
                 final String expectedUsername = maybeRemoveRealmName(username);
-                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+                final Map<String, Object> metadata = new HashMap<>();
+                metadata.put(KerberosRealm.KRB_METADATA_REALM_NAME_KEY, realmName(username));
+                metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
+                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, metadata, true);
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));

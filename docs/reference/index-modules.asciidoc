@@ -179,9 +179,9 @@ specific index module:
 
 `index.blocks.write`::
 
-    Set to `true` to disable data write operations against the index. Unlike `read_only', 
-    this setting does not affect metadata. For instance, you can close an index with a `write`
-    block, but not an index with a `read_only` block.
+    Set to `true` to disable data write operations against the index. Unlike `read_only`, 
+    this setting does not affect metadata. For instance, you can close an index with a `write` 
+    block, but not an index with a `read_only` block.
 
 `index.blocks.metadata`::
 

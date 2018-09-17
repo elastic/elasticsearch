@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
@@ -47,6 +47,8 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
+    private static final PainlessLookup PAINLESS_LOOKUP = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+
     protected PainlessScriptEngine scriptEngine;
 
     @Before
@@ -89,15 +91,15 @@ public abstract class ScriptTestCase extends ESTestCase {
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorable scorer, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
-            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, GenericElasticsearchScript.class);
+            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(PAINLESS_LOOKUP, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings, painlessLookup, null);
+            Walker.buildPainlessTree(
+                    scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings, PAINLESS_LOOKUP, null);
         }
         // test actual script execution
         ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, compileParams);

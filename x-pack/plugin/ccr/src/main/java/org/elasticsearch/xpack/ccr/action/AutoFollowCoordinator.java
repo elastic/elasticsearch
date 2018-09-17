@@ -21,15 +21,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -47,16 +52,20 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
     private final TimeValue pollInterval;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final CcrLicenseChecker ccrLicenseChecker;
 
     private volatile boolean localNodeMaster = false;
 
-    public AutoFollowCoordinator(Settings settings,
-                                 Client client,
-                                 ThreadPool threadPool,
-                                 ClusterService clusterService) {
+    public AutoFollowCoordinator(
+            Settings settings,
+            Client client,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            CcrLicenseChecker ccrLicenseChecker) {
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
 
         this.pollInterval = CcrSettings.CCR_AUTO_FOLLOW_POLL_INTERVAL.get(settings);
         clusterService.addStateApplier(this);
@@ -78,37 +87,63 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             return;
         }
 
+        if (ccrLicenseChecker.isCcrAllowed() == false) {
+            // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+            LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));
+            threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
+            return;
+        }
+
         Consumer<Exception> handler = e -> {
             if (e != null) {
-                LOGGER.warn("Failure occurred during auto following indices", e);
+                LOGGER.warn("failure occurred during auto-follower coordination", e);
             }
             threadPool.schedule(pollInterval, ThreadPool.Names.SAME, this::doAutoFollow);
         };
-        AutoFollower operation = new AutoFollower(client, handler, followerClusterState) {
+        AutoFollower operation = new AutoFollower(handler, followerClusterState) {
 
             @Override
-            void getLeaderClusterState(Client leaderClient, BiConsumer<ClusterState, Exception> handler) {
-                ClusterStateRequest request = new ClusterStateRequest();
+            void getLeaderClusterState(final Map<String, String> headers,
+                                       final String leaderClusterAlias,
+                                       final BiConsumer<ClusterState, Exception> handler) {
+                final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
                 request.metaData(true);
-                leaderClient.admin().cluster().state(request,
-                    ActionListener.wrap(
-                        r -> handler.accept(r.getState(), null),
-                        e -> handler.accept(null, e)
-                    )
+
+                if ("_local_".equals(leaderClusterAlias)) {
+                    Client client = CcrLicenseChecker.wrapClient(AutoFollowCoordinator.this.client, headers);
+                    client.admin().cluster().state(
+                            request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
+                } else {
+                    // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                            client,
+                            headers,
+                            leaderClusterAlias,
+                            request,
+                            e -> handler.accept(null, e),
+                            leaderClusterState -> handler.accept(leaderClusterState, null));
+                }
+
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
+                followerClient.execute(
+                    CreateAndFollowIndexAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(r -> successHandler.run(), failureHandler)
                 );
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest,
-                                 Runnable successHandler,
-                                 Consumer<Exception> failureHandler) {
-                client.execute(CreateAndFollowIndexAction.INSTANCE, new CreateAndFollowIndexAction.Request(followRequest),
-                    ActionListener.wrap(r -> successHandler.run(), failureHandler));
-            }
-
-            @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                     @Override
@@ -143,7 +178,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
     abstract static class AutoFollower {
 
-        private final Client client;
         private final Consumer<Exception> handler;
         private final ClusterState followerClusterState;
         private final AutoFollowMetadata autoFollowMetadata;
@@ -151,8 +185,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         private final CountDown autoFollowPatternsCountDown;
         private final AtomicReference<Exception> autoFollowPatternsErrorHolder = new AtomicReference<>();
 
-        AutoFollower(Client client, Consumer<Exception> handler, ClusterState followerClusterState) {
-            this.client = client;
+        AutoFollower(final Consumer<Exception> handler, final ClusterState followerClusterState) {
             this.handler = handler;
             this.followerClusterState = followerClusterState;
             this.autoFollowMetadata = followerClusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
@@ -163,10 +196,9 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             for (Map.Entry<String, AutoFollowPattern> entry : autoFollowMetadata.getPatterns().entrySet()) {
                 String clusterAlias = entry.getKey();
                 AutoFollowPattern autoFollowPattern = entry.getValue();
-                Client leaderClient = clusterAlias.equals("_local_") ? client : client.getRemoteClusterClient(clusterAlias);
                 List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
 
-                getLeaderClusterState(leaderClient, (leaderClusterState, e) -> {
+                getLeaderClusterState(autoFollowPattern.getHeaders(), clusterAlias, (leaderClusterState, e) -> {
                     if (leaderClusterState != null) {
                         assert e == null;
                         handleClusterAlias(clusterAlias, autoFollowPattern, followedIndices, leaderClusterState);
@@ -196,7 +228,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         new FollowIndexAction.Request(leaderIndexNameWithClusterAliasPrefix, followIndexName,
                             autoFollowPattern.getMaxBatchOperationCount(), autoFollowPattern.getMaxConcurrentReadBatches(),
                             autoFollowPattern.getMaxOperationSizeInBytes(), autoFollowPattern.getMaxConcurrentWriteBatches(),
-                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getRetryTimeout(),
+                            autoFollowPattern.getMaxWriteBufferSize(), autoFollowPattern.getMaxRetryDelay(),
                             autoFollowPattern.getIdleShardRetryDelay());
 
                     // Execute if the create and follow api call succeeds:
@@ -229,7 +261,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             finalise(followError);
                         }
                     };
-                    createAndFollow(followRequest, successHandler, failureHandler);
+                    createAndFollow(autoFollowPattern.getHeaders(), followRequest, successHandler, failureHandler);
                 }
             }
         }
@@ -289,18 +321,30 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             };
         }
 
-        // abstract methods to make unit testing possible:
+        /**
+         * Fetch the cluster state from the leader with the specified cluster alias
+         *
+         * @param headers            the client headers
+         * @param leaderClusterAlias the cluster alias of the leader
+         * @param handler            the callback to invoke
+         */
+        abstract void getLeaderClusterState(
+            Map<String, String> headers,
+            String leaderClusterAlias,
+            BiConsumer<ClusterState, Exception> handler
+        );
 
-        abstract void getLeaderClusterState(Client leaderClient,
-                                            BiConsumer<ClusterState,
-                                            Exception> handler);
+        abstract void createAndFollow(
+            Map<String, String> headers,
+            FollowIndexAction.Request followRequest,
+            Runnable successHandler,
+            Consumer<Exception> failureHandler
+        );
 
-        abstract void createAndFollow(FollowIndexAction.Request followRequest,
-                                      Runnable successHandler,
-                                      Consumer<Exception> failureHandler);
-
-        abstract void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
-                                               Consumer<Exception> handler);
+        abstract void updateAutoFollowMetadata(
+            Function<ClusterState, ClusterState> updateFunction,
+            Consumer<Exception> handler
+        );
 
     }
 }

@@ -19,6 +19,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * This class contains information about the current phase being executed by Index
+ * Lifecycle Management on the specific index.
+ */
 public class PhaseExecutionInfo implements ToXContentObject, Writeable {
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
     private static final ParseField PHASE_DEFINITION_FIELD = new ParseField("phase_definition");
@@ -46,6 +50,7 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
 
     /**
      * This class holds information about the current phase that is being executed
+     *
      * @param policyName the name of the policy being executed, this may not be the current policy assigned to an index
      * @param phase the current phase definition executed
      * @param version the version of the <code>policyName</code> being executed

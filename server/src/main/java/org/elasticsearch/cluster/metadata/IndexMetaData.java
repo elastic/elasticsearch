@@ -466,7 +466,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     }
 
     public Map<String, String> getCustomData(final String key) {
-        return Collections.unmodifiableMap(this.customData.get(key));
+        return this.customData.get(key);
     }
 
     public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {

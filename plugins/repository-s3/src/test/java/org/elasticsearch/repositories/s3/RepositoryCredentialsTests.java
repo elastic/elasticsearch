@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -70,9 +69,9 @@ public class RepositoryCredentialsTests extends ESTestCase {
             }
 
             @Override
-            AmazonS3 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-                final AmazonS3 client = super.buildClient(credentials, configuration);
-                return new ClientAndCredentials(client, credentials);
+            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
+                final AmazonS3 client = super.buildClient(clientSettings);
+                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
             }
 
         }

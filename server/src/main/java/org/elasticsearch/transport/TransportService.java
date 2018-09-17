@@ -733,6 +733,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                     "failed to notify channel of error message for action [{}]", action), inner);
                         }
                     }
+
+                    @Override
+                    public String toString() {
+                        return "processing of [" + action + "][" + requestId + "]: " + request;
+                    }
                 });
             }
 
@@ -1049,6 +1054,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
             FutureUtils.cancel(future);
         }
+
+        @Override
+        public String toString() {
+            return "TimeoutHandler for [" + action + "][" + requestId + "]";
+        }
     }
 
     static class TimeoutInfoHolder {
@@ -1176,7 +1186,17 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 if (ThreadPool.Names.SAME.equals(executor)) {
                     processResponse(handler, response);
                 } else {
-                    threadPool.executor(executor).execute(() -> processResponse(handler, response));
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @Override
+                        public String toString() {
+                            return "delivery of response to [" + action + "][" + requestId + "]: " + response;
+                        }
+
+                        @Override
+                        public void run() {
+                            DirectResponseChannel.this.processResponse(handler, response);
+                        }
+                    });
                 }
             }
         }

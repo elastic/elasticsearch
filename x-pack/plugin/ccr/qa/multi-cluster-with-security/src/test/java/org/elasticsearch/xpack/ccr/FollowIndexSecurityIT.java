@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -29,7 +30,9 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class FollowIndexSecurityIT extends ESRestTestCase {
@@ -80,6 +83,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             createAndFollowIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -110,10 +114,49 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             e = expectThrows(ResponseException.class,
                 () -> followIndex("leader_cluster:" + unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(), containsString("follow index [" + unallowedIndex + "] does not exist"));
+            assertThat(e.getMessage(), containsString("action [indices:monitor/stats] is unauthorized for user [test_ccr]"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }
+    }
+
+    public void testAutoFollowPatterns() throws Exception {
+        assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
+        String allowedIndex = "logs-eu-20190101";
+        String disallowedIndex = "logs-us-20190101";
+
+        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        assertOK(client().performRequest(request));
+
+        try (RestClient leaderClient = buildLeaderClient()) {
+            for (String index : new String[]{allowedIndex, disallowedIndex}) {
+                Settings settings = Settings.builder()
+                    .put("index.soft_deletes.enabled", true)
+                    .build();
+                String requestBody = "{\"settings\": " + Strings.toString(settings) +
+                    ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }";
+                request = new Request("PUT", "/" + index);
+                request.setJsonEntity(requestBody);
+                assertOK(leaderClient.performRequest(request));
+
+                for (int i = 0; i < 5; i++) {
+                    String id = Integer.toString(i);
+                    index(leaderClient, index, id, "field", i, "filtered_field", "true");
+                }
+            }
+        }
+
+        assertBusy(() -> {
+            ensureYellow(allowedIndex);
+            verifyDocuments(adminClient(), allowedIndex, 5);
+        });
+        assertThat(indexExists(adminClient(), disallowedIndex), is(false));
+
+        // Cleanup by deleting auto follow pattern and unfollowing:
+        request = new Request("DELETE", "/_ccr/auto_follow/leader_cluster");
+        assertOK(client().performRequest(request));
+        unfollowIndex(allowedIndex);
     }
 
     private int countCcrNodeTasks() throws IOException {
@@ -136,6 +179,10 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     private static void index(String index, String id, Object... fields) throws IOException {
+        index(adminClient(), index, id, fields);
+    }
+
+    private static void index(RestClient client, String index, String id, Object... fields) throws IOException {
         XContentBuilder document = jsonBuilder().startObject();
         for (int i = 0; i < fields.length; i += 2) {
             document.field((String) fields[i], fields[i + 1]);
@@ -143,7 +190,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         document.endObject();
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
-        assertOK(adminClient().performRequest(request));
+        assertOK(client.performRequest(request));
     }
 
     private static void refresh(String index) throws IOException {
@@ -198,9 +245,65 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
+    private static void ensureYellow(String index) throws IOException {
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("wait_for_no_initializing_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        adminClient().performRequest(request);
+    }
+
+    private RestClient buildLeaderClient() throws IOException {
+        assert runningAgainstLeaderCluster == false;
+        String leaderUrl = System.getProperty("tests.leader_host");
+        int portSeparator = leaderUrl.lastIndexOf(':');
+        HttpHost httpHost = new HttpHost(leaderUrl.substring(0, portSeparator),
+            Integer.parseInt(leaderUrl.substring(portSeparator + 1)), getProtocol());
+        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+    }
+
     private static boolean indexExists(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    private static void unfollowIndex(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
+    }
+
+    private static void verifyCcrMonitoring(String expectedLeaderIndex, String expectedFollowerIndex) throws IOException {
+        ensureYellow(".monitoring-*");
+
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
+        Map<String, ?> response = toMap(adminClient().performRequest(request));
+
+        int numberOfOperationsReceived = 0;
+        int numberOfOperationsIndexed = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+            String leaderIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.leader_index", hit);
+            assertThat(leaderIndex, endsWith(expectedLeaderIndex));
+
+            final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
+            assertThat(followerIndex, equalTo(expectedFollowerIndex));
+
+            int foundNumberOfOperationsReceived =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);
+            numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
+            int foundNumberOfOperationsIndexed =
+                (int) XContentMapValues.extractValue("_source.ccr_stats.number_of_operations_indexed", hit);
+            numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
+        }
+
+        assertThat(numberOfOperationsReceived, greaterThanOrEqualTo(1));
+        assertThat(numberOfOperationsIndexed, greaterThanOrEqualTo(1));
     }
 
 }

@@ -50,18 +50,18 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
             builder.setExcludeLinesPattern(randomAlphaOfLength(100));
         }
 
-        if (format == FileStructure.Format.DELIMITED || (format.supportsNesting() && randomBoolean())) {
-            builder.setInputFields(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
-        }
         if (format == FileStructure.Format.DELIMITED) {
+            builder.setColumnNames(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
             builder.setHasHeaderRow(randomBoolean());
             builder.setDelimiter(randomFrom(',', '\t', ';', '|'));
+            builder.setQuote(randomFrom('"', '\''));
         }
-        if (format.isSemiStructured()) {
+
+        if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT) {
             builder.setGrokPattern(randomAlphaOfLength(100));
         }
 
-        if (format.isSemiStructured() || randomBoolean()) {
+        if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT || randomBoolean()) {
             builder.setTimestampField(randomAlphaOfLength(10));
             builder.setTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
             builder.setNeedClientTimezone(randomBoolean());

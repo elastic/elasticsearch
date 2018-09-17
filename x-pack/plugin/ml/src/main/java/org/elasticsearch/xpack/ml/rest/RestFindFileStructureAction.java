@@ -39,6 +39,17 @@ public class RestFindFileStructureAction extends BaseRestHandler {
         FindFileStructureAction.Request request = new FindFileStructureAction.Request();
         request.setLinesToSample(restRequest.paramAsInt(FindFileStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
             FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT));
+        request.setCharset(restRequest.param(FindFileStructureAction.Request.CHARSET.getPreferredName()));
+        request.setFormat(restRequest.param(FindFileStructureAction.Request.FORMAT.getPreferredName()));
+        request.setColumnNames(restRequest.paramAsStringArray(FindFileStructureAction.Request.COLUMN_NAMES.getPreferredName(), null));
+        request.setHasHeaderRow(restRequest.paramAsBoolean(FindFileStructureAction.Request.HAS_HEADER_ROW.getPreferredName(), null));
+        request.setDelimiter(restRequest.param(FindFileStructureAction.Request.DELIMITER.getPreferredName()));
+        request.setQuote(restRequest.param(FindFileStructureAction.Request.QUOTE.getPreferredName()));
+        request.setShouldTrimFields(restRequest.paramAsBoolean(FindFileStructureAction.Request.SHOULD_TRIM_FIELDS.getPreferredName(),
+            null));
+        request.setGrokPattern(restRequest.param(FindFileStructureAction.Request.GROK_PATTERN.getPreferredName()));
+        request.setTimestampFormat(restRequest.param(FindFileStructureAction.Request.TIMESTAMP_FORMAT.getPreferredName()));
+        request.setTimestampField(restRequest.param(FindFileStructureAction.Request.TIMESTAMP_FIELD.getPreferredName()));
         if (restRequest.hasContent()) {
             request.setSample(restRequest.content());
         } else {

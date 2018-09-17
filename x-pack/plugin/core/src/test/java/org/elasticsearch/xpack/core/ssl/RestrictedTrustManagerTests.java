@@ -5,12 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
+
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
@@ -28,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -39,6 +45,34 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     private Map<String, X509Certificate[]> certificates;
     private int numberOfClusters;
     private int numberOfNodes;
+
+    private static Locale restoreLocale;
+
+    @BeforeClass
+    public static void ensureSupportedLocale() throws Exception {
+        Logger logger = Loggers.getLogger(RestrictedTrustManagerTests.class);
+        if (isUnusableLocale()) {
+            // See: https://github.com/elastic/elasticsearch/issues/33081
+            logger.warn("Attempting to run RestrictedTrustManagerTests tests in an unusable locale in a FIPS JVM. Certificate expiration " +
+                "validation will fail, switching to English");
+            restoreLocale = Locale.getDefault();
+            Locale.setDefault(Locale.ENGLISH);
+        }
+    }
+
+    private static boolean isUnusableLocale() {
+        return inFipsJvm() && (Locale.getDefault().toLanguageTag().equals("th-TH")
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
+    }
+
+    @AfterClass
+    public static void restoreLocale() throws Exception {
+        if (restoreLocale != null) {
+            Locale.setDefault(restoreLocale);
+            restoreLocale = null;
+        }
+    }
 
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {

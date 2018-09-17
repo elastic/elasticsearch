@@ -49,6 +49,7 @@ public class ApplyCommitRequest extends TermVersionRequest {
         return "ApplyCommitRequest{" +
             "term=" + term +
             ", version=" + version +
+            ", sourceNode=" + sourceNode +
             '}';
     }
 }

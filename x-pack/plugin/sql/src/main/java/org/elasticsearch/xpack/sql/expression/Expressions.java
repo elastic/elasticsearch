@@ -82,13 +82,7 @@ public abstract class Expressions {
     }
 
     public static String name(Expression e) {
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
-        } else if (e instanceof Literal) {
-            return e.toString();
-        } else {
-            return e.nodeName();
-        }
+        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
     }
 
     public static List<String> names(Collection<? extends Expression> e) {
@@ -105,7 +99,7 @@ public abstract class Expressions {
             return ((NamedExpression) e).toAttribute();
         }
         if (e != null && e.foldable()) {
-            return new LiteralAttribute(Literal.of(e));
+            return Literal.of(e).toAttribute();
         }
         return null;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -86,6 +87,10 @@ public class TransportPutAutoFollowPatternAction extends
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
+        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
         leaderClient.admin().cluster().state(
                 clusterStateRequest,
                 ActionListener.wrap(
@@ -101,7 +106,7 @@ public class TransportPutAutoFollowPatternAction extends
 
                                         @Override
                                         public ClusterState execute(ClusterState currentState) throws Exception {
-                                            return innerPut(request, currentState, leaderClusterState);
+                                            return innerPut(request, filteredHeaders, currentState, leaderClusterState);
                                         }
                                     });
                         },
@@ -109,6 +114,7 @@ public class TransportPutAutoFollowPatternAction extends
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
+                                 Map<String, String> filteredHeaders,
                                  ClusterState localState,
                                  ClusterState leaderClusterState) {
         // auto patterns are always overwritten
@@ -149,9 +155,9 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxOperationSizeInBytes(),
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferSize(),
-            request.getRetryTimeout(),
-            request.getIdleShardRetryDelay()
-        );
+            request.getMaxRetryDelay(),
+            request.getIdleShardRetryDelay(),
+            filteredHeaders);
         patterns.put(request.getLeaderClusterAlias(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

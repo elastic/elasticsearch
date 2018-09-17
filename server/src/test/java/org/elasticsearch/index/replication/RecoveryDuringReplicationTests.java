@@ -55,10 +55,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -306,14 +304,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));
             }
-
-            // roll back the extra ops in the replica
-            shards.removeReplica(replica);
-            replica.close("resync", false);
-            replica.store().close();
-            newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            shards.assertAllEqual(totalDocs);
             // Make sure that flushing on a recovering shard is ok.
             shards.flush();
             shards.assertAllEqual(totalDocs);
@@ -406,31 +396,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 indexOnReplica(bulkShardRequest, shards, justReplica);
             }
 
-            logger.info("--> seqNo primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
-
-            logger.info("--> resyncing replicas");
+            logger.info("--> resyncing replicas seqno_stats primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
             if (syncedGlobalCheckPoint) {
                 assertEquals(extraDocs, task.getResyncedOperations());
             } else {
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
-            List<IndexShard> replicas = shards.getReplicas();
-
-            // check all docs on primary are available on replica
-            Set<String> primaryIds = getShardDocUIDs(newPrimary);
-            assertThat(primaryIds.size(), equalTo(initialDocs + extraDocs));
-            for (IndexShard replica : replicas) {
-                Set<String> replicaIds = getShardDocUIDs(replica);
-                Set<String> temp = new HashSet<>(primaryIds);
-                temp.removeAll(replicaIds);
-                assertThat(replica.routingEntry() + " is missing docs", temp, empty());
-                temp = new HashSet<>(replicaIds);
-                temp.removeAll(primaryIds);
-                // yeah, replica has more docs as there is no Lucene roll back on it
-                assertThat(replica.routingEntry() + " has to have extra docs", temp,
-                    extraDocsToBeTrimmed > 0 ? not(empty()) : empty());
-            }
+            shards.assertAllEqual(initialDocs + extraDocs);
 
             // check translog on replica is trimmed
             int translogOperations = 0;

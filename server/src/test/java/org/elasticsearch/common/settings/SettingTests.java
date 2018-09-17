@@ -180,6 +180,7 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33135")
     public void testValidateStringSetting() {
         Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
         Setting<String> stringSetting = Setting.simpleString("foo.bar", Property.NodeScope);
@@ -798,7 +799,7 @@ public class SettingTests extends ESTestCase {
             = expectThrows(IllegalArgumentException.class,
             () -> settingWithLowerBound.get(Settings.builder().put("foo", "4999ms").build()));
 
-        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [4999ms] for setting [foo] must be >= 5s"));
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [foo], must be >= [5s]"));
 
         Setting<TimeValue> settingWithBothBounds = Setting.timeSetting("bar",
             TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5), TimeValue.timeValueSeconds(20));
@@ -809,12 +810,12 @@ public class SettingTests extends ESTestCase {
         illegalArgumentException
             = expectThrows(IllegalArgumentException.class,
             () -> settingWithBothBounds.get(Settings.builder().put("bar", "4999ms").build()));
-        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [4999ms] for setting [bar] must be >= 5s"));
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [bar], must be >= [5s]"));
 
         illegalArgumentException
             = expectThrows(IllegalArgumentException.class,
             () -> settingWithBothBounds.get(Settings.builder().put("bar", "20001ms").build()));
-        assertThat(illegalArgumentException.getMessage(), equalTo("Failed to parse value [20001ms] for setting [bar] must be <= 20s"));
+        assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [20001ms] for setting [bar], must be <= [20s]"));
     }
 
     public void testSettingsGroupUpdater() {

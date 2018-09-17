@@ -316,7 +316,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         } else {
             adaptiveSelection = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             shards = in.readBoolean();
         } else {
             shards = false;
@@ -341,7 +341,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(adaptiveSelection);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(shards);
         }
     }

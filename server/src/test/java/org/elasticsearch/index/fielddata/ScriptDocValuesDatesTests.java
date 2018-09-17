@@ -88,6 +88,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             }
         );
 
+        boolean valuesExist = false;
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
@@ -95,6 +96,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dateValue);
             Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
             assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), bwcDateValue);
+            valuesExist |= expectedDates[d].length > 0;
 
             AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
             assertEquals(values[d].length, dates.size());
@@ -107,7 +109,9 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         // using "hasItems" here instead of "containsInAnyOrder",
         // because values are randomly initialized, sometimes some of docs will not have any values
         // and warnings in this case will contain another deprecation warning on missing values
-        assertThat(warnings, hasItems(expectedWarnings));
+        if (valuesExist) {
+            assertThat(warnings, hasItems(expectedWarnings));
+        }
     }
 
     private Dates wrap(long[][] values, BiConsumer<String, String> deprecationHandler, boolean useJavaTime) {

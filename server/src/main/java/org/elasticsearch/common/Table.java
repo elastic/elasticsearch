@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common;
 
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -83,7 +85,7 @@ public class Table {
         return this;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
+    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     public Table startRow() {
         if (headers.isEmpty()) {
@@ -93,7 +95,7 @@ public class Table {
         if (withTime) {
             long time = System.currentTimeMillis();
             addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
-            addCell(dateFormat.print(time));
+            addCell(FORMATTER.format(Instant.ofEpochMilli(time)));
         }
         return this;
     }

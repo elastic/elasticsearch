@@ -22,6 +22,30 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("LEFT", uf.functionName());
     }
 
+    public void testLiteralDouble() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Double.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MAX_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
+    public void testLiteralDoubleNegative() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Double.MIN_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MIN_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
+    public void testLiteralDoublePositive() throws Exception {
+        Expression lt = parser.createExpression("+" + Double.MAX_VALUE);
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Double.MAX_VALUE, l.value());
+        assertEquals(DataType.DOUBLE, l.dataType());
+    }
+
     public void testLiteralLong() throws Exception {
         Expression lt = parser.createExpression(String.valueOf(Long.MAX_VALUE));
         assertEquals(Literal.class, lt.getClass());
@@ -31,10 +55,9 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLiteralLongNegative() throws Exception {
-        // Long.MIN_VALUE doesn't work since it is being interpreted as negate positive.long which is 1 higher than Long.MAX_VALUE
-        Expression lt = parser.createExpression(String.valueOf(-Long.MAX_VALUE));
+        Expression lt = parser.createExpression(String.valueOf(Long.MIN_VALUE));
         assertTrue(lt.foldable());
-        assertEquals(-Long.MAX_VALUE, lt.fold());
+        assertEquals(Long.MIN_VALUE, lt.fold());
         assertEquals(DataType.LONG, lt.dataType());
     }
 

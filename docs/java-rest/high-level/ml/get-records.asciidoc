@@ -100,7 +100,7 @@ include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-records-l
 <1> `onResponse` is called back when the action is completed successfully
 <2> `onFailure` is called back when some unexpected error occurs
 
-[[java-rest-high-snapshot-ml-get-records-response]]
+[[java-rest-high-x-pack-ml-get-records-response]]
 ==== Get Records Response
 
 The returned `GetRecordsResponse` contains the requested records:

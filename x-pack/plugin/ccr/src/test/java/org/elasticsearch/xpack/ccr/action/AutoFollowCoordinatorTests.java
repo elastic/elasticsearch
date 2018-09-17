@@ -51,7 +51,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null, null);
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -69,19 +69,25 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, currentState) {
             @Override
-            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
                 AutoFollowMetadata result = resultCs.metaData().custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
@@ -98,7 +104,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null, null);
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -116,17 +122,23 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(null, failure);
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
                 fail("should not get here");
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };
@@ -146,7 +158,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null, null);
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -164,12 +176,17 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
@@ -196,7 +213,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null);
+            new AutoFollowPattern(Collections.singletonList("logs-*"), null, null, null, null, null, null, null, null, null);
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("remote", autoFollowPattern);
         Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
@@ -214,19 +231,25 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         };
         AutoFollower autoFollower = new AutoFollower(handler, followerState) {
             @Override
-            void getLeaderClusterState(String leaderClusterAlias, BiConsumer<ClusterState, Exception> handler) {
+            void getLeaderClusterState(Map<String, String> headers,
+                                       String leaderClusterAlias,
+                                       BiConsumer<ClusterState, Exception> handler) {
                 handler.accept(leaderState, null);
             }
 
             @Override
-            void createAndFollow(FollowIndexAction.Request followRequest, Runnable successHandler, Consumer<Exception> failureHandler) {
+            void createAndFollow(Map<String, String> headers,
+                                 FollowIndexAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
             }
 
             @Override
-            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
                 fail("should not get here");
             }
         };
@@ -236,7 +259,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testGetLeaderIndicesToFollow() {
         AutoFollowPattern autoFollowPattern =
-            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null);
+            new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null, null, null, null, null, null, null, null);
         ClusterState followerState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(Collections.singletonMap("remote", autoFollowPattern), Collections.emptyMap())))
@@ -282,15 +305,15 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testGetFollowerIndexName() {
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), null, null,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("metrics-0"));
 
         autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), "eu-metrics-0", null, null,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
 
         autoFollowPattern = new AutoFollowPattern(Collections.singletonList("metrics-*"), "eu-{{leader_index}}", null,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
         assertThat(AutoFollower.getFollowerIndexName(autoFollowPattern, "metrics-0"), equalTo("eu-metrics-0"));
     }
 

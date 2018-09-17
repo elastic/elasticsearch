@@ -129,8 +129,8 @@ public final class LicenseClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PostStartBasicResponse postStartBasic(PostStartBasicRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::postStartBasic, options,
+    public PostStartBasicResponse startBasic(PostStartBasicRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, LicenseRequestConverters::startBasic, options,
             PostStartBasicResponse::fromXContent, emptySet());
     }
 
@@ -139,9 +139,9 @@ public final class LicenseClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void postStartBasicAsync(PostStartBasicRequest request, RequestOptions options,
-                                    ActionListener<PostStartBasicResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::postStartBasic, options,
+    public void startBasicAsync(PostStartBasicRequest request, RequestOptions options,
+                                ActionListener<PostStartBasicResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, LicenseRequestConverters::startBasic, options,
             PostStartBasicResponse::fromXContent, listener, emptySet());
     }
 

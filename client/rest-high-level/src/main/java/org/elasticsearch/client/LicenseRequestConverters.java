@@ -64,7 +64,7 @@ public class LicenseRequestConverters {
         return request;
     }
 
-    static Request postStartBasic(PostStartBasicRequest postStartBasicRequest) {
+    static Request startBasic(PostStartBasicRequest postStartBasicRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("license")

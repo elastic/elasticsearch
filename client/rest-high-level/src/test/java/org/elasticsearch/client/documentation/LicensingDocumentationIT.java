@@ -224,7 +224,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::post-start-basic-execute
             PostStartBasicRequest request = new PostStartBasicRequest();
 
-            PostStartBasicResponse response = client.license().postStartBasic(request, RequestOptions.DEFAULT);
+            PostStartBasicResponse response = client.license().startBasic(request, RequestOptions.DEFAULT);
             //end::post-start-basic-execute
 
             //tag::post-start-basic-response
@@ -255,7 +255,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::post-start-basic-execute-async
-            client.license().postStartBasicAsync(
+            client.license().startBasicAsync(
                 request, RequestOptions.DEFAULT, listener); // <1>
             // end::post-start-basic-execute-async
 

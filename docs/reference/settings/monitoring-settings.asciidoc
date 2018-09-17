@@ -72,7 +72,7 @@ Controls whether statistics about your {es} cluster should be collected. Default
 This is different from xpack.monitoring.collection.enabled, which allows you to enable or disable
 all monitoring collection. However, this setting simply disables the collection of Elasticsearch
 data while still allowing other data (e.g., Kibana, Logstash, Beats, or APM Server monitoring data)
-to use through this cluster.
+to pass through this cluster.
 +
 You can update this setting through the
 <<cluster-update-settings,Cluster Update Settings API>>.

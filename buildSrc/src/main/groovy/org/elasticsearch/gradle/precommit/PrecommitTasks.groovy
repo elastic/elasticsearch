@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -87,6 +88,11 @@ class PrecommitTasks {
     private static Task configureJarHell(Project project) {
         Task task = project.tasks.create('jarHell', JarHellTask.class)
         task.classpath = project.sourceSets.test.runtimeClasspath
+        if (project.plugins.hasPlugin(ShadowPlugin)) {
+            task.classpath += project.configurations.bundle
+        }
+        task.dependsOn(project.sourceSets.test.classesTaskName)
+        task.javaHome = project.runtimeJavaHome
         return task
     }
 
@@ -205,22 +211,20 @@ class PrecommitTasks {
 
     private static Task configureNamingConventions(Project project) {
         if (project.sourceSets.findByName("test")) {
-            return project.tasks.create('namingConventions', NamingConventionsTask)
+            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
+            namingConventionsTask.javaHome = project.runtimeJavaHome
+            return namingConventionsTask
         }
         return null
     }
 
     private static Task configureLoggerUsage(Project project) {
-        Task loggerUsageTask = project.tasks.create('loggerUsageCheck', LoggerUsageTask.class)
-
         project.configurations.create('loggerUsagePlugin')
         project.dependencies.add('loggerUsagePlugin',
                 "org.elasticsearch.test:logger-usage:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
-
-        loggerUsageTask.configure {
+        return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
+            javaHome = project.runtimeJavaHome
         }
-
-        return loggerUsageTask
     }
 }

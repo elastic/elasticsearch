@@ -250,6 +250,7 @@ SIN             |SCALAR
 SINH            |SCALAR
 SQRT            |SCALAR
 TAN             |SCALAR
+TRUNCATE        |SCALAR
 ASCII           |SCALAR
 CHAR            |SCALAR
 BIT_LENGTH      |SCALAR
@@ -542,7 +543,7 @@ M              |63
 
 groupByAndAggExpression
 // tag::groupByAndAggExpression
-SELECT gender AS g, ROUND(MIN(salary) / 100) AS salary FROM emp GROUP BY gender;
+SELECT gender AS g, ROUND((MIN(salary) / 100), 0) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------

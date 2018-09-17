@@ -74,6 +74,7 @@ SIN             |SCALAR
 SINH            |SCALAR
 SQRT            |SCALAR
 TAN             |SCALAR
+TRUNCATE        |SCALAR
 ASCII           |SCALAR
 CHAR            |SCALAR
 BIT_LENGTH      |SCALAR

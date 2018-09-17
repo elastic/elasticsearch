@@ -60,7 +60,7 @@ The maximum period of inactivity between two data packets, before the
 request is aborted.
 
 `xpack.http.max_response_size`::
-Specifies the maximum size a HTTP response is allowed to have, defaults to
+Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
 [[ssl-notification-settings]]

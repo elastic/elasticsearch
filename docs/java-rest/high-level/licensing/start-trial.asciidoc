@@ -1,7 +1,7 @@
 [[java-rest-high-start-trial]]
 === Start Trial
 
-[[java-rest-high-start-license-execution]]
+[[java-rest-high-start-trial-execution]]
 ==== Execution
 
 This API creates and enables a trial license using the `startTrial()`
@@ -9,10 +9,10 @@ method.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc_tests}/LicensingDocumentationIT.java[start-trial-execute]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute]
 ---------------------------------------------------
 
-[[java-rest-high-start-license-response]]
+[[java-rest-high-start-trial-response]]
 ==== Response
 
 The returned `StartTrialResponse` returns a field indicating whether the
@@ -22,9 +22,9 @@ why.
 
 Acknowledgement messages may also be returned if this API was called without
 the `acknowledge` flag set to `true`.  In this case you need to display the
-messages to the end user and if they agree, resubmit the license with the
-`acknowledge` flag set to `true`. Please note that the request will still
-return a 200 return code even if requires an acknowledgement. So, it is
+messages to the end user and if they agree, resubmit the request with the
+`acknowledge` flag set to `true`. Please note that the response will still
+return a 200 return code even if it requires an acknowledgement. So, it is
 necessary to check the `acknowledged` flag.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -37,7 +37,7 @@ include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-response]
 registered
 <4> If this request did not cause a trial to start, a message explaining why
 <5> If the user's request did not have the `acknowledge` flag set, a summary
-of the user acknowledgement require for this API
+of the user's acknowledgement required for this API
 <6> If the user's request did not have the `acknowledge` flag set, contains
 keys of commercial features and values of messages describing how they will
 be affected by licensing changes as the result of starting a trial

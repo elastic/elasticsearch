@@ -84,25 +84,26 @@ public class FileStructure implements ToXContentObject, Writeable {
 
     public static final String EXPLAIN = "explain";
 
-    static final ParseField NUM_LINES_ANALYZED = new ParseField("num_lines_analyzed");
-    static final ParseField NUM_MESSAGES_ANALYZED = new ParseField("num_messages_analyzed");
-    static final ParseField SAMPLE_START = new ParseField("sample_start");
-    static final ParseField CHARSET = new ParseField("charset");
-    static final ParseField HAS_BYTE_ORDER_MARKER = new ParseField("has_byte_order_marker");
-    static final ParseField STRUCTURE = new ParseField("format");
-    static final ParseField MULTILINE_START_PATTERN = new ParseField("multiline_start_pattern");
-    static final ParseField EXCLUDE_LINES_PATTERN = new ParseField("exclude_lines_pattern");
-    static final ParseField COLUMN_NAMES = new ParseField("column_names");
-    static final ParseField HAS_HEADER_ROW = new ParseField("has_header_row");
-    static final ParseField DELIMITER = new ParseField("delimiter");
-    static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
-    static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
-    static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
-    static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
-    static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
-    static final ParseField MAPPINGS = new ParseField("mappings");
-    static final ParseField FIELD_STATS = new ParseField("field_stats");
-    static final ParseField EXPLANATION = new ParseField("explanation");
+    public static final ParseField NUM_LINES_ANALYZED = new ParseField("num_lines_analyzed");
+    public static final ParseField NUM_MESSAGES_ANALYZED = new ParseField("num_messages_analyzed");
+    public static final ParseField SAMPLE_START = new ParseField("sample_start");
+    public static final ParseField CHARSET = new ParseField("charset");
+    public static final ParseField HAS_BYTE_ORDER_MARKER = new ParseField("has_byte_order_marker");
+    public static final ParseField FORMAT = new ParseField("format");
+    public static final ParseField MULTILINE_START_PATTERN = new ParseField("multiline_start_pattern");
+    public static final ParseField EXCLUDE_LINES_PATTERN = new ParseField("exclude_lines_pattern");
+    public static final ParseField COLUMN_NAMES = new ParseField("column_names");
+    public static final ParseField HAS_HEADER_ROW = new ParseField("has_header_row");
+    public static final ParseField DELIMITER = new ParseField("delimiter");
+    public static final ParseField QUOTE = new ParseField("quote");
+    public static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
+    public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
+    public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
+    public static final ParseField TIMESTAMP_FORMATS = new ParseField("timestamp_formats");
+    public static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
+    public static final ParseField MAPPINGS = new ParseField("mappings");
+    public static final ParseField FIELD_STATS = new ParseField("field_stats");
+    public static final ParseField EXPLANATION = new ParseField("explanation");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("file_structure", false, Builder::new);
 
@@ -112,12 +113,13 @@ public class FileStructure implements ToXContentObject, Writeable {
         PARSER.declareString(Builder::setSampleStart, SAMPLE_START);
         PARSER.declareString(Builder::setCharset, CHARSET);
         PARSER.declareBoolean(Builder::setHasByteOrderMarker, HAS_BYTE_ORDER_MARKER);
-        PARSER.declareString((p, c) -> p.setFormat(Format.fromString(c)), STRUCTURE);
+        PARSER.declareString((p, c) -> p.setFormat(Format.fromString(c)), FORMAT);
         PARSER.declareString(Builder::setMultilineStartPattern, MULTILINE_START_PATTERN);
         PARSER.declareString(Builder::setExcludeLinesPattern, EXCLUDE_LINES_PATTERN);
         PARSER.declareStringArray(Builder::setColumnNames, COLUMN_NAMES);
         PARSER.declareBoolean(Builder::setHasHeaderRow, HAS_HEADER_ROW);
         PARSER.declareString((p, c) -> p.setDelimiter(c.charAt(0)), DELIMITER);
+        PARSER.declareString((p, c) -> p.setQuote(c.charAt(0)), QUOTE);
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
@@ -145,6 +147,7 @@ public class FileStructure implements ToXContentObject, Writeable {
     private final List<String> columnNames;
     private final Boolean hasHeaderRow;
     private final Character delimiter;
+    private final Character quote;
     private final Boolean shouldTrimFields;
     private final String grokPattern;
     private final List<String> timestampFormats;
@@ -156,8 +159,8 @@ public class FileStructure implements ToXContentObject, Writeable {
 
     public FileStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
                          Format format, String multilineStartPattern, String excludeLinesPattern, List<String> columnNames,
-                         Boolean hasHeaderRow, Character delimiter, Boolean shouldTrimFields, String grokPattern, String timestampField,
-                         List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
+                         Boolean hasHeaderRow, Character delimiter, Character quote, Boolean shouldTrimFields, String grokPattern,
+                         String timestampField, List<String> timestampFormats, boolean needClientTimezone, Map<String, Object> mappings,
                          Map<String, FieldStats> fieldStats, List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
@@ -171,6 +174,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         this.columnNames = (columnNames == null) ? null : Collections.unmodifiableList(new ArrayList<>(columnNames));
         this.hasHeaderRow = hasHeaderRow;
         this.delimiter = delimiter;
+        this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
         this.timestampField = timestampField;
@@ -193,6 +197,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
+        quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
         timestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
@@ -225,6 +230,12 @@ public class FileStructure implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(true);
             out.writeVInt(delimiter);
+        }
+        if (quote == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(quote);
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
@@ -285,6 +296,10 @@ public class FileStructure implements ToXContentObject, Writeable {
         return delimiter;
     }
 
+    public Character getQuote() {
+        return quote;
+    }
+
     public Boolean getShouldTrimFields() {
         return shouldTrimFields;
     }
@@ -328,7 +343,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         if (hasByteOrderMarker != null) {
             builder.field(HAS_BYTE_ORDER_MARKER.getPreferredName(), hasByteOrderMarker.booleanValue());
         }
-        builder.field(STRUCTURE.getPreferredName(), format);
+        builder.field(FORMAT.getPreferredName(), format);
         if (multilineStartPattern != null && multilineStartPattern.isEmpty() == false) {
             builder.field(MULTILINE_START_PATTERN.getPreferredName(), multilineStartPattern);
         }
@@ -343,6 +358,9 @@ public class FileStructure implements ToXContentObject, Writeable {
         }
         if (delimiter != null) {
             builder.field(DELIMITER.getPreferredName(), String.valueOf(delimiter));
+        }
+        if (quote != null) {
+            builder.field(QUOTE.getPreferredName(), String.valueOf(quote));
         }
         if (shouldTrimFields != null) {
             builder.field(SHOULD_TRIM_FIELDS.getPreferredName(), shouldTrimFields.booleanValue());
@@ -377,8 +395,8 @@ public class FileStructure implements ToXContentObject, Writeable {
     public int hashCode() {
 
         return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-            multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, shouldTrimFields, grokPattern, timestampField,
-            timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
+            multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
+            timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
     }
 
     @Override
@@ -405,6 +423,7 @@ public class FileStructure implements ToXContentObject, Writeable {
             Objects.equals(this.columnNames, that.columnNames) &&
             Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
             Objects.equals(this.delimiter, that.delimiter) &&
+            Objects.equals(this.quote, that.quote) &&
             Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
             Objects.equals(this.grokPattern, that.grokPattern) &&
             Objects.equals(this.timestampField, that.timestampField) &&
@@ -427,6 +446,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         private List<String> columnNames;
         private Boolean hasHeaderRow;
         private Character delimiter;
+        private Character quote;
         private Boolean shouldTrimFields;
         private String grokPattern;
         private String timestampField;
@@ -496,6 +516,11 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public Builder setDelimiter(Character delimiter) {
             this.delimiter = delimiter;
+            return this;
+        }
+
+        public Builder setQuote(Character quote) {
+            this.quote = quote;
             return this;
         }
 
@@ -582,6 +607,9 @@ public class FileStructure implements ToXContentObject, Writeable {
                     if (delimiter != null) {
                         throw new IllegalArgumentException("Delimiter may not be specified for [" + format + "] structures.");
                     }
+                    if (quote != null) {
+                        throw new IllegalArgumentException("Quote may not be specified for [" + format + "] structures.");
+                    }
                     if (grokPattern != null) {
                         throw new IllegalArgumentException("Grok pattern may not be specified for [" + format + "] structures.");
                     }
@@ -609,6 +637,9 @@ public class FileStructure implements ToXContentObject, Writeable {
                     }
                     if (delimiter != null) {
                         throw new IllegalArgumentException("Delimiter may not be specified for [" + format + "] structures.");
+                    }
+                    if (quote != null) {
+                        throw new IllegalArgumentException("Quote may not be specified for [" + format + "] structures.");
                     }
                     if (shouldTrimFields != null) {
                         throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
@@ -638,7 +669,7 @@ public class FileStructure implements ToXContentObject, Writeable {
             }
 
             return new FileStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-                multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, shouldTrimFields, grokPattern,
+                multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
                 timestampField, timestampFormats, needClientTimezone, mappings, fieldStats, explanation);
         }
     }

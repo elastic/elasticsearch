@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +50,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SortScript;
+import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -305,9 +305,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SortScript.Factory factory = context.getScriptService().compile(script, SortScript.CONTEXT);
-        final SortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
@@ -328,8 +325,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
+                final StringSortScript.Factory factory = context.getScriptService().compile(script, StringSortScript.CONTEXT);
+                final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    SortScript leafScript;
+                    StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = searchScript.newInstance(context);
@@ -342,9 +341,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public BytesRef binaryValue() {
-                                final Object run = leafScript.execute();
-                                CollectionUtils.ensureNoSelfReferences(run, "ScriptSortBuilder leaf script");
-                                spare.copyChars(run.toString());
+                                spare.copyChars(leafScript.execute());
                                 return spare.get();
                             }
                         };
@@ -357,11 +354,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 };
                 break;
             case NUMBER:
+                final NumberSortScript.Factory numberSortFactory = context.getScriptService().compile(script, NumberSortScript.CONTEXT);
+                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    SortScript leafScript;
+                    NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(context);
+                        leafScript = numberSortScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {

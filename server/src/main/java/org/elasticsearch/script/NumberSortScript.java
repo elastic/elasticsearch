@@ -30,11 +30,11 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-public abstract class SortScript implements ScorerAware {
+public abstract class NumberSortScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};
 
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("sort", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("number_sort", Factory.class);
 
     private static final Map<String, String> DEPRECATIONS;
 
@@ -66,7 +66,7 @@ public abstract class SortScript implements ScorerAware {
      */
     private final LeafSearchLookup leafLookup;
 
-    public SortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+    public NumberSortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.params = new ParameterMap(params, DEPRECATIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
     }
@@ -108,20 +108,20 @@ public abstract class SortScript implements ScorerAware {
     }
 
     public double runAsDouble() {
-        return ((Number) execute()).doubleValue();
+        return execute().doubleValue();
     }
 
-    public abstract Object execute();
+    public abstract Number execute();
 
     /**
-     * A factory to construct {@link SortScript} instances.
+     * A factory to construct {@link NumberSortScript} instances.
      */
     public interface LeafFactory {
-        SortScript newInstance(LeafReaderContext ctx) throws IOException;
+        NumberSortScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
     /**
-     * A factory to construct stateful {@link SortScript} factories for a specific index.
+     * A factory to construct stateful {@link NumberSortScript} factories for a specific index.
      */
     public interface Factory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

@@ -97,19 +97,31 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        } else if(context.instanceClazz.equals(SortScript.class)) {
-            SortScript.Factory factory = (parameters, lookup) -> (SortScript.LeafFactory) ctx
-                -> new SortScript(parameters, lookup, ctx) {
+        } else if (context.instanceClazz.equals(NumberSortScript.class)) {
+            NumberSortScript.Factory factory = (parameters, lookup) -> (NumberSortScript.LeafFactory) ctx
+                -> new NumberSortScript(parameters, lookup, ctx) {
                 @Override
-                public Object execute() {
+                public Number execute() {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
-                    return script.apply(vars);
+                    return (Number) script.apply(vars);
                 }
             };
             return context.factoryClazz.cast(factory);
-    } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+        } else if (context.instanceClazz.equals(StringSortScript.class)) {
+            StringSortScript.Factory factory = (parameters, lookup) -> (StringSortScript.LeafFactory) ctx
+                -> new StringSortScript(parameters, lookup, ctx) {
+                @Override
+                public String execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return String.valueOf(script.apply(vars));
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestScript.class)) {

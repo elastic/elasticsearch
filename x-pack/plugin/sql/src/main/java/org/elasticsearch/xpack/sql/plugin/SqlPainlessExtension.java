@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.StringSortScript;
 
 import static java.util.Collections.singletonList;
 
@@ -31,6 +32,7 @@ public class SqlPainlessExtension implements PainlessExtension {
         whitelist.put(SearchScript.AGGS_CONTEXT, list);
         whitelist.put(SearchScript.CONTEXT, list);
         whitelist.put(NumberSortScript.CONTEXT, list);
+        whitelist.put(StringSortScript.CONTEXT, list);
         return whitelist;
     }
 }

@@ -19,92 +19,18 @@
 package org.elasticsearch.script;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorable;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-public abstract class NumberSortScript implements ScorerAware {
+public abstract class NumberSortScript extends AbstractSortScript {
 
     public static final String[] PARAMETERS = {};
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("number_sort", Factory.class);
 
-    private static final Map<String, String> DEPRECATIONS;
-
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within a sort-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within a sort-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
-
-    /**
-     * The generic runtime parameters for the script.
-     */
-    private final Map<String, Object> params;
-
-    /** A scorer that will return the score for the current document when the script is run. */
-    private Scorable scorer;
-
-    /**
-     * A leaf lookup for the bound segment this script will operate on.
-     */
-    private final LeafSearchLookup leafLookup;
-
     public NumberSortScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new ParameterMap(params, DEPRECATIONS);
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
-    }
-
-    /**
-     * Return the parameters for this script.
-     */
-    public Map<String, Object> getParams() {
-        this.params.putAll(leafLookup.asMap());
-        return params;
-    }
-
-    @Override
-    public void setScorer(Scorable scorer) {
-        this.scorer = scorer;
-    }
-
-    /** Return the score of the current document. */
-    public double getScore() {
-        try {
-            return scorer.score();
-        } catch (IOException e) {
-            throw new ElasticsearchException("couldn't lookup score", e);
-        }
-    }
-
-    /**
-     * The doc lookup for the Lucene segment this script was created for.
-     */
-    public Map<String, ScriptDocValues<?>> getDoc() {
-        return leafLookup.doc();
-    }
-
-    /**
-     * Set the current document to run the script on next.
-     */
-    public void setDocument(int docid) {
-        leafLookup.setDocument(docid);
+        super(params, lookup, leafContext);
     }
 
     public double runAsDouble() {

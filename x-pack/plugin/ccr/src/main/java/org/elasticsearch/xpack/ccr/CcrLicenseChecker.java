@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
@@ -124,7 +124,7 @@ public final class CcrLicenseChecker {
                 leaderClusterState -> {
                     IndexMetaData leaderIndexMetaData = leaderClusterState.getMetaData().index(leaderIndex);
                     final Client leaderClient = client.getRemoteClusterClient(clusterAlias);
-                    hasPrivilegesToFollowIndex(leaderClient, leaderIndex, e -> {
+                    hasPrivilegesToFollowIndex(leaderClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
                             fetchLeaderHistoryUUIDs(leaderClient, leaderIndexMetaData, onFailure, historyUUIDs -> {
                                 consumer.accept(historyUUIDs, leaderIndexMetaData);
@@ -275,7 +275,7 @@ public final class CcrLicenseChecker {
 
     public void hasPrivilegesToFollowIndex(
         final Client leaderClient,
-        final String index,
+        final String[] indices,
         Consumer<Exception> handler
     ) {
         if (isAuthAllowed.getAsBoolean() == false) {
@@ -288,7 +288,7 @@ public final class CcrLicenseChecker {
         String username = securityContext.getUser().principal();
 
         RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(index)
+            .indices(indices)
             .privileges(IndicesStatsAction.NAME, ShardChangesAction.NAME)
             .build();
 
@@ -301,10 +301,8 @@ public final class CcrLicenseChecker {
             if (response.isCompleteMatch()) {
                 handler.accept(null);
             } else {
-                StringBuilder message = new StringBuilder("insufficient privileges to follow index [");
-                message.append(index);
-                message.append(']');
-                assert response.getIndexPrivileges().size() == 1;
+                StringBuilder message = new StringBuilder("insufficient privileges to follow index ");
+                message.append(Arrays.toString(indices));
 
                 HasPrivilegesResponse.ResourcePrivileges resourcePrivileges = response.getIndexPrivileges().get(0);
                 for (Map.Entry<String, Boolean> entry : resourcePrivileges.getPrivileges().entrySet()) {

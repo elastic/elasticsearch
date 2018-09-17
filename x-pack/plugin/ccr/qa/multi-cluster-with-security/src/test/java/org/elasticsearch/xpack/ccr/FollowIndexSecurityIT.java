@@ -139,8 +139,15 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         String allowedIndex = "logs-eu-20190101";
         String disallowedIndex = "logs-us-20190101";
 
+        {
+            Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
+            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+            Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
+        }
+
         Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"]}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

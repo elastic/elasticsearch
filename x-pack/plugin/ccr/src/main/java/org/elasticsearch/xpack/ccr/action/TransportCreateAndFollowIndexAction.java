@@ -124,7 +124,7 @@ public final class TransportCreateAndFollowIndexAction
         Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };
-        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, leaderIndex, e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, new String[] {leaderIndex}, e -> {
             if (e == null) {
                 ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
             } else {

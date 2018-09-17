@@ -115,7 +115,7 @@ public class TransportFollowIndexAction extends HandledTransportAction<FollowInd
         if (leaderIndexMetadata == null) {
             throw new IndexNotFoundException(request.getFollowerIndex());
         }
-        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, request.getLeaderIndex(), e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndex(client, new String[] {request.getLeaderIndex()}, e -> {
             if (e == null) {
                 ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
                     try {

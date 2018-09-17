@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -25,41 +26,41 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetJobRequestTests extends AbstractXContentTestCase<GetJobRequest> {
+public class GetDatafeedRequestTests extends AbstractXContentTestCase<GetDatafeedRequest> {
 
-    public void testAllJobsRequest() {
-        GetJobRequest request = GetJobRequest.getAllJobsRequest();
+    public void testAllDatafeedRequest() {
+        GetDatafeedRequest request = GetDatafeedRequest.getAllDatafeedsRequest();
 
-        assertEquals(request.getJobIds().size(), 1);
-        assertEquals(request.getJobIds().get(0), "_all");
+        assertEquals(request.getDatafeedIds().size(), 1);
+        assertEquals(request.getDatafeedIds().get(0), "_all");
     }
 
-    public void testNewWithJobId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobRequest("job",null));
-        assertEquals(exception.getMessage(), "jobIds must not contain null values");
+    public void testNewWithDatafeedId() {
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetDatafeedRequest("feed",null));
+        assertEquals(exception.getMessage(), "datafeedIds must not contain null values");
     }
 
     @Override
-    protected GetJobRequest createTestInstance() {
-        int jobCount = randomIntBetween(0, 10);
-        List<String> jobIds = new ArrayList<>(jobCount);
+    protected GetDatafeedRequest createTestInstance() {
+        int count = randomIntBetween(0, 10);
+        List<String> datafeedIds = new ArrayList<>(count);
 
-        for (int i = 0; i < jobCount; i++) {
-            jobIds.add(randomAlphaOfLength(10));
+        for (int i = 0; i < count; i++) {
+            datafeedIds.add(DatafeedConfigTests.randomValidDatafeedId());
         }
 
-        GetJobRequest request = new GetJobRequest(jobIds);
+        GetDatafeedRequest request = new GetDatafeedRequest(datafeedIds);
 
         if (randomBoolean()) {
-            request.setAllowNoJobs(randomBoolean());
+            request.setAllowNoDatafeeds(randomBoolean());
         }
 
         return request;
     }
 
     @Override
-    protected GetJobRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetJobRequest.PARSER.parse(parser, null);
+    protected GetDatafeedRequest doParseInstance(XContentParser parser) throws IOException {
+        return GetDatafeedRequest.PARSER.parse(parser, null);
     }
 
     @Override

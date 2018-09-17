@@ -18,52 +18,41 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
-public class GetJobRequestTests extends AbstractXContentTestCase<GetJobRequest> {
+public class GetDatafeedResponseTests extends AbstractXContentTestCase<GetDatafeedResponse> {
 
-    public void testAllJobsRequest() {
-        GetJobRequest request = GetJobRequest.getAllJobsRequest();
-
-        assertEquals(request.getJobIds().size(), 1);
-        assertEquals(request.getJobIds().get(0), "_all");
-    }
-
-    public void testNewWithJobId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetJobRequest("job",null));
-        assertEquals(exception.getMessage(), "jobIds must not contain null values");
+    @Override
+    protected GetDatafeedResponse createTestInstance() {
+        int count = randomIntBetween(1, 5);
+        List<DatafeedConfig.Builder> results = new ArrayList<>(count);
+        for(int i = 0; i < count; i++) {
+            DatafeedConfigTests.createRandomBuilder();
+            results.add(DatafeedConfigTests.createRandomBuilder());
+        }
+        return new GetDatafeedResponse(results, count);
     }
 
     @Override
-    protected GetJobRequest createTestInstance() {
-        int jobCount = randomIntBetween(0, 10);
-        List<String> jobIds = new ArrayList<>(jobCount);
-
-        for (int i = 0; i < jobCount; i++) {
-            jobIds.add(randomAlphaOfLength(10));
-        }
-
-        GetJobRequest request = new GetJobRequest(jobIds);
-
-        if (randomBoolean()) {
-            request.setAllowNoJobs(randomBoolean());
-        }
-
-        return request;
+    protected GetDatafeedResponse doParseInstance(XContentParser parser) throws IOException {
+        return GetDatafeedResponse.fromXContent(parser);
     }
 
     @Override
-    protected GetJobRequest doParseInstance(XContentParser parser) throws IOException {
-        return GetJobRequest.PARSER.parse(parser, null);
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

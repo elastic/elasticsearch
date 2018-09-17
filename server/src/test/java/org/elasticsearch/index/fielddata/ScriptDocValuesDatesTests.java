@@ -47,7 +47,6 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         assertDateDocValues(true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32779")
     public void testJodaTimeBwc() throws IOException {
         assertDateDocValues(false, "The joda time api for doc values is deprecated." +
             " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values");
@@ -71,6 +70,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             }
         }
 
+
         Set<String> warnings = new HashSet<>();
         Dates dates = wrap(values, deprecationMessage -> {
             warnings.add(deprecationMessage);
@@ -86,12 +86,14 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             }
         );
 
+        boolean valuesExist = false;
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
             if (expectedDates[d].length > 0) {
                 Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
                 assertEquals(expectedDates[d][0] , dateValue);
+                valuesExist = true;
             } else {
                 Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
                 assertEquals("A document doesn't have a value for a field! " +
@@ -106,7 +108,9 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             }
         }
 
-        assertThat(warnings, containsInAnyOrder(expectedWarnings));
+        if (valuesExist) {
+            assertThat(warnings, containsInAnyOrder(expectedWarnings));
+        }
     }
 
     private Dates wrap(long[][] values, Consumer<String> deprecationHandler, boolean useJavaTime) {

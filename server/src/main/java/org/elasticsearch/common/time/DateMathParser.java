@@ -58,10 +58,10 @@ public class DateMathParser {
         ROUND_UP_BASE_FIELDS.put(ChronoField.MILLI_OF_SECOND, 999L);
     }
 
-    private final CompoundDateTimeFormatter formatter;
-    private final CompoundDateTimeFormatter roundUpFormatter;
+    private final DateFormatter formatter;
+    private final DateFormatter roundUpFormatter;
 
-    public DateMathParser(CompoundDateTimeFormatter formatter) {
+    public DateMathParser(DateFormatter formatter) {
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
         this.roundUpFormatter = formatter.parseDefaulting(ROUND_UP_BASE_FIELDS);
@@ -247,7 +247,7 @@ public class DateMathParser {
     }
 
     private long parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
-        CompoundDateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        DateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
                 return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant().toEpochMilli();

@@ -11,8 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -21,12 +25,15 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -71,7 +78,7 @@ public class JobStorageDeletionTask extends Task {
 
         ActionListener<Boolean> deleteAliasHandler = ActionListener.wrap(finishedHandler, failureHandler);
 
-        // Step 5. DBQ state done, delete the aliases
+        // Step 6. DBQ state done, delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
                     if (bulkByScrollResponse.isTimedOut()) {
@@ -89,8 +96,8 @@ public class JobStorageDeletionTask extends Task {
                 },
                 failureHandler);
 
-        // Step 4. Delete categorizer state done, DeleteByQuery on the index, matching all docs with the right job_id
-        ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
+        // Step 5. If we did not delete the index, we run a delete by query
+        ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
                     logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
                     DeleteByQueryRequest request = new DeleteByQueryRequest(indexName, indexPattern);
@@ -105,6 +112,72 @@ public class JobStorageDeletionTask extends Task {
                     executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
                 },
                 failureHandler);
+
+        // Step 4(c). If we have any hits, that means we are NOT the only job on this index, and should not delete it
+        ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse.getHits().totalHits > 0) {
+                    deleteByQueryExecutor.onResponse(true);
+                } else {
+                    logger.info("Running DELETE Index on [" + indexName + "] for job [" + jobId + "]");
+                    DeleteIndexRequest request = new DeleteIndexRequest(indexName);
+                    request.indicesOptions(IndicesOptions.lenientExpandOpen());
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        ML_ORIGIN,
+                        request,
+                        ActionListener.<AcknowledgedResponse>wrap(
+                            deleteIndexResponse -> deleteAliases(jobId, client, deleteAliasHandler), //skip DBQ
+                            failureHandler),
+                        client.admin().indices()::delete);
+                }
+            },
+            failureHandler
+        );
+
+        // Step 4(b). If we are shared, skip index deletion. If not, determine if we are the only job on the custom index
+        ActionListener<GetAliasesResponse> getAliasesHandler = ActionListener.wrap(
+            aliasesResponse -> {
+                boolean onlySingleJob = true;
+                for (AliasMetaData aliasMetaData : aliasesResponse.getAliases().getOrDefault(indexName, new ArrayList<>())) {
+                    onlySingleJob = onlySingleJob && aliasMetaData.alias().endsWith(jobId); // circuit break for performance
+                }
+                if (onlySingleJob) { // Could we just skip this search and simply rely on the index suffixes?
+                    SearchSourceBuilder source = new SearchSourceBuilder();
+                    BoolQueryBuilder builder = QueryBuilders.boolQuery().filter(
+                        QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId)));
+
+                    source.query(builder).size(1);
+
+                    SearchRequest searchRequest = new SearchRequest(indexName);
+                    searchRequest.source(source);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
+                } else {
+                    deleteByQueryExecutor.onResponse(true);
+                }
+            },
+            failureHandler
+        );
+
+        // Step 4. Determine if we are on a shared index by looking at `.ml-anomalies-shared` or the custom index's aliases
+        ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
+            response -> {
+                if (indexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
+                    AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+                    deleteByQueryExecutor.onResponse(true); //don't bother searching the index any further, we are on the default shared
+                } else {
+                    GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+                    aliasesRequest.indices(indexName);
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        ML_ORIGIN,
+                        aliasesRequest,
+                        getAliasesHandler,
+                        client.admin().indices()::getAliases);
+                }
+            },
+            failureHandler
+        );
 
         // Step 3. Delete quantiles done, delete the categorizer state
         ActionListener<Boolean> deleteQuantilesHandler = ActionListener.wrap(

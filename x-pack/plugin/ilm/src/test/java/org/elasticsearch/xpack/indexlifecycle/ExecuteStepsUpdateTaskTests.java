@@ -48,6 +48,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ExecuteStepsUpdateTaskTests extends ESTestCase {
@@ -156,18 +157,18 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(thirdStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(-1L));
-        assertThat(lifecycleState.getActionTime(), equalTo(-1L));
-        assertThat(lifecycleState.getStepInfo(), equalTo(""));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepInfo(), nullValue());
     }
 
     public void testExecuteInvalidStartStep() throws IOException {
         // Unset the index's phase/action/step to simulate starting from scratch
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
             LifecycleExecutionState.fromIndexMetadata(clusterState.getMetaData().index(index)));
-        lifecycleState.setPhase("");
-        lifecycleState.setAction("");
-        lifecycleState.setStep("");
+        lifecycleState.setPhase(null);
+        lifecycleState.setAction(null);
+        lifecycleState.setStep(null);
         clusterState = ClusterState.builder(clusterState)
             .metaData(MetaData.builder(clusterState.getMetaData())
                 .put(IndexMetaData.builder(clusterState.getMetaData().index(index))
@@ -194,9 +195,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(-1L));
-        assertThat(lifecycleState.getActionTime(), equalTo(-1L));
-        assertThat(lifecycleState.getStepInfo(), equalTo(""));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepInfo(), nullValue());
     }
 
     public void testExecuteIncompleteWaitStepWithInfo() throws IOException {
@@ -213,8 +214,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(-1L));
-        assertThat(lifecycleState.getActionTime(), equalTo(-1L));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
         assertThat(lifecycleState.getStepInfo(), equalTo(stepInfo.toString()));
     }
 

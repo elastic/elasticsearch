@@ -29,6 +29,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SetStepInfoUpdateTaskTests extends ESTestCase {
@@ -62,9 +63,9 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
         StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(currentStepKey));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(-1L));
-        assertThat(lifecycleState.getActionTime(), equalTo(-1L));
-        assertThat(lifecycleState.getStepTime(), equalTo(-1L));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepTime(), nullValue());
 
         XContentBuilder infoXContentBuilder = JsonXContent.contentBuilder();
         stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);

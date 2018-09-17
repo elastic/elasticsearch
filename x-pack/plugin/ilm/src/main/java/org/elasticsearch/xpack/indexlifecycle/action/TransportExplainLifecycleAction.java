@@ -71,15 +71,15 @@ public class TransportExplainLifecycleAction
             if (Strings.hasLength(policyName)) {
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                     LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
-                    lifecycleState.getIndexCreationDate(),
-                    lifecycleState.getPhase(),
-                    lifecycleState.getAction(),
-                    lifecycleState.getStep(),
-                    lifecycleState.getFailedStep(),
-                    lifecycleState.getPhaseTime(),
-                    lifecycleState.getActionTime(),
-                    lifecycleState.getStepTime(),
-                    new BytesArray(lifecycleState.getStepInfo()));
+                    lifecycleState.getIndexCreationDate() == null ? -1 : lifecycleState.getIndexCreationDate(),
+                    lifecycleState.getPhase() == null ? "" : lifecycleState.getPhase(),
+                    lifecycleState.getAction() == null ? "" : lifecycleState.getAction(),
+                    lifecycleState.getStep() == null ? "" : lifecycleState.getStep(),
+                    lifecycleState.getFailedStep() == null ? "" : lifecycleState.getFailedStep(),
+                    lifecycleState.getPhaseTime() == null ? -1 : lifecycleState.getPhaseTime(),
+                    lifecycleState.getActionTime() == null ? -1 : lifecycleState.getActionTime(),
+                    lifecycleState.getStepTime() == null ? -1 : lifecycleState.getStepTime(),
+                    new BytesArray(lifecycleState.getStepInfo() == null ? "" : lifecycleState.getStepInfo()));
             } else {
                 indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             }

@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
@@ -39,9 +39,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -63,12 +61,12 @@ public class IndexLifecycleRunner {
      */
     boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (lifecycleState.getIndexCreationDate() == -1L) {
+        if (lifecycleState.getIndexCreationDate() == null) {
             logger.trace("no index creation date has been set yet");
             return true;
         }
-        final long lifecycleDate = lifecycleState.getIndexCreationDate();
-        assert lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
+        final Long lifecycleDate = lifecycleState.getIndexCreationDate();
+        assert lifecycleDate != null && lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
         final TimeValue age = new TimeValue(now - lifecycleDate);
@@ -313,8 +311,8 @@ public class IndexLifecycleRunner {
         updatedState.setStepTime(nowAsMillis);
 
         // clear any step info or error-related settings from the current step
-        updatedState.setFailedStep("");
-        updatedState.setStepInfo("");
+        updatedState.setFailedStep(null);
+        updatedState.setStepInfo(null);
 
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             final String newPhaseDefinition;
@@ -323,7 +321,7 @@ public class IndexLifecycleRunner {
             } else {
                 Phase nextPhase = policy.getPhases().get(nextStep.getPhase());
                 if (nextPhase == null) {
-                    newPhaseDefinition = "";
+                    newPhaseDefinition = null;
                 } else {
                     newPhaseDefinition = Strings.toString(nextPhase, false, false);
                 }
@@ -476,10 +474,8 @@ public class IndexLifecycleRunner {
         newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey());
         newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey());
 
-        Map<String, String> newCustomData = new HashMap<>();
-
         return IndexMetaData.builder(indexMetadata)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData)
+            .removeCustom(ILM_CUSTOM_METADATA_KEY)
             .settings(newSettings);
     }
 }

@@ -394,7 +394,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         phase = randomAlphaOfLength(20);
         action = randomAlphaOfLength(20);
-        step = "";
+        step = null;
         LifecycleExecutionState.Builder lifecycleState3 = LifecycleExecutionState.builder();
         lifecycleState3.setPhase(phase);
         lifecycleState3.setAction(action);
@@ -402,9 +402,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         AssertionError error3 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(lifecycleState3.build()));
         assertEquals("Current phase is not empty: " + phase, error3.getMessage());
 
-        phase = "";
+        phase = null;
         action = randomAlphaOfLength(20);
-        step = "";
+        step = null;
         LifecycleExecutionState.Builder lifecycleState4 = LifecycleExecutionState.builder();
         lifecycleState4.setPhase(phase);
         lifecycleState4.setAction(action);
@@ -412,7 +412,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         AssertionError error4 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(lifecycleState4.build()));
         assertEquals("Current action is not empty: " + action, error4.getMessage());
 
-        phase = "";
+        phase = null;
         action = randomAlphaOfLength(20);
         step = randomAlphaOfLength(20);
         LifecycleExecutionState.Builder lifecycleState5 = LifecycleExecutionState.builder();
@@ -422,8 +422,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         AssertionError error5 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(lifecycleState5.build()));
         assertEquals(null, error5.getMessage());
 
-        phase = "";
-        action = "";
+        phase = null;
+        action = null;
         step = randomAlphaOfLength(20);
         LifecycleExecutionState.Builder lifecycleState6 = LifecycleExecutionState.builder();
         lifecycleState6.setPhase(phase);
@@ -924,7 +924,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         String newPolicyName = "new_policy";
         LifecyclePolicy newPolicy = newTestLifecyclePolicy(newPolicyName, Collections.emptyMap());
-        StepKey currentStep = new StepKey("", "", "");
+        StepKey currentStep = new StepKey(null, null, null);
         Settings.Builder indexSettingsBuilder = Settings.builder();
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, LifecycleExecutionState.builder().build(),
             Collections.emptyList());
@@ -1160,20 +1160,20 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (Objects.equals(previousStep.getPhase(), expectedStep.getPhase())) {
             assertEquals(oldLifecycleState.getPhase(), newLifecycleState.getPhase());
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime());
+            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
         }
         if (Objects.equals(previousStep.getAction(), expectedStep.getAction())) {
             assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
         } else {
-            assertEquals(now, newLifecycleState.getActionTime());
+            assertEquals(now, newLifecycleState.getActionTime().longValue());
         }
         if (Objects.equals(previousStep.getName(), expectedStep.getName())) {
             assertEquals(oldLifecycleState.getStepTime(), newLifecycleState.getStepTime());
         } else {
-            assertEquals(now, newLifecycleState.getStepTime());
+            assertEquals(now, newLifecycleState.getStepTime().longValue());
         }
-        assertEquals("", newLifecycleState.getFailedStep());
-        assertEquals("", newLifecycleState.getStepInfo());
+        assertEquals(null, newLifecycleState.getFailedStep());
+        assertEquals(null, newLifecycleState.getStepInfo());
     }
 
     public static void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep,
@@ -1194,16 +1194,16 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         if (currentStep.getPhase().equals(nextStep.getPhase())) {
             assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime());
+            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
         }
         if (currentStep.getAction().equals(nextStep.getAction())) {
             assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
         } else {
-            assertEquals(now, newLifecycleState.getActionTime());
+            assertEquals(now, newLifecycleState.getActionTime().longValue());
         }
-        assertEquals(now, newLifecycleState.getStepTime());
-        assertEquals("", newLifecycleState.getFailedStep());
-        assertEquals("", newLifecycleState.getStepInfo());
+        assertEquals(now, newLifecycleState.getStepTime().longValue());
+        assertEquals(null, newLifecycleState.getFailedStep());
+        assertEquals(null, newLifecycleState.getStepInfo());
     }
 
     private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep,
@@ -1225,7 +1225,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(expectedCauseValue, newLifecycleState.getStepInfo());
         assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
         assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(now, newLifecycleState.getStepTime());
+        assertEquals(now, newLifecycleState.getStepTime().longValue());
     }
 
     private void assertClusterStateStepInfo(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,

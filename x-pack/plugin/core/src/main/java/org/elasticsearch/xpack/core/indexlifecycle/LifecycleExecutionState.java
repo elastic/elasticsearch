@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Collections;
@@ -13,6 +14,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Contains information about the execution of a lifecycle policy for a single
+ * index, and serializes/deserializes this information to and from custom
+ * index metadata.
+ */
 public class LifecycleExecutionState {
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
 
@@ -33,14 +39,14 @@ public class LifecycleExecutionState {
     private final String failedStep;
     private final String stepInfo;
     private final String phaseDefinition;
-    private final long indexCreationDate;
-    private final long phaseTime;
-    private final long actionTime;
-    private final long stepTime;
+    private final Long indexCreationDate;
+    private final Long phaseTime;
+    private final Long actionTime;
+    private final Long stepTime;
 
     private LifecycleExecutionState(String phase, String action, String step, String failedStep,
-                                    String stepInfo, String phaseDefinition, long indexCreationDate,
-                                    long phaseTime, long actionTime, long stepTime) {
+                                    String stepInfo, String phaseDefinition, Long indexCreationDate,
+                                    Long phaseTime, Long actionTime, Long stepTime) {
         this.phase = phase;
         this.action = action;
         this.step = step;
@@ -85,18 +91,58 @@ public class LifecycleExecutionState {
     }
 
     static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
-        return new Builder()
-            .setPhase(customData.getOrDefault(PHASE, ""))
-            .setAction(customData.getOrDefault(ACTION, ""))
-            .setStep(customData.getOrDefault(STEP, ""))
-            .setFailedStep(customData.getOrDefault(FAILED_STEP, ""))
-            .setStepInfo(customData.getOrDefault(STEP_INFO, ""))
-            .setPhaseDefinition(customData.getOrDefault(PHASE_DEFINITION, ""))
-            .setIndexCreationDate(Long.parseLong(customData.getOrDefault(INDEX_CREATION_DATE, "-1")))
-            .setPhaseTime(Long.parseLong(customData.getOrDefault(PHASE_TIME, "-1")))
-            .setActionTime(Long.parseLong(customData.getOrDefault(ACTION_TIME, "-1")))
-            .setStepTime(Long.parseLong(customData.getOrDefault(STEP_TIME, "-1")))
-            .build();
+        Builder builder = builder();
+        if (customData.containsKey(PHASE)) {
+            builder.setPhase(customData.get(PHASE));
+        }
+        if (customData.containsKey(ACTION)) {
+            builder.setAction(customData.get(ACTION));
+        }
+        if (customData.containsKey(STEP)) {
+            builder.setStep(customData.get(STEP));
+        }
+        if (customData.containsKey(FAILED_STEP)) {
+            builder.setFailedStep(customData.get(FAILED_STEP));
+        }
+        if (customData.containsKey(STEP_INFO)) {
+            builder.setStepInfo(customData.get(STEP_INFO));
+        }
+        if (customData.containsKey(PHASE_DEFINITION)) {
+            builder.setPhaseDefinition(customData.get(PHASE_DEFINITION));
+        }
+        if (customData.containsKey(INDEX_CREATION_DATE)) {
+            try {
+                builder.setIndexCreationDate(Long.parseLong(customData.get(INDEX_CREATION_DATE)));
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e, INDEX_CREATION_DATE, customData.get(INDEX_CREATION_DATE));
+            }
+        }
+        if (customData.containsKey(PHASE_TIME)) {
+            try {
+                builder.setPhaseTime(Long.parseLong(customData.get(PHASE_TIME)));
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e, PHASE_TIME, customData.get(PHASE_TIME));
+            }
+        }
+        if (customData.containsKey(ACTION_TIME)) {
+            try {
+                builder.setActionTime(Long.parseLong(customData.get(ACTION_TIME)));
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e, ACTION_TIME, customData.get(ACTION_TIME));
+            }
+        }
+        if (customData.containsKey(STEP_TIME)) {
+            try {
+                builder.setStepTime(Long.parseLong(customData.get(STEP_TIME)));
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e, STEP_TIME, customData.get(STEP_TIME));
+            }
+        }
+        return builder.build();
     }
 
     /**
@@ -106,16 +152,36 @@ public class LifecycleExecutionState {
      */
     public Map<String, String> asMap() {
         Map<String, String> result = new HashMap<>();
-        result.put(PHASE, phase);
-        result.put(ACTION, action);
-        result.put(STEP, step);
-        result.put(FAILED_STEP, failedStep);
-        result.put(STEP_INFO, stepInfo);
-        result.put(INDEX_CREATION_DATE, String.valueOf(indexCreationDate));
-        result.put(PHASE_TIME, String.valueOf(phaseTime));
-        result.put(ACTION_TIME, String.valueOf(actionTime));
-        result.put(STEP_TIME, String.valueOf(stepTime));
-        result.put(PHASE_DEFINITION, String.valueOf(phaseDefinition));
+        if (phase != null) {
+            result.put(PHASE, phase);
+        }
+        if (action != null) {
+            result.put(ACTION, action);
+        }
+        if (step != null) {
+            result.put(STEP, step);
+        }
+        if (failedStep != null) {
+            result.put(FAILED_STEP, failedStep);
+        }
+        if (stepInfo != null) {
+            result.put(STEP_INFO, stepInfo);
+        }
+        if (indexCreationDate != null) {
+            result.put(INDEX_CREATION_DATE, String.valueOf(indexCreationDate));
+        }
+        if (phaseTime != null) {
+            result.put(PHASE_TIME, String.valueOf(phaseTime));
+        }
+        if (actionTime != null) {
+            result.put(ACTION_TIME, String.valueOf(actionTime));
+        }
+        if (stepTime != null) {
+            result.put(STEP_TIME, String.valueOf(stepTime));
+        }
+        if (phaseDefinition != null) {
+            result.put(PHASE_DEFINITION, String.valueOf(phaseDefinition));
+        }
         return Collections.unmodifiableMap(result);
     }
 
@@ -143,19 +209,19 @@ public class LifecycleExecutionState {
         return phaseDefinition;
     }
 
-    public long getIndexCreationDate() {
+    public Long getIndexCreationDate() {
         return indexCreationDate;
     }
 
-    public long getPhaseTime() {
+    public Long getPhaseTime() {
         return phaseTime;
     }
 
-    public long getActionTime() {
+    public Long getActionTime() {
         return actionTime;
     }
 
-    public long getStepTime() {
+    public Long getStepTime() {
         return stepTime;
     }
 
@@ -183,63 +249,63 @@ public class LifecycleExecutionState {
     }
 
     public static class Builder {
-        private String phase = "";
-        private String action = "";
-        private String step = "";
-        private String failedStep = "";
-        private String stepInfo = "";
-        private String phaseDefinition = "";
-        private long indexCreationDate = -1;
-        private long phaseTime = -1;
-        private long actionTime = -1;
-        private long stepTime = -1;
+        private String phase;
+        private String action;
+        private String step;
+        private String failedStep;
+        private String stepInfo;
+        private String phaseDefinition;
+        private Long indexCreationDate;
+        private Long phaseTime;
+        private Long actionTime;
+        private Long stepTime;
 
         public Builder setPhase(String phase) {
-            this.phase = Objects.requireNonNull(phase);
+            this.phase = phase;
             return this;
         }
 
         public Builder setAction(String action) {
-            this.action = Objects.requireNonNull(action);
+            this.action = action;
             return this;
         }
 
         public Builder setStep(String step) {
-            this.step = Objects.requireNonNull(step);
+            this.step = step;
             return this;
         }
 
         public Builder setFailedStep(String failedStep) {
-            this.failedStep = Objects.requireNonNull(failedStep);
+            this.failedStep = failedStep;
             return this;
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = Objects.requireNonNull(stepInfo);
+            this.stepInfo = stepInfo;
             return this;
         }
 
         public Builder setPhaseDefinition(String phaseDefinition) {
-            this.phaseDefinition = Objects.requireNonNull(phaseDefinition);
+            this.phaseDefinition = phaseDefinition;
             return this;
         }
 
-        public Builder setIndexCreationDate(long indexCreationDate) {
+        public Builder setIndexCreationDate(Long indexCreationDate) {
             this.indexCreationDate = indexCreationDate;
             return this;
         }
 
-        public Builder setPhaseTime(long phaseTime) {
+        public Builder setPhaseTime(Long phaseTime) {
             this.phaseTime = phaseTime;
             return this;
         }
 
-        public Builder setActionTime(long actionTime) {
+        public Builder setActionTime(Long actionTime) {
             this.actionTime = actionTime;
             return this;
         }
 
-        public Builder setStepTime(long stepTime) {
+        public Builder setStepTime(Long stepTime) {
             this.stepTime = stepTime;
             return this;
         }

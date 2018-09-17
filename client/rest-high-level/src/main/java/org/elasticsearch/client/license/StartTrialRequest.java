@@ -21,7 +21,7 @@ package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.Validatable;
 
-public class PostStartTrialRequest implements Validatable {
+public class StartTrialRequest implements Validatable {
 
     private boolean acknowledge = false;
     private String licenseType = null;
@@ -30,7 +30,7 @@ public class PostStartTrialRequest implements Validatable {
         return acknowledge;
     }
 
-    public PostStartTrialRequest setAcknowledge(boolean acknowledge) {
+    public StartTrialRequest setAcknowledge(boolean acknowledge) {
         this.acknowledge = acknowledge;
         return this;
     }
@@ -39,7 +39,7 @@ public class PostStartTrialRequest implements Validatable {
         return licenseType;
     }
 
-    public PostStartTrialRequest setLicenseType(String licenseType) {
+    public StartTrialRequest setLicenseType(String licenseType) {
         this.licenseType = licenseType;
         return this;
     }

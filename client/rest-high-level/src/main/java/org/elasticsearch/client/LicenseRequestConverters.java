@@ -23,7 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.license.PostStartTrialRequest;
+import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
@@ -64,7 +64,7 @@ public class LicenseRequestConverters {
         return request;
     }
 
-    static Request postStartTrial(PostStartTrialRequest postStartTrialRequest) {
+    static Request startTrial(StartTrialRequest startTrialRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack")
             .addPathPartAsIs("license")
@@ -74,11 +74,11 @@ public class LicenseRequestConverters {
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        if (postStartTrialRequest.isAcknowledge()) {
+        if (startTrialRequest.isAcknowledge()) {
             parameters.putParam("acknowledge", "true");
         }
-        if (postStartTrialRequest.getLicenseType() != null) {
-            parameters.putParam("type", postStartTrialRequest.getLicenseType());
+        if (startTrialRequest.getLicenseType() != null) {
+            parameters.putParam("type", startTrialRequest.getLicenseType());
         }
 
         return request;

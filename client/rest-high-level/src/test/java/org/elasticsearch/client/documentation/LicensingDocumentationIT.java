@@ -26,8 +26,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.license.PostStartTrialRequest;
-import org.elasticsearch.client.license.PostStartTrialResponse;
+import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -221,25 +221,25 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testPostStartTrial() throws Exception {
+    public void testStartTrial() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::post-start-trial-execute
-            PostStartTrialRequest request = new PostStartTrialRequest();
+            // tag::start-trial-execute
+            StartTrialRequest request = new StartTrialRequest();
             request.setAcknowledge(true);
 
-            PostStartTrialResponse response = client.license().postStartTrial(request, RequestOptions.DEFAULT);
-            // end::post-start-trial-execute
+            StartTrialResponse response = client.license().startTrial(request, RequestOptions.DEFAULT);
+            // end::start-trial-execute
 
-            // tag::post-start-trial-response
+            // tag::start-trial-response
             boolean acknowledged = response.isAcknowledged();                              // <1>
             boolean trialWasStarted = response.isTrialWasStarted();                        // <2>
             String licenseType = response.getLicenseType();                                // <3>
             String errorMessage = response.getErrorMessage();                              // <4>
             String acknowledgeHeader = response.getAcknowledgeHeader();                    // <5>
             Map<String, String[]> acknowledgeMessages = response.getAcknowledgeMessages(); // <6>
-            // end::post-start-trial-response
+            // end::start-trial-response
 
             assertTrue(acknowledged);
             assertFalse(trialWasStarted);
@@ -250,12 +250,12 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            PostStartTrialRequest request = new PostStartTrialRequest();
+            StartTrialRequest request = new StartTrialRequest();
 
-            // tag::post-start-trial-execute-listener
-            ActionListener<PostStartTrialResponse> listener = new ActionListener<PostStartTrialResponse>() {
+            // tag::start-trial-execute-listener
+            ActionListener<StartTrialResponse> listener = new ActionListener<StartTrialResponse>() {
                 @Override
-                public void onResponse(PostStartTrialResponse response) {
+                public void onResponse(StartTrialResponse response) {
                     // <1>
                 }
 
@@ -264,19 +264,19 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::post-start-trial-execute-listener
+            // end::start-trial-execute-listener
 
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::post-start-trial-execute-async
-            client.license().postStartTrialAsync(request, RequestOptions.DEFAULT, listener);
-            // end::post-start-trial-execute-async
+            // tag::start-trial-execute-async
+            client.license().startTrialAsync(request, RequestOptions.DEFAULT, listener);
+            // end::start-trial-execute-async
         }
 
         // test when there are acknowledge messages
         {
-            PostStartTrialResponse response = client.license().postStartTrial(new PostStartTrialRequest(), RequestOptions.DEFAULT);
+            StartTrialResponse response = client.license().startTrial(new StartTrialRequest(), RequestOptions.DEFAULT);
             assertFalse(response.isAcknowledged());
             assertFalse(response.isTrialWasStarted());
             assertThat(response.getLicenseType(), nullValue());

@@ -34,7 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PostStartTrialResponse {
+public class StartTrialResponse {
 
     private static final ParseField ACKNOWLEDGED_FIELD = new ParseField("acknowledged");
     private static final ParseField TRIAL_WAS_STARTED_FIELD = new ParseField("trial_was_started");
@@ -43,8 +43,8 @@ public class PostStartTrialResponse {
     private static final ParseField ACKNOWLEDGE_DETAILS_FIELD = new ParseField("acknowledge");
     private static final ParseField ACKNOWLEDGE_HEADER_FIELD = new ParseField("message");
 
-    private static final ConstructingObjectParser<PostStartTrialResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "post_start_trial_response",
+    private static final ConstructingObjectParser<StartTrialResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "start_trial_response",
         true,
         (Object[] arguments, Void aVoid) -> {
             final boolean acknowledged = (boolean) arguments[0];
@@ -65,7 +65,7 @@ public class PostStartTrialResponse {
                 acknowledgeMessages = null;
             }
 
-            return new PostStartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader,
+            return new StartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader,
                 acknowledgeMessages);
         }
     );
@@ -111,7 +111,7 @@ public class PostStartTrialResponse {
         }, ACKNOWLEDGE_DETAILS_FIELD);
     }
 
-    public static PostStartTrialResponse fromXContent(XContentParser parser) throws IOException {
+    public static StartTrialResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
@@ -122,12 +122,12 @@ public class PostStartTrialResponse {
     private final String acknowledgeHeader;
     private final Map<String, String[]> acknowledgeMessages;
 
-    public PostStartTrialResponse(boolean acknowledged,
-                                  boolean trialWasStarted,
-                                  String licenseType,
-                                  String errorMessage,
-                                  String acknowledgeHeader,
-                                  Map<String, String[]> acknowledgeMessages) {
+    public StartTrialResponse(boolean acknowledged,
+                              boolean trialWasStarted,
+                              String licenseType,
+                              String errorMessage,
+                              String acknowledgeHeader,
+                              Map<String, String[]> acknowledgeMessages) {
 
         this.acknowledged = acknowledged;
         this.trialWasStarted = trialWasStarted;

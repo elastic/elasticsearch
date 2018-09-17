@@ -1,21 +1,21 @@
-[[java-rest-high-post-start-trial]]
-=== Post Start Trial
+[[java-rest-high-start-trial]]
+=== Start Trial
 
-[[java-rest-high-post-start-license-execution]]
+[[java-rest-high-start-license-execution]]
 ==== Execution
 
-This API creates and enables a trial license using the `postStartTrial()`
+This API creates and enables a trial license using the `startTrial()`
 method.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc_tests}/LicensingDocumentationIT.java[post-start-trial-execute]
+include-tagged::{doc_tests}/LicensingDocumentationIT.java[start-trial-execute]
 ---------------------------------------------------
 
-[[java-rest-high-post-start-license-response]]
+[[java-rest-high-start-license-response]]
 ==== Response
 
-The returned `PostStartTrialResponse` returns a field indicating whether the
+The returned `StartTrialResponse` returns a field indicating whether the
 trial was started. If it was started, the response returns a the type of
 license started. If it was not started, it returns an error message describing
 why.
@@ -29,7 +29,7 @@ necessary to check the `acknowledged` flag.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-response]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-response]
 --------------------------------------------------
 <1> Whether or not the request had the `acknowledge` flag set
 <2> Whether or not this request caused a trial to start
@@ -42,14 +42,14 @@ of the user acknowledgement require for this API
 keys of commercial features and values of messages describing how they will
 be affected by licensing changes as the result of starting a trial
 
-[[java-rest-high-post-start-trial-async]]
+[[java-rest-high-start-trial-async]]
 ==== Asynchronous execution
 
 This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-execute-async]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-async]
 --------------------------------------------------
 
 The asynchronous method does not block and returns immediately. Once it is
@@ -57,11 +57,11 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `PostStartTrialResponse` looks like:
+A typical listener for `StartTrialResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[post-start-trial-execute-listener]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

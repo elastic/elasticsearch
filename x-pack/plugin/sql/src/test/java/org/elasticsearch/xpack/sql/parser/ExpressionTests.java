@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class ExpressionTests extends ESTestCase {
@@ -34,11 +33,17 @@ public class ExpressionTests extends ESTestCase {
     public void testLiteralLongNegative() throws Exception {
         // Long.MIN_VALUE doesn't work since it is being interpreted as negate positive.long which is 1 higher than Long.MAX_VALUE
         Expression lt = parser.createExpression(String.valueOf(-Long.MAX_VALUE));
-        assertEquals(Neg.class, lt.getClass());
-        Neg n = (Neg) lt;
-        assertTrue(n.foldable());
-        assertEquals(-Long.MAX_VALUE, n.fold());
-        assertEquals(DataType.LONG, n.dataType());
+        assertTrue(lt.foldable());
+        assertEquals(-Long.MAX_VALUE, lt.fold());
+        assertEquals(DataType.LONG, lt.dataType());
+    }
+
+    public void testLiteralLongPositive() throws Exception {
+        Expression lt = parser.createExpression("+" + String.valueOf(Long.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Long.MAX_VALUE, l.value());
+        assertEquals(DataType.LONG, l.dataType());
     }
 
     public void testLiteralInteger() throws Exception {

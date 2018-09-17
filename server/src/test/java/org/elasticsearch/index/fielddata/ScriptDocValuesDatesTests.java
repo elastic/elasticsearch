@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -33,43 +34,28 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.hasItems;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
 
-    public void testJavaTime() throws IOException {
-        assertDateDocValues(true, "getDate is no longer necessary on date fields as the value is now a date.",
+    public void test() throws IOException {
+        assertDateDocValues("getDate is no longer necessary on date fields as the value is now a date.",
             "getDates is no longer necessary on date fields as the values are now dates.");
     }
 
-    public void testJodaTimeBwc() throws IOException {
-        assertDateDocValues(false, "The joda time api for doc values is deprecated." +
-            " Use -Des.scripting.use_java_time=true to use the java time api for date field doc values",
-            "getDate is no longer necessary on date fields as the value is now a date.",
-            "getDates is no longer necessary on date fields as the values are now dates.");
-    }
-
-    public void assertDateDocValues(boolean useJavaTime, String... expectedWarnings) throws IOException {
-        final Function<Long, Object> datetimeCtor;
-        if (useJavaTime) {
-            datetimeCtor = millis -> ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC);
-        } else {
-            datetimeCtor = millis -> new DateTime(millis, DateTimeZone.UTC);
-        }
+    public void assertDateDocValues(String... expectedWarnings) throws IOException {
         long[][] values = new long[between(3, 10)][];
-        Object[][] expectedDates = new Object[values.length][];
+        JodaCompatibleZonedDateTime[][] expectedDates = new JodaCompatibleZonedDateTime[values.length][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
-            expectedDates[d] = new Object[values[d].length];
+            expectedDates[d] = new JodaCompatibleZonedDateTime[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
                 values[d][i] = randomNonNegativeLong();
-                expectedDates[d][i] = datetimeCtor.apply(values[d][i]);
+                expectedDates[d][i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(values[d][i]), ZoneOffset.UTC);
             }
         }
 
@@ -79,7 +65,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             /* Create a temporary directory to prove we are running with the
              * server's permissions. */
             createTempDir();
-        }, useJavaTime);
+        });
         // each call to get or getValue will be run with limited permissions, just as they are in scripts
         PermissionCollection noPermissions = new Permissions();
         AccessControlContext noPermissionsAcc = new AccessControlContext(
@@ -92,11 +78,15 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            Object dateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getValue, noPermissionsAcc);
-            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dateValue);
-            Object bwcDateValue = AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDate, noPermissionsAcc);
-            assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), bwcDateValue);
-            valuesExist |= expectedDates[d].length > 0;
+            if (expectedDates[d].length > 0) {
+                JodaCompatibleZonedDateTime dateValue =
+                    AccessController.doPrivileged((PrivilegedAction<JodaCompatibleZonedDateTime>) dates::getValue, noPermissionsAcc);
+                assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), dateValue);
+                JodaCompatibleZonedDateTime bwcDateValue =
+                    AccessController.doPrivileged((PrivilegedAction<JodaCompatibleZonedDateTime>) dates::getDate, noPermissionsAcc);
+                assertEquals(expectedDates[d].length > 0 ? expectedDates[d][0] : new DateTime(0, DateTimeZone.UTC), bwcDateValue);
+                valuesExist = expectedDates[d].length > 0;
+            }
 
             AccessController.doPrivileged((PrivilegedAction<Object>) dates::getDates, noPermissionsAcc);
             assertEquals(values[d].length, dates.size());
@@ -114,7 +104,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         }
     }
 
-    private Dates wrap(long[][] values, BiConsumer<String, String> deprecationHandler, boolean useJavaTime) {
+    private Dates wrap(long[][] values, BiConsumer<String, String> deprecationHandler) {
         return new Dates(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -133,6 +123,6 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        }, deprecationHandler, useJavaTime);
+        }, deprecationHandler);
     }
 }

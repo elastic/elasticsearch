@@ -28,17 +28,13 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -174,20 +170,20 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Deprecated
-        public Object getDate() throws IOException {
+        public JodaCompatibleZonedDateTime getDate() throws IOException {
             deprecated("scripting_get_date_deprecation","getDate on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in, deprecationCallback, Dates.USE_JAVA_TIME);
+                dates = new Dates(in, deprecationCallback);
                 dates.setNextDocId(docId);
             }
             return dates.getValue();
         }
 
         @Deprecated
-        public List<Object> getDates() throws IOException {
+        public List<JodaCompatibleZonedDateTime> getDates() throws IOException {
             deprecated("scripting_get_date_deprecation", "getDates on numeric fields is deprecated. Use a date field to get dates.");
             if (dates == null) {
-                dates = new Dates(in, deprecationCallback, Dates.USE_JAVA_TIME);
+                dates = new Dates(in, deprecationCallback);
                 dates.setNextDocId(docId);
             }
             return dates;
@@ -220,65 +216,42 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<Object> {
-
-        /** Whether scripts should expose dates as java time objects instead of joda time. */
-        // pkg private so Longs can access...
-        static final boolean USE_JAVA_TIME = parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
-
-        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
 
         private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
 
+        private final JodaCompatibleZonedDateTime EPOCH = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.UTC);
+
         private final SortedNumericDocValues in;
 
-        /**
-         * Method call to add deprecation message. Normally this is
-         * {@link #deprecationLogger} but tests override.
-         */
         private final BiConsumer<String, String> deprecationCallback;
 
         /**
-         * Whether java time or joda time should be used. This is normally {@link #USE_JAVA_TIME} but tests override it.
+         * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private final boolean useJavaTime;
-
-        /**
-         * Values wrapped in a date time object. The concrete type depends on the system property {@code es.scripting.use_java_time}.
-         * When that system property is {@code false}, the date time objects are of type {@link MutableDateTime}. When the system
-         * property is {@code true}, the date time objects are of type {@link java.time.ZonedDateTime}.
-         */
-        private Object[] dates;
+        private JodaCompatibleZonedDateTime[] dates;
         private int count;
 
         /**
          * Standard constructor.
          */
         public Dates(SortedNumericDocValues in) {
-            this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message), USE_JAVA_TIME);
+            this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
         /**
          * Constructor for testing with a deprecation callback.
          */
         Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
-            this(in, deprecationCallback, USE_JAVA_TIME);
-        }
-
-        /**
-         * Constructor for testing with a deprecation callback.
-         */
-        Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback, boolean useJavaTime) {
             this.in = in;
             this.deprecationCallback = deprecationCallback;
-            this.useJavaTime = useJavaTime;
         }
 
         /**
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public Object getValue() {
+        public JodaCompatibleZonedDateTime getValue() {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -297,7 +270,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first value. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
          */
         @Deprecated
-        public Object getDate() {
+        public JodaCompatibleZonedDateTime getDate() {
             deprecated("scripting_get_date_deprecation", "getDate is no longer necessary on date fields as the value is now a date.");
             return getValue();
         }
@@ -306,13 +279,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch all the values. Added for backwards compatibility with 5.x when date fields were {@link Longs}.
          */
         @Deprecated
-        public List<Object> getDates() {
+        public List<JodaCompatibleZonedDateTime> getDates() {
             deprecated("scripting_get_date_deprecation", "getDates is no longer necessary on date fields as the values are now dates.");
             return this;
         }
 
         @Override
-        public Object get(int index) {
+        public JodaCompatibleZonedDateTime get(int index) {
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -343,25 +316,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (useJavaTime) {
-                if (dates == null || count > dates.length) {
-                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                    dates = new ZonedDateTime[count];
-                }
-                for (int i = 0; i < count; ++i) {
-                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
-                }
-            } else {
-                deprecated("scripting_joda_time_deprecation",
-                    "The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
-                    " to use the java time api for date field doc values");
-                if (dates == null || count > dates.length) {
-                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                    dates = new MutableDateTime[count];
-                }
-                for (int i = 0; i < count; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
+            if (dates == null || count > dates.length) {
+                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                dates = new JodaCompatibleZonedDateTime[count];
+            }
+            for (int i = 0; i < count; ++i) {
+                dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
             }
         }
 

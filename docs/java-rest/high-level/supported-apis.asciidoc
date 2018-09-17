@@ -221,6 +221,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<java-rest-high-x-pack-ml-update-job>>
 * <<java-rest-high-x-pack-ml-get-job-stats>>
 * <<java-rest-high-x-pack-ml-put-datafeed>>
+* <<java-rest-high-x-pack-ml-get-datafeed>>
 * <<java-rest-high-x-pack-ml-delete-datafeed>>
 * <<java-rest-high-x-pack-ml-forecast-job>>
 * <<java-rest-high-x-pack-ml-delete-forecast>>
@@ -240,6 +241,7 @@ include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
+include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/forecast-job.asciidoc[]
@@ -259,6 +261,14 @@ The Java High Level REST Client supports the following Migration APIs:
 * <<java-rest-high-migration-get-assistance>>
 
 include::migration/get-assistance.asciidoc[]
+
+== Rollup APIs
+
+The Java High Level REST Client supports the following Rollup APIs:
+
+* <<java-rest-high-x-pack-rollup-put-job>>
+
+include::rollup/put_job.asciidoc[]
 
 == Security APIs
 

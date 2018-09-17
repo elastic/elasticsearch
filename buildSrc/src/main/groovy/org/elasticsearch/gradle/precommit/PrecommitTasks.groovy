@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.precommit
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**
@@ -70,14 +69,19 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+        // We want to get any compilation error before running the pre-commit checks.
+        project.sourceSets.all { sourceSet ->
+            precommitTasks.each { task ->
+                task.shouldRunAfter(sourceSet.getClassesTaskName())
+            }
+        }
 
-        Map<String, Object> precommitOptions = [
+        return project.tasks.create([
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
-        ]
-        return project.tasks.create(precommitOptions)
+        ])
     }
 
     private static Task configureJarHell(Project project) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -438,7 +439,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             List<ObjectMapper> objectMappers = new ArrayList<>();
             List<FieldMapper> fieldMappers = new ArrayList<>();
             List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
-            Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
+            MetadataFieldMapper[] metadataMappers = newMapper.mapping().metadataMappers;
+            Collections.addAll(fieldMappers, metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
             MapperMergeValidator.validateMapperStructure(newMapper.type(), objectMappers, fieldMappers,
@@ -472,7 +474,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // the master node restoring mappings from disk or data nodes
                 // deserializing cluster state that was sent by the master node,
                 // this check will be skipped.
-                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() + fieldAliasMappers.size());
+                // Also, don't take metadata mappers into account for the field limit check
+                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length + fieldAliasMappers.size() );
             }
 
             results.put(newMapper.type(), newMapper);

@@ -71,6 +71,7 @@ public class IngestService implements ClusterStateApplier {
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     private final ClusterService clusterService;
+    private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -85,6 +86,7 @@ public class IngestService implements ClusterStateApplier {
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
         this.clusterService = clusterService;
+        this.scriptService = scriptService;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -114,6 +116,10 @@ public class IngestService implements ClusterStateApplier {
 
     public ClusterService getClusterService() {
         return clusterService;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     /**
@@ -264,7 +270,7 @@ public class IngestService implements ClusterStateApplier {
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
         Processor failureProcessor = new AbstractProcessor(tag) {
             @Override
-            public void execute(IngestDocument ingestDocument) {
+            public IngestDocument execute(IngestDocument ingestDocument) {
                 throw new IllegalStateException(errorMessage);
             }
 
@@ -300,11 +306,12 @@ public class IngestService implements ClusterStateApplier {
         }
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories);
+        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
-                if (entry.getValue().containsProcessor(processor.getType()) == false) {
+                String type = processor.getType();
+                if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
                     exceptions.add(
                         ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message)
@@ -316,7 +323,8 @@ public class IngestService implements ClusterStateApplier {
     }
 
     public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler) {
+        BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
+        Consumer<IndexRequest> itemDroppedHandler) {
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
@@ -344,7 +352,7 @@ public class IngestService implements ClusterStateApplier {
                             if (pipeline == null) {
                                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
                             }
-                            innerExecute(indexRequest, pipeline);
+                            innerExecute(indexRequest, pipeline, itemDroppedHandler);
                             //this shouldn't be needed here but we do it for consistency with index api
                             // which requires it to prevent double execution
                             indexRequest.setPipeline(NOOP_PIPELINE_NAME);
@@ -392,7 +400,7 @@ public class IngestService implements ClusterStateApplier {
         }
     }
 
-    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline) throws Exception {
+    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline, Consumer<IndexRequest> itemDroppedHandler) throws Exception {
         if (pipeline.getProcessors().isEmpty()) {
             return;
         }
@@ -412,20 +420,22 @@ public class IngestService implements ClusterStateApplier {
             VersionType versionType = indexRequest.versionType();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
             IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
-            pipeline.execute(ingestDocument);
-
-            Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
-            //it's fine to set all metadata fields all the time, as ingest document holds their starting values
-            //before ingestion, which might also get modified during ingestion.
-            indexRequest.index((String) metadataMap.get(IngestDocument.MetaData.INDEX));
-            indexRequest.type((String) metadataMap.get(IngestDocument.MetaData.TYPE));
-            indexRequest.id((String) metadataMap.get(IngestDocument.MetaData.ID));
-            indexRequest.routing((String) metadataMap.get(IngestDocument.MetaData.ROUTING));
-            indexRequest.version(((Number) metadataMap.get(IngestDocument.MetaData.VERSION)).longValue());
-            if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
-                indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
+            if (pipeline.execute(ingestDocument) == null) {
+                itemDroppedHandler.accept(indexRequest);
+            } else {
+                Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
+                //it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                //before ingestion, which might also get modified during ingestion.
+                indexRequest.index((String) metadataMap.get(IngestDocument.MetaData.INDEX));
+                indexRequest.type((String) metadataMap.get(IngestDocument.MetaData.TYPE));
+                indexRequest.id((String) metadataMap.get(IngestDocument.MetaData.ID));
+                indexRequest.routing((String) metadataMap.get(IngestDocument.MetaData.ROUTING));
+                indexRequest.version(((Number) metadataMap.get(IngestDocument.MetaData.VERSION)).longValue());
+                if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
+                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
+                }
+                indexRequest.source(ingestDocument.getSourceAndMetadata());
             }
-            indexRequest.source(ingestDocument.getSourceAndMetadata());
         } catch (Exception e) {
             totalStats.ingestFailed();
             pipelineStats.ifPresent(StatsHolder::ingestFailed);
@@ -452,7 +462,10 @@ public class IngestService implements ClusterStateApplier {
         List<ElasticsearchParseException> exceptions = new ArrayList<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
-                pipelines.put(pipeline.getId(), Pipeline.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
+                pipelines.put(
+                    pipeline.getId(),
+                    Pipeline.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories, scriptService)
+                );
             } catch (ElasticsearchParseException e) {
                 pipelines.put(pipeline.getId(), substitutePipeline(pipeline.getId(), e));
                 exceptions.add(e);

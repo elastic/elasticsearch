@@ -62,7 +62,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
             final AggregatorFactories factories = AggregatorFactories.parseAggregators(aggParser).build(context, null);
             final Aggregator[] aggregators = factories.createTopLevelAggregators();
             assertEquals(1, aggregators.length);
-            return aggregators[0].needsScores();
+            return aggregators[0].scoreMode().needsScores();
         }
     }
 

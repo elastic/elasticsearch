@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -54,33 +54,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class FullClusterRestartIT extends ESRestTestCase {
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void waitForMlTemplates() throws Exception {
         XPackRestTestHelper.waitForMlTemplates(client());
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
     }
 
     @Override
@@ -103,7 +81,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         String docLocation = "/testsingledoc/doc/1";
         String doc = "{\"test\": \"test\"}";
 
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             Request createDoc = new Request("PUT", docLocation);
             createDoc.addParameter("refresh", "true");
             createDoc.setJsonEntity(doc);
@@ -115,7 +93,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSecurityNativeRealm() throws Exception {
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             createUser("preupgrade_user");
             createRole("preupgrade_role");
         } else {
@@ -165,15 +143,15 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         assertUserInfo("preupgrade_user");
         assertRoleInfo("preupgrade_role");
-        if (!runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster() == false) {
             assertUserInfo("postupgrade_user");
             assertRoleInfo("postupgrade_role");
         }
     }
 
     public void testWatcher() throws Exception {
-        if (runningAgainstOldCluster) {
-            logger.info("Adding a watch on old cluster {}", oldClusterVersion);
+        if (isRunningAgainstOldCluster()) {
+            logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
             Request createBwcWatch = new Request("PUT", "_xpack/watcher/watch/bwc_watch");
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
@@ -194,7 +172,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             waitForHits(".watcher-history*", 2);
             logger.info("Done creating watcher-related indices");
         } else {
-            logger.info("testing against {}", oldClusterVersion);
+            logger.info("testing against {}", getOldClusterVersion());
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
             logger.info("checking if the upgrade procedure on the new cluster is required");
@@ -264,8 +242,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a RollUp job created on a old cluster is correctly restarted after the upgrade.
      */
     public void testRollupAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", oldClusterVersion.onOrAfter(Version.V_6_3_0));
-        if (runningAgainstOldCluster) {
+        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
+        if (isRunningAgainstOldCluster()) {
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
 
@@ -315,7 +293,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
             clusterHealthRequest.addParameter("wait_for_status", "yellow");
             clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
+            if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
                 clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
             }
             Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
@@ -325,11 +303,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/32773")
     public void testRollupIDSchemeAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", oldClusterVersion.onOrAfter(Version.V_6_3_0));
-        assumeTrue("Rollup ID scheme changed in 6.4", oldClusterVersion.before(Version.V_6_4_0));
-        if (runningAgainstOldCluster) {
+        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
+        assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
+        if (isRunningAgainstOldCluster()) {
 
             final Request indexRequest = new Request("POST", "/id-test-rollup/_doc/1");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
@@ -393,6 +370,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
             client().performRequest(indexRequest);
 
+            assertRollUpJob("rollup-id-test");
+
             // stop the rollup job to force a state save, which will upgrade the ID
             final Request stopRollupJobRequest = new Request("POST", "_xpack/rollup/job/rollup-id-test/_stop");
             Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
@@ -438,8 +417,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
     public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
         // TODO this isn't going to trigger until we backport to 6.1
         assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
-                oldClusterVersion.before(Version.V_6_0_0_alpha1));
-        if (runningAgainstOldCluster) {
+                getOldClusterVersion().before(Version.V_6_0_0_alpha1));
+        if (isRunningAgainstOldCluster()) {
             Request doc1 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type1");
             doc1.setJsonEntity("{}");
             client().performRequest(doc1);
@@ -549,7 +528,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         request.addParameter("wait_for_status", "yellow");
         request.addParameter("timeout", "30s");
         request.addParameter("wait_for_no_relocating_shards", "true");
-        if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
+        if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
             request.addParameter("wait_for_no_initializing_shards", "true");
         }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -667,7 +646,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
                 // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
                 final String stateFieldName
-                    = (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_4_0)) ? "status" : "state";
+                    = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_4_0)) ? "status" : "state";
 
                 final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),

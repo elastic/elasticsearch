@@ -118,7 +118,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -160,7 +160,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -206,7 +206,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
         final RemoteClusterLicenseChecker licenseChecker =
-                new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -246,7 +246,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             }).when(client).execute(same(XPackInfoAction.INSTANCE), any(), any());
 
             final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                    new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
             licenseChecker.checkRemoteClusterLicenses(
@@ -285,7 +285,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             responses.add(new XPackInfoResponse(null, createPlatinumLicenseResponse(), null));
 
             final RemoteClusterLicenseChecker licenseChecker =
-                    new RemoteClusterLicenseChecker(client, RemoteClusterLicenseChecker::isLicensePlatinumOrTrial);
+                    new RemoteClusterLicenseChecker(client, XPackLicenseState::isPlatinumOrTrialOperationMode);
 
             final AtomicBoolean listenerInvoked = new AtomicBoolean();
             threadPool.getThreadContext().putHeader("key", "value");

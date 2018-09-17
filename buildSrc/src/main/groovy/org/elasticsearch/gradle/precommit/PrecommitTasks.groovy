@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.precommit
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**
@@ -31,7 +30,7 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
-        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
+        project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
             forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
         }
@@ -43,7 +42,7 @@ class PrecommitTasks {
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class),
+            configureJarHell(project),
             configureThirdPartyAudit(project)
         ]
 
@@ -70,14 +69,25 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+        // We want to get any compilation error before running the pre-commit checks.
+        project.sourceSets.all { sourceSet ->
+            precommitTasks.each { task ->
+                task.shouldRunAfter(sourceSet.getClassesTaskName())
+            }
+        }
 
-        Map<String, Object> precommitOptions = [
+        return project.tasks.create([
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
-        ]
-        return project.tasks.create(precommitOptions)
+        ])
+    }
+
+    private static Task configureJarHell(Project project) {
+        Task task = project.tasks.create('jarHell', JarHellTask.class)
+        task.classpath = project.sourceSets.test.runtimeClasspath
+        return task
     }
 
     private static Task configureThirdPartyAudit(Project project) {
@@ -94,7 +104,7 @@ class PrecommitTasks {
 
     private static Task configureForbiddenApisCli(Project project) {
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-        project.sourceSets.forEach { sourceSet ->
+        project.sourceSets.all { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')

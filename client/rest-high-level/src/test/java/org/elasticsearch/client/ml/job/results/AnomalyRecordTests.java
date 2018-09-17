@@ -33,7 +33,7 @@ public class AnomalyRecordTests extends AbstractXContentTestCase<AnomalyRecord> 
         return createTestInstance("foo");
     }
 
-    public AnomalyRecord createTestInstance(String jobId) {
+    public static AnomalyRecord createTestInstance(String jobId) {
         AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));

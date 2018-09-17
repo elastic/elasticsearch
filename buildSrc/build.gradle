@@ -17,6 +17,7 @@
  * under the License.
  */
 import java.nio.file.Files
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'

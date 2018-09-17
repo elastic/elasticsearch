@@ -70,7 +70,7 @@ public class BucketTests extends AbstractXContentTestCase<Bucket> {
             int size = randomInt(10);
             List<AnomalyRecord> records = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                AnomalyRecord anomalyRecord = new AnomalyRecordTests().createTestInstance(jobId);
+                AnomalyRecord anomalyRecord = AnomalyRecordTests.createTestInstance(jobId);
                 records.add(anomalyRecord);
             }
             bucket.setRecords(records);

@@ -25,6 +25,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 public class PainlessConstructor {
+
     public final Constructor<?> javaConstructor;
     public final List<Class<?>> typeParameters;
     public final MethodHandle methodHandle;

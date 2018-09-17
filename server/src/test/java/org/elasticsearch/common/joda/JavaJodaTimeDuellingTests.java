@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
@@ -71,7 +71,15 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
+        assertSameDate("0", "epoch_second");
+        assertSameDate("1", "epoch_second");
+        assertSameDate("-1", "epoch_second");
+        assertSameDate("-1522332219", "epoch_second");
         assertSameDate("1522332219321", "epoch_millis");
+        assertSameDate("0", "epoch_millis");
+        assertSameDate("1", "epoch_millis");
+        assertSameDate("-1", "epoch_millis");
+        assertSameDate("-1522332219321", "epoch_millis");
 
         assertSameDate("20181126", "basic_date");
         assertSameDate("20181126T121212.123Z", "basic_date_time");
@@ -477,7 +485,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 
-        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
@@ -499,7 +507,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
         assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
     }

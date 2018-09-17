@@ -113,18 +113,18 @@ public final class CsvTestUtils {
     }
 
     private static Tuple<String, String> extractColumnTypesFromHeader(String header) {
-        String[] columnTypes = Strings.delimitedListToStringArray(header, "|", " \t");
+        String[] columnTypes = Strings.tokenizeToStringArray(header, "|");
         StringBuilder types = new StringBuilder();
         StringBuilder columns = new StringBuilder();
         for (String column : columnTypes) {
-            String[] nameType = Strings.delimitedListToStringArray(column, ":");
+            String[] nameType = Strings.delimitedListToStringArray(column.trim(), ":");
             assertThat("If at least one column has a type associated with it, all columns should have types", nameType, arrayWithSize(2));
             if (types.length() > 0) {
                 types.append(",");
                 columns.append("|");
             }
-            columns.append(nameType[0]);
-            types.append(resolveColumnType(nameType[1]));
+            columns.append(nameType[0].trim());
+            types.append(resolveColumnType(nameType[1].trim()));
         }
         return new Tuple<>(columns.toString(), types.toString());
     }
@@ -160,17 +160,28 @@ public final class CsvTestUtils {
     }
 
     private static class CsvSpecParser implements SpecBaseIntegrationTestCase.Parser {
+        private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private CsvTestCase testCase;
 
         @Override
         public Object parse(String line) {
-            // beginning of the section
+            // read the query
             if (testCase == null) {
-                // pick up the query
-                testCase = new CsvTestCase();
-                testCase.query = line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
+                if (line.endsWith(";")) {
+                    // pick up the query
+                    testCase = new CsvTestCase();
+                    query.append(line.substring(0, line.length() - 1).trim());
+                    testCase.query = query.toString();
+                    query.setLength(0);
+                }
+                // keep reading the query
+                else {
+                    query.append(line);
+                    query.append("\r\n");
+                }
             }
+            // read the results
             else {
                 // read data
                 if (line.startsWith(";")) {

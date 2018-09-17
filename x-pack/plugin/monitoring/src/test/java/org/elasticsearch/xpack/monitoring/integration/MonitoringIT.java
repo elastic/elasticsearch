@@ -464,7 +464,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // tested in other places; extractValue does not accept wildcards
             if ("node_stats.shards.*".equals(filter)) {
-                return;
+                filter = "node_stats.shards";
             }
 
             assertThat(filter + " must not be null in the monitoring document", extractValue(filter, source), notNullValue());

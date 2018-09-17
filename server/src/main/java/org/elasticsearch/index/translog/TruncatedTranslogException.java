@@ -25,11 +25,12 @@ import java.io.IOException;
 
 public class TruncatedTranslogException extends TranslogCorruptedException {
 
-    public TruncatedTranslogException(String msg, Throwable cause) {
-        super(msg, cause);
-    }
-
     public TruncatedTranslogException(StreamInput in) throws IOException {
         super(in);
     }
+
+    public TruncatedTranslogException(String source, String details, Throwable cause) {
+        super(source, details, cause);
+    }
+
 }

@@ -35,8 +35,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,7 +107,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * search for each query.  It then does some basic sanity checking of score and hits
      * to make sure the profiling doesn't interfere with the hits being returned
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32492")
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -150,6 +151,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
             SearchResponse vanillaResponse = responses[0].getResponse();
             SearchResponse profileResponse = responses[1].getResponse();
 
+            assertThat(vanillaResponse.getFailedShards(), equalTo(0));
+            assertThat(profileResponse.getFailedShards(), equalTo(0));
+            assertThat(vanillaResponse.getSuccessfulShards(), equalTo(profileResponse.getSuccessfulShards()));
+
             float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
             float profileMaxScore = profileResponse.getHits().getMaxScore();
             if (Float.isNaN(vanillaMaxScore)) {
@@ -160,10 +165,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         vanillaMaxScore, profileMaxScore, 0.001);
             }
 
-            assertThat(
-                    "Profile totalHits of [" + profileResponse.getHits().getTotalHits() + "] is not close to Vanilla totalHits ["
-                            + vanillaResponse.getHits().getTotalHits() + "]",
-                    vanillaResponse.getHits().getTotalHits(), equalTo(profileResponse.getHits().getTotalHits()));
+            if (vanillaResponse.getHits().totalHits != profileResponse.getHits().totalHits) {
+                Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
+                Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
+                if (vanillaResponse.getHits().totalHits > profileResponse.getHits().totalHits) {
+                    vanillaSet.removeAll(profileSet);
+                    fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
+                        + vanillaSet.toString());
+                } else {
+                    profileSet.removeAll(vanillaSet);
+                    fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: "
+                        + profileSet.toString());
+                }
+            }
 
             SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
             SearchHit[] profileHits = profileResponse.getHits().getHits();

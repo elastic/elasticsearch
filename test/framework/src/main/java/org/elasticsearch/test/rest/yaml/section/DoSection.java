@@ -391,7 +391,32 @@ public class DoSection implements ExecutableSection {
             if (token == XContentParser.Token.FIELD_NAME) {
                 key = parser.currentName();
             } else if (token.isValue()) {
-                NodeSelector newSelector = new HasAttributeNodeSelector(key, parser.text());
+                /*
+                 * HasAttributeNodeSelector selects nodes that do not have
+                 * attribute metadata set so it can be used against nodes that
+                 * have not yet been sniffed. In these tests we expect the node
+                 * metadata to be explicitly sniffed if we need it and we'd
+                 * like to hard fail if it is not so we wrap the selector so we
+                 * can assert that the data is sniffed.
+                 */
+                NodeSelector delegate = new HasAttributeNodeSelector(key, parser.text());
+                NodeSelector newSelector = new NodeSelector() {
+                    @Override
+                    public void select(Iterable<Node> nodes) {
+                        for (Node node : nodes) {
+                            if (node.getAttributes() == null) {
+                                throw new IllegalStateException("expected [attributes] metadata to be set but got "
+                                        + node);
+                            }
+                        }
+                        delegate.select(nodes);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return delegate.toString();
+                    }
+                };
                 result = result == NodeSelector.ANY ?
                     newSelector : new ComposeNodeSelector(result, newSelector);
             } else {

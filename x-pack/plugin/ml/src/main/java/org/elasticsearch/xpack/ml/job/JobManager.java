@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,8 +53,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
@@ -489,7 +490,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public void deleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
-                          ActionListener<DeleteJobAction.Response> actionListener) {
+                          ActionListener<AcknowledgedResponse> actionListener) {
 
         String jobId = request.getJobId();
         logger.debug("Deleting job '" + jobId + "'");
@@ -500,9 +501,9 @@ public class JobManager extends AbstractComponent {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                actionListener.onResponse(new DeleteJobAction.Response(true));
+                actionListener.onResponse(new AcknowledgedResponse(true));
             } else {
-                actionListener.onResponse(new DeleteJobAction.Response(false));
+                actionListener.onResponse(new AcknowledgedResponse(false));
             }
         };
 

@@ -13,14 +13,8 @@ thirdPartyAudit.enabled = false
 ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
-task hello {
-    doFirst {
-        println "build plugin can be applied"
-    }
-}
-
 dependencies {
-    compile "junit:junit:${versions.junit}"
+    compile "junit:junit:4.12"
 }
 
 namingConventions  {

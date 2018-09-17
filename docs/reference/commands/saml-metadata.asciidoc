@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold+"]
 [[saml-metadata]]
-== saml-metadata
+== elasticsearch-saml-metadata
 
 The `elasticsearch-saml-metadata` command can be used to generate a SAML 2.0 Service
 Provider Metadata file.

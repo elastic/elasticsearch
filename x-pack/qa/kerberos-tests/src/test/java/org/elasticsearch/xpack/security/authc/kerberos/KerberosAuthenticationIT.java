@@ -112,7 +112,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     protected HttpHost buildHttpHost(String host, int port) {
         try {
             InetAddress inetAddress = InetAddress.getByName(host);
-            return super.buildHttpHost(inetAddress.getHostName(), port);
+            return super.buildHttpHost(inetAddress.getCanonicalHostName(), port);
         } catch (UnknownHostException e) {
             assumeNoException("failed to resolve host [" + host + "]", e);
         }

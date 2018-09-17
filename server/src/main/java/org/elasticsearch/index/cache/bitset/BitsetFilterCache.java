@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -134,7 +135,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
             final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
-            final Weight weight = searcher.createNormalizedWeight(query, false);
+            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(context);
             final BitSet bitSet;
             if (s == null) {

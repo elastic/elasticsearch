@@ -96,17 +96,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final AtomicReference<ClusterState> state; // last applied state
 
     private NodeConnectionsService nodeConnectionsService;
-    private Supplier<ClusterState.Builder> stateBuilderSupplier;
 
-    public ClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, Supplier<ClusterState
-        .Builder> stateBuilderSupplier) {
+    public ClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
-        this.stateBuilderSupplier = stateBuilderSupplier;
     }
 
     public void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -259,13 +256,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Remove the given listener for on/off local master events
-     */
-    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        localNodeMasterListeners.remove(listener);
-    }
-
-    /**
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
      *
@@ -350,13 +340,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 throw e;
             }
         }
-    }
-
-    /** asserts that the current thread is the cluster state update thread */
-    public static boolean assertClusterStateUpdateThread() {
-        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) :
-            "not called from the cluster state update thread";
-        return true;
     }
 
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
@@ -610,13 +593,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             listeners.add(listener);
         }
 
-        private void remove(LocalNodeMasterListener listener) {
-            listeners.remove(listener);
-        }
-
-        private void clear() {
-            listeners.clear();
-        }
     }
 
     private static class OnMasterRunnable implements Runnable {
@@ -652,8 +628,4 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         return System.nanoTime();
     }
 
-    @Override
-    public ClusterState.Builder newClusterStateBuilder() {
-        return stateBuilderSupplier.get();
-    }
 }

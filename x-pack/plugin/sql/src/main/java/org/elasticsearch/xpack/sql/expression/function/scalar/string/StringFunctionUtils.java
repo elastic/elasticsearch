@@ -33,7 +33,7 @@ abstract class StringFunctionUtils {
     }
 
     /**
-     * Trims the trailing whitespace characters from the given String. Uses java.lang.Character.isWhitespace(char)
+     * Trims the trailing whitespace characters from the given String. Uses {@link Character#isWhitespace(char)}
      * to determine if a character is whitespace or not.
      *
      * @param s       the original String

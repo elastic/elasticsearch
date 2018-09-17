@@ -21,7 +21,7 @@ public class Pi extends MathFunction {
     private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.PI", Params.EMPTY, DataType.DOUBLE);
 
     public Pi(Location location) {
-        super(location, new Literal(location, Math.PI, DataType.DOUBLE));
+        super(location, new Literal(location, "PI", Math.PI, DataType.DOUBLE));
     }
 
     @Override

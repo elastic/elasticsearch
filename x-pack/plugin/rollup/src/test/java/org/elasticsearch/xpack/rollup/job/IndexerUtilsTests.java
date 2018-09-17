@@ -10,6 +10,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -31,15 +33,15 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
@@ -52,6 +54,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomDateHistogramGroupConfig;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomGroupConfig;
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
+import static org.elasticsearch.xpack.rollup.job.RollupIndexer.createAggregationBuilders;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,7 +66,7 @@ import static org.mockito.Mockito.when;
 public class IndexerUtilsTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupJobStats stats = new RollupJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -94,17 +101,13 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistoGroupConfig dateHistoGroupConfig = new DateHistoGroupConfig.Builder()
-                .setField(timestampField)
-                .setInterval(DateHistogramInterval.days(1))
-                .build();
+        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
-                new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, dateHistoGroupConfig.toBuilders());
-        MetricConfig metricConfig = new MetricConfig.Builder()
-                .setField("does_not_exist")
-                .setMetrics(Collections.singletonList("max"))
-                .build();
-        metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
+            new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
+                RollupIndexer.createValueSourceBuilders(dateHistoGroupConfig));
+        MetricConfig metricConfig = new MetricConfig("does_not_exist", singletonList("max"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
@@ -114,8 +117,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -127,7 +130,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -168,10 +171,11 @@ public class IndexerUtilsTests extends AggregatorTestCase {
                 .interval(1);
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(dateHisto));
+                singletonList(dateHisto));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(valueField).setMetrics(Collections.singletonList("max")).build();
-        metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
+        MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
@@ -181,8 +185,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -194,7 +198,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats= new RollupIndexerJobStats(0, 0, 0, 0);
 
         String timestampField = "the_histo";
         String valueField = "the_avg";
@@ -224,10 +228,11 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         TermsValuesSourceBuilder terms
                 = new TermsValuesSourceBuilder("the_terms." + TermsAggregationBuilder.NAME).field(valueField);
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(terms));
+                singletonList(terms));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(valueField).setMetrics(Collections.singletonList("max")).build();
-        metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
+        MetricConfig metricConfig = new MetricConfig(valueField, singletonList("max"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
         aggregator.preCollection();
@@ -237,8 +242,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -250,7 +255,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
 
         String timestampField = "ts";
         String valueField = "the_avg";
@@ -290,10 +295,11 @@ public class IndexerUtilsTests extends AggregatorTestCase {
                     .dateHistogramInterval(new DateHistogramInterval("1d"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-                Collections.singletonList(dateHisto));
+                singletonList(dateHisto));
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField("another_field").setMetrics(Arrays.asList("avg", "sum")).build();
-        metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
+        MetricConfig metricConfig = new MetricConfig("another_field", Arrays.asList("avg", "sum"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
@@ -303,8 +309,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-                ConfigTestHelpers.getGroupConfig().build(), "foo");
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(numDocs));
         for (IndexRequest doc : docs) {
@@ -315,7 +321,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    public void testKeyOrdering() {
+    public void testKeyOrderingOldID() {
         CompositeAggregation composite = mock(CompositeAggregation.class);
 
         when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
@@ -353,12 +359,106 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             return foos;
         });
 
-        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
-
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
+        // The content of the config don't actually matter for this test
+        // because the test is just looking at agg keys
+        GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(123L, "abc"), null);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo", false);
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("1237859798"));
+    }
+
+    public void testKeyOrderingNewID() {
+        CompositeAggregation composite = mock(CompositeAggregation.class);
+
+        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
+            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
+
+            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            keys.put("foo.date_histogram", 123L);
+            keys.put("bar.terms", "baz");
+            keys.put("abc.histogram", 1.9);
+            keys = shuffleMap(keys, Collections.emptySet());
+            when(bucket.getKey()).thenReturn(keys);
+
+            List<Aggregation> list = new ArrayList<>(3);
+            InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg.getName()).thenReturn("123");
+            list.add(mockAgg);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg2 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg2.getName()).thenReturn("abc");
+            list.add(mockAgg2);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg3 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg3.getName()).thenReturn("yay");
+            list.add(mockAgg3);
+
+            Collections.shuffle(list, random());
+
+            Aggregations aggs = new Aggregations(list);
+            when(bucket.getAggregations()).thenReturn(aggs);
+            when(bucket.getDocCount()).thenReturn(1L);
+
+            foos.add(bucket);
+
+            return foos;
+        });
+
+        GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1L, "abc"), null);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo", true);
+        assertThat(docs.size(), equalTo(1));
+        assertThat(docs.get(0).id(), equalTo("foo$c9LcrFqeFW92uN_Z7sv1hA"));
+    }
+
+    /*
+        A test to make sure very long keys don't break the hash
+     */
+    public void testKeyOrderingNewIDLong() {
+        CompositeAggregation composite = mock(CompositeAggregation.class);
+
+        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
+            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
+
+            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            keys.put("foo.date_histogram", 123L);
+
+            char[] charArray = new char[IndexWriter.MAX_TERM_LENGTH];
+            Arrays.fill(charArray, 'a');
+            keys.put("bar.terms", new String(charArray));
+            keys.put("abc.histogram", 1.9);
+            keys = shuffleMap(keys, Collections.emptySet());
+            when(bucket.getKey()).thenReturn(keys);
+
+            List<Aggregation> list = new ArrayList<>(3);
+            InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg.getName()).thenReturn("123");
+            list.add(mockAgg);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg2 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg2.getName()).thenReturn("abc");
+            list.add(mockAgg2);
+
+            InternalNumericMetricsAggregation.SingleValue mockAgg3 = mock(InternalNumericMetricsAggregation.SingleValue.class);
+            when(mockAgg3.getName()).thenReturn("yay");
+            list.add(mockAgg3);
+
+            Collections.shuffle(list, random());
+
+            Aggregations aggs = new Aggregations(list);
+            when(bucket.getAggregations()).thenReturn(aggs);
+            when(bucket.getDocCount()).thenReturn(1L);
+
+            foos.add(bucket);
+
+            return foos;
+        });
+
+        GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(1, "abc"), null);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo", true);
+        assertThat(docs.size(), equalTo(1));
+        assertThat(docs.get(0).id(), equalTo("foo$VAFKZpyaEqYRPLyic57_qw"));
     }
 
     public void testNullKeys() {
@@ -382,17 +482,16 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             return foos;
         });
 
-        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
-        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
-
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
+        GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), randomHistogramGroupConfig(random()), null);
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(),
+            groupConfig, "foo", randomBoolean());
         assertThat(docs.size(), equalTo(1));
         assertFalse(Strings.isNullOrEmpty(docs.get(0).id()));
     }
 
     public void testMissingBuckets() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
-        RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
+        RollupIndexerJobStats stats = new RollupIndexerJobStats(0, 0, 0, 0);
 
         String metricField = "metric_field";
         String valueField = "value_field";
@@ -432,11 +531,13 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         // Setup the composite agg
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(valueField);
-        CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
-            termsGroupConfig.toBuilders()).size(numDocs*2);
+        CompositeAggregationBuilder compositeBuilder =
+            new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME, RollupIndexer.createValueSourceBuilders(termsGroupConfig))
+                .size(numDocs*2);
 
-        MetricConfig metricConfig = new MetricConfig.Builder().setField(metricField).setMetrics(Collections.singletonList("max")).build();
-        metricConfig.toBuilders().forEach(compositeBuilder::subAggregation);
+        MetricConfig metricConfig = new MetricConfig(metricField, singletonList("max"));
+        List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
+        metricAgg.forEach(compositeBuilder::subAggregation);
 
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);
         aggregator.preCollection();
@@ -446,8 +547,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
 
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats,
-            ConfigTestHelpers.getGroupConfig().build(), "foo");
+        final GroupConfig groupConfig = randomGroupConfig(random());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
 
         assertThat(docs.size(), equalTo(6));
         for (IndexRequest doc : docs) {

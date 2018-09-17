@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -70,12 +68,6 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
         if (executorNode == null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot kill process for job {} as" +
                     "executor node {} cannot be found", request.getJobId(), jobTask.getExecutorNode()));
-            return;
-        }
-
-        Version nodeVersion = executorNode.getVersion();
-        if (nodeVersion.before(Version.V_5_5_0)) {
-            listener.onFailure(new ElasticsearchException("Cannot kill the process on node with version " + nodeVersion));
             return;
         }
 

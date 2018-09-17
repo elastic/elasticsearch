@@ -21,22 +21,37 @@ import static org.elasticsearch.xpack.core.security.transport.netty4.SecurityNet
 
 public class SecurityNetty4TransportTests extends ESTestCase {
 
-    public void testGetTransportProfileConfigurations() {
+    public void testGetSecureTransportProfileConfigurations() {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .put("transport.profiles.full.xpack.security.ssl.verification_mode", VerificationMode.FULL.name())
             .put("transport.profiles.cert.xpack.security.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
+            .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final Map<String, SSLConfiguration> profileConfigurations = getTransportProfileConfigurations(settings, sslService, defaultConfig);
+        assertThat(profileConfigurations.size(), Matchers.equalTo(3));
+        assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
+        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(VerificationMode.FULL));
+        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(VerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
+    }
+
+    public void testGetInsecureTransportProfileConfigurations() {
+        assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .put("transport.profiles.none.xpack.security.ssl.verification_mode", VerificationMode.NONE.name())
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Map<String, SSLConfiguration> profileConfigurations = getTransportProfileConfigurations(settings, sslService, defaultConfig);
-        assertThat(profileConfigurations.size(), Matchers.equalTo(4));
-        assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "none", "default"));
-        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(VerificationMode.FULL));
-        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(VerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.size(), Matchers.equalTo(2));
+        assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
         assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(VerificationMode.NONE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }

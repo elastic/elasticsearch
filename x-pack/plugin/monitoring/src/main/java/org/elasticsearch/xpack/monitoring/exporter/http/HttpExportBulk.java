@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -94,9 +94,13 @@ class HttpExportBulk extends ExportBulk {
         if (payload == null) {
             listener.onFailure(new ExportException("unable to send documents because none were loaded for export bulk [{}]", name));
         } else if (payload.length != 0) {
-            final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
+            final Request request = new Request("POST", "/_bulk");
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            request.setEntity(new NByteArrayEntity(payload, ContentType.APPLICATION_JSON));
 
-            client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
+            client.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     try {

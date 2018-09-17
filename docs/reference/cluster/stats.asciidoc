@@ -22,6 +22,7 @@ Will return, for example:
       "successful" : 1,
       "failed" : 0
    },
+   "cluster_uuid": "YjAvIhsCQ9CbjWZb2qJw3Q",
    "cluster_name": "elasticsearch",
    "timestamp": 1459427693515,
    "status": "green",
@@ -212,3 +213,12 @@ Will return, for example:
 // 3. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
+
+This API can be restricted to a subset of the nodes using the `?nodeId`
+parameter, which accepts <<cluster-nodes,node filters>>:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/stats?nodeId=node1,node*,master:false
+--------------------------------------------------
+// CONSOLE

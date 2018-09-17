@@ -93,6 +93,7 @@ public class UpdateIT extends ESIntegTestCase {
                 }
 
                 Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                params.remove("ctx");
                 source.putAll(params);
 
                 return ctx;

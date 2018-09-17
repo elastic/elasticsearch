@@ -38,50 +38,34 @@ public class LocateFunctionProcessorDefinitionTests extends AbstractNodeTestCase
         return (LocateFunctionProcessorDefinition) (new Locate(randomLocation(), 
                             randomStringLiteral(), 
                             randomStringLiteral(),
-                            frequently() ? randomIntLiteral() : null)
+                            randomFrom(true, false) ? randomIntLiteral() : null)
                 .makeProcessorDefinition());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32554")
     @Override
     public void testTransform() {
         // test transforming only the properties (location, expression), 
         // skipping the children (the two parameters of the binary function) which are tested separately
         LocateFunctionProcessorDefinition b1 = randomInstance();
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomLocateFunctionExpression());
-        LocateFunctionProcessorDefinition newB;
-        if (b1.start() == null) {
-            newB = new LocateFunctionProcessorDefinition(
-                    b1.location(), 
-                    newExpression,
-                    b1.pattern(), 
-                    b1.source());
-        } else {
-            newB = new LocateFunctionProcessorDefinition(
-                b1.location(), 
-                newExpression,
-                b1.pattern(), 
-                b1.source(),
-                b1.start());
-        }
+        LocateFunctionProcessorDefinition newB = new LocateFunctionProcessorDefinition(
+            b1.location(), 
+            newExpression,
+            b1.pattern(), 
+            b1.source(),
+            b1.start());
+
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
         
         LocateFunctionProcessorDefinition b2 = randomInstance();
         Location newLoc = randomValueOtherThan(b2.location(), () -> randomLocation());
-        if (b2.start() == null) {
-            newB = new LocateFunctionProcessorDefinition(
-                    newLoc, 
-                    b2.expression(),
-                    b2.pattern(), 
-                    b2.source());
-        } else {
-            newB = new LocateFunctionProcessorDefinition(
-                    newLoc, 
-                    b2.expression(),
-                    b2.pattern(), 
-                    b2.source(),
-                    b2.start());
-        }
+        newB = new LocateFunctionProcessorDefinition(
+                newLoc, 
+                b2.expression(),
+                b2.pattern(), 
+                b2.source(),
+                b2.start());
+
         assertEquals(newB, 
                 b2.transformPropertiesOnly(v -> Objects.equals(v, b2.location()) ? newLoc : v, Location.class));
     }
@@ -93,15 +77,9 @@ public class LocateFunctionProcessorDefinitionTests extends AbstractNodeTestCase
         ProcessorDefinition newSource = toProcessorDefinition((Expression) randomValueOtherThan(b.source(), () -> randomStringLiteral()));
         ProcessorDefinition newStart;
         
-        LocateFunctionProcessorDefinition newB;
-        if (b.start() == null) {
-            newB = new LocateFunctionProcessorDefinition(b.location(), b.expression(), b.pattern(), b.source());
-            newStart = null;
-        }
-        else {
-            newB = new LocateFunctionProcessorDefinition(b.location(), b.expression(), b.pattern(), b.source(), b.start());
-            newStart = toProcessorDefinition((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral()));
-        }
+        LocateFunctionProcessorDefinition newB = new LocateFunctionProcessorDefinition(
+                b.location(), b.expression(), b.pattern(), b.source(), b.start());
+        newStart = toProcessorDefinition((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral()));
         LocateFunctionProcessorDefinition transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
@@ -132,7 +110,8 @@ public class LocateFunctionProcessorDefinitionTests extends AbstractNodeTestCase
                             comb.get(0) ? toProcessorDefinition((Expression) randomValueOtherThan(f.pattern(),
                                     () -> randomStringLiteral())) : f.pattern(),
                             comb.get(1) ? toProcessorDefinition((Expression) randomValueOtherThan(f.source(),
-                                    () -> randomStringLiteral())) : f.source()));
+                                    () -> randomStringLiteral())) : f.source(),
+                                    null));
                 }
             }
         } else {
@@ -155,13 +134,7 @@ public class LocateFunctionProcessorDefinitionTests extends AbstractNodeTestCase
 
     @Override
     protected LocateFunctionProcessorDefinition copy(LocateFunctionProcessorDefinition instance) {
-        return instance.start() == null ?
-                new LocateFunctionProcessorDefinition(instance.location(),
-                        instance.expression(),
-                        instance.pattern(),
-                        instance.source())
-                :
-                new LocateFunctionProcessorDefinition(instance.location(),
+        return new LocateFunctionProcessorDefinition(instance.location(),
                         instance.expression(),
                         instance.pattern(),
                         instance.source(),

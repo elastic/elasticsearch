@@ -576,7 +576,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         // add a single node
         clusterState = ClusterState.builder(clusterState).nodes(
                 DiscoveryNodes.builder()
-                .add(newNode("node1-5.x", Version.V_5_6_0)))
+                .add(newNode("node1-5.x", Version.fromId(5060099))))
                 .build();
         clusterState = ClusterState.builder(clusterState).routingTable(allocation.reroute(clusterState, "reroute").routingTable()).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
@@ -590,7 +590,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         // add another 5.6 node
         clusterState = ClusterState.builder(clusterState).nodes(
                 DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node2-5.x", Version.V_5_6_0)))
+                .add(newNode("node2-5.x", Version.fromId(5060099))))
                 .build();
 
         // start the shards, should have 1 primary and 1 replica available

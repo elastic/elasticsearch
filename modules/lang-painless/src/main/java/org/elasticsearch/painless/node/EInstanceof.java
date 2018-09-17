@@ -54,12 +54,11 @@ public final class EInstanceof extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        Class<?> clazz;
 
         // ensure the specified type is part of the definition
-        try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
-        } catch (IllegalArgumentException exception) {
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 

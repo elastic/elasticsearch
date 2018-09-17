@@ -49,11 +49,13 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
 
     @Before
     public void createSSLService() {
-        Path testNodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        Path testNodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        Path testNodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.keystore.path", testNodeStore)
+            .put("xpack.ssl.key", testNodeKey)
+            .put("xpack.ssl.certificate", testNodeCert)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();

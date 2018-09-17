@@ -18,7 +18,7 @@ Defaults to `false`
 [[java-rest-high-x-pack-machine-learning-delete-job-response]]
 ==== Delete Job Response
 
-The returned `DeleteJobResponse` object indicates the acknowledgement of the request:
+The returned `AcknowledgedResponse` object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
 include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-response]

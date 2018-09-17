@@ -1,0 +1,240 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-string]]
+=== String Functions
+
+Functions for performing string manipulation.
+
+[[sql-functions-string-ascii]]
+==== `ASCII`
+
+*Input*: `string`, *Output*: `integer`
+
+Returns the ASCII code value of the leftmost character of string_exp as an integer.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringAscii]
+----
+
+[[sql-functions-string-bit-length]]
+==== `BIT_LENGTH`
+
+*Input*: `string`, *Output*: `integer`
+
+Returns the length in bits of the input.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringBitLength]
+----
+
+[[sql-functions-string-char]]
+==== `CHAR`
+
+*Input*: `numeric`, *Output*: `string`
+
+Returns the character that has the ASCII code value specified by the numeric input. The value should be between 0 and 255; otherwise, the return value is data source–dependent.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringChar]
+----
+
+[[sql-functions-string-char-length]]
+==== `CHAR_LENGTH`
+
+*Input*: `string`, *Output*: `integer`
+
+Returns the length in characters of the input, if the string expression is of a character data type; otherwise, returns the length in bytes of the string expression (the smallest integer not less than the number of bits divided by 8).
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringCharLength]
+----
+
+[[sql-functions-string-concat]]
+==== `CONCAT`
+
+*Input*: `string1`, `string2`, *Output*: `string`
+
+turns a character string that is the result of concatenating string1 to string2. If one of the string is `NULL`,
+the other string will be returned.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringConcat]
+----
+
+[[sql-functions-string-insert]]
+==== `INSERT`
+
+*Input*: `string1`, `start`, `length`, `string2`, *Output*: `string`
+
+Returns a string where length characters have been deleted from string1, beginning at start, and where string2 has been inserted into string1, beginning at start.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringInsert]
+----
+
+[[sql-functions-string-lcase]]
+==== `LCASE`
+
+*Input*: `string`, *Output*: `string`
+
+Returns a string equal to that in string, with all uppercase characters converted to lowercase.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLCase]
+----
+
+[[sql-functions-string-left]]
+==== `LEFT`
+
+*Input*: `string`, *Output*: `string`
+
+Returns the leftmost count characters of string.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLeft]
+----
+
+[[sql-functions-string-length]]
+==== `LENGTH`
+
+*Input*: `string`, *Output*: `integer`
+
+Returns the number of characters in string, excluding trailing blanks.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLength]
+----
+
+[[sql-functions-string-locate]]
+==== `LOCATE`
+
+*Input*: `string1`, `string2`[, `start`]`, *Output*: `integer`
+
+Returns the starting position of the first occurrence of string1 within string2. The search for the first occurrence of string1 begins with the first character position in string2 unless the optional argument, start, is specified. If start is specified, the search begins with the character position indicated by the value of start. The first character position in string2 is indicated by the value 1. If string1 is not found within string2, the value 0 is returned.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLocateWoStart]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLocateWithStart]
+----
+
+[[sql-functions-string-ltrim]]
+==== `LTRIM`
+
+*Input*: `string`, *Output*: `string`
+
+Returns the characters of string_exp, with leading blanks removed.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
+----
+
+[[sql-functions-string-position]]
+==== `POSITION`
+
+*Input*: `string1`, `string2`, *Output*: `integer`
+
+Returns the position of the string1 in string2. The result is an exact numeric.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringPosition]
+----
+
+[[sql-functions-string-repeat]]
+==== `REPEAT`
+
+*Input*: `string`, `count`, *Output*: `string`
+
+Returns a character string composed of string1 repeated count times.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringRepeat]
+----
+
+[[sql-functions-string-replace]]
+==== `REPLACE`
+
+*Input*: `string1`, `string2`, `string3`, *Output*: `string`
+
+Search string1 for occurrences of string2, and replace with string3.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringReplace]
+----
+
+[[sql-functions-string-right]]
+==== `RIGHT`
+
+*Input*: `string`, `count`, *Output*: `string`
+
+Returns the rightmost count characters of string.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringRight]
+----
+
+[[sql-functions-string-rtrim]]
+==== `RTRIM`
+
+*Input*: `string`, *Output*: `string`
+
+Returns the characters of string with trailing blanks removed.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringRTrim]
+----
+
+[[sql-functions-string-space]]
+==== `SPACE`
+
+*Input*: `integer`, *Output*: `string`
+
+Returns a character string consisting of count spaces.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringSpace]
+----
+
+[[sql-functions-string-substring]]
+==== `SUBSTRING`
+
+*Input*: `string`, `start`, `length`, *Output*: `integer`
+
+Returns a character string that is derived from the string, beginning at the character position specified by `start` for `length` characters.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringSubString]
+----
+
+[[sql-functions-string-ucase]]
+==== `UCASE`
+
+*Input*: `string`, *Output*: `string`
+
+Returns a string equal to that of the input, with all lowercase characters converted to uppercase.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[stringUCase]
+----

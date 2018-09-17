@@ -1,0 +1,78 @@
+[[java-rest-high-x-pack-ml-delete-forecast]]
+=== Delete Forecast API
+
+The Delete Forecast API provides the ability to delete a {ml} job's
+forecast in the cluster.
+It accepts a `DeleteForecastRequest` object and responds
+with an `AcknowledgedResponse` object.
+
+[[java-rest-high-x-pack-ml-delete-forecast-request]]
+==== Delete Forecast Request
+
+A `DeleteForecastRequest` object gets created with an existing non-null `jobId`.
+All other fields are optional for the request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-request-options]
+--------------------------------------------------
+<1> Sets the specific forecastIds to delete, can be set to `_all` to indicate ALL forecasts for the given
+`jobId` 
+<2> Set the timeout for the request to respond, default is 30 seconds 
+<3> Set the `allow_no_forecasts` option. When `true` no error will be returned if an `_all`
+request finds no forecasts. It defaults to `true` 
+
+[[java-rest-high-x-pack-ml-delete-forecast-execution]]
+==== Execution
+
+The request can be executed through the `MachineLearningClient` contained
+in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-ml-delete-forecast-execution-async]]
+==== Asynchronous Execution
+
+The request can also be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-execute-async]
+--------------------------------------------------
+<1> The `DeleteForecastRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The method does not block and returns immediately. The passed `ActionListener` is used
+to notify the caller of completion. A typical `ActionListener` for `AcknowledgedResponse` may
+look like
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-listener]
+--------------------------------------------------
+<1> `onResponse` is called back when the action is completed successfully
+<2> `onFailure` is called back when some unexpected error occurs
+
+[[java-rest-high-x-pack-ml-delete-forecast-response]]
+==== Delete Forecast Response
+
+An `AcknowledgedResponse` contains an acknowledgement of the forecast(s) deletion
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-delete-forecast-response]
+--------------------------------------------------
+<1> `isAcknowledged()` indicates if the forecast was successfully deleted or not.

@@ -112,6 +112,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             super.beforeIndexDeletion();
             internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
             assertSeqNos();
+            assertSameDocIdsOnShards();
         }
     }
 

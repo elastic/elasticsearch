@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,11 +32,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,14 +53,25 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
+    private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
+    protected AbstractScopedSettings(
+            final Settings settings,
+            final Set<Setting<?>> settingsSet,
+            final Set<SettingUpgrader<?>> settingUpgraders,
+            final Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
+
+        this.settingUpgraders =
+                Collections.unmodifiableMap(
+                        settingUpgraders.stream().collect(Collectors.toMap(SettingUpgrader::getSetting, Function.identity())));
+
+
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
@@ -96,6 +109,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
+        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -352,13 +366,13 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that all settings are registered and valid.
      *
-     * @param settings              the settings to validate
-     * @param validateDependencies  true if dependent settings should be validated
-     * @param validateInternalIndex true if internal index settings should be validated
+     * @param settings                       the settings to validate
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
-    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
-        validate(settings, validateDependencies, false, false, validateInternalIndex);
+    public final void validate(final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
+        validate(settings, validateDependencies, false, false, validateInternalOrPrivateIndex);
     }
 
     /**
@@ -381,11 +395,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that all settings are registered and valid.
      *
-     * @param settings               the settings
-     * @param validateDependencies   true if dependent settings should be validated
-     * @param ignorePrivateSettings  true if private settings should be ignored during validation
-     * @param ignoreArchivedSettings true if archived settings should be ignored during validation
-     * @param validateInternalIndex  true if index internal settings should be validated
+     * @param settings                       the settings
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param ignorePrivateSettings          true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
+     * @param validateInternalOrPrivateIndex true if index internal settings should be validated
      * @see Setting#getSettingsDependencies(String)
      */
     public final void validate(
@@ -393,17 +407,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             final boolean validateDependencies,
             final boolean ignorePrivateSettings,
             final boolean ignoreArchivedSettings,
-            final boolean validateInternalIndex) {
+            final boolean validateInternalOrPrivateIndex) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
-            if (isPrivateSetting(key) && ignorePrivateSettings) {
+            final Setting<?> setting = getRaw(key);
+            if (((isPrivateSetting(key) || (setting != null && setting.isPrivateIndex())) && ignorePrivateSettings)) {
                 continue;
             }
             if (key.startsWith(ARCHIVED_SETTINGS_PREFIX) && ignoreArchivedSettings) {
                 continue;
             }
             try {
-                validate(key, settings, validateDependencies, validateInternalIndex);
+                validate(key, settings, validateDependencies, validateInternalOrPrivateIndex);
             } catch (final RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -426,16 +441,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Validates that the settings is valid.
      *
-     * @param key the key of the setting to validate
-     * @param settings the settings
-     * @param validateDependencies true if dependent settings should be validated
-     * @param validateInternalIndex true if internal index settings should be validated
+     * @param key                            the key of the setting to validate
+     * @param settings                       the settings
+     * @param validateDependencies           true if dependent settings should be validated
+     * @param validateInternalOrPrivateIndex true if internal index settings should be validated
      * @throws IllegalArgumentException if the setting is invalid
      */
-    void validate(final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
-        Setting<?> setting = getRaw(key);
+    void validate(
+            final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalOrPrivateIndex) {
+        Setting setting = getRaw(key);
         if (setting == null) {
-            LevensteinDistance ld = new LevensteinDistance();
+            LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
             for (String k : this.keySettings.keySet()) {
                 float distance = ld.getDistance(key, k);
@@ -459,23 +475,31 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             }
             throw new IllegalArgumentException(msg);
         } else  {
-            Set<String> settingsDependencies = setting.getSettingsDependencies(key);
+            Set<Setting<?>> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
             if (validateDependencies && settingsDependencies.isEmpty() == false) {
-                Set<String> settingKeys = settings.keySet();
-                for (String requiredSetting : settingsDependencies) {
-                    if (settingKeys.contains(requiredSetting) == false) {
-                        throw new IllegalArgumentException("Missing required setting ["
-                            + requiredSetting + "] for setting [" + setting.getKey() + "]");
+                for (final Setting<?> settingDependency : settingsDependencies) {
+                    if (settingDependency.existsOrFallbackExists(settings) == false) {
+                        final String message = String.format(
+                                Locale.ROOT,
+                                "missing required setting [%s] for setting [%s]",
+                                settingDependency.getKey(),
+                                setting.getKey());
+                        throw new IllegalArgumentException(message);
                     }
                 }
             }
-            // the only time that validateInternalIndex should be true is if this call is coming via the update settings API
-            if (validateInternalIndex && setting.getProperties().contains(Setting.Property.InternalIndex)) {
-                throw new IllegalArgumentException(
-                        "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
+            // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API
+            if (validateInternalOrPrivateIndex) {
+                if (setting.isInternalIndex()) {
+                    throw new IllegalArgumentException(
+                            "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API");
+                } else if (setting.isPrivateIndex()) {
+                    throw new IllegalArgumentException(
+                            "can not update private setting [" + setting.getKey() + "]; this setting is managed by Elasticsearch");
+                }
             }
         }
         setting.get(settings);
@@ -747,6 +771,42 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Upgrade all settings eligible for upgrade in the specified settings instance.
+     *
+     * @param settings the settings instance that might contain settings to be upgraded
+     * @return a new settings instance if any settings required upgrade, otherwise the same settings instance as specified
+     */
+    public Settings upgradeSettings(final Settings settings) {
+        final Settings.Builder builder = Settings.builder();
+        boolean changed = false; // track if any settings were upgraded
+        for (final String key : settings.keySet()) {
+            final Setting<?> setting = getRaw(key);
+            final SettingUpgrader<?> upgrader = settingUpgraders.get(setting);
+            if (upgrader == null) {
+                // the setting does not have an upgrader, copy the setting
+                builder.copy(key, settings);
+            } else {
+                // the setting has an upgrader, so mark that we have changed a setting and apply the upgrade logic
+                changed = true;
+                // noinspection ConstantConditions
+                if (setting.getConcreteSetting(key).isListSetting()) {
+                    final List<String> value = settings.getAsList(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final List<String> upgradedValue = upgrader.getListValue(value);
+                    builder.putList(upgradedKey, upgradedValue);
+                } else {
+                    final String value = settings.get(key);
+                    final String upgradedKey = upgrader.getKey(key);
+                    final String upgradedValue = upgrader.getValue(value);
+                    builder.put(upgradedKey, upgradedValue);
+                }
+            }
+        }
+        // we only return a new instance if there was an upgrade
+        return changed ? builder.build() : settings;
+    }
+
+    /**
      * Archives invalid or unknown settings. Any setting that is not recognized or fails validation
      * will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
      * and remains in the settings object. This can be used to detect invalid settings via APIs.
@@ -836,4 +896,5 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public boolean isPrivateSetting(String key) {
         return false;
     }
+
 }

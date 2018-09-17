@@ -320,7 +320,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG,0.0f, 100);
-        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
+        Weight weight = searcher.createWeight(searcher.rewrite(functionScoreQuery), org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
     }
@@ -397,7 +397,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     protected Explanation getExplanation(IndexSearcher searcher, FunctionScoreQuery functionScoreQuery) throws IOException {
-        Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
+        Weight weight = searcher.createWeight(searcher.rewrite(functionScoreQuery), org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
         return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
@@ -421,18 +421,19 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(functionExplanation.getDetails()[1].getDescription(), equalTo(functionExpl));
     }
 
-    private static float[] randomFloats(int size) {
+    private static float[] randomPositiveFloats(int size) {
         float[] values = new float[size];
         for (int i = 0; i < values.length; i++) {
-            values[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * randomInt(100) + 1.e-5f;
+            values[i] = randomFloat() * randomInt(100) + 1.e-5f;
         }
         return values;
     }
 
-    private static double[] randomDoubles(int size) {
+    private static double[] randomPositiveDoubles(int size) {
         double[] values = new double[size];
         for (int i = 0; i < values.length; i++) {
-            values[i] = randomDouble() * (randomBoolean() ? 1.0d : -1.0d) * randomInt(100) + 1.e-5d;
+            double rand = randomValueOtherThanMany((d) -> Double.compare(d, 0) < 0, ESTestCase::randomDouble);
+            values[i] = rand * randomInt(100) + 1.e-5d;
         }
         return values;
     }
@@ -478,8 +479,8 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testSimpleWeightedFunction() throws IOException, ExecutionException, InterruptedException {
         int numFunctions = randomIntBetween(1, 3);
-        float[] weights = randomFloats(numFunctions);
-        double[] scores = randomDoubles(numFunctions);
+        float[] weights = randomPositiveFloats(numFunctions);
+        double[] scores = randomPositiveDoubles(numFunctions);
         ScoreFunctionStub[] scoreFunctionStubs = new ScoreFunctionStub[numFunctions];
         for (int i = 0; i < numFunctions; i++) {
             scoreFunctionStubs[i] = new ScoreFunctionStub(scores[i]);
@@ -502,7 +503,7 @@ public class FunctionScoreTests extends ESTestCase {
             score *= weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) score, is(1f));
-        float explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        float explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -518,7 +519,7 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) sum, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -536,7 +537,7 @@ public class FunctionScoreTests extends ESTestCase {
             sum += weights[i] * scores[i];
         }
         assertThat(scoreWithWeight / (float) (sum / norm), is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -552,7 +553,7 @@ public class FunctionScoreTests extends ESTestCase {
             min = Math.min(min, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) min, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
 
         functionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
@@ -568,7 +569,7 @@ public class FunctionScoreTests extends ESTestCase {
             max = Math.max(max, weights[i] * scores[i]);
         }
         assertThat(scoreWithWeight / (float) max, is(1f));
-        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue();
+        explainedScore = getExplanation(searcher, functionScoreQueryWithWeights).getValue().floatValue();
         assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
@@ -587,7 +588,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query,0f, Float.POSITIVE_INFINITY);
         Explanation fsqExpl = searcher.explain(fsq, 0);
         assertTrue(fsqExpl.isMatch());
-        assertEquals(queryExpl.getValue(), fsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getValue(), fsqExpl.getValue());
         assertEquals(queryExpl.getDescription(), fsqExpl.getDescription());
 
         fsq = new FunctionScoreQuery(query, 10f, Float.POSITIVE_INFINITY);
@@ -598,7 +599,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery ffsq = new FunctionScoreQuery(query, 0f, Float.POSITIVE_INFINITY);
         Explanation ffsqExpl = searcher.explain(ffsq, 0);
         assertTrue(ffsqExpl.isMatch());
-        assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getValue(), ffsqExpl.getValue());
         assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
 
         ffsq = new FunctionScoreQuery(query, 10f, Float.POSITIVE_INFINITY);
@@ -613,8 +614,8 @@ public class FunctionScoreTests extends ESTestCase {
         searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
-        for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(fsq, needsScores, 1f);
+        for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
+            Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }

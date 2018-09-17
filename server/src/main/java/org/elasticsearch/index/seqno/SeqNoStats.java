@@ -91,5 +91,4 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
             ", globalCheckpoint=" + globalCheckpoint +
             '}';
     }
-
 }

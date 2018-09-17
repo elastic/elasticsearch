@@ -284,7 +284,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
 
         GeoPoint sparse = context.parseExternalValue(GeoPoint.class);
@@ -340,7 +340,6 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         context.path().remove();
-        return null;
     }
 
     /**

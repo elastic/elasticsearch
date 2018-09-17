@@ -51,7 +51,7 @@ teardown:
               "password": "s3krit",
               "roles" : [ "admin_role2" ]
             }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       index:

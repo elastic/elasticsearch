@@ -19,7 +19,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -47,17 +47,13 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     private final Map<String, Object> params;
 
     /** A leaf lookup for the bound segment this script will operate on. */
-    private final LeafReaderContext leafContext;
-
-    /** A leaf lookup for the bound segment this script will operate on. */
     private final LeafSearchLookup leafLookup;
 
     /** A scorer that will return the score for the current document when the script is run. */
-    private Scorer scorer;
+    private Scorable scorer;
 
     public SearchScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.params = params;
-        this.leafContext = leafContext;
         // TODO: remove leniency when painless does not implement SearchScript for executable script cases
         this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
     }
@@ -70,11 +66,6 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     /** The leaf lookup for the Lucene segment this script was created for. */
     protected final LeafSearchLookup getLeafLookup() {
         return leafLookup;
-    }
-
-    /** The leaf context for the Lucene segment this script was created for. */
-    protected final LeafReaderContext getLeafContext() {
-        return leafContext;
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */
@@ -92,7 +83,7 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         this.scorer = scorer;
     }
 
@@ -158,6 +149,4 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     public static final ScriptContext<Factory> AGGS_CONTEXT = new ScriptContext<>("aggs", Factory.class);
     // Can return a double. (For ScriptSortType#NUMBER only, for ScriptSortType#STRING normal CONTEXT should be used)
     public static final ScriptContext<Factory> SCRIPT_SORT_CONTEXT = new ScriptContext<>("sort", Factory.class);
-    // Can return a long
-    public static final ScriptContext<Factory> TERMS_SET_QUERY_CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 }

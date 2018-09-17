@@ -18,17 +18,17 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStateTests.createCustomMetadata;
 
-public class ShrinkCopyExecutionStateTests extends AbstractStepTestCase<ShrinkCopyExecutionState> {
+public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecutionStateStep> {
     @Override
-    protected ShrinkCopyExecutionState createRandomInstance() {
+    protected CopyExecutionStateStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrinkCopyExecutionState(stepKey, nextStepKey, shrunkIndexPrefix);
+        return new CopyExecutionStateStep(stepKey, nextStepKey, shrunkIndexPrefix);
     }
 
     @Override
-    protected ShrinkCopyExecutionState mutateInstance(ShrinkCopyExecutionState instance) {
+    protected CopyExecutionStateStep mutateInstance(CopyExecutionStateStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
@@ -47,16 +47,16 @@ public class ShrinkCopyExecutionStateTests extends AbstractStepTestCase<ShrinkCo
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkCopyExecutionState(key, nextKey, shrunkIndexPrefix);
+        return new CopyExecutionStateStep(key, nextKey, shrunkIndexPrefix);
     }
 
     @Override
-    protected ShrinkCopyExecutionState copyInstance(ShrinkCopyExecutionState instance) {
-        return new ShrinkCopyExecutionState(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
+    protected CopyExecutionStateStep copyInstance(CopyExecutionStateStep instance) {
+        return new CopyExecutionStateStep(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() {
-        ShrinkCopyExecutionState step = createRandomInstance();
+        CopyExecutionStateStep step = createRandomInstance();
         String indexName = randomAlphaOfLengthBetween(5, 20);
         Map<String, String> customMetadata = createCustomMetadata();
 

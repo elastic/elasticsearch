@@ -56,7 +56,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, AllocationRoutedStep.NAME);
         StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
         StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
-        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkCopyExecutionState.NAME);
+        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
         StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
         StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
         assertTrue(steps.get(0) instanceof SetSingleNodeAllocateStep);
@@ -75,10 +75,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(steps.get(3).getNextStepKey(), equalTo(expectedFifthKey));
         assertThat(((ShrunkShardsAllocatedStep) steps.get(3)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
-        assertTrue(steps.get(4) instanceof ShrinkCopyExecutionState);
+        assertTrue(steps.get(4) instanceof CopyExecutionStateStep);
         assertThat(steps.get(4).getKey(), equalTo(expectedFifthKey));
         assertThat(steps.get(4).getNextStepKey(), equalTo(expectedSixthKey));
-        assertThat(((ShrinkCopyExecutionState) steps.get(4)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((CopyExecutionStateStep) steps.get(4)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
         assertTrue(steps.get(5) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(5).getKey(), equalTo(expectedSixthKey));
         assertThat(steps.get(5).getNextStepKey(), equalTo(expectedSeventhKey));

@@ -37,7 +37,12 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
-        // if operating on the shrunken index, do nothing
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+        if (lifecycleState == null) {
+            throw new IllegalStateException("source index [" + indexMetaData.getIndex().getName() +
+                "] is missing creation date");
+        }
+
         String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
 
         Settings relevantTargetSettings = Settings.builder()

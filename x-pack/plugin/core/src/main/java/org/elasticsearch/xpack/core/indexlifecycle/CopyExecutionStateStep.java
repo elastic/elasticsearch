@@ -15,11 +15,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
-public class ShrinkCopyExecutionState extends ClusterStateActionStep {
-    public static final String NAME = "copy_metadata";
+/**
+ * Copies the execution state data from one index to another, typically after a
+ * new index has been created. Useful for actions such as shrink.
+ */
+public class CopyExecutionStateStep extends ClusterStateActionStep {
+    public static final String NAME = "copy_execution_state";
     private String shrunkIndexPrefix;
 
-    public ShrinkCopyExecutionState(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);
         this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
@@ -60,7 +64,7 @@ public class ShrinkCopyExecutionState extends ClusterStateActionStep {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-        ShrinkCopyExecutionState that = (ShrinkCopyExecutionState) o;
+        CopyExecutionStateStep that = (CopyExecutionStateStep) o;
         return Objects.equals(shrunkIndexPrefix, that.shrunkIndexPrefix);
     }
 

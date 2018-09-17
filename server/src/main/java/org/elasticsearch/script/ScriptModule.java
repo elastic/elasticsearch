@@ -44,7 +44,7 @@ public class ScriptModule {
             SearchScript.AGGS_CONTEXT,
             ScoreScript.CONTEXT,
             SearchScript.SCRIPT_SORT_CONTEXT,
-            SearchScript.TERMS_SET_QUERY_CONTEXT,
+            TermsSetQueryScript.CONTEXT,
             ExecutableScript.CONTEXT,
             UpdateScript.CONTEXT,
             BucketAggregationScript.CONTEXT,

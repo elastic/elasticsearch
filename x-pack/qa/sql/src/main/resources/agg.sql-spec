@@ -90,6 +90,10 @@ aggCountImplicit
 SELECT COUNT(*) AS count FROM test_emp;
 aggCountImplicitWithCast
 SELECT CAST(COUNT(*) AS INT) c FROM "test_emp";
+aggCountImplicitWithUpCast
+SELECT CAST(COUNT(*) AS DOUBLE) c FROM "test_emp";
+aggCountImplicitWithPrunedCast
+SELECT CAST(COUNT(*) AS BIGINT) c FROM "test_emp";
 aggCountImplicitWithConstant
 SELECT COUNT(1) FROM "test_emp";
 aggCountImplicitWithConstantAndFilter
@@ -184,6 +188,10 @@ SELECT MIN(emp_no) AS min FROM test_emp;
 // end::min
 aggMinImplicitWithCast
 SELECT CAST(MIN(emp_no) AS SMALLINT) m FROM "test_emp";
+aggMinImplicitWithUpCast
+SELECT CAST(MIN(emp_no) AS DOUBLE) m FROM "test_emp";
+aggMinImplicitWithPrunedCast
+SELECT CAST(MIN(emp_no) AS INTEGER) m FROM "test_emp";
 aggMin
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggMinWithCast
@@ -236,6 +244,10 @@ aggMaxImplicit
 SELECT MAX(salary) AS max FROM test_emp;
 aggMaxImplicitWithCast
 SELECT CAST(MAX(emp_no) AS SMALLINT) c FROM "test_emp";
+aggMaxImplicitWithUpCast
+SELECT CAST(MAX(emp_no) AS DOUBLE) c FROM "test_emp";
+aggMaxImplicitWithPrunedCast
+SELECT CAST(MAX(emp_no) AS INTEGER) c FROM "test_emp";
 aggMax
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggMaxWithCast
@@ -268,6 +280,10 @@ SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MAX(
 // SUM
 aggSumImplicitWithCast
 SELECT CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp";
+aggSumImplicitWithUpCast
+SELECT CAST(SUM(emp_no) AS DOUBLE) s FROM "test_emp";
+aggSumImplicitWithUpCast
+SELECT CAST(SUM(emp_no) AS INTEGER) s FROM "test_emp";
 aggSumWithCast
 SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggSumWithCastAndCount
@@ -298,6 +314,8 @@ SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY g HAVING s 
 // AVG
 aggAvgImplicitWithCast
 SELECT CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp";
+aggAvgImplicitWithUpCast
+SELECT CAST(AVG(emp_no) AS DOUBLE) a FROM "test_emp";
 aggAvgWithCastToFloat
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY gender ORDER BY gender;
 // casting to an exact type - varchar, bigint, etc... will likely fail due to rounding error

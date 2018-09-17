@@ -258,10 +258,6 @@ public final class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void resetLocalCheckpoint(long newCheckpoint) {
-    }
-
-    @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return new SeqNoStats(seqNoStats.getMaxSeqNo(), seqNoStats.getLocalCheckpoint(), globalCheckpoint);
     }

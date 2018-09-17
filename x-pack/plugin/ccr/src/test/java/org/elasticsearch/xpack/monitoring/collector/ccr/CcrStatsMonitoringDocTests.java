@@ -238,10 +238,11 @@ public class CcrStatsMonitoringDocTests extends BaseMonitoringDocTestCase<CcrSta
             } else {
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("fetch_exceptions")) {
+                    assertThat(fieldType, equalTo("nested"));
                     assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
                     assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));
                     assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
-                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("nested"));
+                    assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("object"));
 
                     Map<?, ?> exceptionFieldMapping =
                         (Map<?, ?>) XContentMapValues.extractValue("properties.exception.properties", fieldMapping);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -796,10 +797,10 @@ public class MetaDataTests extends ESTestCase {
             "}";
 
     public void testTransientSettingsOverridePersistentSettings() {
-        MetaData metaData = MetaData.builder()
-            .persistentSettings(Settings.builder().put("key", "persistent-value").build())
-            .transientSettings(Settings.builder().put("key", "transient-value").build()).build();
-
-        assertThat(metaData.settings().get("key"), equalTo("transient-value"));
+        final Setting setting = Setting.simpleString("key");
+        final MetaData metaData = MetaData.builder()
+            .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
+            .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
+        assertThat(setting.get(metaData.settings()), equalTo("transient-value"));
     }
 }

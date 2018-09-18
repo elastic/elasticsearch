@@ -48,7 +48,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 import org.joda.time.format.DateTimeFormat;
 
 import java.time.ZoneOffset;

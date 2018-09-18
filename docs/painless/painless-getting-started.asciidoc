@@ -220,11 +220,6 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
-// TEST[warning:The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true to use the java time api for date field doc values]
-
-NOTE: Date fields are changing in 7.0 to be exposed as `ZonedDateTime`
-from Java 8's time API. To switch to this functionality early, 
-add `-Des.scripting.use_java_time=true` to `jvm.options`.
 
 [float]
 [[modules-scripting-painless-regex]]

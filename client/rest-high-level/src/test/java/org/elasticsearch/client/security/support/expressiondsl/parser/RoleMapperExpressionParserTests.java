@@ -20,11 +20,8 @@
 package org.elasticsearch.client.security.support.expressiondsl.parser;
 
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AllExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.GroupsFieldExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.UsernameFieldExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -45,7 +42,7 @@ public class RoleMapperExpressionParserTests extends ESTestCase {
 
     public void testParseSimpleFieldExpression() throws Exception {
         String json = "{ \"field\": { \"username\" : \"*@shield.gov\" } }";
-        UsernameFieldExpression field = checkExpressionType(parse(json), UsernameFieldExpression.class);
+        FieldRoleMapperExpression field = checkExpressionType(parse(json), FieldRoleMapperExpression.class);
         assertThat(field.getField(), equalTo("username"));
         assertThat(field.getValues(), iterableWithSize(1));
         assertThat(field.getValues().get(0), equalTo("*@shield.gov"));
@@ -66,38 +63,38 @@ public class RoleMapperExpressionParserTests extends ESTestCase {
                 "] }";
         final RoleMapperExpression expr = parse(json);
 
-        assertThat(expr, instanceOf(AnyExpression.class));
-        AnyExpression any = (AnyExpression) expr;
+        assertThat(expr, instanceOf(CompositeRoleMapperExpression.class));
+        CompositeRoleMapperExpression any = (CompositeRoleMapperExpression) expr;
 
         assertThat(any.getElements(), iterableWithSize(2));
 
-        final UsernameFieldExpression fieldShield = checkExpressionType(any.getElements().get(0),
-                UsernameFieldExpression.class);
+        final FieldRoleMapperExpression fieldShield = checkExpressionType(any.getElements().get(0),
+                FieldRoleMapperExpression.class);
         assertThat(fieldShield.getField(), equalTo("username"));
         assertThat(fieldShield.getValues(), iterableWithSize(1));
         assertThat(fieldShield.getValues().get(0), equalTo("*@shield.gov"));
 
-        final AllExpression all = checkExpressionType(any.getElements().get(1),
-                AllExpression.class);
+        final CompositeRoleMapperExpression all = checkExpressionType(any.getElements().get(1),
+                CompositeRoleMapperExpression.class);
         assertThat(all.getElements(), iterableWithSize(3));
 
-        final UsernameFieldExpression fieldAvengers = checkExpressionType(all.getElements().get(0),
-                UsernameFieldExpression.class);
+        final FieldRoleMapperExpression fieldAvengers = checkExpressionType(all.getElements().get(0),
+                FieldRoleMapperExpression.class);
         assertThat(fieldAvengers.getField(), equalTo("username"));
         assertThat(fieldAvengers.getValues(), iterableWithSize(1));
         assertThat(fieldAvengers.getValues().get(0), equalTo("/.*\\@avengers\\.(net|org)/"));
 
-        final GroupsFieldExpression fieldGroupsAdmin = checkExpressionType(all.getElements().get(1),
-                GroupsFieldExpression.class);
+        final FieldRoleMapperExpression fieldGroupsAdmin = checkExpressionType(all.getElements().get(1),
+                FieldRoleMapperExpression.class);
         assertThat(fieldGroupsAdmin.getField(), equalTo("groups"));
         assertThat(fieldGroupsAdmin.getValues(), iterableWithSize(2));
         assertThat(fieldGroupsAdmin.getValues().get(0), equalTo("admin"));
         assertThat(fieldGroupsAdmin.getValues().get(1), equalTo("operators"));
 
-        final ExceptExpression except = checkExpressionType(all.getElements().get(2),
-                ExceptExpression.class);
-        final GroupsFieldExpression fieldDisavowed = checkExpressionType(except.getInnerExpression(),
-                GroupsFieldExpression.class);
+        final CompositeRoleMapperExpression except = checkExpressionType(all.getElements().get(2),
+                CompositeRoleMapperExpression.class);
+        final FieldRoleMapperExpression fieldDisavowed = checkExpressionType(except.getElements().get(0),
+                FieldRoleMapperExpression.class);
         assertThat(fieldDisavowed.getField(), equalTo("groups"));
         assertThat(fieldDisavowed.getValues(), iterableWithSize(1));
         assertThat(fieldDisavowed.getValues().get(0), equalTo("disavowed"));

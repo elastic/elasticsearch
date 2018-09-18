@@ -19,15 +19,10 @@
 
 package org.elasticsearch.client.security.support.expressiondsl;
 
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AllExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeExpressionBuilder;
-import org.elasticsearch.client.security.support.expressiondsl.fields.DnFieldExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldExpressionBuilder;
-import org.elasticsearch.client.security.support.expressiondsl.fields.GroupsFieldExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.MetadataFieldExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.UsernameFieldExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeRoleMapperExpression.CompositeType;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,22 +38,24 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
 
     public void testRoleMapperExpressionToXContentType() throws IOException {
 
-        final AllExpression allExpression = CompositeExpressionBuilder.builder(AllExpression.class)
-                .addExpression(CompositeExpressionBuilder.builder(AnyExpression.class)
-                        .addExpression(FieldExpressionBuilder.builder(DnFieldExpression.class)
+        final RoleMapperExpression allExpression = CompositeRoleMapperExpression.builder(CompositeType.ALL)
+                .addExpression(CompositeRoleMapperExpression.builder(CompositeType.ANY)
+                        .addExpression(FieldRoleMapperExpression.builder(FieldType.DN)
                                 .addValue("*,ou=admin,dc=example,dc=com")
                                 .build())
-                        .addExpression(FieldExpressionBuilder.builder(UsernameFieldExpression.class)
+                        .addExpression(FieldRoleMapperExpression.builder(FieldType.USERNAME)
                                 .addValue("es-admin").addValue("es-system")
                                 .build())
                         .build())
-                .addExpression(FieldExpressionBuilder.builder(GroupsFieldExpression.class)
+                .addExpression(FieldRoleMapperExpression.builder(FieldType.GROUPS)
                         .addValue("cn=people,dc=example,dc=com")
                         .build())
-                .addExpression(new ExceptExpression(FieldExpressionBuilder.builder(MetadataFieldExpression.class)
+                .addExpression(CompositeRoleMapperExpression.builder(CompositeType.EXCEPT)
+                        .addExpression(FieldRoleMapperExpression.builder(FieldType.METADATA)
                                             .withKey("metadata.terminated_date")
                                             .addValue(new Date(1537145401027L))
-                                            .build()))
+                                            .build())
+                        .build())
                 .build();
 
         final XContentBuilder builder = XContentFactory.jsonBuilder();

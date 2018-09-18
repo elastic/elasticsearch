@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.HandledTransportAction.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -48,7 +49,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -349,75 +349,54 @@ public class SearchTransportService extends AbstractComponent {
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener<>(channel));
+                searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener<>(
+                    channel, QUERY_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ACTION_NAME,
                 (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SAME, QuerySearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel));
+                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME,
+                    request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel));
+                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME,
+                 request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel));
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
+                    QUERY_FETCH_SCROLL_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ShardFetchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel));
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
+                    FETCH_ID_SCROLL_ACTION_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SAME, true, true, ShardFetchSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel));
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME,
+                    request));
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
         transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                searchService.canMatch(request, new ChannelActionListener<>(channel));
+                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME,
                 (Supplier<TransportResponse>) SearchService.CanMatchResponse::new);
-    }
-
-    public static class ChannelActionListener<T extends TransportResponse> implements ActionListener<T>{
-
-        private final TransportChannel channel;
-
-        private ChannelActionListener(TransportChannel channel) {
-            this.channel = channel;
-        }
-
-        @Override
-        public void onResponse(T result) {
-            try {
-                channel.sendResponse(result);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                channel.sendResponse(e);
-            } catch (IOException e1) {
-                throw new UncheckedIOException(e1);
-            }
-        }
     }
 
 

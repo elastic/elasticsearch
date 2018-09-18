@@ -1,5 +1,5 @@
 [[index-lifecycle-management]]
-= Managing Indices
+= Managing indices
 
 :ilm:             index lifecycle management
 :ILM:             Index lifecycle management
@@ -14,7 +14,9 @@ You control how indices are handled as they age by attaching a
 lifecycle policy to the index template used to create them. You can update
 the policy to modify the lifecycle of both new and existing indices.
 
-For time series indices, there are four stages in the index lifecycle:
+For time series indices, there are four phases in the index lifecycle:
+
+image::images/lifecycle-phases.png[Index lifecycle phases]
 
 * Hot--the index is actively being updated and queried.
 * Warm--the index is no longer being updated, but is still being queried.
@@ -45,6 +47,15 @@ to a single shard.
 . After 7 days, move the index into the cold stage and move it to less expensive
 hardware.
 . Delete the index once the required 30 day retention period is reached.
+
+[float]
+=== {ilm} actions
+
+An {ilm} policy can perform the following actions on an index as it moves through
+each phase:
+
+
+
 --
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/index-lifecycle-management/getting-started-ilm.asciidoc

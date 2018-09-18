@@ -1,0 +1,43 @@
+[role="xpack"]
+[testenv="platinum"]
+[[explain-index-management-policy-api]]
+== Explain {ilm} policy API
+++++
+<titleabbrev>Explain policy</titleabbrev>
+++++
+
+Get lifeycle status information for a managed index.
+
+[float]
+=== Request
+
+`GET /<index-name>/_ilm/explain`
+
+[float]
+=== Description
+
+Retrieves information about where an index is in its lifecycle and how long it's been
+in the current phase, step, or action.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Get the lifecycle status of `test-index`:
+
+[source,js]
+------------------------------------------------------------
+GET /test-index/_ilm/explain
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

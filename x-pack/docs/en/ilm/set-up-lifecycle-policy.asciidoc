@@ -1,14 +1,21 @@
 [[set-up-lifecycle-policy]]
-== Set up {ilm} policy
+== Set up an {ilm} policy
 
-In order for an index to use an {ilm} policy to manage its lifecycle we must
-first define a lifecycle policy for it to use. The following request creates
-a policy called `my_policy` in Elasticsearch which we can later use to manage
-our indexes.
+{ilm} policies are typically associated with indices when they are created. You
+can configure a policy in an index template so it is applied to each index
+created from the template, or specify a policy when creating individual indices.
+You can also apply policies to existing indices using the
+<<apply-index-policy, set policy API>>.
 
+To use an {ilm} policy to manage indices created from an index template:
+
+. Define the policy with the put policy API. For example, the following
+request creates a two-phase policy that rolls to a new index based on the index
+size and deletes the old index when it reaches a certain age.
++
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/my_rollover_policy
 {
   "policy": {
     "phases": {
@@ -28,45 +35,38 @@ PUT _ilm/my_policy
     }
   }
 }
------------------------- 
+------------------------
 // CONSOLE
-<1> Rollover the index when it reaches 25GB in size
-<2> Delete the index when its 30 days old
+<1> Rollover to a new index when the index size reaches 25GB
+<2> Delete the old index when its 30 days old
 
-{ilm} will manage an index using the policy defined in the 
-`index.lifecycle.name` index setting. If this setting does not exist in the
-settings for a particular index {ilm} will not manage that index.
-
-To set the policy for an index there are two options:
-1. Apply the policy to an index template and bootstrap creating the first index
-2. Apply the policy to a new index in a create index request
-
-=== Applying a policy to an index template
-
-The `index.lifecycle.name` setting can be set in an index template so that it
-is automatically applied to indexes matching the templates index pattern:
-
+. Set the policy for an index template by configuring the `index.lifecycle.name`
+ and `index.lifecycle.rollover_alias` settings. For {ilm} to manage an index,
+ the `index.lifecycle.name` setting must be configured in the index settings and
+ reference a valid policy name.
++
+ For example, the following request creates an index template that uses
+ `my_rollover_policy`.
++
 [source,js]
------------------------
-PUT _template/my_template
-{
-  "index_patterns": ["test-*"], <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "my_policy", <2>
-    "index.lifecycle.rollover_alias": "test-alias"
-  }
-}
------------------------
-// CONSOLE
-<1> This template will be applied to all indexes which have a name starting
-with `test-`
-<2> The template will set the policy to be used to `my_policy`
+ -----------------------
+ PUT _template/my_template
+ {
+   "index_patterns": ["test-*"], <1>
+   "settings": {
+     "number_of_shards": 1,
+     "number_of_replicas": 1,
+     "index.lifecycle.name": "my_rollover_policy", <2>
+     "index.lifecycle.rollover_alias": "test-alias"
+   }
+ }
+ -----------------------
+ // CONSOLE
+<1> Apply this template to to all indices with the name prefix `test-`
+<2> Use `my_rollover_policy` to manage all indices that match the index pattern.
 
-Now that a policy exists and is used in an index template we can create an
-initial index which will be managed by our policy:
-
+. Create an initial index with the same name as the rollover alias.
++
 [source,js]
 -----------------------
 PUT test-000001
@@ -85,14 +85,24 @@ We can now write data to the `test-alias` alias. Because we have a rollover
 action defined in our policy when the index grows larger than 25GB {ilm} will
 create a new index and roll the alias over to use the new index automatically.
 
-=== Apply a policy to a create index request
+[float]
+[[apply-index-policy]]
+=== Apply a policy to a single index
 
-The `index.lifecycle.name` setting can be set on an individual create index
-request so {ilm} immediately starts managing the index:
+You can apply a policy directly when you create an index by configuring
+the `index.lifecycle.name` setting, or apply a policy to an existing index with
+the set policy API.
+
+IMPORTANT: Avoid applying policies that contain rollover actions to individual
+indices. If a rollover is triggered, the policy will **not** carry forward to
+the new index. Always use index templates to apply policies with rollover actions.
+
+For example, the following request creates `my-index` and tells {ilm} to
+immediately start managing it with the `my_policy`.
 
 [source,js]
 -----------------------
-PUT test-index
+PUT my-index
 {
   "settings": {
     "number_of_shards": 1,
@@ -103,8 +113,10 @@ PUT test-index
 -----------------------
 // CONSOLE
 
-IMPORTANT: Its recommended not to use the create index API with a policy that
-defines a rollover action. If you do so, the new index as the result of the
-rollover will not carry forward the policy. Always use index templates to
-define policies with rollover actions.
+If `my-index` already exists, you can use set policy to apply `my_policy`:
 
+[source,js]
+-----------------------
+PUT /my_index/_ilm/my_policy
+-----------------------
+// CONSOLE

@@ -1,0 +1,44 @@
+[role="xpack"]
+[testenv="platinum"]
+[[remove-policy-from-index-api]]
+== Remove policy from index API
+++++
+<titleabbrev>Remove policy</titleabbrev>
+++++
+
+Remove an {ilm} policy from an index.
+
+[float]
+=== Request
+
+`DELETE /<index-name>/_ilm`
+
+[float]
+=== Description
+
+Remove an {ilm} policy from a specific index. Does not delete the policy itself.
+To completely remove a policy from the cluster, use the
+<<delete-index-management-policy, delete policy API>>.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Remove the configured {ilm} policy from `test-index`.
+
+[source,js]
+------------------------------------------------------------
+DELETE /test-index/_ilm`
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

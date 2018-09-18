@@ -1,0 +1,42 @@
+[role="xpack"]
+[testenv="platinum"]
+[[delete-index-management-policy-api]]
+== Delete {ilm} policy API
+++++
+<titleabbrev>Delete policy</titleabbrev>
+++++
+
+Remove an {ilm} policy.
+
+[float]
+=== Request
+
+`DELETE /_ilm/<policy_name>`
+
+[float]
+=== Description
+
+Removes an {ilm} policy from the cluster.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Delete the {ilm} policy `my_policy:
+
+[source,js]
+------------------------------------------------------------
+DELETE /_ilm/my_policy
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

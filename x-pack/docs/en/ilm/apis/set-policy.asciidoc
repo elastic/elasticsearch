@@ -1,0 +1,42 @@
+[role="xpack"]
+[testenv="platinum"]
+[[set-index-management-policy-api]]
+== Set {ilm} policy API
+++++
+<titleabbrev>Set policy</titleabbrev>
+++++
+
+Apply an {ilm} policy to an existing index.
+
+[float]
+=== Request
+
+`PUT /<index-name>/_ilm/<policy_name>`
+
+[float]
+=== Description
+
+Configures an index to use the specified policy.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Apply `my_policy` to `my_index`.
+
+[source,js]
+------------------------------------------------------------
+PUT /my_index/_ilm/my_policy
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

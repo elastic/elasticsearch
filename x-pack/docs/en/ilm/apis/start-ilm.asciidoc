@@ -1,0 +1,43 @@
+[role="xpack"]
+[testenv="platinum"]
+[[start-index-management-api]]
+== Start {ilm} API
+++++
+<titleabbrev>Start</titleabbrev>
+++++
+
+Turn on {ilm} for all indices with configured policies.
+
+[float]
+=== Request
+
+`POST /_ilm/start`
+
+[float]
+=== Description
+
+Begin managing indices according to their configured policies.
+
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Turn on {ilm}.
+
+[source,js]
+------------------------------------------------------------
+POST /_ilm/start
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

@@ -1,0 +1,43 @@
+[role="xpack"]
+[testenv="platinum"]
+[[stop-index-management-api]]
+== Stop {ilm} API
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
+
+Temporarily disable {ilm} for all indices.
+
+[float]
+=== Request
+
+`POST /_ilm/stop`
+
+[float]
+=== Description
+
+Stop managing indices with their configured policies. No lifecycle management
+actions will be performed until {ilm} is restarted. 
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Turn off {ilm}:
+
+[source,js]
+------------------------------------------------------------
+POST /_ilm/stop
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

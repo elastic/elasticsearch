@@ -1,4 +1,27 @@
+[role="xpack"]
+[testenv="platinum"]
 [[index-lifecycle-management-api]]
-== {ilm} API
+== {ilm} APIs
 
-TBD
+Manage {ilm } policies and control lifecycle management.
+
+[float]
+[[policy-management-api]]
+=== Manage policies
+
+include::apis/delete-policy.asciidoc[]
+include::apis/explain-policy.asciidoc[]
+include::apis/get-policy.asciidoc[]
+include::apis/put-policy.asciidoc[]
+include::apis/remove-policy.asciidoc[]
+include::apis/set-policy.asciidoc[]
+
+[float]
+[[lifecycle-management-api]]
+=== Manage lifecycle
+
+include::apis/get-status-ilm.asciidoc[]
+include::apis/move-to-step.asciidoc[]
+include::apis/retry-action.asciidoc[]
+include::apis/start-ilm.asciidoc[]
+include::apis/stop-ilm.asciidoc[]

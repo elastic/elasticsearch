@@ -1,0 +1,43 @@
+[role="xpack"]
+[testenv="platinum"]
+[[retry-index-action-api]]
+== Retry index action API
+++++
+<titleabbrev>Retry action</titleabbrev>
+++++
+
+Restart the current action.
+
+[float]
+=== Request
+
+`POST /<index-name>/_ilm/retry`
+
+[float]
+=== Description
+
+Restarts the action currently being performed on the index.
+
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Restart the action that's currently being performed on `test-index`.
+
+[source,js]
+------------------------------------------------------------
+POST /test-index/_ilm/retry
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

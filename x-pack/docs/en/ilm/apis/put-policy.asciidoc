@@ -1,0 +1,69 @@
+[role="xpack"]
+[testenv="platinum"]
+[[put-index-management-policy-api]]
+== Put {ilm} policy API
+++++
+<titleabbrev>Put policy</titleabbrev>
+++++
+
+Create or update an {ilm} policy.
+
+[float]
+=== Request
+
+`PUT /_ilm/<policy_name>`
+
+[float]
+=== Description
+
+Creates or modifies an {ilm} policy. The policy defines what phases an index
+will go through, what actions to take on the index in each phase, and the
+triggers for those actions.
+
+Policies are specified in JSON and contain one or more phases. Each phase in turn
+contains one or more actions. 
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Create a policy that rolls over to a new index once the index reaches 25GB, and
+delete the old index after 30 days.
+
+[source,js]
+------------------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB" <1>
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {} <2>
+        }
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+<1> Roll over to a new index based on the index size.
+<2> Remove the old index once it reaches a certain age.
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

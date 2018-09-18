@@ -1,0 +1,43 @@
+[role="xpack"]
+[testenv="platinum"]
+[[move-to-index-management-step-api]]
+== Move to {ilm} step API
+++++
+<titleabbrev>Move to step</titleabbrev>
+++++
+
+Move {ilm} into the specified action step.
+
+[float]
+=== Request
+
+`POST /_ilm/move/<step-name>`
+
+[float]
+=== Description
+
+Enables you to manually move {ilm} between steps while it's performing
+an action.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Move {ilm} into the `update_settings` step
+
+[source,js]
+------------------------------------------------------------
+POST /_ilm/move/update-settings
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

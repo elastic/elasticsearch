@@ -1,0 +1,48 @@
+[role="xpack"]
+[testenv="platinum"]
+[[get-index-management-policy-api]]
+== Get {ilm} policy API
+++++
+<titleabbrev>Get policy</titleabbrev>
+++++
+
+Retrieve one or more {ilm} policies.
+
+[float]
+=== Request
+
+`GET /_ilm/<policy_name>` +
+
+`GET /_ilm/`
+
+[float]
+=== Description
+
+Returns the following information for each requested policy:
+
+* The policy phases, triggers, and actions.
+* Version
+* Modified date
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Get the configuration information for `my_policy:
+
+[source,js]
+------------------------------------------------------------
+GET /_ilm/my_policy
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

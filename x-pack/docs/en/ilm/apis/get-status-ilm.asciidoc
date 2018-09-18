@@ -1,0 +1,42 @@
+[role="xpack"]
+[testenv="platinum"]
+[[get-index-management-status-api]]
+== Get {ilm} status API
+++++
+<titleabbrev>Get status</titleabbrev>
+++++
+
+Get the status of {ilm} on the cluster.
+
+[float]
+=== Request
+
+`GET /_ilm/status`
+
+[float]
+=== Description
+
+Returns the {ilm} operation mode: RUNNING, STOPPING, or STOPPED.
+
+// === Path Parameters
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+Get the current {ilm} status:
+
+[source,js]
+------------------------------------------------------------
+GET /_ilm/status
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+
+------------------------------------------------------------

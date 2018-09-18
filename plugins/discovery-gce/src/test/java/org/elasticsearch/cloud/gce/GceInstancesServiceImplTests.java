@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.googleapis.testing.compute.MockMetadataServerTransport;
 import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.http.HttpResponse;

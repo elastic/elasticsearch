@@ -41,6 +41,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -57,6 +58,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -289,6 +291,43 @@ public class MockClientBuilder {
         for (int i=0; i<docs.size(); i++) {
             SearchHit hit = new SearchHit(10);
             hit.sourceRef(docs.get(i));
+            hits[i] = hit;
+        }
+
+        SearchResponse response = mock(SearchResponse.class);
+        SearchHits searchHits = new SearchHits(hits, hits.length, 0.0f);
+        when(response.getHits()).thenReturn(searchHits);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(client).search(eq(request), any());
+
+        return this;
+    }
+
+    /*
+     * Mock a search that returns search hits with fields.
+     * The number of hits is the size of fields
+     */
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareSearchFields(String indexName, List<Map<String, DocumentField>> fields) {
+        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
+        when(builder.setIndicesOptions(any())).thenReturn(builder);
+        when(builder.setQuery(any())).thenReturn(builder);
+        when(builder.setSource(any())).thenReturn(builder);
+        SearchRequest request = new SearchRequest(indexName);
+        when(builder.request()).thenReturn(request);
+
+        when(client.prepareSearch(eq(indexName))).thenReturn(builder);
+
+        SearchHit hits [] = new SearchHit[fields.size()];
+        for (int i=0; i<hits.length; i++) {
+            SearchHit hit = new SearchHit(10, null, null, fields.get(i));
             hits[i] = hit;
         }
 

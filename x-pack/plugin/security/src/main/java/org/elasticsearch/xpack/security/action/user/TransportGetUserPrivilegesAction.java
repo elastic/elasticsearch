@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 
@@ -74,7 +75,8 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
                                 ActionListener<GetUserPrivilegesResponse> listener) {
         logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
 
-        final Set<String> cluster = new LinkedHashSet<>();
+        // We use sorted sets because they will typically be very small, and having a predictable order allows for simpler testing
+        final Set<String> cluster = new TreeSet<>();
         final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
         for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
             if (tup.v2() == null) {
@@ -99,8 +101,11 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
 
         final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();
         for (String applicationName : userRole.application().getApplicationNames()) {
+            logger.info("APP: {}", applicationName);
             for (ApplicationPrivilege privilege : userRole.application().getPrivileges(applicationName)) {
+                logger.info("APP: {} | Priv: {}", applicationName, privilege);
                 final Set<String> resources = userRole.application().getDeclaredResources(privilege);
+                logger.info("APP: {} | Priv: {} | Rsrc: {}", applicationName, privilege, resources);
                 if (resources.isEmpty()) {
                     logger.trace("No resources defined in application privilege {}", privilege);
                 } else {

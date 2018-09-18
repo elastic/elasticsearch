@@ -127,8 +127,12 @@ public final class ApplicationPermission {
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
+            if (this.privilege.equals(other)) {
+                return true;
+            }
             return this.application.test(other.getApplication())
                 && Operations.isEmpty(privilege.getAutomaton()) == false
+                && Operations.isEmpty(other.getAutomaton()) == false
                 && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 

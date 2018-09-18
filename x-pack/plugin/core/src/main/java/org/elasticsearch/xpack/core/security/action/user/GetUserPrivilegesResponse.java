@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Response for a {@link GetUserPrivilegesRequest}
@@ -101,8 +102,8 @@ public class GetUserPrivilegesResponse extends ActionResponse {
 
         public Indices(Collection<String> indices, Collection<String> privileges,
                        Collection<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Collection<BytesReference> queries) {
-            this.indices = Collections.unmodifiableCollection(Objects.requireNonNull(indices));
-            this.privileges = Collections.unmodifiableCollection(Objects.requireNonNull(privileges));
+            this.indices = Collections.unmodifiableCollection(new TreeSet<>(Objects.requireNonNull(indices)));
+            this.privileges = Collections.unmodifiableCollection(new TreeSet<>(Objects.requireNonNull(privileges)));
             this.fieldSecurity = Collections.unmodifiableCollection(Objects.requireNonNull(fieldSecurity));
             this.queries = Collections.unmodifiableCollection(Objects.requireNonNull(queries));
         }

@@ -1,0 +1,19 @@
+{
+  "xpack.security.get_user_privileges": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-privileges.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/security/user/{username}/_privileges",
+      "paths": [ "/_xpack/security/user/{username}/_privileges", "/_xpack/security/user/_privileges" ],
+      "parts": {
+        "username": {
+          "type" : "string",
+          "description" : "Usernames",
+          "required" : false
+        }
+      },
+      "params": {}
+    },
+    "body": null
+  }
+}

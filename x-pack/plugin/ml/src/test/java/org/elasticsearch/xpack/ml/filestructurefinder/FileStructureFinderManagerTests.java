@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -47,26 +49,62 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
     }
 
     public void testMakeBestStructureGivenJson() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation,
-            "{ \"time\": \"2018-05-17T13:41:23\", \"message\": \"hello\" }", StandardCharsets.UTF_8.name(), randomBoolean()),
-            instanceOf(JsonFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            EMPTY_OVERRIDES), instanceOf(JsonFileStructureFinder.class));
+    }
+
+    public void testMakeBestStructureGivenJsonAndDelimitedOverride() throws Exception {
+
+        // Need to change the quote character from the default of double quotes
+        // otherwise the quotes in the JSON will stop it parsing as CSV
+        FileStructureOverrides overrides = FileStructureOverrides.builder()
+            .setFormat(FileStructure.Format.DELIMITED).setQuote('\'').build();
+
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, JSON_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            overrides), instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation,
-            "<log time=\"2018-05-17T13:41:23\"><message>hello</message></log>", StandardCharsets.UTF_8.name(), randomBoolean()),
-            instanceOf(XmlFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            EMPTY_OVERRIDES), instanceOf(XmlFileStructureFinder.class));
+    }
+
+    public void testMakeBestStructureGivenXmlAndTextOverride() throws Exception {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.SEMI_STRUCTURED_TEXT).build();
+
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            overrides), instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation, "time,message\n" +
-                "2018-05-17T13:41:23,hello\n", StandardCharsets.UTF_8.name(), randomBoolean()),
-            instanceOf(DelimitedFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            EMPTY_OVERRIDES), instanceOf(DelimitedFileStructureFinder.class));
+    }
+
+    public void testMakeBestStructureGivenCsvAndJsonOverride() {
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.JSON).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+                overrides));
+
+        assertEquals("Input did not match the specified format [json]", e.getMessage());
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
-        assertThat(structureFinderManager.makeBestStructureFinder(explanation, "[2018-05-17T13:41:23] hello\n" +
-                "[2018-05-17T13:41:24] hello again\n", StandardCharsets.UTF_8.name(), randomBoolean()),
-            instanceOf(TextLogFileStructureFinder.class));
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            EMPTY_OVERRIDES), instanceOf(TextLogFileStructureFinder.class));
+    }
+
+    public void testMakeBestStructureGivenTextAndDelimitedOverride() throws Exception {
+
+        // Every line of the text sample has two colons, so colon delimited is possible, just very weird
+        FileStructureOverrides overrides = FileStructureOverrides.builder()
+            .setFormat(FileStructure.Format.DELIMITED).setDelimiter(':').build();
+
+        assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
+            overrides), instanceOf(DelimitedFileStructureFinder.class));
     }
 }

@@ -54,6 +54,7 @@ public class FileStructureTests extends AbstractSerializingTestCase<FileStructur
             builder.setColumnNames(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
             builder.setHasHeaderRow(randomBoolean());
             builder.setDelimiter(randomFrom(',', '\t', ';', '|'));
+            builder.setQuote(randomFrom('"', '\''));
         }
 
         if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT) {

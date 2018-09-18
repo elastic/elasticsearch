@@ -983,12 +983,24 @@
               "type": "long"
             },
             "fetch_exceptions": {
+              "type": "nested",
               "properties": {
                 "from_seq_no": {
                   "type": "long"
                 },
+                "retries": {
+                  "type": "integer"
+                },
                 "exception": {
-                  "type": "text"
+                  "type": "object",
+                  "properties": {
+                    "type" : {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    }
+                  }
                 }
               }
             },

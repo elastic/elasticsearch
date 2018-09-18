@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -17,6 +18,11 @@ import java.util.Locale;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
 public class JsonFileStructureFinderFactory implements FileStructureFinderFactory {
+
+    @Override
+    public boolean canFindFormat(FileStructure.Format format) {
+        return format == null || format == FileStructure.Format.JSON;
+    }
 
     /**
      * This format matches if the sample consists of one or more JSON documents.
@@ -61,9 +67,9 @@ public class JsonFileStructureFinderFactory implements FileStructureFinderFactor
     }
 
     @Override
-    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException {
-        return JsonFileStructureFinder.makeJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker);
+    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                                FileStructureOverrides overrides) throws IOException {
+        return JsonFileStructureFinder.makeJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

@@ -29,17 +29,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
@@ -77,10 +66,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -100,11 +85,9 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -115,7 +98,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -127,13 +109,8 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -149,19 +126,15 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -188,7 +161,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestConvertersTests extends ESTestCase {
@@ -1865,83 +1837,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(resizeRequest, request.getEntity());
     }
 
-    public void testPutPipeline() throws IOException {
-        String pipelineId = "some_pipeline_id";
-        PutPipelineRequest request = new PutPipelineRequest(
-            "some_pipeline_id",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request expectedRequest = RequestConverters.putPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testGetPipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        GetPipelineRequest request = new GetPipelineRequest("some_pipeline_id");
-        setRandomMasterTimeout(request, expectedParams);
-        Request expectedRequest = RequestConverters.getPipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testDeletePipeline() {
-        String pipelineId = "some_pipeline_id";
-        Map<String, String> expectedParams = new HashMap<>();
-        DeletePipelineRequest request = new DeletePipelineRequest(pipelineId);
-        setRandomMasterTimeout(request, expectedParams);
-        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        Request expectedRequest = RequestConverters.deletePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        endpoint.add(pipelineId);
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-    }
-
-    public void testSimulatePipeline() throws IOException {
-        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
-        boolean verbose = randomBoolean();
-        String json = "{\"pipeline\":{" +
-            "\"description\":\"_description\"," +
-            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
-            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
-        request.setId(pipelineId);
-        request.setVerbose(verbose);
-        Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("verbose", Boolean.toString(verbose));
-
-        Request expectedRequest = RequestConverters.simulatePipeline(request);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add("_ingest/pipeline");
-        if (pipelineId != null && !pipelineId.isEmpty())
-            endpoint.add(pipelineId);
-        endpoint.add("_simulate");
-        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(expectedParams, expectedRequest.getParameters());
-        assertToXContentBody(request, expectedRequest.getEntity());
-    }
-
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -2035,306 +1930,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
-    }
-
-    public void testCancelTasks() {
-        CancelTasksRequest request = new CancelTasksRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        request.setTaskId(taskId);
-        request.setParentTaskId(parentTaskId);
-        expectedParams.put("task_id", taskId.toString());
-        expectedParams.put("parent_task_id", parentTaskId.toString());
-        Request httpRequest = RequestConverters.cancelTasks(request);
-        assertThat(httpRequest, notNullValue());
-        assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(httpRequest.getEntity(), nullValue());
-        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/_cancel"));
-        assertThat(httpRequest.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testListTasks() {
-        {
-            ListTasksRequest request = new ListTasksRequest();
-            Map<String, String> expectedParams = new HashMap<>();
-            if (randomBoolean()) {
-                request.setDetailed(randomBoolean());
-                if (request.getDetailed()) {
-                    expectedParams.put("detailed", "true");
-                }
-            }
-            if (randomBoolean()) {
-                request.setWaitForCompletion(randomBoolean());
-                if (request.getWaitForCompletion()) {
-                    expectedParams.put("wait_for_completion", "true");
-                }
-            }
-            if (randomBoolean()) {
-                String timeout = randomTimeValue();
-                request.setTimeout(timeout);
-                expectedParams.put("timeout", timeout);
-            }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-                    request.setParentTaskId(taskId);
-                    expectedParams.put("parent_task_id", taskId.toString());
-                } else {
-                    request.setParentTask(TaskId.EMPTY_TASK_ID);
-                }
-            }
-            if (randomBoolean()) {
-                String[] nodes = generateRandomStringArray(10, 8, false);
-                request.setNodes(nodes);
-                if (nodes.length > 0) {
-                    expectedParams.put("nodes", String.join(",", nodes));
-                }
-            }
-            if (randomBoolean()) {
-                String[] actions = generateRandomStringArray(10, 8, false);
-                request.setActions(actions);
-                if (actions.length > 0) {
-                    expectedParams.put("actions", String.join(",", actions));
-                }
-            }
-            expectedParams.put("group_by", "none");
-            Request httpRequest = RequestConverters.listTasks(request);
-            assertThat(httpRequest, notNullValue());
-            assertThat(httpRequest.getMethod(), equalTo(HttpGet.METHOD_NAME));
-            assertThat(httpRequest.getEntity(), nullValue());
-            assertThat(httpRequest.getEndpoint(), equalTo("/_tasks"));
-            assertThat(httpRequest.getParameters(), equalTo(expectedParams));
-        }
-        {
-            ListTasksRequest request = new ListTasksRequest();
-            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.listTasks(request));
-            assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
-        }
-    }
-
-    public void testGetRepositories() {
-        Map<String, String> expectedParams = new HashMap<>();
-        StringBuilder endpoint = new StringBuilder("/_snapshot");
-
-        GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
-        setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
-        setRandomLocal(getRepositoriesRequest, expectedParams);
-
-        if (randomBoolean()) {
-            String[] entries = new String[] { "a", "b", "c" };
-            getRepositoriesRequest.repositories(entries);
-            endpoint.append("/" + String.join(",", entries));
-        }
-
-        Request request = RequestConverters.getRepositories(getRepositoriesRequest);
-        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-    }
-
-    public void testCreateRepository() throws IOException {
-        String repository = randomIndicesNames(1, 1)[0];
-        String endpoint = "/_snapshot/" + repository;
-        Path repositoryLocation = PathUtils.get(".");
-        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
-        putRepositoryRequest.type(FsRepository.TYPE);
-        putRepositoryRequest.verify(randomBoolean());
-
-        putRepositoryRequest.settings(
-            Settings.builder()
-                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
-                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                .build());
-
-        Request request = RequestConverters.createRepository(putRepositoryRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
-        assertToXContentBody(putRepositoryRequest, request.getEntity());
-    }
-
-    public void testDeleteRepository() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-
-        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repository);
-
-        DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
-        deleteRepositoryRequest.name(repository);
-        setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
-        setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.deleteRepository(deleteRepositoryRequest);
-        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertNull(request.getEntity());
-    }
-
-    public void testVerifyRepository() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String endpoint = "/_snapshot/" + repository + "/_verify";
-
-        VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(repository);
-        setRandomMasterTimeout(verifyRepositoryRequest, expectedParams);
-        setRandomTimeout(verifyRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.verifyRepository(verifyRepositoryRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-    }
-
-    public void testCreateSnapshot() throws IOException {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String snapshot = "snapshot-" + generateRandomStringArray(1, randomInt(10), false, false)[0];
-        String endpoint = "/_snapshot/" + repository + "/" + snapshot;
-
-        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
-        setRandomMasterTimeout(createSnapshotRequest, expectedParams);
-        Boolean waitForCompletion = randomBoolean();
-        createSnapshotRequest.waitForCompletion(waitForCompletion);
-
-        if (waitForCompletion) {
-            expectedParams.put("wait_for_completion", waitForCompletion.toString());
-        }
-
-        Request request = RequestConverters.createSnapshot(createSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertToXContentBody(createSnapshotRequest, request.getEntity());
-    }
-
-    public void testGetSnapshots() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
-        String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
-
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
-
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
-        getSnapshotsRequest.repository(repository);
-        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
-        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
-
-        if (randomBoolean()) {
-            boolean ignoreUnavailable = randomBoolean();
-            getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
-            expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
-        } else {
-            expectedParams.put("ignore_unavailable", Boolean.FALSE.toString());
-        }
-
-        if (randomBoolean()) {
-            boolean verbose = randomBoolean();
-            getSnapshotsRequest.verbose(verbose);
-            expectedParams.put("verbose", Boolean.toString(verbose));
-        } else {
-            expectedParams.put("verbose", Boolean.TRUE.toString());
-        }
-
-        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertNull(request.getEntity());
-    }
-
-    public void testGetAllSnapshots() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/_all", repository);
-
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
-        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
-
-        boolean ignoreUnavailable = randomBoolean();
-        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
-        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
-
-        boolean verbose = randomBoolean();
-        getSnapshotsRequest.verbose(verbose);
-        expectedParams.put("verbose", Boolean.toString(verbose));
-
-        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertNull(request.getEntity());
-    }
-
-    public void testSnapshotsStatus() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String[] snapshots = randomIndicesNames(1, 5);
-        StringBuilder snapshotNames = new StringBuilder(snapshots[0]);
-        for (int idx = 1; idx < snapshots.length; idx++) {
-            snapshotNames.append(",").append(snapshots[idx]);
-        }
-        boolean ignoreUnavailable = randomBoolean();
-        String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
-
-        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
-        setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
-        snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
-        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
-
-        Request request = RequestConverters.snapshotsStatus(snapshotsStatusRequest);
-        assertThat(request.getEndpoint(), equalTo(endpoint));
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-        assertThat(request.getEntity(), is(nullValue()));
-    }
-
-    public void testRestoreSnapshot() throws IOException {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s/_restore", repository, snapshot);
-
-        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
-        setRandomMasterTimeout(restoreSnapshotRequest, expectedParams);
-        if (randomBoolean()) {
-            restoreSnapshotRequest.waitForCompletion(true);
-            expectedParams.put("wait_for_completion", "true");
-        }
-        if (randomBoolean()) {
-            String timeout = randomTimeValue();
-            restoreSnapshotRequest.masterNodeTimeout(timeout);
-            expectedParams.put("master_timeout", timeout);
-        }
-
-        Request request = RequestConverters.restoreSnapshot(restoreSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertToXContentBody(restoreSnapshotRequest, request.getEntity());
-    }
-
-    public void testDeleteSnapshot() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String repository = randomIndicesNames(1, 1)[0];
-        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
-
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s", repository, snapshot);
-
-        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
-        deleteSnapshotRequest.repository(repository);
-        deleteSnapshotRequest.snapshot(snapshot);
-        setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
-
-        Request request = RequestConverters.deleteSnapshot(deleteSnapshotRequest);
-        assertThat(endpoint, equalTo(request.getEndpoint()));
-        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
-        assertThat(expectedParams, equalTo(request.getParameters()));
-        assertNull(request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {
@@ -2650,54 +2245,6 @@ public class RequestConvertersTests extends ESTestCase {
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
-    public void testXPackInfo() {
-        XPackInfoRequest infoRequest = new XPackInfoRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        infoRequest.setVerbose(randomBoolean());
-        if (false == infoRequest.isVerbose()) {
-            expectedParams.put("human", "false");
-        }
-        int option = between(0, 2);
-        switch (option) {
-        case 0:
-            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
-            break;
-        case 1:
-            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
-            expectedParams.put("categories", "features");
-            break;
-        case 2:
-            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
-            expectedParams.put("categories", "build,features");
-            break;
-        default:
-            throw new IllegalArgumentException("invalid option [" + option + "]");
-        }
-
-        Request request = RequestConverters.xPackInfo(infoRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack", request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(expectedParams, request.getParameters());
-    }
-
-    public void testGetMigrationAssistance() {
-        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_xpack/migration/assistance";
-        if (randomBoolean()) {
-            String[] indices = randomIndicesNames(1, 5);
-            upgradeInfoRequest.indices(indices);
-            expectedEndpoint += "/" + String.join(",", indices);
-        }
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions, expectedParams);
-        Request request = RequestConverters.getMigrationAssistance(upgradeInfoRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals(expectedEndpoint, request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(expectedParams, request.getParameters());
-    }
-
     public void testXPackPutWatch() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
@@ -2725,35 +2272,6 @@ public class RequestConvertersTests extends ESTestCase {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         request.getEntity().writeTo(bos);
         assertThat(bos.toString("UTF-8"), is(body));
-    }
-
-    public void testGraphExplore() throws Exception {
-        Map<String, String> expectedParams = new HashMap<>();
-
-        GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
-        graphExploreRequest.sampleDiversityField("diversity");
-        graphExploreRequest.indices("index1", "index2");
-        graphExploreRequest.types("type1", "type2");
-        int timeout = randomIntBetween(10000, 20000);
-        graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
-        graphExploreRequest.useSignificance(randomBoolean());
-        int numHops = randomIntBetween(1, 5);
-        for (int i = 0; i < numHops; i++) {
-            int hopNumber = i + 1;
-            QueryBuilder guidingQuery = null;
-            if (randomBoolean()) {
-                guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
-            }
-            Hop hop = graphExploreRequest.createNextHop(guidingQuery);
-            hop.addVertexRequest("field" + hopNumber);
-            hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
-        }
-        Request request = RequestConverters.xPackGraphExplore(graphExploreRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        assertToXContentBody(graphExploreRequest, request.getEntity());
     }
 
     public void testXPackDeleteWatch() {
@@ -2829,8 +2347,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
-            Map<String, String> expectedParams) {
+    static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+                                        Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
             setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));

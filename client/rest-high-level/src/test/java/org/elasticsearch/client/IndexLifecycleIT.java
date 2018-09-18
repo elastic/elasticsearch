@@ -36,6 +36,7 @@ import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
+import org.elasticsearch.client.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
@@ -132,7 +133,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Map<String, LifecycleAction> hotActions = Collections.singletonMap(
             RolloverAction.NAME,
             new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
-        lifecyclePhases.put("hot", new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions));
+        Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
+        lifecyclePhases.put("hot", hotPhase);
 
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
@@ -152,6 +154,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putResponse = execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
             highLevelClient().indexLifecycle()::putLifecyclePolicyAsync);
         assertTrue(putResponse.isAcknowledged());
+        GetLifecyclePolicyRequest getRequest = new GetLifecyclePolicyRequest(policy.getName());
+        GetLifecyclePolicyResponse getResponse = execute(getRequest, highLevelClient().indexLifecycle()::getLifecyclePolicy,
+            highLevelClient().indexLifecycle()::getLifecyclePolicyAsync);
+        long expectedPolicyModifiedDate = getResponse.getPolicies().get(policy.getName()).getModifiedDate();
+
 
         createIndex("foo-01", Settings.builder().put("index.lifecycle.name", policy.getName())
             .put("index.lifecycle.rollover_alias", "foo-alias").build(), "", "\"foo-alias\" : {}");
@@ -182,6 +189,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         assertEquals("hot", fooResponse.getPhase());
         assertEquals("rollover", fooResponse.getAction());
         assertEquals("attempt_rollover", fooResponse.getStep());
+        assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
+                1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
         IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
         assertNotNull(bazResponse);
         assertTrue(bazResponse.managedByILM());

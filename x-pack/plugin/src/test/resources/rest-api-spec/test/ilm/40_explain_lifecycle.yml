@@ -114,6 +114,7 @@ teardown:
   - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
+  - is_false: indices.my_index.phase_execution
 
   - is_false: indices.my_index2
   - is_false: indices.another_index
@@ -135,6 +136,7 @@ teardown:
   - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
+  - is_false: indices.my_index.phase_execution
 
   - is_true: indices.my_index2.managed
   - match: { indices.my_index2.index: "my_index2" }
@@ -144,6 +146,7 @@ teardown:
   - match: { indices.my_index2.step: "complete" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
+  - is_false: indices.my_index2.phase_execution
 
   - is_false: indices.another_index
   - is_false: indices.unmanaged_index
@@ -165,6 +168,7 @@ teardown:
   - match: { indices.my_index.step: "complete" }
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
+  - is_false: indices.my_index.phase_execution
 
   - is_true: indices.my_index2.managed
   - match: { indices.my_index2.index: "my_index2" }
@@ -174,7 +178,8 @@ teardown:
   - match: { indices.my_index2.step: "complete" }
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
-  
+  - is_false: indices.my_index2.phase_execution
+
   - is_true: indices.another_index.managed
   - match: { indices.another_index.index: "another_index" }
   - match: { indices.another_index.policy: "my_moveable_timeseries_lifecycle" }
@@ -183,7 +188,8 @@ teardown:
   - match: { indices.another_index.step: "complete" }
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
-  
+  - is_false: indices.another_index.phase_execution
+
   - match: { indices.unmanaged_index.index: "unmanaged_index" }
   - is_false: indices.unmanaged_index.managed
   - is_false: indices.unmanaged_index.policy
@@ -207,6 +213,7 @@ teardown:
   - is_false: indices.unmanaged_index.phase
   - is_false: indices.unmanaged_index.action
   - is_false: indices.unmanaged_index.step
+  - is_false: indices.unmanaged_index.phase_execution
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.my_index

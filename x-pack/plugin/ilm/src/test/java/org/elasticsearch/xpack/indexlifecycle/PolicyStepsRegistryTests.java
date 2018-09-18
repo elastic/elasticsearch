@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -86,7 +87,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 1, randomNonNegativeLong());
         String phaseName = randomFrom(policy.getPhases().keySet());
         Phase phase = policy.getPhases().get(phaseName);
-        String phaseJson = Strings.toString(phase);
+        PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
+        String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomFrom(phase.getActions().values());
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY));
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
@@ -151,7 +153,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(), 1, randomNonNegativeLong());
         String phaseName = randomFrom(policy.getPhases().keySet());
         Phase phase = policy.getPhases().get(phaseName);
-        String phaseJson = Strings.toString(phase);
+        PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
+        String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomFrom(phase.getActions().values());
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY));
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
@@ -310,7 +313,8 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         actions.put("shrink", new ShrinkAction(1));
         Map<String, Phase> phases = new HashMap<>();
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
-        String phaseJson = Strings.toString(warmPhase);
+        PhaseExecutionInfo pei = new PhaseExecutionInfo(policyName, warmPhase, 1, randomNonNegativeLong());
+        String phaseJson = Strings.toString(pei);
         phases.put("warm", new Phase("warm", TimeValue.ZERO, actions));
         LifecyclePolicy newPolicy = new LifecyclePolicy(policyName, phases);
         // Modify the policy

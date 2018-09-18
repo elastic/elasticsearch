@@ -28,10 +28,11 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -250,8 +251,10 @@ public class IndexLifecycleRunner {
             LongSupplier nowSupplier) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
-        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policy, idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
+        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
+            .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policyMetadata, idxMeta.getSettings(), currentStep,
+            nextStep, nowSupplier);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }
@@ -260,12 +263,13 @@ public class IndexLifecycleRunner {
             LongSupplier nowSupplier) throws IOException {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+        LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
+            .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
-        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policy, idxMeta.getSettings(), currentStep,
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(policyMetadata, idxMeta.getSettings(), currentStep,
                 new StepKey(currentStep.getPhase(), currentStep.getAction(), ErrorStep.NAME), nowSupplier)
                         .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, currentStep.getName())
                         .put(LifecycleSettings.LIFECYCLE_STEP_INFO, BytesReference.bytes(causeXContentBuilder).utf8ToString());
@@ -294,7 +298,7 @@ public class IndexLifecycleRunner {
         return newState;
     }
 
-    private static Settings.Builder moveIndexSettingsToNextStep(LifecyclePolicy policy, Settings existingSettings,
+    private static Settings.Builder moveIndexSettingsToNextStep(LifecyclePolicyMetadata policyMetadata, Settings existingSettings,
                                                                 StepKey currentStep, StepKey nextStep, LongSupplier nowSupplier) {
         long nowAsMillis = nowSupplier.getAsLong();
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
@@ -305,16 +309,15 @@ public class IndexLifecycleRunner {
                 .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
             final String newPhaseDefinition;
+            final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
-                newPhaseDefinition = nextStep.getPhase();
+                nextPhase = null;
             } else {
-                Phase nextPhase = policy.getPhases().get(nextStep.getPhase());
-                if (nextPhase == null) {
-                    newPhaseDefinition = null;
-                } else {
-                    newPhaseDefinition = Strings.toString(nextPhase, false, false);
-                }
+                nextPhase = policyMetadata.getPolicy().getPhases().get(nextStep.getPhase());
             }
+            PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyMetadata.getName(), nextPhase,
+                policyMetadata.getVersion(), policyMetadata.getModifiedDate());
+            newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION, newPhaseDefinition);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
@@ -378,7 +381,7 @@ public class IndexLifecycleRunner {
     }
 
     public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
-            LifecyclePolicy newPolicy, List<String> failedIndexes, LongSupplier nowSupplier) {
+            LifecyclePolicyMetadata newPolicyMetadata, List<String> failedIndexes, LongSupplier nowSupplier) {
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
         boolean clusterStateChanged = false;
         for (Index index : indices) {
@@ -388,7 +391,7 @@ public class IndexLifecycleRunner {
                 failedIndexes.add(index.getName());
             } else {
                 IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName,
-                    newPolicy, indexMetadata, nowSupplier);
+                    newPolicyMetadata, indexMetadata, nowSupplier);
                 if (newIdxMetadata != null) {
                     newMetadata.put(newIdxMetadata);
                     clusterStateChanged = true;
@@ -404,7 +407,7 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicy newPolicy,
+    private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicyMetadata newPolicyMetadata,
                                                            IndexMetaData indexMetadata, LongSupplier nowSupplier) {
         Settings idxSettings = indexMetadata.getSettings();
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
@@ -413,9 +416,9 @@ public class IndexLifecycleRunner {
         if (currentStepKey != null) {
             // Check if current step exists in new policy and if not move to
             // next available step
-            StepKey nextValidStepKey = newPolicy.getNextValidStep(currentStepKey);
+            StepKey nextValidStepKey = newPolicyMetadata.getPolicy().getNextValidStep(currentStepKey);
             if (nextValidStepKey.equals(currentStepKey) == false) {
-                newSettings = moveIndexSettingsToNextStep(newPolicy, idxSettings, currentStepKey, nextValidStepKey, nowSupplier);
+                newSettings = moveIndexSettingsToNextStep(newPolicyMetadata, idxSettings, currentStepKey, nextValidStepKey, nowSupplier);
             }
         }
         newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);

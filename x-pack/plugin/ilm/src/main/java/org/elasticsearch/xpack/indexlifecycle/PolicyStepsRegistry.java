@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
@@ -135,7 +137,7 @@ public class PolicyStepsRegistry {
     }
 
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
-        final Phase phase;
+        final PhaseExecutionInfo phaseExecutionInfo;
         LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
         final LifecyclePolicy policyToExecute;
         if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
@@ -146,11 +148,11 @@ public class PolicyStepsRegistry {
             // if the current phase definition describes an internal step/phase, do not parse
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
-                phase = Phase.parse(parser, currentPhase);
+                phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
             }
             Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
-            if (phase != null) {
-                phaseMap.put(currentPhase, phase);
+            if (phaseExecutionInfo.getPhase() != null) {
+                phaseMap.put(currentPhase, phaseExecutionInfo.getPhase());
             }
             policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
         }
@@ -195,6 +197,9 @@ public class PolicyStepsRegistry {
             phaseSteps = parseStepsFromPhase(policyName, phase, phaseJson);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load cached steps for " + stepKey, e);
+        } catch (XContentParseException parseErr) {
+            throw new XContentParseException(parseErr.getLocation(),
+                "failed to load cached steps for " + stepKey + " from [" + phaseJson + "]", parseErr);
         }
 
         assert phaseSteps.stream().allMatch(step -> step.getKey().getPhase().equals(phase)) :

@@ -23,9 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +34,7 @@ import org.joda.time.chrono.ISOChronology;
 import java.io.IOException;
 import java.util.Objects;
 
-public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
+public class IndexLifecycleExplainResponse implements ToXContentObject {
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
@@ -52,23 +49,25 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField ACTION_TIME_FIELD = new ParseField("action_time");
     private static final ParseField STEP_TIME_FIELD = new ParseField("step_time");
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
+    private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "index_lifecycle_explain_response",
-            a -> new IndexLifecycleExplainResponse(
-                    (String) a[0],
-                    (boolean) a[1],
-                    (String) a[2],
-                    (boolean) (a[3] == null ? false: a[3]),
-                    (long) (a[4] == null ? -1L: a[4]),
-                    (String) a[5],
-                    (String) a[6],
-                    (String) a[7],
-                    (String) a[8],
-                    (long) (a[9] == null ? -1L: a[9]),
-                    (long) (a[10] == null ? -1L: a[10]),
-                    (long) (a[11] == null ? -1L: a[11]),
-                    (BytesReference) a[12]));
+        "index_lifecycle_explain_response",
+        a -> new IndexLifecycleExplainResponse(
+            (String) a[0],
+            (boolean) a[1],
+            (String) a[2],
+            (boolean) (a[3] == null ? false: a[3]),
+            (long) (a[4] == null ? -1L: a[4]),
+            (String) a[5],
+            (String) a[6],
+            (String) a[7],
+            (String) a[8],
+            (long) (a[9] == null ? -1L: a[9]),
+            (long) (a[10] == null ? -1L: a[10]),
+            (long) (a[11] == null ? -1L: a[11]),
+            (BytesReference) a[12],
+            (PhaseExecutionInfo) a[13]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
@@ -87,6 +86,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             builder.copyCurrentStructure(p);
             return BytesArray.bytes(builder);
         }, STEP_INFO_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
+            PHASE_EXECUTION_INFO);
     }
 
     private final String index;
@@ -102,30 +103,32 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final boolean skip;
     private final boolean managedByILM;
     private final BytesReference stepInfo;
+    private final PhaseExecutionInfo phaseExecutionInfo;
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, boolean skip, long lifecycleDate,
-            String phase, String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime,
-            BytesReference stepInfo) {
+                                                                        String phase, String action, String step, String failedStep,
+                                                                        long phaseTime, long actionTime, long stepTime,
+                                                                        BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         return new IndexLifecycleExplainResponse(index, true, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime,
-                actionTime, stepTime, stepInfo);
+            actionTime, stepTime, stepInfo, phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
-        return new IndexLifecycleExplainResponse(index, false, null, false, -1L, null, null, null, null, -1L, -1L, -1L, null);
+        return new IndexLifecycleExplainResponse(index, false, null, false, -1L, null, null, null, null, -1L, -1L, -1L, null, null);
     }
 
     private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, boolean skip, long lifecycleDate,
-            String phase, String action, String step, String failedStep, long phaseTime, long actionTime, long stepTime,
-            BytesReference stepInfo) {
+                                          String phase, String action, String step, String failedStep, long phaseTime, long actionTime,
+                                          long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
         } else {
             if (policyName != null || lifecycleDate >= 0 || phase != null || action != null || step != null || failedStep != null
-                    || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null) {
+                || phaseTime >= 0 || actionTime >= 0 || stepTime >= 0 || stepInfo != null || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
-                        "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
+                    "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
             }
         }
         this.index = index;
@@ -141,56 +144,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.stepTime = stepTime;
         this.failedStep = failedStep;
         this.stepInfo = stepInfo;
-    }
-
-    public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
-        index = in.readString();
-        managedByILM = in.readBoolean();
-        if (managedByILM) {
-            policyName = in.readString();
-            skip = in.readBoolean();
-            lifecycleDate = in.readZLong();
-            phase = in.readString();
-            action = in.readString();
-            step = in.readString();
-            failedStep = in.readOptionalString();
-            phaseTime = in.readZLong();
-            actionTime = in.readZLong();
-            stepTime = in.readZLong();
-            stepInfo = in.readOptionalBytesReference();
-
-        } else {
-            policyName = null;
-            skip = false;
-            lifecycleDate = -1L;
-            phase = null;
-            action = null;
-            step = null;
-            failedStep = null;
-            phaseTime = -1L;
-            actionTime = -1L;
-            stepTime = -1L;
-            stepInfo = null;
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeBoolean(managedByILM);
-        if (managedByILM) {
-            out.writeString(policyName);
-            out.writeBoolean(skip);
-            out.writeZLong(lifecycleDate);
-            out.writeString(phase);
-            out.writeString(action);
-            out.writeString(step);
-            out.writeOptionalString(failedStep);
-            out.writeZLong(phaseTime);
-            out.writeZLong(actionTime);
-            out.writeZLong(stepTime);
-            out.writeOptionalBytesReference(stepInfo);
-        }
+        this.phaseExecutionInfo = phaseExecutionInfo;
     }
 
     public String getIndex() {
@@ -245,6 +199,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return stepInfo;
     }
 
+    public PhaseExecutionInfo getPhaseExecutionInfo() {
+        return phaseExecutionInfo;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -282,6 +240,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (stepInfo != null && stepInfo.length() > 0) {
                 builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
             }
+            if (phaseExecutionInfo != null) {
+                builder.field(PHASE_EXECUTION_INFO.getPreferredName(), phaseExecutionInfo);
+            }
         }
         builder.endObject();
         return builder;
@@ -290,7 +251,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     @Override
     public int hashCode() {
         return Objects.hash(index, managedByILM, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime,
-                stepTime, stepInfo);
+            stepTime, stepInfo, phaseExecutionInfo);
     }
 
     @Override
@@ -303,18 +264,19 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }
         IndexLifecycleExplainResponse other = (IndexLifecycleExplainResponse) obj;
         return Objects.equals(index, other.index) &&
-                Objects.equals(managedByILM, other.managedByILM) &&
-                Objects.equals(policyName, other.policyName) &&
-                Objects.equals(skip, other.skip) &&
-                Objects.equals(lifecycleDate, other.lifecycleDate) &&
-                Objects.equals(phase, other.phase) &&
-                Objects.equals(action, other.action) &&
-                Objects.equals(step, other.step) &&
-                Objects.equals(failedStep, other.failedStep) &&
-                Objects.equals(phaseTime, other.phaseTime) &&
-                Objects.equals(actionTime, other.actionTime) &&
-                Objects.equals(stepTime, other.stepTime) &&
-                Objects.equals(stepInfo, other.stepInfo);
+            Objects.equals(managedByILM, other.managedByILM) &&
+            Objects.equals(policyName, other.policyName) &&
+            Objects.equals(skip, other.skip) &&
+            Objects.equals(lifecycleDate, other.lifecycleDate) &&
+            Objects.equals(phase, other.phase) &&
+            Objects.equals(action, other.action) &&
+            Objects.equals(step, other.step) &&
+            Objects.equals(failedStep, other.failedStep) &&
+            Objects.equals(phaseTime, other.phaseTime) &&
+            Objects.equals(actionTime, other.actionTime) &&
+            Objects.equals(stepTime, other.stepTime) &&
+            Objects.equals(stepInfo, other.stepInfo) &&
+            Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
     }
 
     @Override
@@ -323,3 +285,4 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     }
 
 }
+

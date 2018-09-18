@@ -162,7 +162,6 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         return "{ \"value\" : \"" + randomAlphaOfLength(10) + "\"}";
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33689")
     public void testRestoreMinmal() throws IOException {
         IndexShard shard = newStartedShard(true);
         int numInitialDocs = randomIntBetween(10, 100);

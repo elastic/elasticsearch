@@ -224,10 +224,6 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
-@test "[$GROUP] install discovery-file plugin" {
-    install_and_check_plugin discovery file
-}
-
 @test "[$GROUP] install ingest-attachment plugin" {
     # we specify the version on the poi-3.17.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
@@ -362,10 +358,6 @@ fi
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
     remove_plugin discovery-ec2
-}
-
-@test "[$GROUP] remove discovery-file plugin" {
-    remove_plugin discovery-file
 }
 
 @test "[$GROUP] remove ingest-attachment plugin" {

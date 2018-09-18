@@ -33,7 +33,7 @@ class PrecommitTasks {
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.6')
         }
 
         List<Task> precommitTasks = [

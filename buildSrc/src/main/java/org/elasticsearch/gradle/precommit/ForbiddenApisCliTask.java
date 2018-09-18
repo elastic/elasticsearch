@@ -56,15 +56,7 @@ public class ForbiddenApisCliTask extends PrecommitTask {
     }
 
     public void setTargetCompatibility(JavaVersion targetCompatibility) {
-        if (targetCompatibility.compareTo(JavaVersion.VERSION_1_10) > 0) {
-            logger.warn(
-                "Target compatibility is set to {} but forbiddenapis only supports up to 10. Will cap at 10.",
-                targetCompatibility
-            );
-            this.targetCompatibility = JavaVersion.VERSION_1_10;
-        } else {
-            this.targetCompatibility = targetCompatibility;
-        }
+        this.targetCompatibility = targetCompatibility;
     }
 
     @InputFiles

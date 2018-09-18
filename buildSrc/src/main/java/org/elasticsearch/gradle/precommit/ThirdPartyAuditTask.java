@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 public class ThirdPartyAuditTask extends DefaultTask {
 
     private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: The referenced class '(.*)' cannot be loaded\\. Please fix the classpath!"
+        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
     );
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile(

@@ -305,8 +305,8 @@ unquoteIdentifier
     ;
 
 number
-    : DECIMAL_VALUE  #decimalLiteral
-    | INTEGER_VALUE  #integerLiteral
+    : (PLUS | MINUS)? DECIMAL_VALUE  #decimalLiteral
+    | (PLUS | MINUS)? INTEGER_VALUE  #integerLiteral
     ;
 
 string

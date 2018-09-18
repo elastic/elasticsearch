@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -121,6 +122,11 @@ public final class TransportCreateAndFollowIndexAction
         // following an index in local cluster, so use local cluster state to fetch leader index metadata
         final String leaderIndex = request.getFollowRequest().getLeaderIndex();
         final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
+        if (leaderIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(leaderIndex));
+            return;
+        }
+
         Consumer<String[]> handler = historyUUIDs -> {
             createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
         };

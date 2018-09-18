@@ -354,11 +354,6 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
-                public long runAsLong() {
-                    return ((Number) run()).longValue();
-                }
-
-                @Override
                 public double runAsDouble() {
                     return ((Number) run()).doubleValue();
                 }

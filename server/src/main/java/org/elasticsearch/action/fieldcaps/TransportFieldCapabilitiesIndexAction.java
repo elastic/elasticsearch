@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,6 +88,18 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                     FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
                     responseMap.put(field, fieldCap);
                 }
+            }
+            // add nested and object fields
+            int dotIndex = ft.name().indexOf('.');
+            while (dotIndex > -1) {
+                String parentField = ft.name().substring(0, dotIndex);
+                ObjectMapper mapper = mapperService.getObjectMapper(parentField);
+                if (mapper != null) {
+                    String type = mapper.nested().isNested() ? "nested" : "object";
+                    FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false);
+                    responseMap.put(parentField, fieldCap);
+                }
+                dotIndex = ft.name().indexOf('.', dotIndex + 1);
             }
         }
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);

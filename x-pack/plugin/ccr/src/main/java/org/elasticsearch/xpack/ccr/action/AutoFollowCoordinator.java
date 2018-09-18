@@ -261,7 +261,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                             getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndices);
                         if (leaderIndicesToFollow.isEmpty()) {
                             finalise(slot, new AutoFollowResult(clusterAlias));
-                        }else {
+                        } else {
                             Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
                             checkAutoFollowPattern(clusterAlias, autoFollowPattern, leaderIndicesToFollow, resultHandler);
                         }

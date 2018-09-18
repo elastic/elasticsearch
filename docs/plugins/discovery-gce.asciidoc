@@ -29,6 +29,9 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
      Your Google project id.
      If the value is not specified, default project id is picked up from a metadata server.
 
+     Note: it does not utilize any system properties or environment variables like `GOOGLE_CLOUD_PROJECT` or `GCLOUD_PROJECT`
+     to resolve the default project id.
+
  `zone`::
 
      helps to retrieve instances running in a given zone.

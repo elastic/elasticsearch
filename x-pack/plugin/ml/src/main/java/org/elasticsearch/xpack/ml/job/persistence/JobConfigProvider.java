@@ -46,6 +46,8 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -543,6 +545,25 @@ public class JobConfigProvider extends AbstractComponent {
                         },
                         listener::onFailure)
                 , client::search);
+    }
+
+    /**
+     * Get the job reference by the datafeed and validate the datafeed config against it
+     * @param config  Datafeed config
+     * @param listener Validation listener
+     */
+    public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
+        getJob(config.getJobId(), ActionListener.wrap(
+                jobBuilder -> {
+                    try {
+                        DatafeedJobValidator.validate(config, jobBuilder.build());
+                        listener.onResponse(Boolean.TRUE);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                },
+                listener::onFailure
+        ));
     }
 
     private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener)  {

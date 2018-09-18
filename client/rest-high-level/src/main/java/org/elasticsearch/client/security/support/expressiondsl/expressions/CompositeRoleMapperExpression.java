@@ -129,7 +129,7 @@ public class CompositeRoleMapperExpression implements RoleMapperExpression {
         private static Map<String, CompositeType> nameToType = Collections.unmodifiableMap(initialize());
         private ParseField field;
 
-        private CompositeType(String name) {
+        CompositeType(String name) {
             this.field = new ParseField(name);
         }
 
@@ -154,7 +154,7 @@ public class CompositeRoleMapperExpression implements RoleMapperExpression {
         }
     }
 
-    public final static class Builder {
+    public static final class Builder {
         private CompositeType field;
         private List<RoleMapperExpression> elements = new ArrayList<>();
 

@@ -151,7 +151,7 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
         }
     }
 
-    public final static class Builder {
+    public static final class Builder {
         private FieldType field;
         private String key;
         private List<Object> elements = new ArrayList<>();

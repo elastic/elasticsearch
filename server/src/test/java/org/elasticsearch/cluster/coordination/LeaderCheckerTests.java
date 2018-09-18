@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -92,7 +93,7 @@ public class LeaderCheckerTests extends ESTestCase {
         logger.info("--> using {}", settings);
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
-        final CapturingTransport capturingTransport = new CapturingTransport() {
+        final MockTransport mockTransport = new MockTransport() {
 
             int consecutiveFailedRequestsCount;
 
@@ -132,7 +133,7 @@ public class LeaderCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = capturingTransport.createTransportService(settings,
+        final TransportService transportService = mockTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -204,7 +205,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setLastPublishedDiscoveryNodes(discoveryNodes);
 
-            final AssertingTransportResponseHandler handler = new AssertingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks(random());
 
@@ -217,7 +218,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setLastPublishedDiscoveryNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
-            final AssertingTransportResponseHandler handler = new AssertingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks(random());
 
@@ -228,7 +229,7 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setLastPublishedDiscoveryNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
-            final AssertingTransportResponseHandler handler = new AssertingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks(random());
 
@@ -239,7 +240,7 @@ public class LeaderCheckerTests extends ESTestCase {
         }
     }
 
-    private class AssertingTransportResponseHandler implements TransportResponseHandler<Empty> {
+    private class CapturingTransportResponseHandler implements TransportResponseHandler<Empty> {
 
         TransportException transportException;
         boolean successfulResponseReceived;

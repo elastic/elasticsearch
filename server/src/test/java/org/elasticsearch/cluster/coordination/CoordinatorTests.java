@@ -40,7 +40,7 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
@@ -192,7 +192,7 @@ public class CoordinatorTests extends ESTestCase {
             private final PersistedState persistedState;
             private MasterService masterService;
             private TransportService transportService;
-            private CapturingTransport capturingTransport;
+            private MockTransport mockTransport;
 
             ClusterNode(int nodeIndex) {
                 super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
@@ -214,7 +214,7 @@ public class CoordinatorTests extends ESTestCase {
             }
 
             private void setUp() {
-                capturingTransport = new CapturingTransport() {
+                mockTransport = new MockTransport() {
                     @Override
                     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
                         assert destination.equals(localNode) == false : "non-local message from " + localNode + " to itself";
@@ -243,7 +243,7 @@ public class CoordinatorTests extends ESTestCase {
                                     destinationNode -> {
 
                                         final RequestHandlerRegistry requestHandler
-                                            = destinationNode.capturingTransport.getRequestHandler(action);
+                                            = destinationNode.mockTransport.getRequestHandler(action);
 
                                         final TransportChannel transportChannel = new TransportChannel() {
                                             @Override
@@ -410,7 +410,7 @@ public class CoordinatorTests extends ESTestCase {
                 });
                 masterService.start();
 
-                transportService = capturingTransport.createCapturingTransportService(
+                transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, a -> localNode, null, emptySet());
                 transportService.start();
                 transportService.acceptIncomingRequests();

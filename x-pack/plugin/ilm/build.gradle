@@ -28,7 +28,7 @@ integTestCluster {
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.ilm.enabled', 'true'
-    setting 'indices.lifecycle.poll_interval', '1500ms'
+    setting 'indices.lifecycle.poll_interval', '2500ms'
     module project(xpackModule('core'))
 }
 

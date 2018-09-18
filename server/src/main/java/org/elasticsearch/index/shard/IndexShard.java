@@ -879,32 +879,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
-        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
-        // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
-        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
-        // safe here.
-        long numDocs = 0;
-        long numDeletedDocs = 0;
-        long sizeInBytes = 0;
-        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                // we go on the segment level here to get accurate numbers
-                final SegmentReader segmentReader = Lucene.segmentReader(reader.reader());
-                SegmentCommitInfo info = segmentReader.getSegmentInfo();
-                numDocs += reader.reader().numDocs();
-                numDeletedDocs += reader.reader().numDeletedDocs();
-                try {
-                    sizeInBytes += info.sizeInBytes();
-                } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
-                }
-            }
-        }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        DocsStats docsStats = getEngine().docStats();
+        markSearcherAccessed();
+        return docsStats;
+
     }
 
     /**

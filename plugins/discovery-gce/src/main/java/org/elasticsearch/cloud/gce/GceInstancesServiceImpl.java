@@ -119,7 +119,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         }
 
         try {
-            // {@link com.google.cloud.ServiceOptions#getAppEngineProjectIdFromMetadataServer()}
+            // this code is based on a private GCE method: {@link com.google.cloud.ServiceOptions#getAppEngineProjectIdFromMetadataServer()}
             return getAppEngineValueFromMetadataServer("/computeMetadata/v1/project/project-id");
         } catch (Exception e) {
             logger.warn("unable to resolve project from metadata server for GCE discovery service", e);

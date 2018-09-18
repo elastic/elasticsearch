@@ -102,15 +102,6 @@ public abstract class AggregationScript implements ScorerAware {
         this.scorer = scorer;
     }
 
-    /** Return the score of the current document. */
-    public double getScore() {
-        try {
-            return scorer == null ? 0.0 : scorer.score();
-        } catch (IOException e) {
-            throw new ElasticsearchException("couldn't lookup score", e);
-        }
-    }
-
     /**
      * Sets per-document aggregation {@code _value}.
      * <p>
@@ -124,7 +115,11 @@ public abstract class AggregationScript implements ScorerAware {
     }
 
     public Number get_score() {
-        return getScore();
+        try {
+            return scorer == null ? 0.0 : scorer.score();
+        } catch (IOException e) {
+            throw new ElasticsearchException("couldn't lookup score", e);
+        }
     }
 
     public Object get_value() {

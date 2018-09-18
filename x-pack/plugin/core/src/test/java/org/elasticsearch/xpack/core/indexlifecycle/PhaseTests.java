@@ -33,6 +33,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     @Override
     protected Phase createTestInstance() {
+        return randomTestPhase(phaseName);
+    }
+
+    static Phase randomTestPhase(String phaseName) {
         TimeValue after = null;
         if (randomBoolean()) {
             after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");

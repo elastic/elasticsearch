@@ -28,14 +28,19 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.junit.Before;
@@ -69,6 +74,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;
+    private Phase mockPhase;
     private static final ObservableAction OBSERVABLE_ACTION;
     static {
         List<Step> steps = new ArrayList<>();
@@ -127,7 +133,8 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
         steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
         Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, OBSERVABLE_ACTION);
-        Map<String, Phase> phases = Collections.singletonMap("mock", new Phase("mock", TimeValue.timeValueSeconds(0), actions));
+        mockPhase = new Phase("mock", TimeValue.timeValueSeconds(0), actions);
+        Map<String, Phase> phases = Collections.singletonMap("mock", mockPhase);
         lifecyclePolicy = newLockableLifecyclePolicy("test", phases);
     }
 
@@ -173,6 +180,58 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             String step = settingsResponse.getSetting("test", "index.lifecycle.step");
             assertThat(step, equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testExplainExecution() throws Exception {
+        // start node
+        logger.info("Starting server1");
+        final String server_1 = internalCluster().startNode();
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+
+        logger.info("Creating index [test]");
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+            .actionGet();
+        assertAcked(createIndexResponse);
+
+        {
+            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
+            assertBusy(() -> {
+                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
+                assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+            });
+        }
+
+        // complete the step
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
+
+        {
+            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), null, 1L, actualModifiedDate);
+            assertBusy(() -> {
+                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                assertThat(indexResponse.getPhase(), equalTo(TerminalPolicyStep.COMPLETED_PHASE));
+                assertThat(indexResponse.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
+                assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+            });
+        }
     }
 
     public void testMasterDedicatedDataDedicated() throws Exception {

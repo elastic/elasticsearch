@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
@@ -170,7 +171,7 @@ public class PolicyStepsRegistry {
                     // parse existing phase steps from the phase definition in the index settings
                     String phaseDef = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION,
                         InitializePolicyContextStep.INITIALIZATION_PHASE);
-                    final Phase phase;
+                    final PhaseExecutionInfo phaseExecutionInfo;
                     LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
                     final LifecyclePolicy policyToExecute;
                     if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
@@ -181,15 +182,15 @@ public class PolicyStepsRegistry {
                         // if the current phase definition describes an internal step/phase, do not parse
                         try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
-                            phase = Phase.parse(parser, currentPhase);
+                            phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
                         } catch (IOException e) {
                             logger.error("failed to configure phase [" + currentPhase + "] for index [" + index.getName() + "]", e);
                             indexPhaseSteps.remove(index);
                             continue;
                         }
                         Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
-                        if (phase != null) {
-                            phaseMap.put(currentPhase, phase);
+                        if (phaseExecutionInfo.getPhase() != null) {
+                            phaseMap.put(currentPhase, phaseExecutionInfo.getPhase());
                         }
                         policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
                     }

@@ -18,36 +18,35 @@
  */
 package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;
 import com.google.api.client.http.LowLevelHttpResponse;
 import com.google.api.client.json.Json;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class GceInstancesServiceImplTests extends ESTestCase {
-    public void testHeaderContainsMetadataFlavor() throws IOException {
 
+    public void testHeaderContainsMetadataFlavor() throws Exception {
         final AtomicBoolean addMetdataFlavor = new AtomicBoolean();
         final MockHttpTransport transport = new MockHttpTransport() {
             @Override
-            public LowLevelHttpRequest buildRequest(String method, final String url) throws IOException {
+            public LowLevelHttpRequest buildRequest(String method, final String url) {
                 return new MockLowLevelHttpRequest() {
                     @Override
-                    public LowLevelHttpResponse execute() throws IOException {
+                    public LowLevelHttpResponse execute() {
                         MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
                         response.setStatusCode(200);
                         response.setContentType(Json.MEDIA_TYPE);
+                        response.setContent("value");
                         if (addMetdataFlavor.get()) {
                             response.addHeader("Metadata-Flavor", "Google");
                         }
@@ -56,16 +55,18 @@ public class GceInstancesServiceImplTests extends ESTestCase {
                 };
             }
         };
-        final HttpRequestFactory requestFactory = transport.createRequestFactory();
-        final GenericUrl url = new GenericUrl("https://localhost:8080/");
-        final HttpRequest request = requestFactory.buildGetRequest(url);
-        final HttpResponse response = request.execute();
 
-        assertThat(GceInstancesServiceImpl.headerContainsMetadataFlavor(response), is(false));
+        final GceInstancesServiceImpl service = new GceInstancesServiceImpl(Settings.EMPTY) {
+            @Override
+            protected synchronized HttpTransport getGceHttpTransport() {
+                return transport;
+            }
+        };
+
+        final String serviceURL = "/computeMetadata/v1/project/project-id";
+        assertThat(service.getAppEngineValueFromMetadataServer(serviceURL), is(nullValue()));
 
         addMetdataFlavor.set(true);
-        final HttpRequest request2 = requestFactory.buildGetRequest(url);
-        final HttpResponse response2 = request2.execute();
-        assertThat(GceInstancesServiceImpl.headerContainsMetadataFlavor(response2), is(true));
+        assertThat(service.getAppEngineValueFromMetadataServer(serviceURL), is("value"));
     }
 }

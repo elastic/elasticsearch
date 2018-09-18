@@ -142,7 +142,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         return null;
     }
 
-    private String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
+    String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
         GenericUrl url = new GenericUrl(metadata + serviceURL);
 
@@ -156,7 +156,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
     }
 
-    static boolean headerContainsMetadataFlavor(HttpResponse response) {
+    private static boolean headerContainsMetadataFlavor(HttpResponse response) {
         // com.google.cloud.ServiceOptions#headerContainsMetadataFlavor(HttpResponse)}
         String metadataFlavorValue = response.getHeaders().getFirstHeaderStringValue("Metadata-Flavor");
         return "Google".equals(metadataFlavorValue);

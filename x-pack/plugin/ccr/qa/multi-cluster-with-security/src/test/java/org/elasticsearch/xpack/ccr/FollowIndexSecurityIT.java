@@ -274,11 +274,14 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     }
 
     private static void verifyCcrMonitoring(String expectedLeaderIndex, String expectedFollowerIndex) throws IOException {
-        ensureYellow(".monitoring-*");
-
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
-        Map<String, ?> response = toMap(adminClient().performRequest(request));
+        Map<String, ?> response;
+        try {
+            response = toMap(adminClient().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
 
         int numberOfOperationsReceived = 0;
         int numberOfOperationsIndexed = 0;

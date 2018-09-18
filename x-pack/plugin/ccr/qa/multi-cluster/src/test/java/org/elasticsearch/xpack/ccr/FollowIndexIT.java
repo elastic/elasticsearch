@@ -9,6 +9,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -160,11 +161,14 @@ public class FollowIndexIT extends ESRestTestCase {
     }
 
     private static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
-        ensureYellow(".monitoring-*");
-
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
-        Map<String, ?> response = toMap(client().performRequest(request));
+        Map<String, ?> response;
+        try {
+            response = toMap(client().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
 
         int numberOfOperationsReceived = 0;
         int numberOfOperationsIndexed = 0;

@@ -24,19 +24,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,13 +41,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiBucketCollectorTests  extends ESTestCase {
-    private static class FakeScorer extends Scorer {
+    private static class ScoreAndDoc extends Scorable {
         float score;
         int doc = -1;
-
-        FakeScorer() {
-            super(null);
-        }
 
         @Override
         public int docID() {
@@ -60,26 +53,6 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         @Override
         public float score() {
             return score;
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public float getMaxScore(int upTo) throws IOException {
-            return Float.MAX_VALUE;
-        }
-
-        @Override
-        public Weight getWeight() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Collection<ChildScorer> getChildren() {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -171,7 +144,7 @@ public class MultiBucketCollectorTests  extends ESTestCase {
             final LeafBucketCollector leafCollector = in.getLeafCollector(context);
             return new LeafBucketCollectorBase(leafCollector, null) {
                 @Override
-                public void setScorer(Scorer scorer) throws IOException {
+                public void setScorer(Scorable scorer) throws IOException {
                     super.setScorer(scorer);
                     setScorerCalled.set(true);
                 }
@@ -235,7 +208,7 @@ public class MultiBucketCollectorTests  extends ESTestCase {
         collector1 = new TerminateAfterBucketCollector(collector1, 1);
         collector2 = new TerminateAfterBucketCollector(collector2, 2);
 
-        Scorer scorer = new FakeScorer();
+        Scorable scorer = new ScoreAndDoc();
 
         List<BucketCollector> collectors = Arrays.asList(collector1, collector2);
         Collections.shuffle(collectors, random());

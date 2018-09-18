@@ -510,7 +510,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (InputStream is = Files.newInputStream(trustStorePath)) {
             trustStore.load(is, trustStorePass.toCharArray());
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadTrustMaterial(trustStore, null).build();
         return HttpClients.custom().setSSLContext(sslContext).build();
     }
 
@@ -527,7 +527,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
             trustStore.setCertificateEntry(cert.toString(), cert);
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        final SSLContext sslContext = new SSLContextBuilder().useProtocol("TLSv1.2").loadTrustMaterial(trustStore, null).build();
         return HttpClients.custom().setSSLContext(sslContext).build();
     }
 

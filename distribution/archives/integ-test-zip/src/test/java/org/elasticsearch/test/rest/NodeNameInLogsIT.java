@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.unconfigurednodename;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.logging.NodeNameInLogsIntegTestCase;
 

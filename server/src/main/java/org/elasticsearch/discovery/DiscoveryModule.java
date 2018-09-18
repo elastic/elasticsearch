@@ -131,7 +131,7 @@ public class DiscoveryModule {
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
-        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
+        Loggers.getLogger(getClass(), settings).info("using discovery type [{}] and host providers {}", discoveryType, hostsProviderNames);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 

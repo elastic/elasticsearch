@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.action.DeleteAutoFollowPatternAction.Request;
+import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.util.ArrayList;
@@ -30,7 +30,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -40,7 +40,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("logs-*");
             existingAutoFollowPatterns.put("asia_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
 
             List<String> existingUUIDS = new ArrayList<>();
             existingUUIDS.add("_val");
@@ -69,7 +69,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             List<String> existingPatterns = new ArrayList<>();
             existingPatterns.add("transactions-*");
             existingAutoFollowPatterns.put("eu_cluster",
-                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
+                new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import java.util.function.DoubleSupplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
@@ -94,6 +95,29 @@ public class MockScriptEngine implements ScriptEngine {
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
                     return (Number) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(AggregationScript.class)) {
+            AggregationScript.Factory factory = (parameters, lookup) -> new AggregationScript.LeafFactory() {
+                @Override
+                public AggregationScript newInstance(final LeafReaderContext ctx) {
+                    return new AggregationScript(parameters, lookup, ctx) {
+                        @Override
+                        public Object execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            vars.put("_score", get_score());
+                            vars.put("_value", get_value());
+                            return script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
                 }
             };
             return context.factoryClazz.cast(factory);

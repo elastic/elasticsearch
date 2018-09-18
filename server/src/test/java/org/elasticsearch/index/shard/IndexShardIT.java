@@ -412,7 +412,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
+    @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
     public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -747,7 +747,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final int index = i;
             final AtomicLong globalCheckpoint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    i - 1,
+                    i,
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -759,7 +759,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();
             shard.addGlobalCheckpointListener(
-                    randomLongBetween(NO_OPS_PERFORMED, i - 1),
+                    randomLongBetween(0, i),
                     (g, e) -> {
                         assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
                         assertNull(e);
@@ -770,7 +770,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         final AtomicBoolean invoked = new AtomicBoolean();
         shard.addGlobalCheckpointListener(
-                numberOfUpdates - 1,
+                numberOfUpdates,
                 (g, e) -> {
                     invoked.set(true);
                     assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
@@ -792,7 +792,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
         shard.addGlobalCheckpointListener(
-                NO_OPS_PERFORMED,
+                0,
                 (g, e) -> {
                     try {
                         notified.set(true);

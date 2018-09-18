@@ -322,7 +322,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * This test ensures that when an index deletion takes place while a node is offline, when that
      * node rejoins the cluster, it deletes the index locally instead of importing it as a dangling index.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33613")
     public void testIndexDeletionWhenNodeRejoins() throws Exception {
         final String indexName = "test-index-del-on-node-rejoin-idx";
         final int numNodes = 2;

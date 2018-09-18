@@ -38,6 +38,7 @@ final class ProfileScorer extends Scorer {
     private final Scorer scorer;
     private ProfileWeight profileWeight;
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer;
+    private final boolean isConstantScoreQuery;
 
     ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
         super(w);
@@ -47,6 +48,20 @@ final class ProfileScorer extends Scorer {
         nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
         advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
         matchTimer = profile.getTimer(QueryTimingType.MATCH);
+        ProfileScorer profileScorer = null;
+        if (w.getQuery() instanceof ConstantScoreQuery && scorer instanceof ProfileScorer) {
+            profileScorer = (ProfileScorer) scorer;
+        } else if (w.getQuery() instanceof ConstantScoreQuery && scorer.getChildren().size() == 1) {
+            profileScorer = (ProfileScorer) scorer.getChildren().iterator().next().child;
+        }
+        if (profileScorer != null) {
+            isConstantScoreQuery = true;
+            profile.setTimer(QueryTimingType.NEXT_DOC, profileScorer.nextDocTimer);
+            profile.setTimer(QueryTimingType.ADVANCE, profileScorer.advanceTimer);
+            profile.setTimer(QueryTimingType.MATCH, profileScorer.matchTimer);
+        } else {
+            isConstantScoreQuery = false;
+        }
     }
 
     @Override
@@ -76,7 +91,7 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public DocIdSetIterator iterator() {
-        if (profileWeight.getQuery() instanceof ConstantScoreQuery) {
+        if (isConstantScoreQuery) {
             return scorer.iterator();
         }
         final DocIdSetIterator in = scorer.iterator();
@@ -116,6 +131,9 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public TwoPhaseIterator twoPhaseIterator() {
+        if (isConstantScoreQuery) {
+            return scorer.twoPhaseIterator();
+        }
         final TwoPhaseIterator in = scorer.twoPhaseIterator();
         if (in == null) {
             return null;

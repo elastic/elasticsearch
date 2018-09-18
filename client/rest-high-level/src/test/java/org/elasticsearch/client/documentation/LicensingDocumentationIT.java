@@ -26,13 +26,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.license.PostStartBasicRequest;
+import org.elasticsearch.client.license.PostStartBasicResponse;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseResponse;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.protocol.xpack.license.PostStartBasicRequest;
-import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -231,7 +231,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             boolean acknowledged = response.isAcknowledged(); // <1>
             String acknowledgeMessage = response.acknowledgeMessage(); // <2>
             Map<String, String[]> acknowledgeMessages = response.acknowledgeMessages(); // <3>
-            String errorMessage = response.status().getErrorMessage(); // <4>
+            String errorMessage = response.getStatus().getErrorMessage(); // <4>
             //end::post-start-basic-response
         }
         {

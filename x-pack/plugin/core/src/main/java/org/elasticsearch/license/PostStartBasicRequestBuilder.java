@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 
 class PostStartBasicRequestBuilder extends ActionRequestBuilder<PostStartBasicRequest, PostStartBasicResponse> {
 

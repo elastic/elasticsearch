@@ -1,9 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
@@ -38,9 +51,9 @@ public class PostStartBasicResponse extends AcknowledgedResponse {
         String errorMessage = (String) a[1];
 
         if (basicWasStarted) {
-            return new PostStartBasicResponse(Status.GENERATED_BASIC);
+            return new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC);
         }
-        Status status = Status.fromErrorMessage(errorMessage);
+        PostStartBasicResponse.Status status = PostStartBasicResponse.Status.fromErrorMessage(errorMessage);
         @SuppressWarnings("unchecked") Tuple<String, Map<String, String[]>> acknowledgements = (Tuple<String, Map<String, String[]>>) a[2];
         return new PostStartBasicResponse(status, acknowledgements.v2(), acknowledgements.v1());
     });
@@ -112,13 +125,13 @@ public class PostStartBasicResponse extends AcknowledgedResponse {
             return errorMessage;
         }
 
-        public RestStatus getRestStatus() {
+        RestStatus getRestStatus() {
             return restStatus;
         }
 
-        static Status fromErrorMessage(final String errorMessage) {
-            final Status[] values = Status.values();
-            for (Status status : values) {
+        static PostStartBasicResponse.Status fromErrorMessage(final String errorMessage) {
+            final PostStartBasicResponse.Status[] values = PostStartBasicResponse.Status.values();
+            for (PostStartBasicResponse.Status status : values) {
                 if (Objects.equals(status.errorMessage, errorMessage)) {
                     return status;
                 }
@@ -127,23 +140,24 @@ public class PostStartBasicResponse extends AcknowledgedResponse {
         }
     }
 
-    private Status status;
+    private PostStartBasicResponse.Status status;
 
     public PostStartBasicResponse() {
     }
 
-    public PostStartBasicResponse(Status status) {
+    public PostStartBasicResponse(PostStartBasicResponse.Status status) {
         this(status, Collections.emptyMap(), null);
     }
 
-    public PostStartBasicResponse(Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
-        super(status != Status.NEED_ACKNOWLEDGEMENT);
+    public PostStartBasicResponse(PostStartBasicResponse.Status status,
+                                  Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
+        super(status != PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT);
         this.status = status;
         this.acknowledgeMessages = acknowledgeMessages;
         this.acknowledgeMessage = acknowledgeMessage;
     }
 
-    public Status status() {
+    public PostStartBasicResponse.Status getStatus() {
         return status;
     }
 
@@ -158,7 +172,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        status = in.readEnum(Status.class);
+        status = in.readEnum(PostStartBasicResponse.Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
         Map<String, String[]> acknowledgeMessages = new HashMap<>(size);

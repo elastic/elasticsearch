@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.protocol.xpack.license.PostStartBasicResponse;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;

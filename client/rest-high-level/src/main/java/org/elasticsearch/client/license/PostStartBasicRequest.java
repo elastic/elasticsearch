@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -40,3 +40,4 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
         return acknowledge;
     }
 }
+

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -76,9 +75,11 @@ public class JobStorageDeletionTask extends Task {
         final String indexName = AnomalyDetectorsIndex.getPhysicalIndexFromState(state, jobId);
         final String indexPattern = indexName + "-*";
 
-        ActionListener<Boolean> deleteAliasHandler = ActionListener.wrap(finishedHandler, failureHandler);
+        final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
+            response -> finishedHandler.accept(response.isAcknowledged()),
+            failureHandler);
 
-        // Step 6. DBQ state done, delete the aliases
+        // Step 6. If we did not drop the index and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
                     if (bulkByScrollResponse.isTimedOut()) {
@@ -92,11 +93,11 @@ public class JobStorageDeletionTask extends Task {
                             logger.warn("DBQ failure: " + failure);
                         }
                     }
-                    deleteAliases(jobId, client, deleteAliasHandler);
+                    deleteAliases(jobId, client, completionHandler);
                 },
                 failureHandler);
 
-        // Step 5. If we did not delete the index, we run a delete by query
+        // Step 5(b). If we did not delete the index, we run a delete by query
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
                     logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
@@ -113,50 +114,34 @@ public class JobStorageDeletionTask extends Task {
                 },
                 failureHandler);
 
-        // Step 4(c). If we have any hits, that means we are NOT the only job on this index, and should not delete it
+        // Step 5(a). If we have any hits, that means we are NOT the only job on this index, and should not delete it
+        // if we do not have any hits, we can drop the index and then skip the DBQ and alias deletion
         ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
             searchResponse -> {
-                if (searchResponse.getHits().totalHits > 0) {
+                if (searchResponse == null || searchResponse.getHits().totalHits > 0) {
                     deleteByQueryExecutor.onResponse(true);
                 } else {
                     logger.info("Running DELETE Index on [" + indexName + "] for job [" + jobId + "]");
                     DeleteIndexRequest request = new DeleteIndexRequest(indexName);
                     request.indicesOptions(IndicesOptions.lenientExpandOpen());
+                    // If we have deleted the index, then we don't need to delete the aliases or run the DBQ
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         ML_ORIGIN,
                         request,
                         ActionListener.<AcknowledgedResponse>wrap(
-                            deleteIndexResponse -> deleteAliases(jobId, client, deleteAliasHandler), //skip DBQ
-                            failureHandler),
+                            completionHandler::onResponse, // skip DBQ && Alias
+                            completionHandler::onFailure),
                         client.admin().indices()::delete);
                 }
             },
-            failureHandler
-        );
-
-        // Step 4(b). If we are shared, skip index deletion. If not, determine if we are the only job on the custom index
-        ActionListener<GetAliasesResponse> getAliasesHandler = ActionListener.wrap(
-            aliasesResponse -> {
-                boolean onlySingleJob = true;
-                for (AliasMetaData aliasMetaData : aliasesResponse.getAliases().getOrDefault(indexName, new ArrayList<>())) {
-                    onlySingleJob = onlySingleJob && aliasMetaData.alias().endsWith(jobId); // circuit break for performance
-                }
-                if (onlySingleJob) { // Could we just skip this search and simply rely on the index suffixes?
-                    SearchSourceBuilder source = new SearchSourceBuilder();
-                    BoolQueryBuilder builder = QueryBuilders.boolQuery().filter(
-                        QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId)));
-
-                    source.query(builder).size(1);
-
-                    SearchRequest searchRequest = new SearchRequest(indexName);
-                    searchRequest.source(source);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
+            failure -> {
+                if (failure.getClass() == IndexNotFoundException.class) { // assume the index is already deleted
+                    completionHandler.onResponse(new AcknowledgedResponse(true));
                 } else {
-                    deleteByQueryExecutor.onResponse(true);
+                    completionHandler.onFailure(failure);
                 }
-            },
-            failureHandler
+            }
         );
 
         // Step 4. Determine if we are on a shared index by looking at `.ml-anomalies-shared` or the custom index's aliases
@@ -164,16 +149,16 @@ public class JobStorageDeletionTask extends Task {
             response -> {
                 if (indexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
                     AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
-                    deleteByQueryExecutor.onResponse(true); //don't bother searching the index any further, we are on the default shared
+                    customIndexSearchHandler.onResponse(null); //don't bother searching the index any further, we are on the default shared
                 } else {
-                    GetAliasesRequest aliasesRequest = new GetAliasesRequest();
-                    aliasesRequest.indices(indexName);
-                    executeAsyncWithOrigin(
-                        client.threadPool().getThreadContext(),
-                        ML_ORIGIN,
-                        aliasesRequest,
-                        getAliasesHandler,
-                        client.admin().indices()::getAliases);
+                    SearchSourceBuilder source = new SearchSourceBuilder()
+                        .size(1)
+                        .query(QueryBuilders.boolQuery().filter(
+                            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
+
+                    SearchRequest searchRequest = new SearchRequest(indexName);
+                    searchRequest.source(source);
+                    executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
                 }
             },
             failureHandler
@@ -262,7 +247,7 @@ public class JobStorageDeletionTask extends Task {
                 }));
     }
 
-    private void deleteAliases(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
+    private void deleteAliases(String jobId, Client client, ActionListener<AcknowledgedResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
@@ -277,12 +262,13 @@ public class JobStorageDeletionTask extends Task {
                             if (removeRequest == null) {
                                 // don't error if the job's aliases have already been deleted - carry on and delete the
                                 // rest of the job's data
-                                finishedHandler.onResponse(true);
+                                finishedHandler.onResponse(new AcknowledgedResponse(true));
                                 return;
                             }
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                                    ActionListener.<AcknowledgedResponse>wrap(removeResponse -> finishedHandler.onResponse(true),
-                                            finishedHandler::onFailure),
+                                ActionListener.<AcknowledgedResponse>wrap(
+                                    finishedHandler::onResponse,
+                                    finishedHandler::onFailure),
                                     client.admin().indices()::aliases);
                         },
                         finishedHandler::onFailure), client.admin().indices()::getAliases);

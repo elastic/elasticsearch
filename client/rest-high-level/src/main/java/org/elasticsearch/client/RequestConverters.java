@@ -86,8 +86,8 @@ import java.nio.charset.Charset;
 import java.util.Locale;
 import java.util.StringJoiner;
 
-final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+public final class RequestConverters {
+    public static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
@@ -583,7 +583,7 @@ final class RequestConverters {
         return request;
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    public static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
@@ -596,25 +596,25 @@ final class RequestConverters {
         return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
     }
 
-    static String endpoint(String[] indices) {
+    public static String endpoint(String[] indices) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).build();
     }
 
-    static String endpoint(String[] indices, String endpoint) {
+    public static String endpoint(String[] indices, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
 
-    static String endpoint(String[] indices, String[] types, String endpoint) {
+    public static String endpoint(String[] indices, String[] types, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addCommaSeparatedPathParts(types)
                 .addPathPartAsIs(endpoint).build();
     }
 
-    static String endpoint(String[] indices, String endpoint, String[] suffixes) {
+    public static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
                 .addCommaSeparatedPathParts(suffixes).build();
     }
 
-    static String endpoint(String[] indices, String endpoint, String type) {
+    public static String endpoint(String[] indices, String endpoint, String type) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).addPathPart(type).build();
     }
 
@@ -633,14 +633,14 @@ final class RequestConverters {
      * Utility class to help with common parameter names and patterns. Wraps
      * a {@link Request} and adds the parameters to it directly.
      */
-    static class Params {
+    public static class Params {
         private final Request request;
 
-        Params(Request request) {
+        public Params(Request request) {
             this.request = request;
         }
 
-        Params putParam(String name, String value) {
+        public Params putParam(String name, String value) {
             if (Strings.hasLength(value)) {
                 request.addParameter(name, value);
             }
@@ -683,7 +683,7 @@ final class RequestConverters {
             return this;
         }
 
-        Params withMasterTimeout(TimeValue masterTimeout) {
+        public Params withMasterTimeout(TimeValue masterTimeout) {
             return putParam("master_timeout", masterTimeout);
         }
 
@@ -721,7 +721,7 @@ final class RequestConverters {
             return this;
         }
 
-        Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
+        public Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
             if (refreshPolicy != RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
             }
@@ -756,11 +756,11 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTimeout(TimeValue timeout) {
+        public Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
         }
 
-        Params withVersion(long version) {
+        public Params withVersion(long version) {
             if (version != Versions.MATCH_ANY) {
                 return putParam("version", Long.toString(version));
             }
@@ -774,18 +774,18 @@ final class RequestConverters {
             return this;
         }
 
-        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
+        public Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
             return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
         }
 
-        Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
+        public Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
             if (activeShardCount != null && activeShardCount != defaultActiveShardCount) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
         }
 
-        Params withIndicesOptions(IndicesOptions indicesOptions) {
+        public Params withIndicesOptions(IndicesOptions indicesOptions) {
             withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;
@@ -805,119 +805,119 @@ final class RequestConverters {
             return this;
         }
 
-        Params withIgnoreUnavailable(boolean ignoreUnavailable) {
+        public Params withIgnoreUnavailable(boolean ignoreUnavailable) {
             // Always explicitly place the ignore_unavailable value.
             putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
         }
 
-        Params withHuman(boolean human) {
+        public Params withHuman(boolean human) {
             if (human) {
                 putParam("human", Boolean.toString(human));
             }
             return this;
         }
 
-        Params withLocal(boolean local) {
+        public Params withLocal(boolean local) {
             if (local) {
                 putParam("local", Boolean.toString(local));
             }
             return this;
         }
 
-        Params withIncludeDefaults(boolean includeDefaults) {
+        public Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withPreserveExisting(boolean preserveExisting) {
+        public Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withDetailed(boolean detailed) {
+        public Params withDetailed(boolean detailed) {
             if (detailed) {
                 return putParam("detailed", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withWaitForCompletion(boolean waitForCompletion) {
+        public Params withWaitForCompletion(boolean waitForCompletion) {
             if (waitForCompletion) {
                 return putParam("wait_for_completion", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withNodes(String[] nodes) {
+        public Params withNodes(String[] nodes) {
             if (nodes != null && nodes.length > 0) {
                 return putParam("nodes", String.join(",", nodes));
             }
             return this;
         }
 
-        Params withActions(String[] actions) {
+        public Params withActions(String[] actions) {
             if (actions != null && actions.length > 0) {
                 return putParam("actions", String.join(",", actions));
             }
             return this;
         }
 
-        Params withTaskId(TaskId taskId) {
+        public Params withTaskId(TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(TaskId parentTaskId) {
+        public Params withParentTaskId(TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }
             return this;
         }
 
-        Params withVerify(boolean verify) {
+        public Params withVerify(boolean verify) {
             if (verify) {
                 return putParam("verify", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withWaitForStatus(ClusterHealthStatus status) {
+        public Params withWaitForStatus(ClusterHealthStatus status) {
             if (status != null) {
                 return putParam("wait_for_status", status.name().toLowerCase(Locale.ROOT));
             }
             return this;
         }
 
-        Params withWaitForNoRelocatingShards(boolean waitNoRelocatingShards) {
+        public Params withWaitForNoRelocatingShards(boolean waitNoRelocatingShards) {
             if (waitNoRelocatingShards) {
                 return putParam("wait_for_no_relocating_shards", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withWaitForNoInitializingShards(boolean waitNoInitShards) {
+        public Params withWaitForNoInitializingShards(boolean waitNoInitShards) {
             if (waitNoInitShards) {
                 return putParam("wait_for_no_initializing_shards", Boolean.TRUE.toString());
             }
             return this;
         }
 
-        Params withWaitForNodes(String waitForNodes) {
+        public Params withWaitForNodes(String waitForNodes) {
             return putParam("wait_for_nodes", waitForNodes);
         }
 
-        Params withLevel(ClusterHealthRequest.Level level) {
+        public Params withLevel(ClusterHealthRequest.Level level) {
             return putParam("level", level.name().toLowerCase(Locale.ROOT));
         }
 
-        Params withWaitForEvents(Priority waitForEvents) {
+        public Params withWaitForEvents(Priority waitForEvents) {
             if (waitForEvents != null) {
                 return putParam("wait_for_events", waitForEvents.name().toLowerCase(Locale.ROOT));
             }
@@ -950,11 +950,11 @@ final class RequestConverters {
     /**
      * Utility class to build request's endpoint given its parts as strings
      */
-    static class EndpointBuilder {
+    public static class EndpointBuilder {
 
         private final StringJoiner joiner = new StringJoiner("/", "/", "");
 
-        EndpointBuilder addPathPart(String... parts) {
+        public EndpointBuilder addPathPart(String... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(encodePart(part));
@@ -963,19 +963,19 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addCommaSeparatedPathParts(String[] parts) {
+        public EndpointBuilder addCommaSeparatedPathParts(String[] parts) {
             addPathPart(String.join(",", parts));
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String part) {
+        public EndpointBuilder addPathPartAsIs(String part) {
             if (Strings.hasLength(part)) {
                 joiner.add(part);
             }
             return this;
         }
 
-        String build() {
+        public String build() {
             return joiner.toString();
         }
 

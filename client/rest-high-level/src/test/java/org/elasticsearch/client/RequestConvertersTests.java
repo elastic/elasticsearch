@@ -1305,7 +1305,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
+    public static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
@@ -1509,8 +1509,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
-                                        Map<String, String> expectedParams) {
+    public static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+                                               Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
             setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
@@ -1528,7 +1528,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
+    public static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean includeDefaults = randomBoolean();
             request.includeDefaults(includeDefaults);
@@ -1538,7 +1538,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
+    public static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean humanReadable = randomBoolean();
             request.humanReadable(humanReadable);
@@ -1548,7 +1548,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomLocal(Consumer<Boolean> setter, Map<String, String> expectedParams) {
+    public static void setRandomLocal(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
             setter.accept(local);
@@ -1558,11 +1558,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    public static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         setRandomLocal(request::local, expectedParams);
     }
 
-    static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    public static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             setter.accept(timeout);
@@ -1572,7 +1572,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
+    public static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String masterTimeout = randomTimeValue();
             request.masterNodeTimeout(masterTimeout);
@@ -1582,12 +1582,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
+    public static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
         setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
     }
 
-    static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
-                                             Map<String, String> expectedParams) {
+    public static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                                    Map<String, String> expectedParams) {
         if (randomBoolean()) {
             int waitForActiveShardsInt = randomIntBetween(-1, 5);
             String waitForActiveShardsString;
@@ -1647,7 +1647,7 @@ public class RequestConvertersTests extends ESTestCase {
         return excludesParam.toString();
     }
 
-    static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
+    public static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
         int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

@@ -79,47 +79,55 @@ public class JobStorageDeletionTask extends Task {
             response -> finishedHandler.accept(response.isAcknowledged()),
             failureHandler);
 
-        // Step 6. If we did not drop the index and after DBQ state done, we delete the aliases
+        // Step 7. If we did not drop the index and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
-                    if (bulkByScrollResponse.isTimedOut()) {
-                        logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
-                    }
-                    if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
-                        logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
+                    if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume Index was deleted
+                        completionHandler.onResponse(new AcknowledgedResponse(true));
+                    } else {
+                        if (bulkByScrollResponse.isTimedOut()) {
+                            logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
+                        }
+                        if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
+                            logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
                                 jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
                                 indexName, indexPattern);
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                            logger.warn("DBQ failure: " + failure);
+                            for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                                logger.warn("DBQ failure: " + failure);
+                            }
                         }
+                        deleteAliases(jobId, client, completionHandler);
                     }
-                    deleteAliases(jobId, client, completionHandler);
                 },
                 failureHandler);
 
-        // Step 5(b). If we did not delete the index, we run a delete by query
+        // Step 6. If we did not delete the index, we run a delete by query
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
-                    logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
-                    DeleteByQueryRequest request = new DeleteByQueryRequest(indexName, indexPattern);
-                    ConstantScoreQueryBuilder query =
+                    if (response) {
+                        logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
+                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexName, indexPattern);
+                        ConstantScoreQueryBuilder query =
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                    request.setQuery(query);
-                    request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-                    request.setSlices(5);
-                    request.setAbortOnVersionConflict(false);
-                    request.setRefresh(true);
+                        request.setQuery(query);
+                        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+                        request.setSlices(5);
+                        request.setAbortOnVersionConflict(false);
+                        request.setRefresh(true);
 
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
+                    } else { // We did not execute DBQ, no need to delete aliases or check the response
+                        dbqHandler.onResponse(null);
+                    }
                 },
                 failureHandler);
 
-        // Step 5(a). If we have any hits, that means we are NOT the only job on this index, and should not delete it
+        // Step 5. If we have any hits, that means we are NOT the only job on this index, and should not delete it
         // if we do not have any hits, we can drop the index and then skip the DBQ and alias deletion
         ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
             searchResponse -> {
                 if (searchResponse == null || searchResponse.getHits().totalHits > 0) {
-                    deleteByQueryExecutor.onResponse(true);
+                    deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                 } else {
                     logger.info("Running DELETE Index on [" + indexName + "] for job [" + jobId + "]");
                     DeleteIndexRequest request = new DeleteIndexRequest(indexName);
@@ -130,16 +138,16 @@ public class JobStorageDeletionTask extends Task {
                         ML_ORIGIN,
                         request,
                         ActionListener.<AcknowledgedResponse>wrap(
-                            completionHandler::onResponse, // skip DBQ && Alias
-                            completionHandler::onFailure),
+                            response -> deleteByQueryExecutor.onResponse(false), // skip DBQ && Alias
+                            failureHandler),
                         client.admin().indices()::delete);
                 }
             },
             failure -> {
                 if (failure.getClass() == IndexNotFoundException.class) { // assume the index is already deleted
-                    completionHandler.onResponse(new AcknowledgedResponse(true));
+                    deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
                 } else {
-                    completionHandler.onFailure(failure);
+                    failureHandler.accept(failure);
                 }
             }
         );

@@ -38,6 +38,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -81,6 +82,13 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
                 "Remove-Item Env:JAVA_HOME; " +
                 script
         );
+    }
+
+    private void assertService(String id, String status, String displayName) {
+        Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
+        assertThat(result.stdout, containsString("Name        : " + id));
+        assertThat(result.stdout, containsString("Status      : " + status));
+        assertThat(result.stdout, containsString("DisplayName : " + displayName));
     }
 
     public void test10InstallArchive() {
@@ -140,6 +148,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         sh.run(serviceScript + " install");
         sh.run(serviceScript + " start");
         ServerUtils.waitForElasticsearch();
+        ServerUtils.runElasticsearchTests();
         sh.run(serviceScript + " stop");
         sh.runIgnoreExitCode("Wait-Process -Name \"elasticsearch-service-x64\" -Timeout 10");
         sh.run(serviceScript + " remove");
@@ -191,13 +200,6 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         Result result = sh.runIgnoreExitCode(serviceScript + " bogus");
         assertThat(result.exitCode, equalTo(1));
         assertThat(result.stdout, containsString("Unknown option \"bogus\""));
-    }
-
-    private void assertService(String id, String status, String displayName) {
-        Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
-        assertThat(result.stdout, containsString("Name        : " + id));
-        assertThat(result.stdout, containsString("Status      : " + status));
-        assertThat(result.stdout, containsString("DisplayName : " + displayName));
     }
 
     // TODO:

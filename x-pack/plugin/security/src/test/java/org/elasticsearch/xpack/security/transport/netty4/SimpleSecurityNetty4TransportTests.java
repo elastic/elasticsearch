@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -12,6 +13,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.ssl.SslHandler;
+import java.net.SocketTimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
@@ -54,7 +57,6 @@ import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -62,7 +64,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -184,7 +185,6 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33772")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
@@ -205,31 +205,29 @@ public class SimpleSecurityNetty4TransportTests extends AbstractSimpleTransportT
             stream.writeInt(-1);
             stream.flush();
 
-            socket.startHandshake();
             CountDownLatch renegotiationLatch = new CountDownLatch(1);
             HandshakeCompletedListener secondListener = event -> renegotiationLatch.countDown();
             socket.addHandshakeCompletedListener(secondListener);
-
-            AtomicReference<Exception> error = new AtomicReference<>();
-            CountDownLatch catchReadErrorsLatch = new CountDownLatch(1);
-            Thread renegotiationThread = new Thread(() -> {
-                try {
-                    socket.setSoTimeout(50);
-                    socket.getInputStream().read();
-                } catch (SocketTimeoutException e) {
-                    // Ignore. We expect a timeout.
-                } catch (IOException e) {
-                    error.set(e);
-                } finally {
-                    catchReadErrorsLatch.countDown();
+            socket.startHandshake();
+            AtomicBoolean stopped = new AtomicBoolean(false);
+            socket.setSoTimeout(50);
+            Thread emptyReader = new Thread(() -> {
+                while (stopped.get() == false) {
+                    try {
+                        stopped.set(true);
+                        socket.getInputStream().read();
+                    } catch (SocketTimeoutException e) {
+                        // Ignored
+                    } catch (IOException e) {
+                        fail(e.getMessage());
+                    }
                 }
             });
-            renegotiationThread.start();
+            emptyReader.start();
             renegotiationLatch.await();
+            stopped.set(true);
+            emptyReader.join();
             socket.removeHandshakeCompletedListener(secondListener);
-            catchReadErrorsLatch.await();
-
-            assertNull(error.get());
 
             stream.writeByte((byte) 'E');
             stream.writeByte((byte) 'S');

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +44,9 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -64,9 +60,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.publish.timeout",
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
-
-    public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
-    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
     private final TransportService transportService;
     private final JoinHelper joinHelper;
@@ -82,6 +75,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final UnicastConfiguredHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
+    private final PublicationTransportHandler publicationHandler;
     @Nullable
     private Releasable electionScheduler;
     @Nullable
@@ -111,19 +105,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
+        this.publicationHandler = new PublicationTransportHandler(transportService, this::handlePublishRequest, this::handleApplyCommit);
 
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-
-        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, Names.GENERIC, false, false,
-            in -> new PublishRequest(in, transportService.getLocalNode()),
-            (request, channel, task) -> channel.sendResponse(handlePublishRequest(request)));
-
-        transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, Names.GENERIC, false, false,
-            ApplyCommitRequest::new,
-            (request, channel, task) -> {
-                handleApplyCommit(request);
-                channel.sendResponse(Empty.INSTANCE);
-            });
     }
 
     private void handleApplyCommit(ApplyCommitRequest applyCommitRequest) {
@@ -487,7 +471,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     }
                 };
 
-                final Publication publication = new Publication(Coordinator.this.settings, publishRequest, wrappedAckListener,
+                final Publication publication = new Publication(settings, publishRequest, wrappedAckListener,
                     transportService.getThreadPool()::relativeTimeInMillis) {
 
                     @Override
@@ -554,65 +538,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     @Override
                     protected void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                                       ActionListener<PublishWithJoinResponse> responseActionListener) {
-                        transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, publishRequest,
-                            new TransportResponseHandler<PublishWithJoinResponse>() {
-
-                                @Override
-                                public PublishWithJoinResponse read(StreamInput in) throws IOException {
-                                    return new PublishWithJoinResponse(in);
-                                }
-
-                                @Override
-                                public void handleResponse(PublishWithJoinResponse response) {
-                                    synchronized (mutex) {
-                                        responseActionListener.onResponse(response);
-                                    }
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    synchronized (mutex) {
-                                        responseActionListener.onFailure(exp);
-                                    }
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return Names.GENERIC;
-                                }
-                            });
+                        publicationHandler.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
                     }
 
                     @Override
-                    protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
+                    protected void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
                                                    ActionListener<Empty> responseActionListener) {
-                        transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest,
-                            new TransportResponseHandler<Empty>() {
-
-                                @Override
-                                public Empty read(StreamInput in) {
-                                    return Empty.INSTANCE;
-                                }
-
-                                @Override
-                                public void handleResponse(Empty response) {
-                                    synchronized (mutex) {
-                                        responseActionListener.onResponse(response);
-                                    }
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    synchronized (mutex) {
-                                        responseActionListener.onFailure(exp);
-                                    }
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return Names.GENERIC;
-                                }
-                            });
+                        publicationHandler.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
                     }
                 };
 
@@ -631,6 +563,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterChangedEvent.source()), e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
+    }
+
+    private <T> ActionListener<T> wrapWithMutex(ActionListener<T> listener) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T t) {
+                synchronized (mutex) {
+                    listener.onResponse(t);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                synchronized (mutex) {
+                    listener.onFailure(e);
+                }
+            }
+        };
     }
 
     private void cancelActivePublication() {

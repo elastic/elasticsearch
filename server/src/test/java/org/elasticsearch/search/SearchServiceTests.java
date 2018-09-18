@@ -118,8 +118,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onNewContext(SearchContext context) {
-                    if ("generic_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][generic]"));
+                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -127,8 +127,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
                 @Override
                 public void onFetchPhase(SearchContext context, long tookInNanos) {
-                    if ("generic_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][generic]"));
+                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -136,8 +136,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
                 @Override
                 public void onQueryPhase(SearchContext context, long tookInNanos) {
-                    if ("generic_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
-                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][generic]"));
+                    if ("sequential_theadpool_index".equals(context.indexShard().shardId().getIndex().getName())) {
+                        assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search_sequential]"));
                     } else {
                         assertThat(Thread.currentThread().getName(), startsWith("elasticsearch[node_s_0][search]"));
                     }
@@ -520,24 +520,23 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testSetSearchThreadPool() {
-        createIndex("generic_theadpool_index");
-        client().admin().indices().prepareUpdateSettings("generic_theadpool_index").setSettings(Settings.builder().put(IndexSettings
-            .INDEX_SEARCH_THREAD_POOL.getKey(), "generic")).get();
+        createIndex("sequential_theadpool_index");
+        client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
+            .INDEX_SEARCH_SEQUENTIAL.getKey(), true)).get();
         final SearchService service = getInstanceFromNode(SearchService.class);
-        Index index = resolveIndex("generic_theadpool_index");
-        assertEquals("generic", service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchThreadPool());
-        client().prepareIndex("generic_theadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse searchResponse = client().prepareSearch("generic_theadpool_index").setSize(1).get();
+        Index index = resolveIndex("sequential_theadpool_index");
+        assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
+        client().prepareIndex("sequential_theadpool_index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse searchResponse = client().prepareSearch("sequential_theadpool_index").setSize(1).get();
         assertSearchHits(searchResponse, "1");
         ShardSearchLocalRequest req = new ShardSearchLocalRequest(new ShardId(index, 0), 1, SearchType.QUERY_THEN_FETCH, null,
             Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, false, null, null);
         service.canMatch(req, ActionListener.wrap(r -> assertThat(Thread.currentThread().getName(),
-            startsWith("elasticsearch[node_s_0][generic]")), e -> fail("unexpected")));
+            startsWith("elasticsearch[node_s_0][search_sequential]")), e -> fail("unexpected")));
         // we add a search action listener in a plugin above to assert that this is actually used
-        client().admin().indices().prepareUpdateSettings("generic_theadpool_index").setSettings(Settings.builder().put(IndexSettings
-            .INDEX_SEARCH_THREAD_POOL.getKey(), "search")).get();
-        assertEquals("search", service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchThreadPool());
-
+        client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
+            .INDEX_SEARCH_SEQUENTIAL.getKey(), false)).get();
+        assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
         Thread currentThread = Thread.currentThread();
         service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
     }

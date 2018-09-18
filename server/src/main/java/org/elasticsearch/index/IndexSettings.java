@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
@@ -279,24 +278,10 @@ public final class IndexSettings {
        }, Property.Dynamic, Property.IndexScope);
 
     /**
-     * Allows to specify a dedicated threadpool to execute searches. This is an expert setting and should be used with care.
-     * Indices that for instance contain metadata information that need to be always accessible and should not be rejected
-     * can be served through a different threadpool. Or searches that have a lower priority can go through a threadpool with a
-     * single thread to prevent larger impact on other searches with a higher priority. This setting allows for custom threadpools
-     * or search and generic. Other build-in threadpools are disallowed.
+     * Marks an index to be searched sequentially. This means that never more than one shard of such an index will be searched concurrently
      */
-    public static final Setting<String> INDEX_SEARCH_THREAD_POOL =
-        new Setting<>("index.search.threadpool", ThreadPool.Names.SEARCH, s -> {
-            if (s == null || s.isEmpty()) {
-                throw new IllegalArgumentException("Value for [index.search.threadpool] must be a non-empty string.");
-            }
-            if (ThreadPool.Names.SEARCH.equals(s) == false && ThreadPool.Names.GENERIC.equals(s) == false &&
-                ThreadPool.THREAD_POOL_TYPES.containsKey(s)) {
-                throw new IllegalArgumentException("Invalid valid for [index.search.threadpool] - " + s + " is a reserved built-in " +
-                    "threadpool");
-            }
-            return s;
-        }, Property.IndexScope, Property.Dynamic);
+    public static final Setting<Boolean> INDEX_SEARCH_SEQUENTIAL = Setting.boolSetting("index.search.sequential", false, Property
+        .IndexScope, Property.Dynamic);
 
     private final Index index;
     private final Version version;
@@ -340,7 +325,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
-    private volatile String searchThreadPool;
+    private volatile boolean searchSequential;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -424,7 +409,7 @@ public final class IndexSettings {
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
 
-        this.searchThreadPool = INDEX_SEARCH_THREAD_POOL.get(settings);
+        this.searchSequential = INDEX_SEARCH_SEQUENTIAL.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -501,7 +486,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THREAD_POOL, this::setSearchThreadPool);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_SEQUENTIAL, this::setSearchSequential);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -905,13 +890,14 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the thread-pool name to execute search requests on for this index.
+     * Returns true if the this index should be searched sequentially ie. using the
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SEARCH_SEQUENTIAL} threadpool
      */
-    public String getSearchThreadPool() {
-        return searchThreadPool;
+    public boolean getSearchSequential() {
+        return searchSequential;
     }
 
-    private void setSearchThreadPool(String searchThreadPool) {
-        this.searchThreadPool = searchThreadPool;
+    private void setSearchSequential(boolean searchSequential) {
+        this.searchSequential = searchSequential;
     }
 }

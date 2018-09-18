@@ -498,7 +498,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (context == null) {
             throw new SearchContextMissingException(id);
         }
-        return threadPool.executor(context.indexShard().indexSettings().getSearchThreadPool());
+        return getExecutor(context.indexShard());
+    }
+
+    private Executor getExecutor(IndexShard indexShard) {
+        assert indexShard != null;
+        return threadPool.executor(indexShard.indexSettings().getSearchSequential() ? Names.SEARCH_SEQUENTIAL : Names.SEARCH);
     }
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchTask task,
@@ -1022,11 +1027,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        String searchThreadPool = indexService.getIndexSettings().getSearchThreadPool();
-        if (Names.SEARCH.equals(searchThreadPool)) {
-            // special case - if we use the default threadpool here we rewrite it on the incoming thread to make sure it's not subject to
-            // rejections.
-            searchThreadPool = Names.SAME;
+        String searchThreadPool = Names.SAME;
+        if (indexService.getIndexSettings().getSearchSequential()) {
+            // special case - if we are marked as search sequential we fork off to the seq threadpool to guarantee we never concurrently
+            // search such an index on the same node.
+            searchThreadPool = Names.SEARCH_SEQUENTIAL;
         }
         threadPool.executor(searchThreadPool).execute(new AbstractRunnable() {
             @Override
@@ -1065,27 +1070,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        IndexShard shardOrNull = indicesService.getShardOrNull(request.shardId());
-        String threadPoolName = shardOrNull == null ? Names.SEARCH : shardOrNull.indexSettings().getSearchThreadPool();
-        Executor executor = threadPool.executor(threadPoolName);
+        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+        Executor executor = getExecutor(shard);
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            executor.execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                protected void doRun() {
-                    listener.onResponse(request);
-                }
-            }), listener::onFailure);
-        if (shardOrNull != null) {
             // now we need to check if there is a pending refresh and register
-            ActionListener<Rewriteable> finalListener = actionListener;
-            actionListener = ActionListener.wrap(r ->
-                    shardOrNull.awaitShardSearchActive(b -> finalListener.onResponse(r)), finalListener::onFailure);
-        }
+            shard.awaitShardSearchActive(b ->
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        listener.onResponse(request);
+                    }
+                })
+            ), listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

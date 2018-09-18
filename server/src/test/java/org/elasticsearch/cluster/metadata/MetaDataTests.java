@@ -794,4 +794,12 @@ public class MetaDataTests extends ESTestCase {
             "    }\n" +
             "  }\n" +
             "}";
+
+    public void testTransientSettingsOverridePersistentSettings() {
+        MetaData metaData = MetaData.builder()
+            .persistentSettings(Settings.builder().put("key", "persistent-value").build())
+            .transientSettings(Settings.builder().put("key", "transient-value").build()).build();
+
+        assertThat(metaData.settings().get("key"), equalTo("transient-value"));
+    }
 }

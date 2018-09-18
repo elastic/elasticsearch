@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', 2, false);
-    private FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', 2, false);
-    private FileStructureFinderFactory semiColonDelimitedfactory = new DelimitedFileStructureFinderFactory(';', 4, false);
-    private FileStructureFinderFactory pipeDelimitedFactory = new DelimitedFileStructureFinderFactory('|', 5, true);
+    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
+    private FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 2, false);
+    private FileStructureFinderFactory semiColonDelimitedfactory = new DelimitedFileStructureFinderFactory(';', '"', 4, false);
+    private FileStructureFinderFactory pipeDelimitedFactory = new DelimitedFileStructureFinderFactory('|', '"', 5, true);
 
     // CSV - no need to check JSON or XML because they come earlier in the order we check formats
 

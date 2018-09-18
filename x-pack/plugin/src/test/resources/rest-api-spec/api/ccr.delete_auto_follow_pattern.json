@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ccr/_auto_follow/{leader_cluster_alias}",
-      "paths": [ "/_ccr/_auto_follow/{leader_cluster_alias}" ],
+      "path": "/_ccr/auto_follow/{leader_cluster_alias}",
+      "paths": [ "/_ccr/auto_follow/{leader_cluster_alias}" ],
       "parts": {
         "leader_cluster_alias": {
           "type": "string",

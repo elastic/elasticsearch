@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesReques
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -67,12 +68,12 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         }
 
         authorizationService.roles(user, ActionListener.wrap(
-            role -> listPrivileges(role, listener),
+            role -> listener.onResponse(buildResponseObject(role)),
             listener::onFailure));
     }
 
-    private void listPrivileges(Role userRole,
-                                ActionListener<GetUserPrivilegesResponse> listener) {
+    // package protected for testing
+    GetUserPrivilegesResponse buildResponseObject(Role userRole) {
         logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
 
         // We use sorted sets because they will typically be very small, and having a predictable order allows for simpler testing
@@ -91,10 +92,12 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
+            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
+                ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
             indices.add(new GetUserPrivilegesResponse.Indices(
                 Arrays.asList(group.indices()),
                 group.privilege().name(),
-                group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups(),
+                fieldSecurity,
                 queries
             ));
         }
@@ -123,7 +126,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
             runAs = runAsPrivilege.name();
         }
 
-        listener.onResponse(new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs));
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
 }

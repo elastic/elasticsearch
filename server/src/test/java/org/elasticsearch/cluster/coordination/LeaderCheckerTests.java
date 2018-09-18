@@ -132,7 +132,7 @@ public class LeaderCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = capturingTransport.createCapturingTransportService(settings,
+        final TransportService transportService = capturingTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -191,7 +191,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings);
         final CapturingTransport capturingTransport = new CapturingTransport();
 
-        final TransportService transportService = capturingTransport.createCapturingTransportService(settings,
+        final TransportService transportService = capturingTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();

@@ -120,7 +120,7 @@ public class MultiMatchQuery extends MatchQuery {
 
         private Query combineGrouped(List<? extends Query> groupQuery) {
             if (groupQuery == null || groupQuery.isEmpty()) {
-                return  new MatchNoDocsQuery("[multi_match] list of group queries was empty");
+                return zeroTermsQuery();
             }
             if (groupQuery.size() == 1) {
                 return groupQuery.get(0);

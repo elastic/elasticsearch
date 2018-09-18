@@ -14,18 +14,24 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -71,6 +77,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Basic unit tests for the SAMLRealm
@@ -83,9 +90,16 @@ public class SamlRealmTests extends SamlTestCase {
     private static final String REALM_NAME = "my-saml";
     private static final String REALM_SETTINGS_PREFIX = "xpack.security.authc.realms." + REALM_NAME;
 
+    private Settings globalSettings;
+    private Environment env;
+    private ThreadContext threadContext;
+
     @Before
-    public void initRealm() throws PrivilegedActionException {
+    public void setupEnv() throws PrivilegedActionException {
         SamlUtils.initialize(logger);
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        env = TestEnvironment.newEnvironment(globalSettings);
+        threadContext = new ThreadContext(globalSettings);
     }
 
     public void testReadIdpMetadataFromFile() throws Exception {
@@ -140,14 +154,69 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testAuthenticateWithRoleMapping() throws Exception {
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        Mockito.doAnswer(invocation -> {
+            assert invocation.getArguments().length == 2;
+            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(Collections.singleton("superuser"));
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
+
+        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, populateUserMetadata, false);
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("superuser"));
+        if (populateUserMetadata == Boolean.FALSE) {
+            // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
+            assertThat(result.getUser().metadata().get("saml_uid"), nullValue());
+        } else {
+            final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
+            final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
+            assertThat(result.getUser().metadata().get("saml_nameid"), equalTo(nameIdValue));
+            assertThat(result.getUser().metadata().get("saml_uid"), instanceOf(Iterable.class));
+            assertThat((Iterable<?>) result.getUser().metadata().get("saml_uid"), contains(uidValue));
+        }
+
+        assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+    }
+
+    public void testAuthenticateWithAuthorizingRealm() throws Exception {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        Mockito.doAnswer(invocation -> {
+            assert invocation.getArguments().length == 2;
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onFailure(new RuntimeException("Role mapping should not be called"));
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+
+        final boolean useNameId = randomBoolean();
+        final boolean principalIsEmailAddress = randomBoolean();
+
+        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, null, true);
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
+        assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
+    }
+
+    private AuthenticationResult performAuthentication(UserRoleMapper roleMapper, boolean useNameId, boolean principalIsEmailAddress,
+                                                       Boolean populateUserMetadata, boolean useAuthorizingRealm) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+
+        final String userPrincipal = useNameId ? "clint.barton" : "cbarton";
+        final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
+        final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
+
+        final MockLookupRealm lookupRealm = new MockLookupRealm(
+            new RealmConfig("mock_lookup", Settings.EMPTY,globalSettings, env, threadContext));
 
         final Settings.Builder settingsBuilder = Settings.builder()
                 .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.name(), useNameId ? "nameid" : "uid")
@@ -161,15 +230,20 @@ public class SamlRealmTests extends SamlTestCase {
         if (populateUserMetadata != null) {
             settingsBuilder.put(SamlRealmSettings.POPULATE_USER_METADATA.getKey(), populateUserMetadata.booleanValue());
         }
+        if (useAuthorizingRealm) {
+            settingsBuilder.putList(DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey(), lookupRealm.name());
+            lookupRealm.registerUser(new User(userPrincipal, new String[]{ "lookup_user_role" }, "Clinton Barton", "cbarton@shield.gov",
+                Collections.singletonMap("is_lookup", true), true));
+        }
+
         final Settings realmSettings = settingsBuilder.build();
-
         final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
-
         final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+
+        initializeRealms(realm, lookupRealm);
+
         final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
 
-        final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
-        final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
         final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
                 randomAlphaOfLength(16),
@@ -178,36 +252,27 @@ public class SamlRealmTests extends SamlTestCase {
                         new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", Arrays.asList("avengers", "shield")),
                         new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
                 ));
-        Mockito.when(authenticator.authenticate(token)).thenReturn(attributes);
-
-        AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
-        Mockito.doAnswer(invocation -> {
-            assert invocation.getArguments().length == 2;
-            userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.singleton("superuser"));
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        when(authenticator.authenticate(token)).thenReturn(attributes);
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
         final AuthenticationResult result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(result.getUser().principal(), equalTo(userPrincipal));
         assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("superuser"));
-        if (populateUserMetadata == Boolean.FALSE) {
-            // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
-            assertThat(result.getUser().metadata().get("saml_uid"), nullValue());
-        } else {
-            assertThat(result.getUser().metadata().get("saml_nameid"), equalTo(nameIdValue));
-            assertThat(result.getUser().metadata().get("saml_uid"), instanceOf(Iterable.class));
-            assertThat((Iterable<?>) result.getUser().metadata().get("saml_uid"), contains(uidValue));
-        }
 
-        assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+        return result;
+    }
+
+    private void initializeRealms(Realm... realms) {
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+
+        final List<Realm> realmList = Arrays.asList(realms);
+        for (Realm realm : realms) {
+            realm.initialize(realmList, licenseState);
+        }
     }
 
     public void testAttributeSelectionWithRegex() throws Exception {
@@ -291,7 +356,7 @@ public class SamlRealmTests extends SamlTestCase {
                     Collections.singletonList(
                             new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))
                     ));
-            Mockito.when(authenticator.authenticate(token)).thenReturn(attributes);
+            when(authenticator.authenticate(token)).thenReturn(attributes);
 
             final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
             realm.authenticate(token, future);
@@ -515,8 +580,8 @@ public class SamlRealmTests extends SamlTestCase {
         final EntityDescriptor idp = mockIdp();
         final IDPSSODescriptor role = mock(IDPSSODescriptor.class);
         final SingleLogoutService slo = SamlUtils.buildObject(SingleLogoutService.class, SingleLogoutService.DEFAULT_ELEMENT_NAME);
-        Mockito.when(idp.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)).thenReturn(Collections.singletonList(role));
-        Mockito.when(role.getSingleLogoutServices()).thenReturn(Collections.singletonList(slo));
+        when(idp.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)).thenReturn(Collections.singletonList(role));
+        when(role.getSingleLogoutServices()).thenReturn(Collections.singletonList(slo));
         slo.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
         slo.setLocation("https://logout.saml/");
 
@@ -553,7 +618,7 @@ public class SamlRealmTests extends SamlTestCase {
 
     private EntityDescriptor mockIdp() {
         final EntityDescriptor descriptor = mock(EntityDescriptor.class);
-        Mockito.when(descriptor.getEntityID()).thenReturn("https://idp.saml/");
+        when(descriptor.getEntityID()).thenReturn("https://idp.saml/");
         return descriptor;
     }
 
@@ -585,9 +650,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     private RealmConfig realmConfigFromRealmSettings(Settings realmSettings) {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
-        return new RealmConfig(REALM_NAME, realmSettings, globalSettings, env, new ThreadContext(globalSettings));
+        return new RealmConfig(REALM_NAME, realmSettings, globalSettings, env, threadContext);
     }
 
     private RealmConfig realmConfigFromGlobalSettings(Settings globalSettings) {

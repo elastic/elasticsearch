@@ -61,7 +61,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
                             listener.onResponse(
                                     new SamlAuthenticateResponse(authentication.getUser().principal(), tokenString, tuple.v2(), expiresIn));
-                        }, listener::onFailure), tokenMeta);
+                        }, listener::onFailure), tokenMeta, true);
             }, e -> {
                 logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
                 listener.onFailure(e);

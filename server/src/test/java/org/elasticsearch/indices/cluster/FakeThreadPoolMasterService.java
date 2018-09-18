@@ -50,7 +50,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    FakeThreadPoolMasterService(String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
+    public FakeThreadPoolMasterService(String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
         super(Settings.EMPTY, createMockThreadPool());
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
@@ -84,20 +84,28 @@ public class FakeThreadPoolMasterService extends MasterService {
     private void scheduleNextTaskIfNecessary() {
         if (taskInProgress == false && pendingTasks.isEmpty() == false && scheduledNextTask == false) {
             scheduledNextTask = true;
-            onTaskAvailableToRun.accept(() -> {
-                assert taskInProgress == false;
-                assert waitForPublish == false;
-                assert scheduledNextTask;
-                final int taskIndex = randomInt(pendingTasks.size() - 1);
-                logger.debug("next master service task: choosing task {} of {}", taskIndex, pendingTasks.size());
-                final Runnable task = pendingTasks.remove(taskIndex);
-                taskInProgress = true;
-                scheduledNextTask = false;
-                task.run();
-                if (waitForPublish == false) {
-                    taskInProgress = false;
+            onTaskAvailableToRun.accept(new Runnable() {
+                @Override
+                public String toString() {
+                    return "master service scheduling next task";
                 }
-                scheduleNextTaskIfNecessary();
+
+                @Override
+                public void run() {
+                    assert taskInProgress == false;
+                    assert waitForPublish == false;
+                    assert scheduledNextTask;
+                    final int taskIndex = randomInt(pendingTasks.size() - 1);
+                    logger.debug("next master service task: choosing task {} of {}", taskIndex, pendingTasks.size());
+                    final Runnable task = pendingTasks.remove(taskIndex);
+                    taskInProgress = true;
+                    scheduledNextTask = false;
+                    task.run();
+                    if (waitForPublish == false) {
+                        taskInProgress = false;
+                    }
+                    FakeThreadPoolMasterService.this.scheduleNextTaskIfNecessary();
+                }
             });
         }
     }

@@ -62,7 +62,6 @@ thirdPartyAudit.excludes = [
         'io.netty.internal.tcnative.SSLContext',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-        'org.bouncycastle.asn1.x500.X500Name',
         'org.bouncycastle.cert.X509v3CertificateBuilder',
         'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
         'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
@@ -142,3 +141,10 @@ thirdPartyAudit.excludes = [
         'org.conscrypt.Conscrypt',
         'org.conscrypt.HandshakeListener'
 ]
+if (project.inFipsJvm == false) {
+    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+    // a FIPS JVM with BouncyCastleFIPS Provider
+    thirdPartyAudit.excludes += [
+            'org.bouncycastle.asn1.x500.X500Name'
+    ]
+}

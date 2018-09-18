@@ -47,10 +47,13 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableDateTime;
+import org.joda.time.format.DateTimeFormat;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -59,7 +62,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -111,7 +113,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             scripts.put("doc['date'].date.millis", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
-                return ((ZonedDateTime) dates.getValue()).toInstant().toEpochMilli();
+                return dates.getValue().toInstant().toEpochMilli();
             });
 
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));
@@ -801,13 +803,39 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        ZonedDateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
-        assertThat(dateField.toInstant().toEpochMilli(), equalTo(date.toInstant().toEpochMilli()));
+        DateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
+        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
                 equalTo(new BytesRef(new byte[] {42, 100})));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+            .addDocValueField("*field");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+            "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+            "binary_field", "ip_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
+        dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
+        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
+            equalTo(new BytesRef(new byte[] {42, 100})));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -942,10 +970,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", mapping));
         ensureGreen("test");
 
-        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT);
+        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
 
-        index("test", "type", "1", "text_field", "foo", "date_field", formatter.format(date));
+        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -973,8 +1001,72 @@ public class SearchFieldsIT extends ESIntegTestCase {
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
 
-        ZonedDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate, equalTo(date));
+        ReadableDateTime fetchedDate = dateField.getValue();
+        assertThat(fetchedDate.getMillis(), equalTo(date.toInstant().getMillis()));
+    }
+
+    public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+            .startObject("text_field")
+            .field("type", "text")
+            .field("fielddata", true)
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .field("format", "yyyy-MM-dd")
+            .endObject()
+            .startObject("text_field_alias")
+            .field("type", "alias")
+            .field("path", "text_field")
+            .endObject()
+            .startObject("date_field_alias")
+            .field("type", "alias")
+            .field("path", "date_field")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+        ensureGreen("test");
+
+        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+
+        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        refresh("test");
+
+        SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
+            .addDocValueField("*alias", "use_field_mapping")
+            .addDocValueField("date_field");
+        SearchResponse searchResponse = builder.execute().actionGet();
+
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1);
+        SearchHit hit = searchResponse.getHits().getAt(0);
+
+        Map<String, DocumentField> fields = hit.getFields();
+        assertThat(fields.keySet(), equalTo(newHashSet("text_field_alias", "date_field_alias", "date_field")));
+
+        DocumentField textFieldAlias = fields.get("text_field_alias");
+        assertThat(textFieldAlias.getName(), equalTo("text_field_alias"));
+        assertThat(textFieldAlias.getValue(), equalTo("foo"));
+
+        DocumentField dateFieldAlias = fields.get("date_field_alias");
+        assertThat(dateFieldAlias.getName(), equalTo("date_field_alias"));
+        assertThat(dateFieldAlias.getValue(),
+            equalTo("1990-12-29"));
+
+        DocumentField dateField = fields.get("date_field");
+        assertThat(dateField.getName(), equalTo("date_field"));
+
+        ReadableDateTime fetchedDate = dateField.getValue();
+        assertThat(fetchedDate.getMillis(), equalTo(date.toInstant().getMillis()));
     }
 
 

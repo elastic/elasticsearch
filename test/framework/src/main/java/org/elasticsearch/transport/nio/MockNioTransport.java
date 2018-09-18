@@ -22,6 +22,7 @@ package org.elasticsearch.transport.nio;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -85,7 +86,8 @@ public class MockNioTransport extends TcpTransport {
     }
 
     @Override
-    protected MockSocketChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
+    protected MockSocketChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
         MockSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
         channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
         return channel;

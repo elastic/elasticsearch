@@ -92,7 +92,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();

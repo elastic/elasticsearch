@@ -25,7 +25,8 @@ dependencyLicenses {
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
 
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -67,7 +68,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // pulled in as external dependency to work on java 9
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     thirdPartyAudit.excludes += [
         'com.sun.activation.registries.MailcapParseException',
         'javax.activation.ActivationDataFlavor',

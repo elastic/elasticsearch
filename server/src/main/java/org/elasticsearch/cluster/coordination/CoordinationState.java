@@ -227,6 +227,7 @@ public class CoordinationState extends AbstractComponent {
         boolean added = joinVotes.addVote(join.getSourceNode());
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
+        assert !prevElectionWon || electionWon; // we cannot go from won to not won
         logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
 

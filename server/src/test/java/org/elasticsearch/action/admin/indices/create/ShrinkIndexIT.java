@@ -59,13 +59,10 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -79,8 +76,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testCreateShrinkIndexToN() {
@@ -165,7 +162,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
         final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size() - 1), factors);
         final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
-        final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
+        final int numberOfTargetShards = randomSubsetOf(randomInt(numberOfShardsFactors.size() - 1), numberOfShardsFactors)
+            .stream().reduce(1, (x, y) -> x * y);
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 

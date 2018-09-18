@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks;
-
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
@@ -41,9 +38,7 @@ compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
 }
 
 // TODO: should we have licenses for our test deps?

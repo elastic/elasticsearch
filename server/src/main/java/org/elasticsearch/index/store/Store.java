@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
@@ -134,7 +133,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
     static final int VERSION_START = 0;
     static final int VERSION = VERSION_WRITE_THROWABLE;
-    static final String CORRUPTED = "corrupted_";
+    // public is for test purposes
+    public static final String CORRUPTED = "corrupted_";
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
@@ -152,19 +152,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock,
-                 OnClose onClose) throws IOException {
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock,
+                 OnClose onClose) {
         super(shardId, indexSettings);
-        final Settings settings = indexSettings.getSettings();
-        Directory dir = directoryService.newDirectory();
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
-        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", settings, shardId));
+        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
+        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
 
@@ -355,18 +353,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try (CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             return checkIndex.checkIndex();
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Repairs the index using the previous returned status from {@link #checkIndex(PrintStream)}.
-     */
-    public void exorciseIndex(CheckIndex.Status status) throws IOException {
-        metadataLock.writeLock().lock();
-        try (CheckIndex checkIndex = new CheckIndex(directory)) {
-            checkIndex.exorciseIndex(status);
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1009,7 +995,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 final String segmentId = IndexFileNames.parseSegmentName(meta.name());
                 final String extension = IndexFileNames.getExtension(meta.name());
-                assert FIELD_INFOS_FILE_EXTENSION.equals(extension) == false || IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(meta.name())).isEmpty() : "FieldInfos are generational but updateable DV are not supported in elasticsearch";
                 if (IndexFileNames.SEGMENTS.equals(segmentId) || DEL_FILE_EXTENSION.equals(extension) || LIV_FILE_EXTENSION.equals(extension)) {
                     // only treat del files as per-commit files fnm files are generational but only for upgradable DV
                     perCommitStoreFiles.add(meta);
@@ -1454,11 +1439,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
+        try {
+            Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+            bootstrapNewHistory(maxSeqNo);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * as well as the maximum sequence number.
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
+     * @see SequenceNumbers#MAX_SEQ_NO
+     */
+    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
         } finally {
@@ -1595,6 +1597,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         throws IOException {
         assert openMode == IndexWriterConfig.OpenMode.APPEND || commit == null : "can't specify create flag with a commit";
         IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
             .setCommitOnClose(false)
             .setIndexCommit(commit)
             // we don't want merges to happen here - we call maybe merge on the engine

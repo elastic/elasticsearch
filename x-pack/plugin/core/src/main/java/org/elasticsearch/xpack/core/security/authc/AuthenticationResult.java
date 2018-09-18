@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Objects;
 

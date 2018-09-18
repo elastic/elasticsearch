@@ -143,7 +143,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             minVersion = Version.readVersion(in);
         } else {
-            minVersion = Version.V_5_5_0;
+            minVersion = Version.CURRENT.minimumCompatibilityVersion();
         }
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
@@ -357,9 +357,8 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private String jobId;
 
         // Stored snapshot documents created prior to 6.3.0 will have no
-        // value for min_version. We default it to 5.5.0 as there were
-        // no model changes between 5.5.0 and 6.3.0.
-        private Version minVersion = Version.V_5_5_0;
+        // value for min_version.
+        private Version minVersion = Version.V_6_3_0;
 
         private Date timestamp;
         private String description;

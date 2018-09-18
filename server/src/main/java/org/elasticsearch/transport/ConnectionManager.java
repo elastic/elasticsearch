@@ -38,12 +38,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -62,6 +62,7 @@ public class ConnectionManager implements Closeable {
     private final TimeValue pingSchedule;
     private final ConnectionProfile defaultProfile;
     private final Lifecycle lifecycle = new Lifecycle();
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
@@ -83,7 +84,7 @@ public class ConnectionManager implements Closeable {
     }
 
     public void addListener(TransportConnectionListener listener) {
-        this.connectionListener.listeners.add(listener);
+        this.connectionListener.listeners.addIfAbsent(listener);
     }
 
     public void removeListener(TransportConnectionListener listener) {
@@ -186,45 +187,50 @@ public class ConnectionManager implements Closeable {
         }
     }
 
-    public int connectedNodeCount() {
+    /**
+     * Returns the number of nodes this manager is connected to.
+     */
+    public int size() {
         return connectedNodes.size();
     }
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        CountDownLatch latch = new CountDownLatch(1);
+        if (closed.compareAndSet(false, true)) {
+            lifecycle.moveToStopped();
+            CountDownLatch latch = new CountDownLatch(1);
 
-        // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
-        threadPool.generic().execute(() -> {
-            closeLock.writeLock().lock();
-            try {
-                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
-                // all instances and then clear them maps
-                Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
-                    try {
-                        IOUtils.closeWhileHandlingException(next.getValue());
-                    } finally {
-                        iterator.remove();
+            // TODO: Consider moving all read/write lock (in Transport and this class) to the TransportService
+            threadPool.generic().execute(() -> {
+                closeLock.writeLock().lock();
+                try {
+                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // all instances and then clear them maps
+                    Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+                    while (iterator.hasNext()) {
+                        Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                        try {
+                            IOUtils.closeWhileHandlingException(next.getValue());
+                        } finally {
+                            iterator.remove();
+                        }
                     }
+                } finally {
+                    closeLock.writeLock().unlock();
+                    latch.countDown();
+                }
+            });
+
+            try {
+                try {
+                    latch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // ignore
                 }
             } finally {
-                closeLock.writeLock().unlock();
-                latch.countDown();
+                lifecycle.moveToClosed();
             }
-        });
-
-        try {
-            try {
-                latch.await(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                // ignore
-            }
-        } finally {
-            lifecycle.moveToClosed();
         }
     }
 
@@ -288,7 +294,7 @@ public class ConnectionManager implements Closeable {
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {
 
-        private final List<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {

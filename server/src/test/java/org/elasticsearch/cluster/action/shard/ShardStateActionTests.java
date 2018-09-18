@@ -124,7 +124,7 @@ public class ShardStateActionTests extends ESTestCase {
         super.setUp();
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = transport.createCapturingTransportService(clusterService.getSettings(), THREAD_POOL,
+        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();

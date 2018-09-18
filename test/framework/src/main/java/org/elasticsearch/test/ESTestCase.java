@@ -934,7 +934,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), nodeId -> {});
     }
 
     /** Return consistent index settings for the provided index version. */
@@ -969,10 +969,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a random subset of values (including a potential empty list)
+     * Returns a random subset of values (including a potential empty list, or the full original list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
+        return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
     /**

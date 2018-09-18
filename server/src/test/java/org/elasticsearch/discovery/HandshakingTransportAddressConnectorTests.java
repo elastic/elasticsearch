@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -69,7 +69,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         remoteClusterName = null;
         dropHandshake = false;
 
-        final CapturingTransport capturingTransport = new CapturingTransport() {
+        final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 super.onSendRequest(requestId, action, request, node);
@@ -81,7 +81,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
             }
         };
 
-        transportService = capturingTransport.createCapturingTransportService(settings, threadPool,
+        transportService = mockTransport.createTransportService(settings, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
 
         transportService.start();

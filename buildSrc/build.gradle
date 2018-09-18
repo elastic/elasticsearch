@@ -17,6 +17,7 @@
  * under the License.
  */
 import java.nio.file.Files
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -102,7 +103,6 @@ dependencies {
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.5'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
@@ -167,7 +167,6 @@ if (project != rootProject) {
       it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
     }
     exclude "**/*Tests.class"
-    include "**/*IT.class"
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))

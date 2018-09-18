@@ -12,21 +12,19 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
-
-import java.io.IOException;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 public class RestGetRollupJobsAction extends BaseRestHandler {
     public static final ParseField ID = new ParseField("id");
 
     public RestGetRollupJobsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, Rollup.BASE_PATH +  "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.GET, Rollup.BASE_PATH + "job/{id}/", this);
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(ID.getPreferredName());
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request(id);
 

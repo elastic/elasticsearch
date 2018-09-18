@@ -16,7 +16,7 @@ include::setup.asciidoc[]
 
 include::setup/setup-xes.asciidoc[]
 
-include::{xes-repo-dir}/monitoring/configuring-monitoring.asciidoc[]
+include::monitoring/configuring-monitoring.asciidoc[]
 
 include::{xes-repo-dir}/security/configuring-es.asciidoc[]
 
@@ -61,7 +61,7 @@ include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::{xes-repo-dir}/rollup/index.asciidoc[]
+include::rollup/index.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

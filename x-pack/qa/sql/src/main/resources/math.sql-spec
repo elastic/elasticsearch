@@ -128,7 +128,9 @@ mathATan2
 // tag::atan2
 SELECT ATAN2(emp_no, emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 // end::atan2
-mathPower
 // tag::power
+mathPowerPositive
 SELECT POWER(emp_no, 2) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathPowerNegative
+SELECT POWER(salary, -1) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 // end::power

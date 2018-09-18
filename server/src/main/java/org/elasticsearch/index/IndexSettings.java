@@ -280,8 +280,8 @@ public final class IndexSettings {
     /**
      * Marks an index to be searched sequentially. This means that never more than one shard of such an index will be searched concurrently
      */
-    public static final Setting<Boolean> INDEX_SEARCH_SEQUENTIAL = Setting.boolSetting("index.search.sequential", false, Property
-        .IndexScope, Property.Dynamic);
+    public static final Setting<Boolean> INDEX_SEARCH_SEQUENTIAL = Setting.boolSetting("index.search.sequential", false,
+        Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
     private final Index index;
     private final Version version;

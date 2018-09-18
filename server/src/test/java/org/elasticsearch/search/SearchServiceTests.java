@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -100,7 +101,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class);
+        return pluginList(FailOnRewriteQueryPlugin.class, CustomScriptPlugin.class, InternalOrPrivateSettingsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -521,8 +522,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testSetSearchThreadPool() {
         createIndex("sequential_theadpool_index");
-        client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
-            .INDEX_SEARCH_SEQUENTIAL.getKey(), true)).get();
+        client().execute(
+            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("sequential_theadpool_index",
+                IndexSettings.INDEX_SEARCH_SEQUENTIAL.getKey(), "true"))
+            .actionGet();
         final SearchService service = getInstanceFromNode(SearchService.class);
         Index index = resolveIndex("sequential_theadpool_index");
         assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
@@ -534,8 +538,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         service.canMatch(req, ActionListener.wrap(r -> assertThat(Thread.currentThread().getName(),
             startsWith("elasticsearch[node_s_0][search_sequential]")), e -> fail("unexpected")));
         // we add a search action listener in a plugin above to assert that this is actually used
-        client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
-            .INDEX_SEARCH_SEQUENTIAL.getKey(), false)).get();
+        client().execute(
+            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("sequential_theadpool_index",
+                IndexSettings.INDEX_SEARCH_SEQUENTIAL.getKey(), "false"))
+            .actionGet();
+
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().indices().prepareUpdateSettings("sequential_theadpool_index").setSettings(Settings.builder().put(IndexSettings
+                .INDEX_SEARCH_SEQUENTIAL.getKey(), false)).get());
+        assertEquals("can not update private setting [index.search.sequential]; this setting is managed by Elasticsearch",
+            iae.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().getSearchSequential());
         Thread currentThread = Thread.currentThread();
         service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));

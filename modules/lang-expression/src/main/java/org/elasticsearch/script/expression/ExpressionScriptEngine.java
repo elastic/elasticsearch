@@ -48,6 +48,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -131,6 +132,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = (p, lookup) -> newScoreScript(expr, lookup, p);
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TermsSetQueryScript.class)) {
+            TermsSetQueryScript.Factory factory = (p, lookup) -> newTermsSetQueryScript(expr, lookup, p);
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
@@ -290,6 +294,118 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
             }
         }
         return new ExpressionSearchScript(expr, bindings, specialValue, needsScores);
+    }
+
+    private TermsSetQueryScript.LeafFactory newTermsSetQueryScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        MapperService mapper = lookup.doc().mapperService();
+        // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
+        // instead of complicating SimpleBindings (which should stay simple)
+        SimpleBindings bindings = new SimpleBindings();
+        for (String variable : expr.variables) {
+            try {
+                if (vars != null && vars.containsKey(variable)) {
+                    // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
+                    // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
+                    Object value = vars.get(variable);
+                    if (value instanceof Number) {
+                        bindings.add(variable, new DoubleConstValueSource(((Number) value).doubleValue()).asDoubleValuesSource());
+                    } else {
+                        throw new ParseException("Parameter [" + variable + "] must be a numeric type", 0);
+                    }
+
+                } else {
+                    String fieldname = null;
+                    String methodname = null;
+                    String variablename = "value"; // .value is the default for doc['field'], its optional.
+                    boolean dateAccessor = false; // true if the variable is of type doc['field'].date.xxx
+                    VariableContext[] parts = VariableContext.parse(variable);
+                    if (parts[0].text.equals("doc") == false) {
+                        throw new ParseException("Unknown variable [" + parts[0].text + "]", 0);
+                    }
+                    if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
+                        throw new ParseException("Variable 'doc' must be used with a specific field like: doc['myfield']", 3);
+                    } else {
+                        fieldname = parts[1].text;
+                    }
+                    if (parts.length == 3) {
+                        if (parts[2].type == VariableContext.Type.METHOD) {
+                            methodname = parts[2].text;
+                        } else if (parts[2].type == VariableContext.Type.MEMBER) {
+                            variablename = parts[2].text;
+                        } else {
+                            throw new IllegalArgumentException("Only member variables or member methods may be accessed on a field when not accessing the field directly");
+                        }
+                    }
+                    if (parts.length > 3) {
+                        // access to the .date "object" within the field
+                        if (parts.length == 4 && ("date".equals(parts[2].text) || "getDate".equals(parts[2].text))) {
+                            if (parts[3].type == VariableContext.Type.METHOD) {
+                                methodname = parts[3].text;
+                                dateAccessor = true;
+                            } else if (parts[3].type == VariableContext.Type.MEMBER) {
+                                variablename = parts[3].text;
+                                dateAccessor = true;
+                            }
+                        }
+                        if (!dateAccessor) {
+                            throw new IllegalArgumentException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
+                        }
+                    }
+
+                    MappedFieldType fieldType = mapper.fullName(fieldname);
+
+                    if (fieldType == null) {
+                        throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
+                    }
+
+                    IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
+
+                    // delegate valuesource creation based on field's type
+                    // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
+
+                    final ValueSource valueSource;
+                    if (fieldType instanceof GeoPointFieldType) {
+                        // geo
+                        if (methodname == null) {
+                            valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
+                        } else {
+                            valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
+                        }
+                    } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                        if (dateAccessor) {
+                            // date object
+                            if (methodname == null) {
+                                valueSource = DateObject.getVariable(fieldData, fieldname, variablename);
+                            } else {
+                                valueSource = DateObject.getMethod(fieldData, fieldname, methodname);
+                            }
+                        } else {
+                            // date field itself
+                            if (methodname == null) {
+                                valueSource = DateField.getVariable(fieldData, fieldname, variablename);
+                            } else {
+                                valueSource = DateField.getMethod(fieldData, fieldname, methodname);
+                            }
+                        }
+                    } else if (fieldData instanceof IndexNumericFieldData) {
+                        // number
+                        if (methodname == null) {
+                            valueSource = NumericField.getVariable(fieldData, fieldname, variablename);
+                        } else {
+                            valueSource = NumericField.getMethod(fieldData, fieldname, methodname);
+                        }
+                    } else {
+                        throw new ParseException("Field [" + fieldname + "] must be numeric, date, or geopoint", 5);
+                    }
+                    bindings.add(variable, valueSource.asDoubleValuesSource());
+                }
+            } catch (Exception e) {
+                // we defer "binding" of variables until here: give context for that variable
+                throw convertToScriptException("link error", expr.sourceText, variable, e);
+            }
+        }
+        ReplaceableConstDoubleValueSource specialValue = null;
+        return new ExpressionTermSetQueryScript(expr, bindings, specialValue);
     }
 
     /**

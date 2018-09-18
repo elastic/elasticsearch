@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
@@ -61,7 +62,7 @@ public enum PreBuiltAnalyzers {
     STOP {
         @Override
         protected Analyzer create(Version version) {
-            Analyzer a = new StopAnalyzer();
+            Analyzer a = new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
             a.setVersion(version.luceneVersion);
             return a;
         }

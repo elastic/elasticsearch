@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
@@ -61,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -87,6 +89,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        client().admin().indices()
+            .preparePutTemplate("random-soft-deletes-template")
+            .setPatterns(Collections.singletonList("*"))
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            ).get();
     }
 
     private static void stopNode() throws IOException {
@@ -188,6 +198,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -202,7 +213,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins);
+        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             build.start();
         } catch (NodeValidationException e) {
@@ -332,4 +343,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return getInstanceFromNode(NamedXContentRegistry.class);
     }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return true;
+    }
+
 }

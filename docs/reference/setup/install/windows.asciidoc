@@ -47,21 +47,21 @@ aside panel with additional information for each input:
 image::images/msi_installer/msi_installer_help.png[]
 
 Within the first screen, select the directory for the installation. In addition, select directories for where
-data, logs and configuration will reside or <<msi-command-line-options,roll with the default locations>>:
+data, logs and configuration will be placed or <<msi-command-line-options,use the default locations>>:
 
 [[msi-installer-locations]]
 image::images/msi_installer/msi_installer_locations.png[]
 
 Then select whether to install as a service or start Elasticsearch manually as needed. When
-installing as a service, you can also decide which account to run the service under as well
-as whether the service should be started after installation and when Windows is started or
-restarted:
+installing as a service, you can also configure the Windows account to run the service with,
+whether the service should be started after installation and the Windows startup behaviour:
 
 [[msi-installer-service]]
 image::images/msi_installer/msi_installer_service.png[]
 
-IMPORTANT: When selecting an account to run the service with, be sure that the chosen account
-has sufficient privileges to access the installation and other deployment directories chosen.
+IMPORTANT: When selecting a Windows account to run the service with, be sure that the chosen account
+has sufficient privileges to access the installation and other deployment directories chosen. Also
+ensure the account is able to run Windows services.
 
 Common configuration settings are exposed within the Configuration section, allowing the cluster
 name, node name and roles to be set, in addition to memory and network settings:
@@ -69,28 +69,26 @@ name, node name and roles to be set, in addition to memory and network settings:
 [[msi-installer-configuration]]
 image::images/msi_installer/msi_installer_configuration.png[]
 
-A list of common plugins that can be downloaded and installed as
-part of the installation, with the option to configure a HTTPS proxy through which to download:
+A list of common plugins that can be downloaded and installed as part of the installation, with the option to configure an HTTPS proxy through which to download these plugins.
+
+TIP: Ensure the installation machine has access to the internet and that any corporate firewalls in place are configured to allow downloads from `artifacts.elastic.co`:
 
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-Upon choosing to install {xpack} plugin, an additional step allows a choice of the type of {xpack}
-license to install, in addition to {security} configuration and built-in user configuration:
+As of version 6.3.0, X-Pack is now https://www.elastic.co/products/x-pack/open[bundled by default]. The final step allows a choice of the type of X-Pack license to install, in addition to security configuration and built-in user configuration:
 
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
 
-NOTE: {xpack} includes a choice of a Trial or Basic license for 30 days. After that, you can obtain one of the
-https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security].
-The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: X-Pack includes a choice of a Trial or Basic license. A Trial license is valid for 30 days, after which you can obtain one of the available subscriptions. The Basic license is free and perpetual. Consult the https://www.elastic.co/subscriptions[available subscriptions] for further details on which features are available under which license.
 
-After clicking the install button, the installer will begin installation:
+After clicking the install button, the installation will begin:
 
 [[msi-installer-installing]]
 image::images/msi_installer/msi_installer_installing.png[]
 
-and will indicate when it has been successfully installed:
+...and will indicate when it has been successfully installed:
 
 [[msi-installer-success]]
 image::images/msi_installer/msi_installer_success.png[]
@@ -107,7 +105,7 @@ then running:
 msiexec.exe /i elasticsearch-{version}.msi /qn
 --------------------------------------------
 
-By default, msiexec does not wait for the installation process to complete, since it runs in the
+By default, `msiexec.exe` does not wait for the installation process to complete, since it runs in the
 Windows subsystem. To wait on the process to finish and ensure that `%ERRORLEVEL%` is set
 accordingly, it is recommended to use `start /wait` to create a process and wait for it to exit
 
@@ -132,13 +130,13 @@ Supported Windows Installer command line arguments can be viewed using
 msiexec.exe /help
 --------------------------------------------
 
-or by consulting the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options].
+...or by consulting the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options].
 
 [[msi-command-line-options]]
 ==== Command line options
 
 All settings exposed within the GUI are also available as command line arguments (referred to
-as _properties_ within Windows Installer documentation) that can be passed to msiexec:
+as _properties_ within Windows Installer documentation) that can be passed to `msiexec.exe`:
 
 [horizontal]
 `INSTALLDIR`::
@@ -282,47 +280,47 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 
 `XPACKLICENSE`::
 
-  When installing {xpack} plugin, the type of license to install,
-  either `Basic` or `Trial`. Defaults to `Basic`
+  The type of X-Pack license to install, either `Basic` or `Trial`. Defaults to `Basic`
 
 `XPACKSECURITYENABLED`::
 
-  When installing {xpack} plugin with a `Trial` license, whether {security} should be enabled.
+  When installing with a `Trial` license, whether X-Pack Security should be enabled.
   Defaults to `true`
 
 `BOOTSTRAPPASSWORD`::
 
-  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password to
+  When installing with a `Trial` license and X-Pack Security enabled, the password to
   used to bootstrap the cluster and persisted as the `bootstrap.password` setting in the keystore.
   Defaults to a randomized value.
 
 `SKIPSETTINGPASSWORDS`::
 
-  When installing {xpack} plugin with a `Trial` license and {security} enabled, whether the
-  installation should skip setting up the built-in users `elastic`, `kibana` and `logstash_system`.
+  When installing with a `Trial` license and {security} enabled, whether the
+  installation should skip setting up the built-in users `elastic`, `kibana`, 
+  `logstash_system`, `apm_system`, and `beats_system`.
   Defaults to `false`
 
 `ELASTICUSERPASSWORD`::
 
-  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
+  When installing with a `Trial` license and X-Pack Security enabled, the password
   to use for the built-in user `elastic`. Defaults to `""`
 
 `KIBANAUSERPASSWORD`::
 
-  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
+  When installing with a `Trial` license and X-Pack Security enabled, the password
   to use for the built-in user `kibana`. Defaults to `""`
 
 `LOGSTASHSYSTEMUSERPASSWORD`::
 
-  When installing {xpack} plugin with a `Trial` license and {security} enabled, the password
+  When installing with a `Trial` license and X-Pack Security enabled, the password
   to use for the built-in user `logstash_system`. Defaults to `""`
 
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
-the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[{xpack}]:
+the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory" PLUGINS="x-pack"
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" PLUGINS="x-pack"
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
@@ -330,9 +328,10 @@ for additional rules related to values containing quotation marks.
 
 ifdef::include-xpack[]
 [[msi-installer-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of X-Pack indices
 
-{xpack} will try to automatically create a number of indices within {es}.
+
+X-Pack will try to automatically create a number of indices within Elasticsearch.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
@@ -344,7 +343,7 @@ include::msi-windows-start.asciidoc[]
 ==== Configuring Elasticsearch on the command line
 
 Elasticsearch loads its configuration from the `%ES_PATH_CONF%\elasticsearch.yml`
-file by default.  The format of this config file is explained in
+file by default. The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
@@ -393,10 +392,11 @@ with PowerShell:
 
 [source,powershell]
 --------------------------------------------
-Get-Service Elasticsearch | Stop-Service | Start-Service
+Get-Service Elasticsearch | Stop-Service
+Get-Service Elasticsearch | Start-Service
 --------------------------------------------
 
-Changes can be made to jvm.options and elasticsearch.yml configuration files to configure the
+Changes can be made to `jvm.options` and `elasticsearch.yml` configuration files to configure the
 service after installation. Most changes (like JVM settings) will require a restart of the
 service in order to take effect.
 
@@ -404,16 +404,16 @@ service in order to take effect.
 ==== Upgrade using the graphical user interface (GUI)
 
 The `.msi` package supports upgrading an installed version of Elasticsearch to a newer
-version of Elasticsearch. The upgrade process through the GUI handles upgrading all
+version. The upgrade process through the GUI handles upgrading all
 installed plugins as well as retaining both your data and configuration.
 
-Downloading and clicking on a newer version of the `.msi` package will launch the GUI wizard.
-The first step will list the read only properties from the previous installation:
+Downloading and double-clicking on a newer version of the `.msi` package will launch the GUI wizard.
+The first step will list the read-only properties from the previous installation:
 
 [[msi-installer-upgrade-notice]]
 image::images/msi_installer/msi_installer_upgrade_notice.png[]
 
-The following configuration step allows certain configuration options to be changed:
+The next step allows certain configuration options to be changed:
 
 [[msi-installer-upgrade-configuration]]
 image::images/msi_installer/msi_installer_upgrade_configuration.png[]
@@ -434,11 +434,11 @@ The `.msi` can also upgrade Elasticsearch using the command line.
 A command line upgrade requires passing the **same** command line properties as
 used at first install time; the Windows Installer does not remember these properties.
 
-For example, if you originally installed with the command line options `PLUGINS="x-pack"` and
+For example, if you originally installed with the command line options `PLUGINS="ingest-geoip"` and
 `LOCKMEMORY="true"`, then you must pass these same values when performing an
 upgrade from the command line.
 
-The **exception** to this is `INSTALLDIR` (if originally specified), which must be a different directory to the
+The **exception** to this is the `INSTALLDIR` parameter (if originally specified), which must be a different directory to the
 current installation.
 If setting `INSTALLDIR`, the final directory in the path **must** be the version of Elasticsearch e.g.
 
@@ -466,9 +466,8 @@ start /wait msiexec.exe /i elasticsearch-{version}.msi /qn /l upgrade.log
 
 The `.msi` package handles uninstallation of all directories and files added as part of installation.
 
-WARNING: Uninstallation will remove **all** directories and their contents created as part of
-installation, **including data within the data directory**. If you wish to retain your data upon
-uninstallation, it is recommended that you make a copy of the data directory before uninstallation.
+WARNING: Uninstallation will remove **all** contents created as part of
+installation, **except for data, config or logs directories**. It is recommended that you make a copy of your data directory before upgrading or consider using the snapshot API.
 
 MSI installer packages do not provide a GUI for uninstallation. An installed program can be uninstalled
 by pressing the Windows key and typing `add or remove programs` to open the system settings.

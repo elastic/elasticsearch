@@ -55,6 +55,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
             GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME);
+    private static final Automaton CREATE_FOLLOW_INDEX_AUTOMATON = patterns("indices:admin/xpack/ccr/create_and_follow_index");
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);
@@ -69,6 +70,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege DELETE_INDEX =        new IndexPrivilege("delete_index",        DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX =        new IndexPrivilege("create_index",        CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
+    public static final IndexPrivilege CREATE_FOLLOW_INDEX = new IndexPrivilege("create_follow_index", CREATE_FOLLOW_INDEX_AUTOMATON);
 
     private static final Map<String, IndexPrivilege> VALUES = MapBuilder.<String, IndexPrivilege>newMapBuilder()
             .put("none", NONE)
@@ -84,6 +86,7 @@ public final class IndexPrivilege extends Privilege {
             .put("delete_index", DELETE_INDEX)
             .put("view_index_metadata", VIEW_METADATA)
             .put("read_cross_cluster", READ_CROSS_CLUSTER)
+            .put("create_follow_index", CREATE_FOLLOW_INDEX)
             .immutableMap();
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();

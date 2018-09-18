@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public final class PainlessClass {
+
     public final Map<String, PainlessConstructor> constructors;
 
     public final Map<String, PainlessMethod> staticMethods;

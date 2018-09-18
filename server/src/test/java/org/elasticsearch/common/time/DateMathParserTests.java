@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DateMathParserTests extends ESTestCase {
 
-    private final CompoundDateTimeFormatter formatter = DateFormatters.forPattern("dateOptionalTime||epoch_millis");
+    private final DateFormatter formatter = DateFormatters.forPattern("dateOptionalTime||epoch_millis");
     private final DateMathParser parser = new DateMathParser(formatter);
 
     public void testBasicDates() {
@@ -138,7 +138,7 @@ public class DateMathParserTests extends ESTestCase {
 
     public void testRoundingPreservesEpochAsBaseDate() {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
-        CompoundDateTimeFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
+        DateFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
         DateMathParser parser = new DateMathParser(formatter);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
@@ -164,7 +164,7 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, ZoneId.of("CET"));
 
         // implicit rounding with explicit timezone in the date format
-        CompoundDateTimeFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
+        DateFormatter formatter = DateFormatters.forPattern("yyyy-MM-ddXXX");
         DateMathParser parser = new DateMathParser(formatter);
         long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
         assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);

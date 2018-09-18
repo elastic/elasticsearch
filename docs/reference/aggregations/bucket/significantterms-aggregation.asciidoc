@@ -433,8 +433,8 @@ Scripts can be inline (as in above example), indexed or stored on disk. For deta
 Available parameters in the script are
 
 [horizontal]
-`_subset_freq`:: Number of documents the term appears in in the subset.
-`_superset_freq`:: Number of documents the term appears in in the superset.
+`_subset_freq`:: Number of documents the term appears in the subset.
+`_superset_freq`:: Number of documents the term appears in the superset.
 `_subset_size`:: Number of documents in the subset.
 `_superset_size`:: Number of documents in the superset.
 

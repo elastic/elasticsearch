@@ -18,24 +18,20 @@
  */
 package org.elasticsearch.client;
 
+import java.util.Optional;
+
 /**
  * Defines a validation layer for Requests.
  */
 public interface Validatable {
-    ValidationException EMPTY_VALIDATION = new ValidationException() {
-        @Override
-        public void addValidationError(String error) {
-            throw new UnsupportedOperationException("Validation messages should not be added to the empty validation");
-        }
-    };
-
     /**
-     * Perform validation. This method does not have to be overridden in the event that no validation needs to be done.
+     * Perform validation. This method does not have to be overridden in the event that no validation needs to be done,
+     * or the validation was done during object construction time. A {@link ValidationException} that is not null is
+     * assumed to contain validation errors and will be thrown.
      *
-     * @return potentially null, in the event of older actions, an empty {@link ValidationException} in newer actions, or finally a
-     * {@link ValidationException} that contains a list of all failed validation.
+     * @return An {@link Optional} {@link ValidationException} that contains a list of validation errors.
      */
-    default ValidationException validate() {
-        return EMPTY_VALIDATION;
+    default Optional<ValidationException> validate() {
+        return Optional.empty();
     }
 }

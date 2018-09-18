@@ -9,6 +9,9 @@
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
   
   Integer dateTimeChrono(long, String, String)
+  String dayName(long, String)
+  String monthName(long, String)
+  Integer quarter(long, String)
   Integer ascii(String)
   Integer bitLength(String)
   String character(Number)

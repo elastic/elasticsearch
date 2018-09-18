@@ -78,7 +78,7 @@ The roles to associate with the anonymous user. Required.
 When `true`, an HTTP 403 response is returned if the anonymous user
 does not have the appropriate permissions for the requested action. The
 user is not prompted to provide credentials to access the requested
-resource. When set to `false`, a HTTP 401 is returned and the user
+resource. When set to `false`, an HTTP 401 response is returned and the user
 can provide credentials with the appropriate permissions to gain
 access. Defaults to `true`.
 
@@ -246,6 +246,13 @@ This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the LDAP realm does not perform role mapping and
+instead loads the user from the listed realms. The referenced realms are
+consulted in the order that they are defined in this list.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -334,7 +341,7 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-not referenced in a 
+referenced in a
 {xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
 role mappings are not considered. Defaults to `false`.
 
@@ -479,7 +486,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the the `url` and `user_search_dn` 
+The domain name of Active Directory. If the `url` and the `user_search_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 
@@ -733,6 +740,12 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the PKI realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this period of time. Use the
@@ -855,6 +868,12 @@ Defaults to `false`.
 `populate_user_metadata`::
 Specifies whether to populate the {es} user's metadata with the values that are 
 provided by the SAML attributes. Defaults to `true`.
+
+`authorization_realms`::
+The names of the realms that should be consulted for delegate authorization.
+If this setting is used, then the SAML realm does not perform role mapping and
+instead loads the user from the listed realms.
+See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the

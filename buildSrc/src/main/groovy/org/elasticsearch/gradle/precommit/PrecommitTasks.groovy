@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.quality.Checkstyle
 /**
@@ -31,6 +31,11 @@ class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
     public static Task create(Project project, boolean includeDependencyLicenses) {
+        project.configurations.create("forbiddenApisCliJar")
+        project.dependencies {
+            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
+        }
+
         List<Task> precommitTasks = [
             configureCheckstyle(project),
             configureForbiddenApisCli(project),
@@ -38,8 +43,8 @@ class PrecommitTasks {
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
-            project.tasks.create('jarHell', JarHellTask.class),
-            project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+            configureJarHell(project),
+            configureThirdPartyAudit(project)
         ]
 
         // tasks with just tests don't need dependency licenses, so this flag makes adding
@@ -65,42 +70,53 @@ class PrecommitTasks {
             precommitTasks.add(configureLoggerUsage(project))
         }
 
+        // We want to get any compilation error before running the pre-commit checks.
+        project.sourceSets.all { sourceSet ->
+            precommitTasks.each { task ->
+                task.shouldRunAfter(sourceSet.getClassesTaskName())
+            }
+        }
 
-        Map<String, Object> precommitOptions = [
+        return project.tasks.create([
             name: 'precommit',
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs all non-test checks.',
             dependsOn: precommitTasks
-        ]
-        return project.tasks.create(precommitOptions)
+        ])
+    }
+
+    private static Task configureJarHell(Project project) {
+        Task task = project.tasks.create('jarHell', JarHellTask.class)
+        task.classpath = project.sourceSets.test.runtimeClasspath
+        if (project.plugins.hasPlugin(ShadowPlugin)) {
+            task.classpath += project.configurations.bundle
+        }
+        task.dependsOn(project.sourceSets.test.classesTaskName)
+        task.javaHome = project.runtimeJavaHome
+        return task
+    }
+
+    private static Task configureThirdPartyAudit(Project project) {
+        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
+        ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
+        thirdPartyAuditTask.configure {
+            dependsOn(buildResources)
+            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            javaHome = project.runtimeJavaHome
+            targetCompatibility = project.runtimeJavaVersion
+        }
+        return thirdPartyAuditTask
     }
 
     private static Task configureForbiddenApisCli(Project project) {
-        Configuration forbiddenApisConfiguration = project.configurations.create("forbiddenApisCliJar")
-        project.dependencies {
-            forbiddenApisCliJar ('de.thetaphi:forbiddenapis:2.5')
-        }
         Task forbiddenApisCli = project.tasks.create('forbiddenApis')
-
-        project.sourceSets.forEach { sourceSet ->
+        project.sourceSets.all { sourceSet ->
             forbiddenApisCli.dependsOn(
                 project.tasks.create(sourceSet.getTaskName('forbiddenApis', null), ForbiddenApisCliTask) {
                     ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
                     dependsOn(buildResources)
-                    execAction = { spec ->
-                        spec.classpath = project.files(
-                                project.configurations.forbiddenApisCliJar,
-                                sourceSet.compileClasspath,
-                                sourceSet.runtimeClasspath
-                        )
-                        spec.executable = "${project.runtimeJavaHome}/bin/java"
-                    }
-                    inputs.files(
-                            forbiddenApisConfiguration,
-                            sourceSet.compileClasspath,
-                            sourceSet.runtimeClasspath
-                    )
-
+                    it.sourceSet = sourceSet
+                    javaHome = project.runtimeJavaHome
                     targetCompatibility = project.compilerJavaVersion
                     bundledSignatures = [
                        "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
@@ -195,22 +211,20 @@ class PrecommitTasks {
 
     private static Task configureNamingConventions(Project project) {
         if (project.sourceSets.findByName("test")) {
-            return project.tasks.create('namingConventions', NamingConventionsTask)
+            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
+            namingConventionsTask.javaHome = project.runtimeJavaHome
+            return namingConventionsTask
         }
         return null
     }
 
     private static Task configureLoggerUsage(Project project) {
-        Task loggerUsageTask = project.tasks.create('loggerUsageCheck', LoggerUsageTask.class)
-
         project.configurations.create('loggerUsagePlugin')
         project.dependencies.add('loggerUsagePlugin',
                 "org.elasticsearch.test:logger-usage:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
-
-        loggerUsageTask.configure {
+        return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
+            javaHome = project.runtimeJavaHome
         }
-
-        return loggerUsageTask
     }
 }

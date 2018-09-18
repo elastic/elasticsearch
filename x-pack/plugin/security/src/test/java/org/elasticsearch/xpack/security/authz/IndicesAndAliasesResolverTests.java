@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -110,8 +110,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .put("search.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
-                .put("search.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
+                .put("cluster.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
+                .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
         indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);

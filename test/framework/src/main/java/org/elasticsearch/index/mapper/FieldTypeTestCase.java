@@ -89,6 +89,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
                 other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
+        // check that we can update if the analyzer is unchanged
+        new Modifier("analyzer", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+        },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
@@ -135,6 +146,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             @Override
             public void normalizeOther(MappedFieldType other) {
                 other.setSimilarity(new SimilarityProvider("bar", new BM25Similarity()));
+            }
+        },
+        // check that we can update if the similarity is unchanged
+        new Modifier("similarity", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
             }
         },
         new Modifier("eager_global_ordinals", true) {

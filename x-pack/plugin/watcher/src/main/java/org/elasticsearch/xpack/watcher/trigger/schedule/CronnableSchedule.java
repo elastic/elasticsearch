@@ -30,19 +30,14 @@ public abstract class CronnableSchedule implements Schedule {
     @Override
     public long nextScheduledTimeAfter(long startTime, long time) {
         assert time >= startTime;
-        long nextTime = Long.MAX_VALUE;
-        for (Cron cron : crons) {
-            long nextValidTimeAfter = cron.getNextValidTimeAfter(time);
-
-            boolean previousCronExpired = nextTime == -1;
-            boolean currentCronValid = nextValidTimeAfter > -1;
-            if (previousCronExpired && currentCronValid) {
-                nextTime = nextValidTimeAfter;
-            } else {
-                nextTime = Math.min(nextTime, nextValidTimeAfter);
-            }
-        }
-        return nextTime;
+        return Arrays.stream(crons)
+            .map(cron -> cron.getNextValidTimeAfter(time))
+            // filter out expired dates before sorting
+            .filter(nextValidTime -> nextValidTime > -1)
+            .sorted()
+            .findFirst()
+            // no date in the future found, return -1 to the caller
+            .orElse(-1L);
     }
 
     public Cron[] crons() {

@@ -55,12 +55,6 @@ public class Truncate extends BinaryNumericFunction {
                 ProcessorDefinitions.toProcessorDefinition(right()),
                 BinaryMathOperation.TRUNCATE);
     }
-    
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires a numeric type, received %s", mathFunction(), inputType.esType);
-    }
 
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {

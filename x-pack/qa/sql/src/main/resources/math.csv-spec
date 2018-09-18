@@ -82,42 +82,42 @@ SELECT MIN(salary) mi, MAX(salary) ma, COUNT(*) c, TRUNCATE(AVG(salary), 0) tr F
 ;
 
 // https://github.com/elastic/elasticsearch/issues/33773
-//minMaxTruncateAndRoundOfAverageWithHavingRoundAndTruncate
-//SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), TRUNCATE(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 AND TRUNCATE(AVG(languages), 1) <= 3.0 ORDER BY YEAR(hire_date);
+minMaxTruncateAndRoundOfAverageWithHavingRoundAndTruncate-Ignore
+SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), TRUNCATE(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 AND TRUNCATE(AVG(languages), 1) <= 3.0 ORDER BY YEAR(hire_date);
 
-//    mi       |      ma     |     year      |ROUND(AVG(languages),1)|TRUNCATE(AVG(languages),1)|   COUNT(1)
-//-------------+-------------+---------------+-----------------------+--------------------------+--------------
-//26436        |74999        |1985           |3.1                    |3.0                       |11
-//25976        |74970        |1989           |3.1                    |3.0                       |13
-//31120        |71165        |1990           |3.1                    |3.0                       |12
-//32568        |65030        |1991           |2.8                    |2.8                       |6
-//30404        |58715        |1993           |3.0                    |3.0                       |3
-//35742        |67492        |1994           |2.8                    |2.7                       |4
-//28035        |65367        |1995           |2.6                    |2.6                       |5
-//45656        |45656        |1996           |3.0                    |3.0                       |1
-//64675        |64675        |1997           |3.0                    |3.0                       |1
-//;
+    mi       |      ma     |     year      |ROUND(AVG(languages),1)|TRUNCATE(AVG(languages),1)|   COUNT(1)
+-------------+-------------+---------------+-----------------------+--------------------------+--------------
+26436        |74999        |1985           |3.1                    |3.0                       |11
+25976        |74970        |1989           |3.1                    |3.0                       |13
+31120        |71165        |1990           |3.1                    |3.0                       |12
+32568        |65030        |1991           |2.8                    |2.8                       |6
+30404        |58715        |1993           |3.0                    |3.0                       |3
+35742        |67492        |1994           |2.8                    |2.7                       |4
+28035        |65367        |1995           |2.6                    |2.6                       |5
+45656        |45656        |1996           |3.0                    |3.0                       |1
+64675        |64675        |1997           |3.0                    |3.0                       |1
+;
 
 // https://github.com/elastic/elasticsearch/issues/33773
-//minMaxRoundWithHavingRound
-//SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 ORDER BY YEAR(hire_date);
+minMaxRoundWithHavingRound-Ignore
+SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 ORDER BY YEAR(hire_date);
 
-//      mi     |      ma     |     year      |ROUND(AVG(languages),1)|   COUNT(1)
-//-------------+-------------+---------------+-----------------------+--------------
-//26436        |74999        |1985           |3.1                    |11
-//31897        |61805        |1986           |3.5                    |11
-//25324        |70011        |1987           |3.1                    |15
-//25945        |73578        |1988           |3.1                    |9
-//25976        |74970        |1989           |3.1                    |13
-//31120        |71165        |1990           |3.1                    |12
-//32568        |65030        |1991           |2.8                    |6
-//27215        |60781        |1992           |4.1                    |8
-//30404        |58715        |1993           |3.0                    |3
-//35742        |67492        |1994           |2.8                    |4
-//28035        |65367        |1995           |2.6                    |5
-//45656        |45656        |1996           |3.0                    |1
-//64675        |64675        |1997           |3.0                    |1
-//;
+      mi     |      ma     |     year      |ROUND(AVG(languages),1)|   COUNT(1)
+-------------+-------------+---------------+-----------------------+--------------
+26436        |74999        |1985           |3.1                    |11
+31897        |61805        |1986           |3.5                    |11
+25324        |70011        |1987           |3.1                    |15
+25945        |73578        |1988           |3.1                    |9
+25976        |74970        |1989           |3.1                    |13
+31120        |71165        |1990           |3.1                    |12
+32568        |65030        |1991           |2.8                    |6
+27215        |60781        |1992           |4.1                    |8
+30404        |58715        |1993           |3.0                    |3
+35742        |67492        |1994           |2.8                    |4
+28035        |65367        |1995           |2.6                    |5
+45656        |45656        |1996           |3.0                    |1
+64675        |64675        |1997           |3.0                    |1
+;
 
 groupByAndOrderByTruncateWithPositiveParameter
 SELECT TRUNCATE(AVG(salary), 2), AVG(salary), COUNT(*) FROM test_emp GROUP BY TRUNCATE(salary, 2) ORDER BY TRUNCATE(salary, 2) DESC LIMIT 10;

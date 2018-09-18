@@ -43,6 +43,8 @@ import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.ForecastJobResponse;
 import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
+import org.elasticsearch.client.ml.GetCalendarsRequest;
+import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -61,11 +63,14 @@ import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PostDataResponse;
+import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.UpdateJobRequest;
+import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -877,6 +882,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
         client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
+
         ForecastJobResponse forecastJobResponse = client.machineLearning().
             forecastJob(new ForecastJobRequest(job.getId()), RequestOptions.DEFAULT);
         String forecastId = forecastJobResponse.getForecastId();
@@ -1423,7 +1429,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "doc");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\": \"test-get-categories\", \"category_id\": 1, \"terms\": \"AAL\"," +
-            " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
+                " \"regex\": \".*?AAL.*\", \"max_matching_length\": 3, \"examples\": [\"AAL\"]}", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1457,17 +1463,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::x-pack-ml-get-categories-listener
             ActionListener<GetCategoriesResponse> listener =
-                new ActionListener<GetCategoriesResponse>() {
-                    @Override
-                    public void onResponse(GetCategoriesResponse getcategoriesResponse) {
-                        // <1>
-                    }
+                    new ActionListener<GetCategoriesResponse>() {
+                        @Override
+                        public void onResponse(GetCategoriesResponse getcategoriesResponse) {
+                            // <1>
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                };
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
             // end::x-pack-ml-get-categories-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -1479,6 +1485,110 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::x-pack-ml-get-categories-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-         }
+        }
+    }
+
+    public void testPutCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        //tag::x-pack-ml-put-calendar-request
+        Calendar calendar = new Calendar("public_holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest request = new PutCalendarRequest(calendar); // <1>
+        //end::x-pack-ml-put-calendar-request
+
+        //tag::x-pack-ml-put-calendar-execution
+        PutCalendarResponse response = client.machineLearning().putCalendar(request, RequestOptions.DEFAULT);
+        //end::x-pack-ml-put-calendar-execution
+
+        //tag::x-pack-ml-put-calendar-response
+        Calendar newCalendar = response.getCalendar(); // <1>
+        //end::x-pack-ml-put-calendar-response
+        assertThat(newCalendar.getId(), equalTo("public_holidays"));
+
+        // tag::x-pack-ml-put-calendar-listener
+        ActionListener<PutCalendarResponse> listener = new ActionListener<PutCalendarResponse>() {
+            @Override
+            public void onResponse(PutCalendarResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::x-pack-ml-put-calendar-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::x-pack-ml-put-calendar-execute-async
+        client.machineLearning().putCalendarAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::x-pack-ml-put-calendar-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetCalendar() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        Calendar calendar = new Calendar("holidays", Collections.singletonList("job_1"), "A calendar for public holidays");
+        PutCalendarRequest putRequest = new PutCalendarRequest(calendar);
+        client.machineLearning().putCalendar(putRequest, RequestOptions.DEFAULT);
+        {
+            //tag::x-pack-ml-get-calendars-request
+            GetCalendarsRequest request = new GetCalendarsRequest(); // <1>
+            //end::x-pack-ml-get-calendars-request
+
+            //tag::x-pack-ml-get-calendars-id
+            request.setCalendarId("holidays"); // <1>
+            //end::x-pack-ml-get-calendars-id
+
+            //tag::x-pack-ml-get-calendars-page
+            request.setPageParams(new PageParams(10, 20)); // <1>
+            //end::x-pack-ml-get-calendars-page
+
+            // reset page params
+            request.setPageParams(null);
+
+            //tag::x-pack-ml-get-calendars-execution
+            GetCalendarsResponse response = client.machineLearning().getCalendars(request, RequestOptions.DEFAULT);
+            //end::x-pack-ml-get-calendars-execution
+
+            // tag::x-pack-ml-get-calendars-response
+            long count = response.count(); // <1>
+            List<Calendar> calendars = response.calendars(); // <2>
+            // end::x-pack-ml-get-calendars-response
+            assertEquals(1, calendars.size());
+        }
+        {
+            GetCalendarsRequest request = new GetCalendarsRequest("holidays");
+
+            // tag::x-pack-ml-get-calendars-listener
+            ActionListener<GetCalendarsResponse> listener =
+                    new ActionListener<GetCalendarsResponse>() {
+                        @Override
+                        public void onResponse(GetCalendarsResponse getCalendarsResponse) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+                    };
+            // end::x-pack-ml-get-calendars-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-ml-get-calendars-execute-async
+            client.machineLearning().getCalendarsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-ml-get-calendars-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

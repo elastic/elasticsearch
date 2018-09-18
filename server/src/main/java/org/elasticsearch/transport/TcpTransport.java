@@ -1040,7 +1040,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * a ping message and has no payload ie. isn't a real user level message.
      *
      * @throws IllegalStateException    if the message is too short, less than the header or less that the header plus the message size
-     * @throws HttpOnTransportException if the message has no valid header and appears to be a HTTP message
+     * @throws HttpOnTransportException if the message has no valid header and appears to be an HTTP message
      * @throws IllegalArgumentException if the message is greater that the maximum allowed frame size. This is dependent on the available
      *                                  memory.
      */
@@ -1061,7 +1061,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 bufferStartsWith(buffer, offset, "PATCH ") ||
                 bufferStartsWith(buffer, offset, "TRACE ")) {
 
-                throw new HttpOnTransportException("This is not a HTTP port");
+                throw new HttpOnTransportException("This is not an HTTP port");
             }
 
             // we have 6 readable bytes, show 4 (should be enough)

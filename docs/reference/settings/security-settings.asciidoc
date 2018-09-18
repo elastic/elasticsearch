@@ -78,7 +78,7 @@ The roles to associate with the anonymous user. Required.
 When `true`, an HTTP 403 response is returned if the anonymous user
 does not have the appropriate permissions for the requested action. The
 user is not prompted to provide credentials to access the requested
-resource. When set to `false`, a HTTP 401 is returned and the user
+resource. When set to `false`, an HTTP 401 response is returned and the user
 can provide credentials with the appropriate permissions to gain
 access. Defaults to `true`.
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -295,7 +294,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
-                throw new ResourceAlreadyExistsException("A datafeed with id [" + datafeedConfig.getId() + "] already exists");
+                throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
             String jobId = datafeedConfig.getJobId();
             checkJobIsAvailableForDatafeed(jobId);

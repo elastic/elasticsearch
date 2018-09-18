@@ -13,6 +13,11 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -22,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -417,6 +423,38 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         Set<String> foundJobIds = foundJobs.stream().map(Job::getId).collect(Collectors.toSet());
         assertThat(foundJobIds.size(), equalTo(2));
         assertThat(foundJobIds, containsInAnyOrder(jobWithRules1.getId(), jobWithRules2.getId()));
+    }
+
+    public void testValidateDatafeedJob() throws Exception {
+        String jobId = "validate-df-job";
+        putJob(createJob(jobId, Collections.emptyList()));
+
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df1", jobId);
+        builder.setIndices(Collections.singletonList("data-index"));
+        DatafeedConfig config = builder.build();
+
+        blockingCall(listener -> jobConfigProvider.validateDatafeedJob(config, listener), responseHolder, exceptionHolder);
+        assertTrue(responseHolder.get());
+        assertNull(exceptionHolder.get());
+
+        builder = new DatafeedConfig.Builder("df1", jobId);
+        builder.setIndices(Collections.singletonList("data-index"));
+
+        // This config is not valid because it uses aggs but the job's
+        // summary count field is not set
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        HistogramAggregationBuilder histogram =
+                AggregationBuilders.histogram("time").interval(1800.0).field("time").subAggregation(maxTime);
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
+        DatafeedConfig badConfig = builder.build();
+
+        blockingCall(listener -> jobConfigProvider.validateDatafeedJob(badConfig, listener), responseHolder, exceptionHolder);
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
+        assertEquals(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, exceptionHolder.get().getMessage());
     }
 
     private static Job.Builder createJob(String jobId, List<String> groups) {

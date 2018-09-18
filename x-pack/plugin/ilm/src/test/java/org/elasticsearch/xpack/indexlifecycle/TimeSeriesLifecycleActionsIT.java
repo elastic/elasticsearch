@@ -55,7 +55,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
         Request request = new Request("PUT", "/" + indexName + "/_ilm/" + policy);
-        client().performRequest(request);
+        assertOK(client().performRequest(request));
     }
 
     public void testFullPolicy() throws Exception {
@@ -87,7 +87,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/" + policy);
         request.setEntity(entity);
-        client().performRequest(request);
+        assertOK(client().performRequest(request));
         // update policy on index
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover

@@ -160,6 +160,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             recoverShardFromStore(leaderGroup.getPrimary());
             String newHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
 
+            // force the global checkpoint on the leader to advance
+            leaderGroup.appendDocs(64);
+
             assertBusy(() -> {
                 assertThat(shardFollowTask.isStopped(), is(true));
                 assertThat(shardFollowTask.getFailure().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
@@ -259,6 +262,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     for (IndexShard indexShard : indexShards) {
                         try {
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
+                            if (from > seqNoStats.getGlobalCheckpoint()) {
+                                handler.accept(ShardChangesAction.getResponse(1L, seqNoStats, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
+                                return;
+                            }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
                                 maxOperationCount, params.getRecordedLeaderIndexHistoryUUID(), params.getMaxBatchSizeInBytes());
                             // hard code mapping version; this is ok, as mapping updates are not tested here

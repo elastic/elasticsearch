@@ -87,19 +87,21 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
                 if (indicesService.isMetaDataField(field) || fieldPredicate.test(ft.name())) {
                     FieldCapabilities fieldCap = new FieldCapabilities(field, ft.typeName(), ft.isSearchable(), ft.isAggregatable());
                     responseMap.put(field, fieldCap);
+                } else {
+                    continue;
                 }
-            }
-            // add nested and object fields
-            int dotIndex = ft.name().indexOf('.');
-            while (dotIndex > -1) {
-                String parentField = ft.name().substring(0, dotIndex);
-                ObjectMapper mapper = mapperService.getObjectMapper(parentField);
-                if (mapper != null) {
-                    String type = mapper.nested().isNested() ? "nested" : "object";
-                    FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false);
-                    responseMap.put(parentField, fieldCap);
+                // add nested and object fields
+                int dotIndex = ft.name().indexOf('.');
+                while (dotIndex > -1) {
+                    String parentField = ft.name().substring(0, dotIndex);
+                    ObjectMapper mapper = mapperService.getObjectMapper(parentField);
+                    if (mapper != null) {
+                        String type = mapper.nested().isNested() ? "nested" : "object";
+                        FieldCapabilities fieldCap = new FieldCapabilities(parentField, type, false, false);
+                        responseMap.put(parentField, fieldCap);
+                    }
+                    dotIndex = ft.name().indexOf('.', dotIndex + 1);
                 }
-                dotIndex = ft.name().indexOf('.', dotIndex + 1);
             }
         }
         return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);

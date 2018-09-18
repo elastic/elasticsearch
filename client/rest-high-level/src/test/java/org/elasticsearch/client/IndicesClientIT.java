@@ -1268,22 +1268,31 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 
-    public void testValidateQueryWithNullQuery() throws IOException {
+    public void testValidateWithNullQuery() throws IOException {
         testValidateQuery(null);
     }
 
-    public void testValidateQueryWithEmptyQuery() throws IOException {
+    public void testValidateWithEmptySimpleQueryStringQuery() throws IOException {
         testValidateQuery(new SimpleQueryStringBuilder(""));
     }
 
-    public void testValidateQueryWithBlankQuery() throws IOException {
+    public void testValidateQueryWithBlankSimpleStringQuery() throws IOException {
         testValidateQuery(new SimpleQueryStringBuilder(" "));
     }
 
-    private void testValidateQuery(QueryBuilder builder) throws IOException {
+    public void testValidateWithBoolQuery() throws IOException {
+        QueryBuilder builder = QueryBuilders
+            .boolQuery()
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+
+        testValidateQuery(builder);
+    }
+
+    private void testValidateQuery(QueryBuilder query) throws IOException {
         String index = "some_index";
         createIndex(index, Settings.EMPTY);
-        ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
+        ValidateQueryRequest request = new ValidateQueryRequest(index).query(query);
         request.explain(randomBoolean());
         ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,
             highLevelClient().indices()::validateQueryAsync);

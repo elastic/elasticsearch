@@ -303,7 +303,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
     }
 
     protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool().executor(shardExecutor).execute(new AbstractRunnable() {
+        transportService.getThreadPool().executor(getExecutor(request)).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
@@ -315,4 +315,9 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
             }
         });
     }
+
+    protected String getExecutor(ShardRequest request) {
+        return shardExecutor;
+    }
+
 }

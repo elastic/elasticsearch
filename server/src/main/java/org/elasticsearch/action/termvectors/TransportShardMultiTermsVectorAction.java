@@ -96,4 +96,11 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
         return response;
     }
+
+    @Override
+    protected String getExecutor(MultiTermVectorsShardRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().getSearchSequential() ? ThreadPool.Names.SEARCH_SEQUENTIAL : super.getExecutor(request,
+            shardId);
+    }
 }
